@@ -1,0 +1,46 @@
+states_periodic.o: states_periodic.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../common/types/log.h ../../common/types/generic.h \
+ ../../common/types/job.h ../../common/types/event_type.h \
+ ../../common/types/loop.h ../../common/types/signature.h \
+ ../../common/types/application.h ../../common/types/power_signature.h \
+ ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/debug.h ../../common/math_operations.h \
+ ../../library/models/models.h ../../common/environment.h \
+ ../../daemon/shared_configuration.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../library/policies/policy.h \
+ ../../common/types/projection.h ../../library/tracer/tracer.h \
+ ../../library/states/states.h ../../library/common/externs.h \
+ ../../library/metrics/metrics.h ../../common/hardware/frequency.h \
+ ../../common/hardware/cpupower.h ../../daemon/eard_api.h \
+ ../../daemon/eard_conf_api.h
+states.o: states.c ../../common/config.h ../../common/config/config_def.h \
+ ../../common/config/config_dev.h ../../common/config/config_install.h \
+ ../../common/states.h ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/output/timestamp.h \
+ ../../common/output/output_conf.h ../../common/output/debug.h \
+ ../../common/math_operations.h ../../common/types/log.h \
+ ../../common/types/generic.h ../../common/types/job.h \
+ ../../common/types/event_type.h ../../common/types/application.h \
+ ../../common/types/signature.h ../../common/types/power_signature.h \
+ ../../library/common/externs.h ../../common/types/loop.h \
+ ../../daemon/shared_configuration.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../library/tracer/tracer.h ../../library/states/states.h \
+ ../../library/metrics/metrics.h ../../library/policies/policy.h \
+ ../../common/types/projection.h ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../common/hardware/frequency.h \
+ ../../common/hardware/cpupower.h ../../daemon/eard_api.h \
+ ../../daemon/eard_conf_api.h ../../common/environment.h

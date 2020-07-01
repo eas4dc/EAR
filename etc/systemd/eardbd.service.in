@@ -1,0 +1,20 @@
+[Unit]
+Description=EARDBD - Energy Aware Runtime database cache daemon
+ConditionPathExists=@localstatedir@
+
+[Service]
+#User=ear
+#Groupt=ear
+Type=simple
+Environment="EAR_ETC=@sysconfdir@"
+ExecStart=@prefix@/sbin/eardbd
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+#Restart=on-failure
+KillMode=process
+LimitMEMLOCK=infinity
+LimitSTACK=infinity
+
+[Install]
+WantedBy=multi-user.target
+

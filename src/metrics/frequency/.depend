@@ -1,0 +1,2 @@
+frequency_imc.o: frequency_imc.c
+frequency_cpu.o: frequency_cpu.c

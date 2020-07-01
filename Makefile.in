@@ -1,0 +1,114 @@
+CC           = @CC@
+CC_FLAGS     = @CC_FLAGS@
+MPICC        = @MPICC@
+MPICC_FLAGS  = @MPICC_FLAGS@
+MPI_VERSION  = @MPI_VERSION@
+ROOTDIR      = $(shell pwd)
+SRCDIR       = $(ROOTDIR)/src
+DESTDIR      = @prefix@
+ETCDIR       = @sysconfdir@
+TMPDIR       = @localstatedir@
+DOCDIR       = @docdir@
+PAPI_BASE    = @PAPI_DIR@
+PAPI_CFLAGS  = @PAPI_CPPFLAGS@
+PAPI_LDFLAGS = @PAPI_LDFLAGS@ @PAPI_LIBS@
+GSL_BASE     = @GSL_DIR@
+GSL_CFLAGS   = @GSL_CPPFLAGS@
+GSL_LDFLAGS  = @GSL_LDFLAGS@ @GSL_LIBS@
+SLURM_BASE   = @SLURM_DIR@
+SLURM_CFLAGS = @SLURM_CPPFLAGS@
+DB_BASE      = @DB_DIR@
+DB_CFLAGS    = @DB_CPPFLAGS@
+DB_LDFLAGS   = @DB_LDFLAGS@ @DB_LIBS@
+CHOWN_USR    = @USER@
+CHOWN_GRP    = @GROUP@
+CONSTANTS    = -DSEC_KEY=10001
+REPLACE      =
+FEAT_AVX512  = @FEAT_AVX512@
+FEAT_FORT    = @FEAT_FORT@
+
+######## VARS
+
+export CC
+export CC_FLAGS
+export MPICC
+export MPICC_FLAGS
+export MPI_VERSION
+export ROOTDIR
+export SRCDIR
+export DESTDIR
+export ETCDIR
+export TMPDIR
+export DOCDIR
+export PAPI_BASE
+export PAPI_CFLAGS
+export PAPI_LDFLAGS
+export GSL_BASE
+export GSL_CFLAGS
+export GSL_LDFLAGS
+export SLURM_BASE
+export SLURM_CFLAGS
+export DB_BASE
+export DB_CFLAGS
+export DB_LDFLAGS
+export CHOWN_USR
+export CHOWN_GRP
+export CONSTANTS
+export REPLACE
+export FEAT_AVX512
+export FEAT_FORT
+export VER_MAJOR
+export VER_MINOR
+
+
+######## RULES
+
+.PHONY: check functionals
+
+all:
+	@ $(MAKE) -C 'src' all || exit
+
+full: clean all 
+
+check:
+	@ $(MAKE) -C 'src' check
+
+install:
+	@ $(MAKE) -C 'etc' install || exit
+	@ $(MAKE) -C 'src' install || exit
+
+clean:
+	@ $(MAKE) -C 'src' clean || exit
+
+########
+
+devel.install: install;
+	@ $(MAKE) -C 'etc' devel.install || exit
+	@ $(MAKE) -C 'src' devel.install || exit
+
+etc.install: ;
+	@ $(MAKE) -C 'etc' etc.install || exit
+	@ $(MAKE) -C 'src' etc.install || exit
+
+rpm.install: install;
+	@ $(MAKE) -C 'etc' rpm.install || exit
+
+scripts.install: ;
+	@ $(MAKE) -C 'etc' scripts.install || exit
+
+doc.install: ;
+	@ $(MAKE) -C 'doc' install || exit 
+
+%.build: ;
+	@ $(MAKE) -C 'src' $*.build || exit
+
+%.install: ;
+	@ $(MAKE) -C src $*.install || exit
+
+########
+
+depend:
+	@ $(MAKE) -C 'src' depend || exit
+
+depend-clean:
+	@ $(MAKE) -C 'src' depend-clean || exit

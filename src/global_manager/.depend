@@ -1,0 +1,28 @@
+eargm_rapi.o: eargm_rapi.c ../common/states.h ../common/output/verbose.h \
+ ../common/output/error.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h ../common/output/debug.h \
+ ../global_manager/eargm_rapi.h ../global_manager/eargm_conf_api.h
+eargm.o: eargm.c ../common/states.h ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_install.h ../common/output/verbose.h \
+ ../common/output/error.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h ../common/output/debug.h \
+ ../common/types/daemon_log.h ../common/types/generic.h \
+ ../common/database/db_helper.h ../common/types/periodic_aggregation.h \
+ ../common/types/power_signature.h ../common/types/periodic_metric.h \
+ ../common/types/configuration/cluster_conf.h ../common/sizes.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../common/types/application.h ../common/types/job.h \
+ ../common/types/signature.h ../common/types/gm_warning.h \
+ ../common/types/loop.h ../common/types/log.h \
+ ../common/types/event_type.h ../global_manager/eargm_server_api.h \
+ ../global_manager/eargm_conf_api.h ../daemon/eard_rapi.h \
+ ../daemon/eard_conf_rapi.h
+eargm_server_api.o: eargm_server_api.c ../common/states.h \
+ ../common/config.h ../common/config/config_def.h \
+ ../common/config/config_dev.h ../common/config/config_install.h \
+ ../common/output/verbose.h ../common/output/error.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/output/debug.h ../global_manager/eargm_rapi.h \
+ ../global_manager/eargm_conf_api.h

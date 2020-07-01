@@ -1,0 +1,159 @@
+# EAR Configuration File
+#---------------------------------------------------------------------------------------------------
+# MariaDB (MySQL)
+#---------------------------------------------------------------------------------------------------
+MariaDBIp=192.168.1.1
+MariaDBUser=root
+MariaDBPassw=password
+# User and password for usermode querys.
+MariaDBCommandsUser=root
+MariaDBCommandsPassw=password
+MariaDBDatabase=EAR
+MariaDBPort=3306
+# TODO:
+MaxConnections=20
+# Extended node information saves also the average frequency and temperature.
+ReportNodeDetail=1
+# Extended signature information saves also the hardware counters.
+reportSIGDetail=1
+# Report loop signature
+ReportLoops=0
+#---------------------------------------------------------------------------------------------------
+# EAR Daemon (EARD)
+#---------------------------------------------------------------------------------------------------
+NodeDaemonPort=50001
+# In seconds
+NodeDaemonPowermonFreq=60
+NodeDaemonMaxPstate=1
+NodeDaemonTurbo=0
+NodeUseDB=1
+NodeUseEARDBD=1
+NodeDaemonForceFrequencies=1
+# Verbosity
+NodeDaemonVerbose=1
+# When set to 1, the output is saved in 'TmpDir'/eard.log (common configuration) as a log file.
+NodeUseLog=1
+#---------------------------------------------------------------------------------------------------
+# EAR Database Manager (EARDBD)
+#---------------------------------------------------------------------------------------------------
+DBDaemonPortTCP=50002
+DBDaemonPortSecTCP=50003
+DBDaemonSyncPort=50004
+# In seconds
+DBDaemonAggregationTime=60
+DBDaemonInsertionTime=30
+# Memory size expressed in MB per process (server and/or mirror) to cache the values.
+DBDaemonMemorySize=120
+# Percentage of this memory chunk for types: mpi, non-mpi and learning applications, loops, energy
+# metrics and aggregations and events, in that order.
+DBDaemonMemorySizePerType=60,22,5,0,7,1,5
+# When set to 1, the output is saved in 'TmpDir'/eardbd.log (common configuration) as a log file.
+DBDaemonUseLog=1
+#---------------------------------------------------------------------------------------------------
+# EAR Library (EARL)
+#---------------------------------------------------------------------------------------------------
+CoefficientsDir=/home/xjcorbalan/ear/etc/ear/coeffs
+# Default power policy values
+MinTimePerformanceAccuracy=10000000
+# DynAIS configuration
+DynAISLevels=10
+DynAISWindowSize=200
+# Maximum time (in seconds) EAR will wait until a signature is computed. After 'DynaisTimeout
+# seconds', if no signature is computed, EAR will go to periodic mode.
+DynaisTimeout=15
+# When EAR goes to periodic mode, it will compute the app. signature every 'LibraryPeriod' seconds.
+LibraryPeriod=10
+# EAR will check every N mpi calls whether it must go to periodic mode or not.
+CheckEARModeEvery=1000
+#---------------------------------------------------------------------------------------------------
+# Power policies
+# ---------------------------------------------------------------------------------------------------
+#
+
+# policy names must be exactly file names for policies installeled in the system
+DefaultPowerPolicy=min_time
+Policy=monitoring Settings=0 DefaultFreq=2.3 Privileged=0
+Policy=min_time Settings=0.7 DefaultFreq=2.0 Privileged=0
+Policy=min_energy Settings=0.1 DefaultFreq=2.3 Privileged=1
+#Policy=monitoring Settings=0 DefaultPstate=1 Privileged=0
+#Policy=min_time Settings=0.7 DefaultPstate=4 Privileged=0
+#Policy=min_energy Settings=0.1 DefaultPstate=1 Privileged=1
+
+
+#---------------------------------------------------------------------------------------------------
+# EAR Global Manager (EARGMD)
+#---------------------------------------------------------------------------------------------------
+GlobalManagerHost=node1001
+# Use aggregated periodic metrics or periodic power metrics. Aggregated metrics are only available
+# when EARDBD is running
+GlobalManagerUseAggregated=1
+# Period T1 and T2 are specified in seconds T1 (ex. must be less than T2, ex. 10min and 1 month)
+GlobalManagerPeriodT1=90
+GlobalManagerPeriodT2=259200
+# '-' are Joules, 'K' KiloJoules and 'M' MegaJoules.
+GlobalManagerUnits=K
+GlobalManagerEnergyLimit=550000
+GlobalManagerPolicy=MaxEnergy
+GlobalManagerPort=50000
+# Two modes are supported '0=manual' and '1=automatic'.
+GlobalManagerMode=0
+# Email address to report the warning level (and the action taken in automatic mode)
+GlobalManagerMail=nomail
+# Percentage of accumulated energy to start the warning DEFCON level L4, L3 and L2.
+GlobalManagerWarningsPerc=85,90,95
+# T1 "grace" periods between DEFCON before re-evaluate.
+GlobalManagerGracePeriods=3
+# Verbosity
+GlobalManagerVerbose=1
+# When set to 1, the output is saved in 'TmpDir'/eargmd.log (common configuration) as a log file.
+GlobalManagerUseLog=1
+#---------------------------------------------------------------------------------------------------
+# Common configuration
+#---------------------------------------------------------------------------------------------------
+TmpDir=/var/ear
+EtcDir=/home/xjcorbalan/ear/etc
+InstDir=/home/xjcorbalan/ear
+DataBasePathName=/home/xjcorbalan/ear/etc/ear/dbs/dbs.
+Verbose=0
+NetworkExtension=-net_ext
+#---------------------------------------------------------------------------------------------------
+# Plugin configuration
+#---------------------------------------------------------------------------------------------------
+PluginEnergy=energy_nm.so
+PluginPowerModel=default
+#---------------------------------------------------------------------------------------------------
+# Authorized Users
+#---------------------------------------------------------------------------------------------------
+# Authorized users,accounts and groups are allowed to change policies, thresholds, frequencies etc,
+# they are supposed to be admins
+AuthorizedUsers=usr1,usr2
+AuthorizedAccounts=acc1,acc2,acc3
+AuthorizedGroups=grp1,grp2
+#---------------------------------------------------------------------------------------------------
+# Energy Tags
+#---------------------------------------------------------------------------------------------------
+# Privileged users,accounts and groups are allowed to use EnergyTags. The "allowed" TAGs are defined
+# by row together with the priviledged user/group/account.
+EnergyTag=cpu-intensive pstate=1
+EnergyTag=memory-intensive pstate=4 users=usr1,usr2 groups=grp1,grp2 accounts=acc1,acc2
+#---------------------------------------------------------------------------------------------------
+# Node List
+#---------------------------------------------------------------------------------------------------
+# Grouped by hardware characteristics, different lists must reflect different power characteristics.
+# In this example the nodes are clustered by its type of CPU. From node1001 to node1080 for 24 cores
+# nodes and from node1101 to node1180 for 18 cores nodes.
+NodeName=node10[01-80] CPUs=24 DefCOEFFICIENTSFile=path_to_Special_file
+#---------------------------------------------------------------------------------------------------
+# Node Isles
+#---------------------------------------------------------------------------------------------------
+# It is mandatory to specify all the nodes in the cluster, grouped by islands. More than one line
+# per island must be supported to hold nodes with different names or for pointing to different
+# EARDBDs through its IPs or hostnames.
+# In the following example the nodes are clustered in two different islands, but the Island 1 have
+# two types of EARDBDs configurations. min_power and max_power are used to identify potential
+# invalid power computations. They must reflect valid values error_power reflects invalid values not
+# reported to the DB node temperature > max_temp and node power> max_power generates warning
+# messages in syslog.
+Island=0 Nodes=node10[01-80] DBIP=node1081 DBSECIP=node1082 min_power=50 max_power=800 error_power=1000 max_temp=120 power_cap=275
+Island=1 Nodes=node11[01-40] DBIP=node1181 DBSECIP=node1182
+Island=1 Nodes=node11[41-80] DBIP=node1183 DBSECIP=node1184

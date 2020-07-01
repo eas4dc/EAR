@@ -1,0 +1,94 @@
+log.o: log.c ../../common/config.h ../../common/config/config_def.h \
+ ../../common/config/config_dev.h ../../common/config/config_install.h \
+ ../../common/types/log.h ../../common/types/generic.h \
+ ../../common/types/job.h ../../common/types/event_type.h \
+ ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/debug.h ../../daemon/eard_api.h \
+ ../../daemon/eard_conf_api.h ../../common/types/application.h \
+ ../../common/types/signature.h ../../common/types/power_signature.h \
+ ../../common/types/loop.h
+coefficient.o: coefficient.c ../../common/states.h \
+ ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/debug.h ../../common/types/coefficient.h \
+ ../../common/config.h ../../common/config/config_def.h \
+ ../../common/config/config_dev.h ../../common/config/config_install.h \
+ ../../common/types/generic.h
+gm_warning.o: gm_warning.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/types/gm_warning.h \
+ ../../common/types/generic.h
+loop.o: loop.c ../../common/config.h ../../common/config/config_def.h \
+ ../../common/config/config_dev.h ../../common/config/config_install.h \
+ ../../common/types/loop.h ../../common/types/generic.h \
+ ../../common/types/signature.h ../../common/types/job.h \
+ ../../common/states.h
+power_signature.o: power_signature.c ../../common/types/power_signature.h \
+ ../../common/types/generic.h ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/math_operations.h
+daemon_log.o: daemon_log.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h
+projection.o: projection.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/types/projection.h \
+ ../../common/types/signature.h ../../common/types/generic.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/states.h ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../common/system/symplug.h \
+ ../../common/plugins.h ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/output/timestamp.h \
+ ../../common/output/output_conf.h ../../common/output/debug.h
+periodic_metric.o: periodic_metric.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/math_operations.h \
+ ../../common/types/periodic_metric.h ../../common/types/generic.h
+log_eard.o: log_eard.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/types/log_eard.h \
+ ../../common/types/generic.h ../../common/types/job.h \
+ ../../common/types/event_type.h ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/output/timestamp.h \
+ ../../common/output/output_conf.h ../../common/output/debug.h \
+ ../../database_cache/eardbd_api.h ../../common/system/sockets.h \
+ ../../common/sizes.h ../../common/states.h ../../common/types/types.h \
+ ../../common/types/log.h ../../common/types/loop.h \
+ ../../common/types/signature.h ../../common/types/daemon_log.h \
+ ../../common/types/application.h ../../common/types/power_signature.h \
+ ../../common/types/periodic_metric.h \
+ ../../common/types/periodic_aggregation.h \
+ ../../common/types/configuration/cluster_conf.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/services.h \
+ ../../common/database/db_helper.h ../../common/types/gm_warning.h
+services.o: services.c ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/output/timestamp.h \
+ ../../common/output/output_conf.h ../../common/output/debug.h
+job.o: job.c ../../common/types/job.h ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/types/generic.h \
+ ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/debug.h
+signature.o: signature.c ../../common/types/signature.h \
+ ../../common/types/generic.h ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/math_operations.h
+application.o: application.c ../../common/system/file.h \
+ ../../common/sizes.h ../../common/states.h ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/output/timestamp.h \
+ ../../common/output/output_conf.h ../../common/output/debug.h \
+ ../../common/types/application.h ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/types/job.h \
+ ../../common/types/generic.h ../../common/types/signature.h \
+ ../../common/types/power_signature.h
+periodic_aggregation.o: periodic_aggregation.c \
+ ../../common/types/periodic_aggregation.h ../../common/types/generic.h

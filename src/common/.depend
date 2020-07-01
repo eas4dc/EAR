@@ -1,0 +1,12 @@
+environment.o: environment.c ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_install.h ../common/environment.h \
+ ../common/types/generic.h ../common/types/configuration/cluster_conf.h \
+ ../common/sizes.h ../common/states.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../common/environment_common.h
+environment_common.o: environment_common.c
+math_operations.o: math_operations.c
+string_enhanced.o: string_enhanced.c ../common/sizes.h ../common/colors.h \
+ ../common/string_enhanced.h

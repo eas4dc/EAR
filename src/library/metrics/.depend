@@ -1,0 +1,25 @@
+metrics.o: metrics.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/debug.h ../../common/types/signature.h \
+ ../../common/types/generic.h ../../common/math_operations.h \
+ ../../common/hardware/hardware_info.h ../../common/sizes.h \
+ ../../common/system/file.h ../../common/hardware/cpuid.h \
+ ../../library/common/externs.h ../../common/types/application.h \
+ ../../common/types/job.h ../../common/types/power_signature.h \
+ ../../common/types/loop.h ../../daemon/shared_configuration.h \
+ ../../common/types/configuration/cluster_conf.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../library/metrics/metrics.h ../../metrics/cpi/cpi.h \
+ ../../metrics/cpi/cpu/papi.h ../../metrics/common/papi.h \
+ ../../metrics/flops/flops.h ../../metrics/flops/cpu/papi.h \
+ ../../metrics/energy/energy_node_lib.h ../../common/includes.h \
+ ../../metrics/accumulators/types.h ../../metrics/energy/energy_cpu.h \
+ ../../metrics/energy/cpu/intel_haswell.h ../../metrics/common/msr.h \
+ ../../metrics/bandwidth/cpu/utils.h ../../daemon/eard_api.h \
+ ../../common/types/log.h ../../common/types/event_type.h \
+ ../../daemon/eard_conf_api.h

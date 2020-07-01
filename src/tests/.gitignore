@@ -1,0 +1,34 @@
+# General
+core.*
+*check.sh
+
+# Check
+*cpu_model
+*cpu_examinable
+*cpu_aperf
+*cpu_uncores
+*cpu_uncores_all
+*module_acpi_cpufreq
+*module_ipmi_devintf
+*papi_version
+*papi_init
+*papi_comp_available
+*papi_comp_enabled
+*gsl_version
+*slurm_version
+*free_ipmi_version
+
+# Functionals
+functionals/inputs
+*test_architecture
+*energy_1_second
+*energy_updates_freq
+*eard_monitor
+*dynais_input
+*freeipmi_overhead
+*bandwith_monitor
+*simd_power_metrics_openmp
+*ear_pm
+*configuration_check
+*ear_conf
+*my_node_conf

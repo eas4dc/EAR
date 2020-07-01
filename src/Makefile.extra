@@ -1,0 +1,36 @@
+######## RULES
+
+%.gclean:
+	rm -f $($*_BINS) $($*_OBJS)
+
+rclean:
+	rm -f *.o *.a *.so
+
+%.ginstall:
+ifdef REPLACE
+	@ (cd $($*_PATH) && rm -f $($*_BINS))
+endif
+	@ (cp -f $($*_BINS) $($*_PATH))
+ifdef CHOWN_USR
+	@ (cd $($*_PATH) && chown $(CHOWN_USR) $($*_BINS))
+endif
+ifdef CHOWN_GRP
+	@ (cd $($*_PATH) && chgrp $(CHOWN_GRP) $($*_BINS))
+endif
+	@ (cd $($*_PATH) && chmod $($*_PERM) $($*_BINS))
+
+%.finstall:
+	@ (mkdir -p $($*_PATH))
+ifdef REPLACE
+	@ (cd $($*_PATH) && rm -f $($*_BINS))
+endif
+	@ (cd $($*_FOLD) && cp $($*_BINS) $($*_PATH))
+ifdef CHOWN_USR
+	@ (cd $($*_PATH) && chown $(CHOWN_USR) $($*_BINS))
+endif
+ifdef CHOWN_GRP
+	@ (cd $($*_PATH) && chgrp $(CHOWN_GRP) $($*_BINS))
+endif
+	@ (cd $($*_PATH) && chmod $($*_PERM) $($*_BINS))
+
+-include .extra

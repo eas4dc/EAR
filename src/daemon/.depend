@@ -1,0 +1,159 @@
+eard_checkpoint.o: eard_checkpoint.c ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_install.h ../common/output/verbose.h \
+ ../common/output/error.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h ../common/output/debug.h \
+ ../common/types/generic.h ../daemon/eard_checkpoint.h \
+ ../common/types/configuration/cluster_conf.h ../common/sizes.h \
+ ../common/states.h ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../daemon/power_monitor.h ../common/hardware/cpupower.h \
+ ../common/types/application.h ../common/types/job.h \
+ ../common/types/signature.h ../common/types/power_signature.h \
+ ../metrics/energy/energy_node.h ../common/includes.h \
+ ../common/system/time.h ../metrics/accumulators/types.h \
+ ../metrics/energy/energy_cpu.h ../metrics/energy/cpu/intel_haswell.h \
+ ../metrics/common/msr.h ../metrics/accumulators/power_metrics.h \
+ ../metrics/energy/energy_gpu.h ../common/plugins.h \
+ ../daemon/node_metrics.h ../daemon/eard_conf_rapi.h
+dynamic_configuration.o: dynamic_configuration.c ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_install.h ../common/types/job.h \
+ ../common/types/generic.h ../common/types/log_eard.h \
+ ../common/types/event_type.h \
+ ../common/types/configuration/cluster_conf.h ../common/sizes.h \
+ ../common/states.h ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../common/output/verbose.h ../common/output/error.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/output/debug.h ../daemon/eard_server_api.h \
+ ../daemon/eard_conf_rapi.h ../common/types/application.h \
+ ../common/types/signature.h ../common/types/power_signature.h \
+ ../daemon/shared_configuration.h ../common/types/coefficient.h \
+ ../daemon/power_monitor.h ../common/hardware/cpupower.h \
+ ../metrics/energy/energy_node.h ../common/includes.h \
+ ../common/system/time.h ../metrics/accumulators/types.h \
+ ../metrics/energy/energy_cpu.h ../metrics/energy/cpu/intel_haswell.h \
+ ../metrics/common/msr.h ../metrics/accumulators/power_metrics.h \
+ ../metrics/energy/energy_gpu.h ../common/plugins.h \
+ ../daemon/node_metrics.h ../common/hardware/frequency.h
+node_metrics.o: node_metrics.c ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_install.h ../common/output/verbose.h \
+ ../common/output/error.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h ../common/output/debug.h \
+ ../common/states.h ../daemon/node_metrics.h ../common/types/generic.h \
+ ../metrics/frequency/frequency_cpu.h \
+ ../metrics/frequency/cpu/intel_haswell.h \
+ ../metrics/frequency/frequency_imc.h \
+ ../metrics/frequency/imc/intel_haswell.h ../metrics/energy/energy_cpu.h \
+ ../metrics/energy/cpu/intel_haswell.h ../metrics/common/msr.h \
+ ../metrics/temperature/temperature.h
+eard_api.o: eard_api.c ../common/config.h ../common/config/config_def.h \
+ ../common/config/config_dev.h ../common/config/config_install.h \
+ ../common/states.h ../common/output/verbose.h ../common/output/error.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/output/debug.h ../common/types/generic.h \
+ ../common/types/application.h ../common/types/job.h \
+ ../common/types/signature.h ../common/types/power_signature.h \
+ ../daemon/eard_api.h ../common/types/log.h ../common/types/event_type.h \
+ ../daemon/eard_conf_api.h ../common/types/loop.h
+shared_configuration.o: shared_configuration.c ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_install.h ../common/states.h \
+ ../common/output/verbose.h ../common/output/error.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/output/debug.h ../common/types/coefficient.h \
+ ../common/types/generic.h ../common/types/configuration/cluster_conf.h \
+ ../common/sizes.h ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../daemon/shared_configuration.h
+eard.o: eard.c ../common/includes.h ../common/sizes.h ../common/states.h \
+ ../common/config.h ../common/config/config_def.h \
+ ../common/config/config_dev.h ../common/config/config_install.h \
+ ../common/output/verbose.h ../common/output/error.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/output/debug.h ../common/environment.h \
+ ../common/types/log_eard.h ../common/types/generic.h \
+ ../common/types/job.h ../common/types/event_type.h \
+ ../common/hardware/frequency.h ../common/hardware/cpupower.h \
+ ../metrics/energy/energy_cpu.h ../metrics/energy/cpu/intel_haswell.h \
+ ../metrics/common/msr.h ../metrics/energy/energy_node.h \
+ ../common/system/time.h ../metrics/accumulators/types.h \
+ ../common/types/configuration/cluster_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../metrics/bandwidth/bandwidth.h \
+ ../metrics/bandwidth/cpu/intel_haswell.h \
+ ../metrics/bandwidth/cpu/utils.h ../common/hardware/hardware_info.h \
+ ../common/system/file.h ../common/hardware/cpuid.h \
+ ../metrics/frequency/frequency_cpu.h \
+ ../metrics/frequency/cpu/intel_haswell.h ../daemon/eard_conf_api.h \
+ ../common/types/application.h ../common/types/signature.h \
+ ../common/types/power_signature.h ../common/types/loop.h \
+ ../daemon/power_monitor.h ../metrics/accumulators/power_metrics.h \
+ ../metrics/energy/energy_gpu.h ../common/plugins.h \
+ ../daemon/node_metrics.h ../daemon/eard_conf_rapi.h \
+ ../daemon/eard_checkpoint.h ../daemon/shared_configuration.h \
+ ../common/types/coefficient.h ../daemon/dynamic_configuration.h \
+ ../database_cache/eardbd_api.h ../common/system/sockets.h \
+ ../common/types/types.h ../common/types/log.h \
+ ../common/types/daemon_log.h ../common/types/periodic_metric.h \
+ ../common/types/periodic_aggregation.h ../common/types/services.h \
+ ../common/database/db_helper.h ../common/types/gm_warning.h \
+ ../daemon/eard.h ../daemon/app_api/app_server_api.h
+eard_server_api.o: eard_server_api.c ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_install.h ../common/states.h \
+ ../common/types/job.h ../common/types/generic.h \
+ ../common/output/verbose.h ../common/output/error.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/output/debug.h ../daemon/eard_rapi.h \
+ ../common/types/application.h ../common/types/signature.h \
+ ../common/types/power_signature.h \
+ ../common/types/configuration/cluster_conf.h ../common/sizes.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../daemon/eard_conf_rapi.h
+power_monitor.o: power_monitor.c ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_install.h ../common/system/sockets.h \
+ ../common/sizes.h ../common/states.h ../common/types/generic.h \
+ ../common/output/verbose.h ../common/output/error.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/output/debug.h ../common/types/application.h \
+ ../common/types/job.h ../common/types/signature.h \
+ ../common/types/power_signature.h ../common/types/periodic_metric.h \
+ ../common/types/log_eard.h ../common/types/event_type.h \
+ ../common/types/configuration/cluster_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../metrics/frequency/frequency_cpu.h \
+ ../metrics/frequency/cpu/intel_haswell.h \
+ ../common/hardware/hardware_info.h ../common/system/file.h \
+ ../common/hardware/cpuid.h ../common/hardware/frequency.h \
+ ../common/hardware/cpupower.h ../daemon/power_monitor.h \
+ ../metrics/energy/energy_node.h ../common/includes.h \
+ ../common/system/time.h ../metrics/accumulators/types.h \
+ ../metrics/energy/energy_cpu.h ../metrics/energy/cpu/intel_haswell.h \
+ ../metrics/common/msr.h ../metrics/accumulators/power_metrics.h \
+ ../metrics/energy/energy_gpu.h ../common/plugins.h \
+ ../daemon/node_metrics.h ../daemon/eard_conf_rapi.h \
+ ../daemon/eard_checkpoint.h ../daemon/shared_configuration.h \
+ ../common/types/coefficient.h ../database_cache/eardbd_api.h \
+ ../common/types/types.h ../common/types/log.h ../common/types/loop.h \
+ ../common/types/daemon_log.h ../common/types/periodic_aggregation.h \
+ ../common/types/services.h ../common/database/db_helper.h \
+ ../common/types/gm_warning.h
+eard_rapi.o: eard_rapi.c ../common/config.h ../common/config/config_def.h \
+ ../common/config/config_dev.h ../common/config/config_install.h \
+ ../common/states.h ../common/types/job.h ../common/types/generic.h \
+ ../common/output/verbose.h ../common/output/error.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/output/debug.h ../daemon/eard_rapi.h \
+ ../common/types/application.h ../common/types/signature.h \
+ ../common/types/power_signature.h \
+ ../common/types/configuration/cluster_conf.h ../common/sizes.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../daemon/eard_conf_rapi.h ../daemon/eard_server_api.h

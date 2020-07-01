@@ -1,0 +1,52 @@
+tracer_cache.o: tracer_cache.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/output/timestamp.h \
+ ../../common/output/output_conf.h ../../common/output/debug.h \
+ ../../common/types/generic.h ../../daemon/shared_configuration.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/states.h ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../metrics/cache/cache.h ../../metrics/cache/cpu/papi.h \
+ ../../metrics/common/papi.h
+tracer_debug.o: tracer_debug.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/output/timestamp.h \
+ ../../common/output/output_conf.h ../../common/output/debug.h \
+ ../../common/types/generic.h ../../daemon/shared_configuration.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/states.h ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/types/signature.h
+tracer_paraver.o: tracer_paraver.c ../../common/sizes.h \
+ ../../common/config.h ../../common/config/config_def.h \
+ ../../common/config/config_dev.h ../../common/config/config_install.h \
+ ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/debug.h ../../common/types/signature.h \
+ ../../common/types/generic.h ../../library/metrics/metrics.h \
+ ../../common/types/application.h ../../common/types/job.h \
+ ../../common/types/power_signature.h \
+ ../../library/tracer/tracer_paraver.h
+tracer_dynais.o: tracer_dynais.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/system/file.h \
+ ../../common/sizes.h ../../common/states.h ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/output/timestamp.h \
+ ../../common/output/output_conf.h ../../common/output/debug.h \
+ ../../library/tracer/tracer_dynais.h
+tracer.o: tracer.c ../../common/sizes.h ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/output/timestamp.h \
+ ../../common/output/output_conf.h ../../common/output/debug.h \
+ ../../library/tracer/tracer.h ../../common/types/generic.h \
+ ../../common/types/signature.h ../../daemon/shared_configuration.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/states.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/system/symplug.h ../../common/plugins.h

@@ -1,0 +1,17 @@
+power_metrics.o: power_metrics.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/debug.h ../../common/math_operations.h \
+ ../../common/hardware/hardware_info.h ../../common/sizes.h \
+ ../../common/system/file.h ../../common/types/generic.h \
+ ../../common/hardware/cpuid.h ../../metrics/energy/energy_cpu.h \
+ ../../metrics/energy/cpu/intel_haswell.h ../../metrics/common/msr.h \
+ ../../metrics/energy/energy_gpu.h ../../common/plugins.h \
+ ../../common/system/time.h ../../metrics/accumulators/power_metrics.h \
+ ../../metrics/accumulators/types.h ../../metrics/energy/energy_node.h \
+ ../../common/includes.h ../../common/types/configuration/cluster_conf.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h

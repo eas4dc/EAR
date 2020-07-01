@@ -1,0 +1,18 @@
+[Unit]
+Description=EARGMD - EAR Global Manager
+ConditionPathExists=@localstatedir@
+
+[Service]
+Type=simple
+Environment="EAR_ETC=@sysconfdir@"
+ExecStart=@prefix@/sbin/eargmd
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+KillMode=process
+Restart=on-failure
+LimitMEMLOCK=infinity
+LimitSTACK=infinity
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,41 @@
+temperature_check.o: temperature_check.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../metrics/common/msr.h ../../common/types/generic.h \
+ ../../metrics/temperature/temperature.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h
+ips_check.o: ips_check.c ../../daemon/eard_server_api.h \
+ ../../daemon/eard_conf_rapi.h ../../common/types/application.h \
+ ../../common/config.h ../../common/config/config_def.h \
+ ../../common/config/config_dev.h ../../common/config/config_install.h \
+ ../../common/types/job.h ../../common/types/generic.h \
+ ../../common/types/signature.h ../../common/types/power_signature.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/states.h ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h
+postgres_test.o: postgres_test.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../common/database/db_helper.h \
+ ../../common/types/periodic_aggregation.h ../../common/types/generic.h \
+ ../../common/types/power_signature.h \
+ ../../common/types/periodic_metric.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/application.h \
+ ../../common/types/job.h ../../common/types/signature.h \
+ ../../common/types/gm_warning.h ../../common/types/loop.h \
+ ../../common/types/log.h ../../common/types/event_type.h
+ear_conf.o: ear_conf.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/generic.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h

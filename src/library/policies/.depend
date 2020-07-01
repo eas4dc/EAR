@@ -1,0 +1,154 @@
+min_time.o: min_time.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../common/hardware/frequency.h ../../common/hardware/cpupower.h \
+ ../../common/types/projection.h ../../common/types/signature.h \
+ ../../common/types/generic.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../daemon/eard_api.h \
+ ../../common/types/log.h ../../common/types/job.h \
+ ../../common/types/event_type.h ../../daemon/eard_conf_api.h \
+ ../../common/types/application.h ../../common/types/power_signature.h \
+ ../../common/types/loop.h ../../library/policies/policy_api.h \
+ ../../library/policies/policy_ctx.h ../../daemon/shared_configuration.h \
+ ../../common/math_operations.h
+min_energy_no_models.o: min_energy_no_models.c ../../common/states.h \
+ ../../common/config.h ../../common/config/config_def.h \
+ ../../common/config/config_dev.h ../../common/config/config_install.h \
+ ../../common/math_operations.h ../../common/types/projection.h \
+ ../../common/types/signature.h ../../common/types/generic.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../library/policies/policy_api.h \
+ ../../library/policies/policy_ctx.h ../../common/types/loop.h \
+ ../../common/types/job.h ../../common/types/application.h \
+ ../../common/types/power_signature.h ../../daemon/shared_configuration.h \
+ ../../common/hardware/frequency.h ../../common/hardware/cpupower.h \
+ ../../daemon/eard_api.h ../../common/types/log.h \
+ ../../common/types/event_type.h ../../daemon/eard_conf_api.h
+monitoring.o: monitoring.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../common/types/projection.h ../../common/types/signature.h \
+ ../../common/types/generic.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../library/policies/policy_api.h \
+ ../../library/policies/policy_ctx.h ../../common/types/loop.h \
+ ../../common/types/job.h ../../common/types/application.h \
+ ../../common/types/power_signature.h ../../daemon/shared_configuration.h
+min_time_no_models.o: min_time_no_models.c ../../common/states.h \
+ ../../common/config.h ../../common/config/config_def.h \
+ ../../common/config/config_dev.h ../../common/config/config_install.h \
+ ../../common/math_operations.h ../../common/types/projection.h \
+ ../../common/types/signature.h ../../common/types/generic.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../library/policies/policy_api.h \
+ ../../library/policies/policy_ctx.h ../../common/types/loop.h \
+ ../../common/types/job.h ../../common/types/application.h \
+ ../../common/types/power_signature.h ../../daemon/shared_configuration.h \
+ ../../common/hardware/frequency.h ../../common/hardware/cpupower.h \
+ ../../daemon/eard_api.h ../../common/types/log.h \
+ ../../common/types/event_type.h ../../daemon/eard_conf_api.h
+policy.o: policy.c ../../common/includes.h ../../common/sizes.h \
+ ../../common/states.h ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/output/timestamp.h \
+ ../../common/output/output_conf.h ../../common/output/debug.h \
+ ../../common/system/symplug.h ../../common/plugins.h \
+ ../../common/types/generic.h ../../common/hardware/frequency.h \
+ ../../common/hardware/cpupower.h ../../library/policies/policy_ctx.h \
+ ../../common/types/loop.h ../../common/types/signature.h \
+ ../../common/types/job.h ../../common/types/application.h \
+ ../../common/types/power_signature.h ../../common/types/projection.h \
+ ../../common/types/configuration/cluster_conf.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../daemon/shared_configuration.h \
+ ../../library/policies/policy.h ../../library/common/externs.h \
+ ../../common/environment.h ../../daemon/eard_api.h \
+ ../../common/types/log.h ../../common/types/event_type.h \
+ ../../daemon/eard_conf_api.h
+min_time_avx512.o: min_time_avx512.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/debug.h ../../common/hardware/frequency.h \
+ ../../common/hardware/cpupower.h ../../common/types/projection.h \
+ ../../common/types/signature.h ../../common/types/generic.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../daemon/eard_api.h \
+ ../../common/types/log.h ../../common/types/job.h \
+ ../../common/types/event_type.h ../../daemon/eard_conf_api.h \
+ ../../common/types/application.h ../../common/types/power_signature.h \
+ ../../common/types/loop.h ../../library/policies/policy_api.h \
+ ../../library/policies/policy_ctx.h ../../daemon/shared_configuration.h \
+ ../../common/math_operations.h
+min_energy.o: min_energy.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/debug.h ../../common/hardware/frequency.h \
+ ../../common/hardware/cpupower.h ../../common/types/projection.h \
+ ../../common/types/signature.h ../../common/types/generic.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../library/policies/policy_api.h \
+ ../../library/policies/policy_ctx.h ../../common/types/loop.h \
+ ../../common/types/job.h ../../common/types/application.h \
+ ../../common/types/power_signature.h ../../daemon/shared_configuration.h \
+ ../../daemon/eard_api.h ../../common/types/log.h \
+ ../../common/types/event_type.h ../../daemon/eard_conf_api.h
+min_energy_avx512.o: min_energy_avx512.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_install.h ../../common/states.h \
+ ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/debug.h ../../common/hardware/frequency.h \
+ ../../common/hardware/cpupower.h ../../common/types/projection.h \
+ ../../common/types/signature.h ../../common/types/generic.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/string_enhanced.h ../../common/types/coefficient.h \
+ ../../common/hardware/architecture.h \
+ ../../common/hardware/hardware_info.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../library/policies/policy_api.h \
+ ../../library/policies/policy_ctx.h ../../common/types/loop.h \
+ ../../common/types/job.h ../../common/types/application.h \
+ ../../common/types/power_signature.h ../../daemon/shared_configuration.h \
+ ../../daemon/eard_api.h ../../common/types/log.h \
+ ../../common/types/event_type.h ../../daemon/eard_conf_api.h
