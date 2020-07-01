@@ -17,7 +17,7 @@
 Summary:  EAR package
 Group:    System
 Packager: EAR Team
-URL:    https://github.com/BarcelonaSupercomputingCenter/ear_private
+URL:    https://gitlab.bsc.es/ear_team/ear
 License:  GPL 2.1
 Name:   %{name}
 Version:  %{version}%{?dist}
