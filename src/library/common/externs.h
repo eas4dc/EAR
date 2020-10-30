@@ -1,32 +1,19 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
-
 
 #ifndef _EAR_GLOBAL_H
 #define _EAR_GLOBAL_H
@@ -35,6 +22,8 @@
 #include <common/types/application.h>
 #include <common/types/loop.h>
 #include <daemon/shared_configuration.h>
+#include <library/common/library_shared_data.h>
+#include <library/common/global_comm.h>
 
 extern loop_t loop;
 extern application_t loop_signature;
@@ -58,7 +47,8 @@ extern unsigned int EAR_default_pstate;
 extern int ear_use_turbo;
 extern int ear_whole_app;
 extern int ear_my_rank;
-extern int my_master_rank;
+extern int eard_ok;
+//extern int my_master_rank;
 extern int my_job_id;
 extern int my_step_id;
 extern char my_account[GENERIC_NAME];
@@ -71,5 +61,12 @@ extern ulong last_loop_size;
 extern ulong last_loop_level;
 extern uint dynais_enabled;
 extern uint check_periodic_mode;
+
+// Shared regions for processes in same node
+extern lib_shared_data_t *lib_shared_region;
+extern shsignature_t *sig_shared_region;
+extern int my_node_id;
+extern masters_info_t masters_info;
+
 
 #endif

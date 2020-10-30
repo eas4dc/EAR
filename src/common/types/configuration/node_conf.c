@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <fcntl.h>
@@ -134,7 +122,7 @@ void copy_my_node_conf(my_node_conf_t *dest,my_node_conf_t *src)
 	dest->max_error_power=src->max_error_power;
 	dest->max_temp=src->max_temp;
 	dest->max_power_cap=src->max_power_cap;
-	strcpy(dest->power_cap_type,src->power_cap_type);
+    dest->powercap_type=src->powercap_type;
 }
 
 void print_node_conf(node_conf_t *my_node_conf)
@@ -157,12 +145,24 @@ void print_my_node_conf(my_node_conf_t *my_node_conf)
         if (my_node_conf->coef_file!=NULL){
             verbose(VCCONF,"coeffs %s ",my_node_conf->coef_file);
         }
+        if (my_node_conf->energy_plugin != NULL && strlen(my_node_conf->energy_plugin) > 1)
+        {
+            verbose(VCCONF,"energy_plugin %s ",my_node_conf->energy_plugin);
+        }
+        if (my_node_conf->energy_model != NULL && strlen(my_node_conf->energy_model) > 1)
+        {
+            verbose(VCCONF,"energy_model %s ",my_node_conf->energy_model);
+        }
+        if (my_node_conf->powercap_plugin != NULL && strlen(my_node_conf->powercap_plugin) > 1)
+        {
+            verbose(VCCONF,"powercap_plugin %s ",my_node_conf->powercap_plugin);
+        }
         verbose(VCCONF,"\n");
         for (i=0;i<my_node_conf->num_policies;i++){
             print_policy_conf(&my_node_conf->policies[i]);
         }
     }
-	verbose(VCCONF,"max_sig_power %.0lf min_sig_power %.0lf error_power %.0lf max_temp %lu power_cap %.1lf power_cap_type %s",my_node_conf->max_sig_power,my_node_conf->min_sig_power,my_node_conf->max_error_power,my_node_conf->max_temp,my_node_conf->max_power_cap,my_node_conf->power_cap_type);
+	verbose(VCCONF,"max_sig_power %.0lf min_sig_power %.0lf error_power %.0lf max_temp %lu power_cap %.1lf powercap_type %d",my_node_conf->max_sig_power,my_node_conf->min_sig_power,my_node_conf->max_error_power,my_node_conf->max_temp,my_node_conf->max_power_cap,my_node_conf->powercap_type);
 }
 
 void print_my_node_conf_fd_binary(int fd,my_node_conf_t *myconf)

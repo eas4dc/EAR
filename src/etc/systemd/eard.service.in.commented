@@ -1,0 +1,33 @@
+[Unit]
+Description=EARD - Energy Aware Runtime node daemon # OK
+ConditionPathExists=@tmpdir@ # OK
+
+[Service]
+Type=simple # OK, hay un tipo socket que también es de lo más interesante, aunque no sería para este	
+EnvironmentFile=@destdir@/etc/slurm/ear.conf # Provisional, hasta que tengamos el nuevo ear.conf
+EnvironmentFile=@destdir@/etc/slurm/ear.link # Deprecado
+ExecStart=@destdir@/sbin/eard 1 $EAR_TMP 0 # Provisional, cuando tengamos el nuevo ear.conf los parámetros no serán necesarios
+ExecReload=/bin/kill -HUP $MAINPID # OK
+ExecStop=/bin/kill -TERM $MAINPID # OK
+KillMode=process # OK
+Restart=on-failure # If set to on-failure, the service will be restarted when the process exits with a non-zero exit code, is
+				   # terminated by a signal (including on core dump, but excluding the aforementioned four signals), when an
+				   # operation (such as service reload) times out, and when the configured watchdog timeout is triggered.
+				   # 
+				   # Lo del watchdog es realmente interesante. Haces ping de vez en cuando para decir que todo va bien.
+RestartSec=30s # OK
+LimitMEMLOCK=infinity # OK
+LimitSTACK=infinity # OK, existe también el DefaultLimitSTACK, pero no he encontrado las diferencias
+
+[Install]
+WantedBy=multi-user.target # OK, queremos ser ejecutados si se ejecuta esto, tema runlevel
+
+# Cosas que creo que faltan o que te pueden interesar
+
+Wants=slurmd.service # Para asegurarnos que SLURMD está funcionando. De intentarlo y no funcionar no pasaría nada, a
+					 # diferencia del Requires=, el cual impide el lanzamiento si la dependencia no se ha lanzado.
+After=slurmd.service # Para arrancar después de SLURMD.
+OnFailure= #
+Documentation= #
+NotifyAccess= #
+

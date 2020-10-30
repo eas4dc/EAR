@@ -1,28 +1,29 @@
-CFLAGS  = -fPIC -O3 -I$(SRCDIR) $(CONSTANTS) $(PAPI_CFLAGS)
-LDFLAGS = -shared $(PAPI_LDFLAGS) -ldl
+CFLAGS = $(CC_FLAGS) $(MPI_CFLAGS) -I$(SRCDIR) $(PAPI_CFLAGS) -O2 -fPIC
+LDFLAGS = $(PAPI_LDFLAGS) -ldl
+
 ######## RULES
 
+tracer_OBJS = \
+    tracer.o \
+    tracer_paraver.o
+
 tracer_BINS = \
-	tracer_paraver.so
+    tracer_paraver.so
+
 tracer_PATH = $(DESTDIR)/lib/plugins/tracer
-tracer_OBJ = \
-  tracer_paraver.o
 tracer_PERM = 0775
+tracer_DEPS = $(SRCDIR)/common/libcommon.a
+
+
+########
 
 all: $(tracer_OBJS) $(tracer_BINS)
 
-allt: DEFINES=-DEAR_GUI
-allt: tracer.o tracer_dynais.o tracer_paraver.o
-
 %.o: %.c %.h
-	$(MPICC) $(CC_FLAGS) $(CFLAGS) $(DEFINES) -c $<
+	$(CC) $(CC_FLAGS) $(CFLAGS) $(DEFINES) -c $<
 
-%.so:%.o
-	$(MPICC) $(CC_FLAGS) $(CFLAGS) $(DEFINES) $(LDFLAGS)  -shared $< -o $@
-
-tracer_cache.so:tracer_cache.o $(SRCDIR)/metrics/cache/cpu/papi.o
-	$(MPICC) $(CC_FLAGS) $(CFLAGS) $(DEFINES) $(LDFLAGS) $(SRCDIR)/metrics/cache/cpu/papi.o  -shared $< -o $@
-
+%.so: %.o $(tracer_DEPS)
+	$(CC) $(CC_FLAGS) $(CFLAGS) $(DEFINES) $(LDFLAGS) -shared $< -o $@ $(tracer_DEPS)
 
 ######## OPTIONS
 

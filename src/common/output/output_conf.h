@@ -1,32 +1,19 @@
-/**************************************************************
- * *   Energy Aware Runtime (EAR)
- * *   This program is part of the Energy Aware Runtime (EAR).
- * *
- * *   EAR provides a dynamic, transparent and ligth-weigth solution for
- * *   Energy management.
- * *
- * *       It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
- * *
- * *       Copyright (C) 2017
- * *   BSC Contact     mailto:ear-support@bsc.es
- * *   Lenovo contact  mailto:hpchelp@lenovo.com
- * *
- * *   EAR is free software; you can redistribute it and/or
- * *   modify it under the terms of the GNU Lesser General Public
- * *   License as published by the Free Software Foundation; either
- * *   version 2.1 of the License, or (at your option) any later version.
- * *
- * *   EAR is distributed in the hope that it will be useful,
- * *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- * *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * *   Lesser General Public License for more details.
- * *
- * *   You should have received a copy of the GNU Lesser General Public
- * *   License along with EAR; if not, write to the Free Software
- * *   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- * *   The GNU LEsser General Public License is contained in the file COPYING
- * */
-
+/*
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
+*/
 
 #ifndef _OUTCONF_H
 #define _OUTCONF_H
@@ -37,7 +24,7 @@
 
 /* EARD VERBOSE constants */
 /* Used in eard_rapi.h */
-#define VCONNECT 0
+#define VCONNECT 2
 #define VMSG    3
 /* Used in eard.c */
 #define VCONF   1
@@ -46,7 +33,7 @@
 #define VNODEPMON   1
 #define VJOBPMON    1
 /* Used in dynamic_configuration */
-#define VRAPI 2
+#define VRAPI 0
 /* Used in eard_api.c */
 #define VAPI    2
 /* Used in checkpoint */

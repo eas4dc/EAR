@@ -1,30 +1,18 @@
-/**************************************************************
-*   Energy Aware Runtime (EAR)
-*   This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*   EAR provides a dynamic, transparent and ligth-weigth solution for
-*   Energy management.
+* This program is part of the EAR software.
 *
-*       It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*   BSC Contact     mailto:ear-support@bsc.es
-*   Lenovo contact  mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*   EAR is free software; you can redistribute it and/or
-*   modify it under the terms of the GNU Lesser General Public
-*   License as published by the Free Software Foundation; either
-*   version 2.1 of the License, or (at your option) any later version.
-*   
-*   EAR is distributed in the hope that it will be useful,
-*   but WITHOUT ANY WARRANTY; without even the implied warranty of
-*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*   Lesser General Public License for more details.
-*   
-*   You should have received a copy of the GNU Lesser General Public
-*   License along with EAR; if not, write to the Free Software
-*   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*   The GNU LEsser General Public License is contained in the file COPYING  
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #define _XOPEN_SOURCE 700 //to get rid of the warning
@@ -63,12 +51,12 @@
 #define USER_QUERY  "SELECT SUM(DC_power*time)/? FROM Power_signatures WHERE id IN " \
                     "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs " \
                     "ON job_id = id AND Applications.step_id = Jobs.step_id WHERE "\
-                    "Jobs.user_id = '%s' AND start_time >= ? AND end_time <= ?)"
+                    "Jobs.user_id = '%s' AND start_time >= ? AND end_time <= ? AND DC_power < %d)"
 
 #define ETAG_QUERY  "SELECT SUM(DC_power*time)/? FROM Power_signatures WHERE id IN " \
                     "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs " \
                     "ON job_id = id AND Applications.step_id = Jobs.step_id WHERE "\
-                    "Jobs.e_tag = '%s' AND start_time >= ? AND end_time <= ?)"
+                    "Jobs.e_tag = '%s' AND start_time >= ? AND end_time <= ? AND DC_power < %d)"
 
 #define SUM_QUERY   "SELECT SUM(dc_energy)/? FROM Periodic_metrics WHERE start_time" \
                     ">= ? AND end_time <= ?"
@@ -87,12 +75,12 @@
 #define USER_QUERY  "SELECT SUM(DC_power*time)/%llu FROM Power_signatures WHERE id IN " \
                     "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs " \
                     "ON job_id = id AND Applications.step_id = Jobs.step_id WHERE "\
-                    "Jobs.user_id = '%s' AND start_time >= %d AND end_time <= %d)"
+                    "Jobs.user_id = '%s' AND start_time >= %d AND end_time <= %d AND DC_power < %d)"
 
 #define ETAG_QUERY  "SELECT SUM(DC_power*time)/%llu FROM Power_signatures WHERE id IN " \
                     "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs " \
                     "ON job_id = id AND Applications.step_id = Jobs.step_id WHERE "\
-                    "Jobs.e_tag = '%s' AND start_time >= %d AND end_time <= %d)"
+                    "Jobs.e_tag = '%s' AND start_time >= %d AND end_time <= %d AND DC_power < %d)"
 
 #define SUM_QUERY   "SELECT SUM(dc_energy)/%llu FROM Periodic_metrics WHERE start_time" \
                     ">= %d AND end_time <= %d"
@@ -103,7 +91,7 @@
 #define ALL_USERS   "SELECT TRUNCATE(SUM(DC_power*time), 0) as energy, Jobs.user_id FROM " \
                     "Power_signatures INNER JOIN Applications On id=Applications.power_signature_id " \
                     "INNER JOIN Jobs ON job_id = Jobs.id AND Applications.step_id = Jobs.step_id " \
-                    "WHERE start_time >= %d AND end_time <= %d GROUP BY Jobs.user_id ORDER BY energy"
+                    "WHERE start_time >= %d AND end_time <= %d AND DC_power < %d GROUP BY Jobs.user_id ORDER BY energy"
 
 #define ALL_NODES   "select SUM(DC_energy), node_id FROM Periodic_metrics WHERE start_time >= %d " \
                     " AND end_time <= %d GROUP BY node_id "
@@ -114,7 +102,7 @@
 #define ALL_TAGS    "SELECT TRUNCATE(SUM(DC_power*time), 0) as energy, Jobs.e_tag FROM " \
                     "Power_signatures INNER JOIN Applications ON id=Applications.power_signature_id " \
                     "INNER JOIN Jobs ON job_id = Jobs.id AND Applications.step_id = Jobs.step_id " \
-                    "WHERE start_time >= %d AND end_time <= %d GROUP BY Jobs.e_tag ORDER BY energy"
+                    "WHERE start_time >= %d AND end_time <= %d AND DC_power < %d GROUP BY Jobs.e_tag ORDER BY energy"
 
 #if EXP_EARGM
 #define GLOB_ENERGY "SELECT ROUND(energy_percent, 2),warning_level,time,inc_th,p_state,GlobEnergyConsumedT1, " \
@@ -136,6 +124,7 @@ int query_filters = 0;
 unsigned long long avg_pow = 0;
 time_t global_start_time = 0;
 time_t global_end_time = 0;
+cluster_conf_t my_conf;
 
 void usage(char *app)
 {
@@ -244,8 +233,15 @@ long long get_sum(MYSQL *connection, int start_time, int end_time, unsigned long
                 mysql_error(connection)); //error
         return -1;
     }
+
+    uint max_power = MAX_ERROR_POWER;
+    int def_id = get_default_tag_id(&my_conf);
+    if (def_id > -1)
+    {
+        max_power = my_conf.tags[def_id].error_power;
+    }
     
-    char query[256];
+    char query[512];
 
     if (node_name != NULL)
     {
@@ -256,11 +252,11 @@ long long get_sum(MYSQL *connection, int start_time, int end_time, unsigned long
     }
     else if (user_name != NULL)
     {
-        sprintf(query, USER_QUERY, user_name);
+        sprintf(query, USER_QUERY, user_name, max_power);
     }
     else if (etag != NULL)
     {
-        sprintf(query, ETAG_QUERY, etag);
+        sprintf(query, ETAG_QUERY, etag, max_power);
     }
     else if (eardbd_host != NULL)
     {
@@ -328,8 +324,15 @@ long long get_sum(PGconn *connection, int start_time, int end_time, unsigned lon
 {
 
     long long result = 0;
-    char query[256];
+    char query[512];
 
+    uint max_power = MAX_ERROR_POWER;
+    int def_id = get_default_tag_id(&my_conf);
+    if (def_id > -1)
+    {
+        max_power = my_conf.tags[def_id].error_power;
+    }
+    
     if (node_name != NULL)
     {
         sprintf(query, SUM_QUERY, divisor, start_time, end_time);
@@ -339,11 +342,11 @@ long long get_sum(PGconn *connection, int start_time, int end_time, unsigned lon
     }
     else if (user_name != NULL)
     {
-        sprintf(query, USER_QUERY, divisor, user_name, start_time, end_time);
+        sprintf(query, USER_QUERY, divisor, user_name, start_time, end_time, max_power);
     }
     else if (etag != NULL)
     {
-        sprintf(query, ETAG_QUERY, divisor, etag, start_time, end_time);
+        sprintf(query, ETAG_QUERY, divisor, etag, start_time, end_time, max_power);
     }
     else if (eardbd_host != NULL)
     {
@@ -381,7 +384,7 @@ long long get_sum(PGconn *connection, int start_time, int end_time, unsigned lon
 #if DB_MYSQL
 void compute_pow(MYSQL *connection, int start_time, int end_time, unsigned long long result)
 {
-    char query[256];
+    char query[512];
     if (user_name == NULL && etag == NULL)
     {
         MYSQL_STMT *statement = mysql_stmt_init(connection);
@@ -488,7 +491,7 @@ void compute_pow(MYSQL *connection, int start_time, int end_time, unsigned long 
 #elif DB_PSQL
 void compute_pow(PGconn *connection, int start_time, int end_time, unsigned long long result)
 {
-    char query[256], final_query[256];
+    char query[512], final_query[512];
     if (user_name == NULL && etag == NULL)
     {
         if (node_name != NULL && strcmp(node_name, "all"))
@@ -722,6 +725,7 @@ void read_events(int start_time, int end_time, cluster_conf_t *my_conf)
 }
 #define GLOBAL_ENERGY_TYPE  1
 #define PER_METRIC_TYPE     2
+#define ALL_PER_METRIC_TYPE 3
 void print_warning_level(int warn_level)
 {
     switch(warn_level)
@@ -733,10 +737,10 @@ void print_warning_level(int warn_level)
             printf("%12s ", "NO PROBLEM");
             break;
         case 2:
-            printf("%12s ", "WARNING 2");
+            printf("%12s ", "WARNING 1");
             break;
         case 1:
-            printf("%12s ", "WARNING 1");
+            printf("%12s ", "WARNING 2");
             break;
         case 0:
             printf("%12s ", "PANIC");
@@ -754,8 +758,17 @@ void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query,
     int i;
     char all_nodes = 0;
 
+    uint max_power = MAX_ERROR_POWER;
+    int def_id = get_default_tag_id(&my_conf);
+    if (def_id > -1)
+    {
+        max_power = my_conf.tags[def_id].error_power;
+    }
+    
     if (type == GLOBAL_ENERGY_TYPE)
         sprintf(query, inc_query, end_time-start_time);
+    else if (type == ALL_PER_METRIC_TYPE)
+        sprintf(query, inc_query, start_time, end_time, max_power);
     else
         sprintf(query, inc_query, start_time, end_time);
 
@@ -848,8 +861,17 @@ void print_all(PGconn *connection, int start_time, int end_time, char *inc_query
     int i,j;
     char all_nodes = 0;
 
+    int max_power = MAX_ERROR_POWER;
+    int def_id = get_default_tag_id(&my_conf);
+    if (def_id > -1)
+    {
+        max_power = my_conf.tags[def_id].error_power;
+    }
+    
     if (type == GLOBAL_ENERGY_TYPE)
         sprintf(query, inc_query, end_time-start_time);
+    else if (type == ALL_PER_METRIC_TYPE)
+        sprintf(query, inc_query, start_time, end_time, max_power);
     else
         sprintf(query, inc_query, start_time, end_time);
 
@@ -934,7 +956,6 @@ void print_all(PGconn *connection, int start_time, int end_time, char *inc_query
 int main(int argc,char *argv[])
 {
     char path_name[256];
-    cluster_conf_t my_conf;
     time_t start_time = 0;
     time_t end_time = time(NULL);
     time_t time_period = 0;
@@ -1109,14 +1130,14 @@ int main(int argc,char *argv[])
         }    
     }
     else if (all_users)
-        print_all(connection, start_time, end_time, ALL_USERS, PER_METRIC_TYPE);
+        print_all(connection, start_time, end_time, ALL_USERS, ALL_PER_METRIC_TYPE);
+    else if (all_tags)
+        print_all(connection, start_time, end_time, ALL_TAGS, ALL_PER_METRIC_TYPE);
     else if (all_nodes)
     {
         compute_pow(connection, start_time, end_time, 0);
         print_all(connection, start_time, end_time, ALL_NODES, PER_METRIC_TYPE);
     }
-    else if (all_tags)
-        print_all(connection, start_time, end_time, ALL_TAGS, PER_METRIC_TYPE);
     else if (all_eardbds)
     {
         compute_pow(connection, start_time, end_time, 0);

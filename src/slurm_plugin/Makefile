@@ -1,5 +1,5 @@
-CFLAGS  = $(CC_FLAGS) -fPIC -I$(SRCDIR) $(CONSTANTS) $(SLURM_CFLAGS)
-LDFLAGS = 
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(SLURM_CFLAGS) -fPIC
+LDFLAGS = -lm
 
 ######## INSTALLATION
 
@@ -21,7 +21,7 @@ plug_OBJS = \
         $(SRCDIR)/daemon/eard_rapi.o \
         $(SRCDIR)/daemon/shared_configuration.o \
         $(SRCDIR)/global_manager/eargm_rapi.o \
-        $(SRCDIR)/common/libcommon.a
+        $(SRCDIR)/common/libcommon.a 
 
 plug_SRCS = \
         slurm_plugin.c \
@@ -49,7 +49,7 @@ earplug.so: $(plug_SRCS) $(plug_HDRS)
 	$(CC) $(CFLAGS) -shared -o $@ $(plug_SRCS) $(plug_OBJS) $(LDFLAGS)
 
 erun: $(erun_SRCS) $(plug_SRCS) $(plug_HDRS)
-	$(CC) $(CFLAGS) -DERUN -g -o $@ $(erun_SRCS) $(plug_SRCS) $(plug_OBJS)
+	$(CC) $(CFLAGS) -DERUN -g -o $@ $(erun_SRCS) $(plug_SRCS) $(plug_OBJS) $(LDFLAGS)
 
 ######## OPTIONS
 

@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 /**
@@ -38,10 +26,10 @@
 #define ACCUMULATORS_POWER_METRICS_H
 
 #include <common/states.h>
-#include <metrics/accumulators/types.h>
-#include <metrics/energy/energy_node.h>
+#include <metrics/gpu/gpu.h>
 #include <metrics/energy/energy_cpu.h>
-#include <metrics/energy/energy_gpu.h>
+#include <metrics/energy/energy_node.h>
+#include <metrics/accumulators/types.h>
 
 typedef long long rapl_data_t;
 typedef edata_t   node_data_t;
@@ -52,7 +40,7 @@ typedef struct energy_mon_data {
 	node_data_t  DC_node_energy;
 	rapl_data_t  *DRAM_energy;
 	rapl_data_t  *CPU_energy;
-	ulong        *GPU_energy;
+	gpu_t 		 *gpu_data;
 } energy_data_t;
 
 typedef struct power_data {
@@ -90,7 +78,7 @@ void compute_power(energy_data_t *e_begin, energy_data_t *e_end, power_data_t *m
 void print_energy_data(energy_data_t *e);
 
 /** Prints power information to the stdout */
-void print_power(power_data_t *my_power);
+void print_power(power_data_t *my_power,uint showdate,int out);
 
 /** Write (text mode) the power information in the provided file descriptor */
 void report_periodic_power(int fd,power_data_t *my_power);

@@ -1,183 +1,285 @@
 slurm_plugin_rcom_shared.o: slurm_plugin_rcom_shared.c \
  ../slurm_plugin/slurm_plugin_rcom.h ../slurm_plugin/slurm_plugin.h \
- ../common/sizes.h ../common/config.h ../common/config/config_def.h \
- ../common/config/config_dev.h ../common/config/config_install.h \
- ../common/output/verbose.h ../common/output/error.h \
+ ../common/types.h ../common/types/generic.h ../common/sizes.h \
+ ../common/output/verbose.h ../common/output/error.h ../common/colors.h \
  ../common/output/timestamp.h ../common/output/output_conf.h \
- ../common/output/debug.h ../common/types/generic.h \
- ../common/types/application.h ../common/types/job.h \
+ ../common/output/debug.h ../common/types/application.h \
+ ../common/config.h ../common/config/config_def.h \
+ ../common/config/config_dev.h ../common/config/config_env.h \
+ ../common/config/config_install.h ../common/types/job.h \
  ../common/types/signature.h ../common/types/power_signature.h \
  ../daemon/eard_rapi.h ../common/types/configuration/cluster_conf.h \
- ../common/states.h ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+ ../common/states.h ../common/string_enhanced.h \
+ ../common/types/configuration/node_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h \
  ../slurm_plugin/slurm_plugin_environment.h \
  ../slurm_plugin/slurm_plugin_serialization.h
 slurm_plugin_options.o: slurm_plugin_options.c ../common/system/folder.h \
- ../common/sizes.h ../common/states.h ../slurm_plugin/slurm_plugin.h \
+ ../common/sizes.h ../common/states.h ../common/output/error.h \
+ ../common/colors.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h ../slurm_plugin/slurm_plugin.h \
+ ../common/types.h ../common/types/generic.h ../common/output/verbose.h \
+ ../common/output/debug.h ../common/types/application.h \
  ../common/config.h ../common/config/config_def.h \
- ../common/config/config_dev.h ../common/config/config_install.h \
- ../common/output/verbose.h ../common/output/error.h \
- ../common/output/timestamp.h ../common/output/output_conf.h \
- ../common/output/debug.h ../common/types/generic.h \
- ../common/types/application.h ../common/types/job.h \
+ ../common/config/config_dev.h ../common/config/config_env.h \
+ ../common/config/config_install.h ../common/types/job.h \
  ../common/types/signature.h ../common/types/power_signature.h \
  ../daemon/eard_rapi.h ../common/types/configuration/cluster_conf.h \
+ ../common/string_enhanced.h ../common/types/configuration/node_conf.h \
  ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h \
  ../slurm_plugin/slurm_plugin_environment.h \
  ../slurm_plugin/slurm_plugin_options.h
 slurm_plugin_rcom_eard.o: slurm_plugin_rcom_eard.c \
  ../slurm_plugin/slurm_plugin_rcom.h ../slurm_plugin/slurm_plugin.h \
- ../common/sizes.h ../common/config.h ../common/config/config_def.h \
- ../common/config/config_dev.h ../common/config/config_install.h \
- ../common/output/verbose.h ../common/output/error.h \
+ ../common/types.h ../common/types/generic.h ../common/sizes.h \
+ ../common/output/verbose.h ../common/output/error.h ../common/colors.h \
  ../common/output/timestamp.h ../common/output/output_conf.h \
- ../common/output/debug.h ../common/types/generic.h \
- ../common/types/application.h ../common/types/job.h \
+ ../common/output/debug.h ../common/types/application.h \
+ ../common/config.h ../common/config/config_def.h \
+ ../common/config/config_dev.h ../common/config/config_env.h \
+ ../common/config/config_install.h ../common/types/job.h \
  ../common/types/signature.h ../common/types/power_signature.h \
  ../daemon/eard_rapi.h ../common/types/configuration/cluster_conf.h \
- ../common/states.h ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+ ../common/states.h ../common/string_enhanced.h \
+ ../common/types/configuration/node_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h \
  ../slurm_plugin/slurm_plugin_environment.h \
  ../slurm_plugin/slurm_plugin_serialization.h
 slurm_plugin_test.o: slurm_plugin_test.c ../common/colors.h \
- ../slurm_plugin/slurm_plugin.h ../common/sizes.h ../common/config.h \
- ../common/config/config_def.h ../common/config/config_dev.h \
- ../common/config/config_install.h ../common/output/verbose.h \
+ ../slurm_plugin/slurm_plugin.h ../common/types.h \
+ ../common/types/generic.h ../common/sizes.h ../common/output/verbose.h \
  ../common/output/error.h ../common/output/timestamp.h \
  ../common/output/output_conf.h ../common/output/debug.h \
- ../common/types/generic.h ../common/types/application.h \
+ ../common/types/application.h ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_env.h ../common/config/config_install.h \
  ../common/types/job.h ../common/types/signature.h \
  ../common/types/power_signature.h ../daemon/eard_rapi.h \
  ../common/types/configuration/cluster_conf.h ../common/states.h \
+ ../common/string_enhanced.h ../common/types/configuration/node_conf.h \
  ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h ../slurm_plugin/slurm_plugin_test.h \
  ../slurm_plugin/slurm_plugin_options.h \
  ../slurm_plugin/slurm_plugin_environment.h
 slurm_plugin_serialization.o: slurm_plugin_serialization.c \
  ../common/system/file.h ../common/sizes.h ../common/states.h \
- ../slurm_plugin/slurm_plugin.h ../common/config.h \
- ../common/config/config_def.h ../common/config/config_dev.h \
- ../common/config/config_install.h ../common/output/verbose.h \
- ../common/output/error.h ../common/output/timestamp.h \
- ../common/output/output_conf.h ../common/output/debug.h \
- ../common/types/generic.h ../common/types/application.h \
- ../common/types/job.h ../common/types/signature.h \
- ../common/types/power_signature.h ../daemon/eard_rapi.h \
- ../common/types/configuration/cluster_conf.h \
+ ../common/output/error.h ../common/colors.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h ../slurm_plugin/slurm_plugin.h \
+ ../common/types.h ../common/types/generic.h ../common/output/verbose.h \
+ ../common/output/debug.h ../common/types/application.h \
+ ../common/config.h ../common/config/config_def.h \
+ ../common/config/config_dev.h ../common/config/config_env.h \
+ ../common/config/config_install.h ../common/types/job.h \
+ ../common/types/signature.h ../common/types/power_signature.h \
+ ../daemon/eard_rapi.h ../common/types/configuration/cluster_conf.h \
+ ../common/string_enhanced.h ../common/types/configuration/node_conf.h \
  ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h \
  ../slurm_plugin/slurm_plugin_environment.h \
  ../slurm_plugin/slurm_plugin_serialization.h
 erun_lock.o: erun_lock.c ../common/system/file.h ../common/sizes.h \
- ../common/states.h ../slurm_plugin/slurm_plugin.h ../common/config.h \
- ../common/config/config_def.h ../common/config/config_dev.h \
- ../common/config/config_install.h ../common/output/verbose.h \
- ../common/output/error.h ../common/output/timestamp.h \
- ../common/output/output_conf.h ../common/output/debug.h \
- ../common/types/generic.h ../common/types/application.h \
- ../common/types/job.h ../common/types/signature.h \
- ../common/types/power_signature.h ../daemon/eard_rapi.h \
- ../common/types/configuration/cluster_conf.h \
+ ../common/states.h ../common/output/error.h ../common/colors.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../slurm_plugin/slurm_plugin.h ../common/types.h \
+ ../common/types/generic.h ../common/output/verbose.h \
+ ../common/output/debug.h ../common/types/application.h \
+ ../common/config.h ../common/config/config_def.h \
+ ../common/config/config_dev.h ../common/config/config_env.h \
+ ../common/config/config_install.h ../common/types/job.h \
+ ../common/types/signature.h ../common/types/power_signature.h \
+ ../daemon/eard_rapi.h ../common/types/configuration/cluster_conf.h \
+ ../common/string_enhanced.h ../common/types/configuration/node_conf.h \
  ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h \
  ../slurm_plugin/slurm_plugin_environment.h \
  ../slurm_plugin/slurm_plugin_serialization.h
-erun_sim.o: erun_sim.c ../slurm_plugin/slurm_plugin.h ../common/sizes.h \
- ../common/config.h ../common/config/config_def.h \
- ../common/config/config_dev.h ../common/config/config_install.h \
- ../common/output/verbose.h ../common/output/error.h \
- ../common/output/timestamp.h ../common/output/output_conf.h \
- ../common/output/debug.h ../common/types/generic.h \
- ../common/types/application.h ../common/types/job.h \
- ../common/types/signature.h ../common/types/power_signature.h \
- ../daemon/eard_rapi.h ../common/types/configuration/cluster_conf.h \
- ../common/states.h ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+erun_sim.o: erun_sim.c ../slurm_plugin/slurm_plugin.h ../common/types.h \
+ ../common/types/generic.h ../common/sizes.h ../common/output/verbose.h \
+ ../common/output/error.h ../common/colors.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h ../common/output/debug.h \
+ ../common/types/application.h ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_env.h ../common/config/config_install.h \
+ ../common/types/job.h ../common/types/signature.h \
+ ../common/types/power_signature.h ../daemon/eard_rapi.h \
+ ../common/types/configuration/cluster_conf.h ../common/states.h \
+ ../common/string_enhanced.h ../common/types/configuration/node_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h \
  ../slurm_plugin/slurm_plugin_environment.h \
  ../slurm_plugin/slurm_plugin_serialization.h
 slurm_plugin_rcom_eargmd.o: slurm_plugin_rcom_eargmd.c \
  ../slurm_plugin/slurm_plugin_rcom.h ../slurm_plugin/slurm_plugin.h \
- ../common/sizes.h ../common/config.h ../common/config/config_def.h \
- ../common/config/config_dev.h ../common/config/config_install.h \
- ../common/output/verbose.h ../common/output/error.h \
+ ../common/types.h ../common/types/generic.h ../common/sizes.h \
+ ../common/output/verbose.h ../common/output/error.h ../common/colors.h \
  ../common/output/timestamp.h ../common/output/output_conf.h \
- ../common/output/debug.h ../common/types/generic.h \
- ../common/types/application.h ../common/types/job.h \
+ ../common/output/debug.h ../common/types/application.h \
+ ../common/config.h ../common/config/config_def.h \
+ ../common/config/config_dev.h ../common/config/config_env.h \
+ ../common/config/config_install.h ../common/types/job.h \
  ../common/types/signature.h ../common/types/power_signature.h \
  ../daemon/eard_rapi.h ../common/types/configuration/cluster_conf.h \
- ../common/states.h ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+ ../common/states.h ../common/string_enhanced.h \
+ ../common/types/configuration/node_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h \
  ../slurm_plugin/slurm_plugin_environment.h \
  ../slurm_plugin/slurm_plugin_serialization.h
-erun.o: erun.c ../slurm_plugin/slurm_plugin.h ../common/sizes.h \
- ../common/config.h ../common/config/config_def.h \
- ../common/config/config_dev.h ../common/config/config_install.h \
- ../common/output/verbose.h ../common/output/error.h \
- ../common/output/timestamp.h ../common/output/output_conf.h \
- ../common/output/debug.h ../common/types/generic.h \
- ../common/types/application.h ../common/types/job.h \
- ../common/types/signature.h ../common/types/power_signature.h \
- ../daemon/eard_rapi.h ../common/types/configuration/cluster_conf.h \
- ../common/states.h ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+erun.o: erun.c ../slurm_plugin/slurm_plugin.h ../common/types.h \
+ ../common/types/generic.h ../common/sizes.h ../common/output/verbose.h \
+ ../common/output/error.h ../common/colors.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h ../common/output/debug.h \
+ ../common/types/application.h ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_env.h ../common/config/config_install.h \
+ ../common/types/job.h ../common/types/signature.h \
+ ../common/types/power_signature.h ../daemon/eard_rapi.h \
+ ../common/types/configuration/cluster_conf.h ../common/states.h \
+ ../common/string_enhanced.h ../common/types/configuration/node_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h \
  ../slurm_plugin/slurm_plugin_environment.h \
  ../slurm_plugin/slurm_plugin_serialization.h ../slurm_plugin/erun_lock.h
 slurm_plugin_environment.o: slurm_plugin_environment.c \
- ../slurm_plugin/slurm_plugin.h ../common/sizes.h ../common/config.h \
- ../common/config/config_def.h ../common/config/config_dev.h \
- ../common/config/config_install.h ../common/output/verbose.h \
- ../common/output/error.h ../common/output/timestamp.h \
+ ../slurm_plugin/slurm_plugin.h ../common/types.h \
+ ../common/types/generic.h ../common/sizes.h ../common/output/verbose.h \
+ ../common/output/error.h ../common/colors.h ../common/output/timestamp.h \
  ../common/output/output_conf.h ../common/output/debug.h \
- ../common/types/generic.h ../common/types/application.h \
+ ../common/types/application.h ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_env.h ../common/config/config_install.h \
  ../common/types/job.h ../common/types/signature.h \
  ../common/types/power_signature.h ../daemon/eard_rapi.h \
  ../common/types/configuration/cluster_conf.h ../common/states.h \
+ ../common/string_enhanced.h ../common/types/configuration/node_conf.h \
  ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h \
  ../slurm_plugin/slurm_plugin_environment.h
 slurm_plugin.o: slurm_plugin.c ../slurm_plugin/slurm_plugin.h \
- ../common/sizes.h ../common/config.h ../common/config/config_def.h \
- ../common/config/config_dev.h ../common/config/config_install.h \
- ../common/output/verbose.h ../common/output/error.h \
+ ../common/types.h ../common/types/generic.h ../common/sizes.h \
+ ../common/output/verbose.h ../common/output/error.h ../common/colors.h \
  ../common/output/timestamp.h ../common/output/output_conf.h \
- ../common/output/debug.h ../common/types/generic.h \
- ../common/types/application.h ../common/types/job.h \
+ ../common/output/debug.h ../common/types/application.h \
+ ../common/config.h ../common/config/config_def.h \
+ ../common/config/config_dev.h ../common/config/config_env.h \
+ ../common/config/config_install.h ../common/types/job.h \
  ../common/types/signature.h ../common/types/power_signature.h \
  ../daemon/eard_rapi.h ../common/types/configuration/cluster_conf.h \
- ../common/states.h ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../daemon/eard_conf_rapi.h ../daemon/shared_configuration.h \
+ ../common/states.h ../common/string_enhanced.h \
+ ../common/types/configuration/node_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../daemon/shared_configuration.h ../common/system/shared_areas.h \
  ../common/types/coefficient.h ../global_manager/eargm_rapi.h \
  ../slurm_plugin/spank_interposer.h ../slurm_plugin/slurm_plugin_test.h \
  ../slurm_plugin/slurm_plugin_rcom.h \

@@ -1,5 +1,5 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -Wall 
-LDFLAGS =
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -Wall
+LDFLAGS = -lm
 CCC     = $(CC) $(CFLAGS)
 
 ######## INSTALLATION
@@ -15,7 +15,7 @@ endif
 
 ######## FILES
 
-comm_OBJS = $(SRCDIR)/common/libcommon.a
+comm_OBJS = $(SRCDIR)/common/libcommon.a -lm
 
 rapi_OBJS = $(SRCDIR)/daemon/eard_rapi.o
 

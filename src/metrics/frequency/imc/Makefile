@@ -2,7 +2,8 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 
 ######## FILES
 
-freq_OBJS = intel_haswell.o
+freq_OBJS = \
+	intel63.o
 
 ######## RULES
 

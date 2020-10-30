@@ -1,35 +1,25 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <common/states.h>
+//#define SHOW_DEBUGS 1
+#include <common/output/verbose.h>
 #include <common/types/signature.h>
 #include <daemon/shared_configuration.h>
 #include <common/hardware/frequency.h>
@@ -46,11 +36,6 @@ static uint basic_model_init=0;
 static architecture_t arch;
 static int avx512_pstate=1,avx2_pstate=1;
 
-#ifdef SHOW_DEBUGS
-#define debug(...) fprintf(stderr, __VA_ARGS__); 
-#else
-#define debug(...) 
-#endif
 
 static int valid_range(ulong from,ulong to)
 {
@@ -70,10 +55,14 @@ state_t model_init(char *etc,char *tmp,architecture_t *myarch)
 	debug("Using basic_model\n");
 	num_pstates=myarch->pstates;
 	copy_arch_desc(&arch,myarch);
+	#if SHOW_DEBUGS
 	print_arch_desc(&arch);
+	#endif
+	VERB_SET_EN(0);
 	avx512_pstate=frequency_closest_pstate(arch.max_freq_avx512);
 	avx2_pstate=frequency_closest_pstate(arch.max_freq_avx2);
-	debug("Pstate for maximum freq avx512 %d Pstate for maximum freq avx2 %d",avx512_pstate,avx2_pstate);
+	VERB_SET_EN(1);
+	debug("Pstate for maximum freq avx512 %lu=%d Pstate for maximum freq avx2 %lu=%d",arch.max_freq_avx512,avx512_pstate,arch.max_freq_avx2,avx2_pstate);
 
   coefficients = (coefficient_t **) malloc(sizeof(coefficient_t *) * num_pstates);
   if (coefficients == NULL) {
@@ -185,6 +174,7 @@ state_t model_project_power(signature_t *sign, ulong from,ulong to,double *ppowe
 	coefficient_t *coeff,*avx512_coeffs;
 	double power_nosimd,power_avx2=0,power_avx512=0,cpower;
 	double perc_avx512=0,perc_avx2=0;
+  debug("projct power init %d valid %d",basic_model_init,valid_range(from,to));
 	if ((basic_model_init) && (valid_range(from,to))){
 		coeff=&coefficients[from][to];
 		if (coeff->available){
@@ -197,7 +187,10 @@ state_t model_project_power(signature_t *sign, ulong from,ulong to,double *ppowe
 				}
 				cpower=power_nosimd*(1-perc_avx512)+power_avx512*perc_avx512;
 				*ppower=cpower;
+				debug("power projection from %lu to %lu power_nosimd %lf power avx512 %lf perc_avx512 %lf",from,to,
+				power_nosimd,power_avx512,perc_avx512);
 		}else{
+			debug("Coeffs from %lu to %lu not available",from,to);
 			*ppower=0;
 			st=EAR_ERROR;
 		}

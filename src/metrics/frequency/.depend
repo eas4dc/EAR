@@ -1,2 +1,10 @@
-frequency_imc.o: frequency_imc.c
-frequency_cpu.o: frequency_cpu.c
+imc.o: imc.c ../../metrics/frequency/imc.h ../../common/types.h \
+ ../../common/types/generic.h ../../common/states.h \
+ ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/hardware/topology.h ../../metrics/frequency/imc/intel63.h
+cpu.o: cpu.c ../../metrics/frequency/cpu.h ../../common/types.h \
+ ../../common/types/generic.h ../../common/states.h \
+ ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/hardware/topology.h ../../metrics/frequency/cpu/intel63.h

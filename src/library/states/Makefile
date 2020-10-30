@@ -1,3 +1,5 @@
+CFLAGS = $(CC_FLAGS) $(MPI_CFLAGS) -I$(SRCDIR) -O2 -fPIC
+
 ######## FILES
 
 OBJS = states.o \
@@ -7,11 +9,8 @@ OBJS = states.o \
 
 all: $(OBJS)
 
-allt: DEFINES=-DEAR_GUI
-allt: $(OBJS) 
-
 %.o: %.c %.h
-	$(MPICC) $(CC_FLAGS) $(CFLAGS) $(DEFINES) -c $<
+	$(CC) $(CFLAGS) -c $<
 
 ######## OPTIONS 
 

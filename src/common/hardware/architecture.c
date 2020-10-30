@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <string.h>
@@ -32,7 +20,6 @@
 #include <common/output/verbose.h>
 #include <common/sizes.h>
 #include <common/states.h>
-#include <common/hardware/hardware_info.h>
 #include <common/hardware/cpupower.h>
 #include <common/hardware/architecture.h>
 
@@ -41,11 +28,8 @@ state_t get_arch_desc(architecture_t *arch)
 {
 	state_t ret;
 	if (arch==NULL) return EAR_ERROR;
-	ret=hardware_gettopology(&arch->top);
-	if (ret!=EAR_SUCCESS) return ret;
-	arch->max_freq_avx512=MAX_FREQ_AVX512;
-	arch->max_freq_avx2=MAX_FREQ_AVX2;
 	arch->pstates=CPUfreq_get_num_pstates(0);
+	topology_init(&arch->top);
 	return EAR_SUCCESS;	
 }
 
@@ -64,7 +48,6 @@ void print_arch_desc(architecture_t *arch)
 		printf("arch NULL pointer\n");
 		return;
 	}
-	printf("cores %d threads %d sockets %d numas %d ", arch->top.cores,arch->top.threads,arch->top.sockets,arch->top.numas);
 	printf("max avx512 %lu max freq for avx2 instructions %lu num pstates %d\n",arch->max_freq_avx512,
 	arch->max_freq_avx2,arch->pstates);
 	
@@ -77,7 +60,6 @@ void verbose_architecture(int v, architecture_t *arch)
 		verbose(v,"arch NULL pointer\n");
 		return;
 	}
-	verbose(v,"cores %d threads %d sockets %d numas %d ", arch->top.cores,arch->top.threads,arch->top.sockets,arch->top.numas);
 	verbose(v,"max avx512 %lu max freq for avx2 instructions %lu num pstates %d\n",arch->max_freq_avx512,
 	arch->max_freq_avx2,arch->pstates);
 }

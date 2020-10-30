@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <common/system/folder.h>
@@ -32,7 +20,7 @@
 #include <slurm_plugin/slurm_plugin_environment.h>
 #include <slurm_plugin/slurm_plugin_options.h>
 
-#define SRUN_OPTIONS	10
+#define SRUN_OPTIONS 8
 
 static char buffer[SZ_PATH];
 static char opt_mpi[SZ_PATH];
@@ -60,11 +48,8 @@ struct spank_option spank_options_manual[SRUN_OPTIONS] =
 	  "'file.nodename.csv' file will be created per node. If not defined, these files won't be generated.",
 	  1, 0, (spank_opt_cb_f) _opt_ear_user_db
 	},
-	{ "ear-mpi-dist", "dist", opt_mpi,
-	  1, 0, (spank_opt_cb_f) _opt_ear_mpi_dist
-	},
 	{ "ear-verbose", "value", "Specifies the level of the verbosity" \
-	  "{value=[0..5]}; default is 0",
+	  "{value=[0..1]}; default is 0",
 	  1, 0, (spank_opt_cb_f) _opt_ear_verbose
 	},
 	{ "ear-learning", "value",
@@ -74,9 +59,15 @@ struct spank_option spank_options_manual[SRUN_OPTIONS] =
 	{ "ear-tag", "tag", "Sets an energy tag (max 32 chars)",
 	  1, 0, (spank_opt_cb_f) _opt_ear_tag
 	},
+	// Hidden options
+#if 0
+	{ "ear-mpi-dist", "dist", opt_mpi,
+	  1, 0, (spank_opt_cb_f) _opt_ear_mpi_dist
+	},
 	{ "ear-traces", "path", "Saves application traces with metrics and internal details",
 	  1, 0, (spank_opt_cb_f) _opt_ear_traces
 	}
+#endif
 };
 
 static int _opt_register_mpi(spank_t sp, int ac, char **av)
@@ -179,7 +170,7 @@ int _opt_register(spank_t sp, int ac, char **av)
 	_opt_register_pol(sp, ac, av);
 	
 	//
-	length = SRUN_OPTIONS - !exenv_agnostic(sp, "EAR_GUI");
+	length = SRUN_OPTIONS;
 
 	for (i = 0; i < length; ++i)
 	{
@@ -353,7 +344,7 @@ int _opt_ear_verbose (int val, const char *optarg, int remote)
 
 		ioptarg = atoi(optarg);
 		if (ioptarg < 0) ioptarg = 0;
-		if (ioptarg > 4) ioptarg = 4;
+		if (ioptarg > 1) ioptarg = 1;
 		snprintf(buffer, 4, "%d", ioptarg);
 
 		setenv_agnostic(NULL_C, Var.verbose.loc, buffer, 1);
@@ -363,9 +354,9 @@ int _opt_ear_verbose (int val, const char *optarg, int remote)
 	return ESPANK_SUCCESS;
 }
 
-int _opt_ear_traces (int val, const char *optarg, int remote)
+int _opt_ear_tag(int val, const char *optarg, int remote)
 {
-	plug_verbose(NULL_C, 2, "function _opt_ear_traces");
+	plug_verbose(NULL_C, 2, "function _opt_tag");
 
 	if (!remote)
 	{
@@ -373,13 +364,19 @@ int _opt_ear_traces (int val, const char *optarg, int remote)
 			return ESPANK_BAD_ARG;
 		}
 
-		setenv_agnostic(NULL_C, Var.path_trac.loc, optarg, 1);
+		setenv_agnostic(NULL_C, Var.tag.loc, optarg, 1);
 		setenv_agnostic(NULL_C, Var.comp_libr.cmp, "1", 1);
 	}
-
 	return ESPANK_SUCCESS;
 }
 
+/*
+ *
+ * Hidden options
+ *
+ */
+
+#if 0
 int _opt_ear_mpi_dist(int val, const char *optarg, int remote)
 {
 	plug_verbose(NULL_C, 2, "function _opt_mpi_dist");
@@ -399,9 +396,9 @@ int _opt_ear_mpi_dist(int val, const char *optarg, int remote)
 	return (ESPANK_SUCCESS);
 }
 
-int _opt_ear_tag(int val, const char *optarg, int remote)
+int _opt_ear_traces (int val, const char *optarg, int remote)
 {
-	plug_verbose(NULL_C, 2, "function _opt_tag");
+	plug_verbose(NULL_C, 2, "function _opt_ear_traces");
 
 	if (!remote)
 	{
@@ -409,8 +406,10 @@ int _opt_ear_tag(int val, const char *optarg, int remote)
 			return ESPANK_BAD_ARG;
 		}
 
-		setenv_agnostic(NULL_C, Var.tag.loc, optarg, 1);
+		setenv_agnostic(NULL_C, Var.path_trac.loc, optarg, 1);
 		setenv_agnostic(NULL_C, Var.comp_libr.cmp, "1", 1);
 	}
+
 	return ESPANK_SUCCESS;
 }
+#endif

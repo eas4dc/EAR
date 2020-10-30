@@ -1,25 +1,63 @@
 metrics.o: metrics.c ../../common/config.h \
  ../../common/config/config_def.h ../../common/config/config_dev.h \
- ../../common/config/config_install.h ../../common/states.h \
- ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/config/config_env.h ../../common/config/config_install.h \
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
  ../../common/output/timestamp.h ../../common/output/output_conf.h \
- ../../common/output/debug.h ../../common/types/signature.h \
- ../../common/types/generic.h ../../common/math_operations.h \
- ../../common/hardware/hardware_info.h ../../common/sizes.h \
- ../../common/system/file.h ../../common/hardware/cpuid.h \
+ ../../common/output/verbose.h ../../common/output/debug.h \
+ ../../common/types/signature.h ../../common/types/generic.h \
+ ../../common/math_operations.h ../../common/hardware/hardware_info.h \
+ ../../common/sizes.h ../../common/system/file.h \
+ ../../common/hardware/cpuid.h ../../common/hardware/topology.h \
  ../../library/common/externs.h ../../common/types/application.h \
  ../../common/types/job.h ../../common/types/power_signature.h \
  ../../common/types/loop.h ../../daemon/shared_configuration.h \
+ ../../common/system/shared_areas.h \
  ../../common/types/configuration/cluster_conf.h \
- ../../common/types/configuration/policy_conf.h \
+ ../../common/string_enhanced.h \
  ../../common/types/configuration/node_conf.h \
- ../../common/string_enhanced.h ../../common/types/coefficient.h \
- ../../library/metrics/metrics.h ../../metrics/cpi/cpi.h \
- ../../metrics/cpi/cpu/papi.h ../../metrics/common/papi.h \
- ../../metrics/flops/flops.h ../../metrics/flops/cpu/papi.h \
- ../../metrics/energy/energy_node_lib.h ../../common/includes.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/cluster_conf_db.h \
+ ../../common/types/configuration/cluster_conf_tag.h \
+ ../../common/types/configuration/cluster_conf_etag.h \
+ ../../common/types/configuration/cluster_conf_eard.h \
+ ../../common/types/configuration/cluster_conf_eargm.h \
+ ../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../common/types/configuration/cluster_conf_earlib.h \
+ ../../common/types/coefficient.h \
+ ../../library/common/library_shared_data.h \
+ ../../library/common/global_comm.h ../../library/metrics/metrics.h \
+ ../../metrics/cpi/cpi.h ../../metrics/cpi/cpu/papi.h \
+ ../../metrics/common/papi.h ../../metrics/flops/flops.h \
+ ../../metrics/flops/cpu/papi.h ../../metrics/energy/energy_node_lib.h \
+ ../../common/includes.h ../../common/attributes.h \
  ../../metrics/accumulators/types.h ../../metrics/energy/energy_cpu.h \
- ../../metrics/energy/cpu/intel_haswell.h ../../metrics/common/msr.h \
+ ../../metrics/energy/cpu/intel_haswell.h ../../metrics/common/omsr.h \
  ../../metrics/bandwidth/cpu/utils.h ../../daemon/eard_api.h \
  ../../common/types/log.h ../../common/types/event_type.h \
- ../../daemon/eard_conf_api.h
+ ../../daemon/eard_conf_api.h ../../metrics/gpu/gpu.h \
+ ../../common/types.h ../../common/plugins.h ../../common/system/time.h
+gpu.o: gpu.c ../../library/metrics/gpu.h ../../metrics/gpu/gpu.h \
+ ../../common/types.h ../../common/types/generic.h ../../common/states.h \
+ ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/plugins.h ../../common/system/time.h \
+ ../../daemon/shared_configuration.h ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_env.h ../../common/config/config_install.h \
+ ../../common/system/shared_areas.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
+ ../../common/string_enhanced.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/cluster_conf_db.h \
+ ../../common/types/configuration/cluster_conf_tag.h \
+ ../../common/types/configuration/cluster_conf_etag.h \
+ ../../common/types/configuration/cluster_conf_eard.h \
+ ../../common/types/configuration/cluster_conf_eargm.h \
+ ../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../common/types/configuration/cluster_conf_earlib.h \
+ ../../common/types/coefficient.h ../../daemon/eard_api.h \
+ ../../common/types/log.h ../../common/types/job.h \
+ ../../common/types/event_type.h ../../daemon/eard_conf_api.h \
+ ../../common/types/application.h ../../common/types/signature.h \
+ ../../common/types/power_signature.h ../../common/types/loop.h

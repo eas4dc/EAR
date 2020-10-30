@@ -1,36 +1,25 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #ifndef STATES_H
 #define STATES_H
 
 #include <errno.h>
+#include <common/output/error.h>
 
 /* error definitions */
 #define EAR_SUCCESS              0
@@ -59,12 +48,37 @@ char *state_msg;
 #define state_is(state1, state2) \
 	state1 == state2
 
-#define return_msg(no, msg) \
+#define return_msg(no, msg) { \
 	state_msg = msg; \
-	return no;
+	return no; \
+	}
 
 #define xtate_fail(s, function) \
 	(s = function) != EAR_SUCCESS
+
+#define state_assert(s, func, cons) \
+    if (xtate_fail(s, func)) { \
+        error(#func " returned %d (%s)\n", s, state_msg); \
+        cons; \
+    }
+
+struct generr_s {
+	char *api_undefined;
+	char *api_incompatible;
+	char *api_uninitialized;
+	char *alloc_error;
+	char *input_null;
+	char *input_uninitialized;
+	char *lock;
+} Generr __attribute__((weak)) = {
+	.api_undefined = "the API is undefined",
+	.api_incompatible = "the current hardware is not supported by the API",
+	.api_uninitialized = "the API is not initialized",
+	.alloc_error = "error ocurred during allocation",
+	.input_null = "an argument of the input is NULL",
+	.input_uninitialized = "an argument is not initialized",
+	.lock = "error while using mutex_lock",
+};
 
 /*
  *

@@ -1,12 +1,21 @@
+omsr.o: omsr.c ../../common/sizes.h ../../metrics/common/omsr.h \
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/types/generic.h ../../common/hardware/hardware_info.h \
+ ../../common/system/file.h ../../common/hardware/cpuid.h \
+ ../../common/hardware/topology.h ../../common/output/verbose.h \
+ ../../common/output/debug.h
 pci.o: pci.c
 papi.o: papi.c ../../common/config.h ../../common/config/config_def.h \
- ../../common/config/config_dev.h ../../common/config/config_install.h \
- ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/config/config_dev.h ../../common/config/config_env.h \
+ ../../common/config/config_install.h ../../common/output/verbose.h \
+ ../../common/output/error.h ../../common/colors.h \
  ../../common/output/timestamp.h ../../common/output/output_conf.h \
- ../../common/output/debug.h ../../metrics/common/papi.h
-msr.o: msr.c ../../common/sizes.h ../../metrics/common/msr.h \
- ../../common/states.h ../../common/types/generic.h \
- ../../common/hardware/hardware_info.h ../../common/system/file.h \
- ../../common/hardware/cpuid.h ../../common/output/verbose.h \
- ../../common/output/error.h ../../common/output/timestamp.h \
- ../../common/output/output_conf.h ../../common/output/debug.h
+ ../../common/output/debug.h ../../metrics/common/papi.h \
+ ../../common/states.h
+msr.o: msr.c ../../common/sizes.h ../../common/states.h \
+ ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/verbose.h ../../common/output/debug.h \
+ ../../metrics/common/msr.h ../../common/types.h \
+ ../../common/types/generic.h

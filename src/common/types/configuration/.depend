@@ -1,57 +1,204 @@
+cluster_conf_eard.o: cluster_conf_eard.c ../../../common/config.h \
+ ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
+ ../../../common/config/config_install.h ../../../common/output/verbose.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/output/debug.h ../../../common/string_enhanced.h \
+ ../../../common/types/configuration/cluster_conf_eard.h \
+ ../../../common/states.h ../../../common/types/generic.h
 cluster_conf_verbose.o: cluster_conf_verbose.c ../../../common/config.h \
  ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
  ../../../common/config/config_install.h ../../../common/output/verbose.h \
- ../../../common/output/error.h ../../../common/output/timestamp.h \
- ../../../common/output/output_conf.h ../../../common/output/debug.h \
- ../../../common/types/configuration/cluster_conf.h \
- ../../../common/sizes.h ../../../common/states.h \
- ../../../common/types/generic.h \
- ../../../common/types/configuration/policy_conf.h \
- ../../../common/types/configuration/node_conf.h \
- ../../../common/string_enhanced.h
-cluster_conf_read.o: cluster_conf_read.c ../../../common/config.h \
- ../../../common/config/config_def.h ../../../common/config/config_dev.h \
- ../../../common/config/config_install.h ../../../common/output/verbose.h \
- ../../../common/output/error.h ../../../common/output/timestamp.h \
- ../../../common/output/output_conf.h ../../../common/output/debug.h \
- ../../../common/types/configuration/cluster_conf.h \
- ../../../common/sizes.h ../../../common/states.h \
- ../../../common/types/generic.h \
- ../../../common/types/configuration/policy_conf.h \
- ../../../common/types/configuration/node_conf.h \
- ../../../common/string_enhanced.h
-node_conf.o: node_conf.c ../../../common/config.h \
- ../../../common/config/config_def.h ../../../common/config/config_dev.h \
- ../../../common/config/config_install.h ../../../common/environment.h \
- ../../../common/output/verbose.h ../../../common/output/error.h \
+ ../../../common/output/error.h ../../../common/colors.h \
  ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
  ../../../common/output/debug.h \
+ ../../../common/types/configuration/cluster_conf.h \
+ ../../../common/sizes.h ../../../common/states.h \
+ ../../../common/types/generic.h ../../../common/string_enhanced.h \
+ ../../../common/types/configuration/node_conf.h \
+ ../../../common/types/configuration/policy_conf.h \
+ ../../../common/types/configuration/cluster_conf_db.h \
+ ../../../common/types/configuration/cluster_conf_tag.h \
+ ../../../common/types/configuration/cluster_conf_etag.h \
+ ../../../common/types/configuration/cluster_conf_eard.h \
+ ../../../common/types/configuration/cluster_conf_eargm.h \
+ ../../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../../common/types/configuration/cluster_conf_earlib.h \
+ ../../../common/types/configuration/cluster_conf_generic.h
+cluster_conf_eargm.o: cluster_conf_eargm.c ../../../common/config.h \
+ ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
+ ../../../common/config/config_install.h ../../../common/output/verbose.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/output/debug.h ../../../common/states.h \
+ ../../../common/string_enhanced.h \
+ ../../../common/types/configuration/cluster_conf_eargm.h \
+ ../../../common/types/generic.h
+cluster_conf.o: cluster_conf.c ../../../common/config.h \
+ ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
+ ../../../common/config/config_install.h ../../../common/output/verbose.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/output/debug.h ../../../common/sizes.h \
+ ../../../common/types/configuration/cluster_conf.h \
+ ../../../common/states.h ../../../common/types/generic.h \
+ ../../../common/string_enhanced.h \
+ ../../../common/types/configuration/node_conf.h \
+ ../../../common/types/configuration/policy_conf.h \
+ ../../../common/types/configuration/cluster_conf_db.h \
+ ../../../common/types/configuration/cluster_conf_tag.h \
+ ../../../common/types/configuration/cluster_conf_etag.h \
+ ../../../common/types/configuration/cluster_conf_eard.h \
+ ../../../common/types/configuration/cluster_conf_eargm.h \
+ ../../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../../common/types/configuration/cluster_conf_earlib.h \
+ ../../../common/environment.h
+cluster_conf_etag.o: cluster_conf_etag.c ../../../common/config.h \
+ ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
+ ../../../common/config/config_install.h ../../../common/output/verbose.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/output/debug.h ../../../common/states.h \
+ ../../../common/string_enhanced.h ../../../common/types/generic.h \
+ ../../../common/types/configuration/cluster_conf_etag.h \
+ ../../../common/types/configuration/cluster_conf_generic.h \
+ ../../../common/types/configuration/cluster_conf.h \
+ ../../../common/sizes.h ../../../common/types/configuration/node_conf.h \
+ ../../../common/types/configuration/policy_conf.h \
+ ../../../common/types/configuration/cluster_conf_db.h \
+ ../../../common/types/configuration/cluster_conf_tag.h \
+ ../../../common/types/configuration/cluster_conf_eard.h \
+ ../../../common/types/configuration/cluster_conf_eargm.h \
+ ../../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../../common/types/configuration/cluster_conf_earlib.h
+cluster_conf_read.o: cluster_conf_read.c ../../../common/config.h \
+ ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
+ ../../../common/config/config_install.h ../../../common/output/verbose.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/output/debug.h \
+ ../../../common/types/configuration/cluster_conf.h \
+ ../../../common/sizes.h ../../../common/states.h \
+ ../../../common/types/generic.h ../../../common/string_enhanced.h \
+ ../../../common/types/configuration/node_conf.h \
+ ../../../common/types/configuration/policy_conf.h \
+ ../../../common/types/configuration/cluster_conf_db.h \
+ ../../../common/types/configuration/cluster_conf_tag.h \
+ ../../../common/types/configuration/cluster_conf_etag.h \
+ ../../../common/types/configuration/cluster_conf_eard.h \
+ ../../../common/types/configuration/cluster_conf_eargm.h \
+ ../../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../../common/types/configuration/cluster_conf_earlib.h \
+ ../../../common/types/configuration/cluster_conf_generic.h
+node_conf.o: node_conf.c ../../../common/config.h \
+ ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
+ ../../../common/config/config_install.h ../../../common/environment.h \
+ ../../../common/output/verbose.h ../../../common/output/error.h \
+ ../../../common/colors.h ../../../common/output/timestamp.h \
+ ../../../common/output/output_conf.h ../../../common/output/debug.h \
  ../../../common/types/configuration/policy_conf.h \
  ../../../common/types/generic.h \
  ../../../common/types/configuration/cluster_conf.h \
  ../../../common/sizes.h ../../../common/states.h \
+ ../../../common/string_enhanced.h \
  ../../../common/types/configuration/node_conf.h \
- ../../../common/string_enhanced.h
-cluster_conf.o: cluster_conf.c ../../../common/config.h \
+ ../../../common/types/configuration/cluster_conf_db.h \
+ ../../../common/types/configuration/cluster_conf_tag.h \
+ ../../../common/types/configuration/cluster_conf_etag.h \
+ ../../../common/types/configuration/cluster_conf_eard.h \
+ ../../../common/types/configuration/cluster_conf_eargm.h \
+ ../../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../../common/types/configuration/cluster_conf_earlib.h
+cluster_conf_eardbd.o: cluster_conf_eardbd.c ../../../common/config.h \
  ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
  ../../../common/config/config_install.h ../../../common/output/verbose.h \
- ../../../common/output/error.h ../../../common/output/timestamp.h \
- ../../../common/output/output_conf.h ../../../common/output/debug.h \
- ../../../common/sizes.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/output/debug.h ../../../common/string_enhanced.h \
+ ../../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../../common/states.h ../../../common/types/generic.h
+cluster_conf_generic.o: cluster_conf_generic.c ../../../common/config.h \
+ ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
+ ../../../common/config/config_install.h ../../../common/states.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/types/generic.h ../../../common/string_enhanced.h \
+ ../../../common/output/verbose.h ../../../common/output/debug.h \
  ../../../common/types/configuration/cluster_conf.h \
- ../../../common/states.h ../../../common/types/generic.h \
+ ../../../common/sizes.h ../../../common/types/configuration/node_conf.h \
  ../../../common/types/configuration/policy_conf.h \
- ../../../common/types/configuration/node_conf.h \
- ../../../common/string_enhanced.h ../../../common/environment.h
+ ../../../common/types/configuration/cluster_conf_db.h \
+ ../../../common/types/configuration/cluster_conf_tag.h \
+ ../../../common/types/configuration/cluster_conf_etag.h \
+ ../../../common/types/configuration/cluster_conf_eard.h \
+ ../../../common/types/configuration/cluster_conf_eargm.h \
+ ../../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../../common/types/configuration/cluster_conf_earlib.h \
+ ../../../common/types/configuration/cluster_conf_generic.h
 policy_conf.o: policy_conf.c ../../../common/config.h \
  ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
  ../../../common/config/config_install.h ../../../common/output/verbose.h \
- ../../../common/output/error.h ../../../common/output/timestamp.h \
- ../../../common/output/output_conf.h ../../../common/output/debug.h \
- ../../../common/states.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/output/debug.h ../../../common/states.h \
  ../../../common/types/configuration/cluster_conf.h \
  ../../../common/sizes.h ../../../common/types/generic.h \
- ../../../common/types/configuration/policy_conf.h \
+ ../../../common/string_enhanced.h \
  ../../../common/types/configuration/node_conf.h \
- ../../../common/string_enhanced.h ../../../common/hardware/frequency.h \
- ../../../common/hardware/cpupower.h
+ ../../../common/types/configuration/policy_conf.h \
+ ../../../common/types/configuration/cluster_conf_db.h \
+ ../../../common/types/configuration/cluster_conf_tag.h \
+ ../../../common/types/configuration/cluster_conf_etag.h \
+ ../../../common/types/configuration/cluster_conf_eard.h \
+ ../../../common/types/configuration/cluster_conf_eargm.h \
+ ../../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../../common/types/configuration/cluster_conf_earlib.h \
+ ../../../common/hardware/frequency.h ../../../common/hardware/cpupower.h
+cluster_conf_tag.o: cluster_conf_tag.c ../../../common/config.h \
+ ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
+ ../../../common/config/config_install.h ../../../common/output/verbose.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/output/debug.h ../../../common/states.h \
+ ../../../common/string_enhanced.h ../../../common/types/generic.h \
+ ../../../common/types/configuration/cluster_conf_etag.h \
+ ../../../common/types/configuration/cluster_conf_generic.h \
+ ../../../common/types/configuration/cluster_conf.h \
+ ../../../common/sizes.h ../../../common/types/configuration/node_conf.h \
+ ../../../common/types/configuration/policy_conf.h \
+ ../../../common/types/configuration/cluster_conf_db.h \
+ ../../../common/types/configuration/cluster_conf_tag.h \
+ ../../../common/types/configuration/cluster_conf_eard.h \
+ ../../../common/types/configuration/cluster_conf_eargm.h \
+ ../../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../../common/types/configuration/cluster_conf_earlib.h
+cluster_conf_earlib.o: cluster_conf_earlib.c ../../../common/config.h \
+ ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
+ ../../../common/config/config_install.h ../../../common/output/verbose.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/output/debug.h ../../../common/states.h \
+ ../../../common/string_enhanced.h ../../../common/environment.h \
+ ../../../common/types/configuration/cluster_conf_earlib.h \
+ ../../../common/types/generic.h
+cluster_conf_db.o: cluster_conf_db.c ../../../common/config.h \
+ ../../../common/config/config_def.h ../../../common/config/config_dev.h \
+ ../../../common/config/config_env.h \
+ ../../../common/config/config_install.h ../../../common/output/verbose.h \
+ ../../../common/output/error.h ../../../common/colors.h \
+ ../../../common/output/timestamp.h ../../../common/output/output_conf.h \
+ ../../../common/output/debug.h ../../../common/string_enhanced.h \
+ ../../../common/states.h ../../../common/types/generic.h \
+ ../../../common/types/configuration/cluster_conf_db.h

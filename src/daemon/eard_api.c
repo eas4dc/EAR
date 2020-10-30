@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <errno.h>
@@ -37,6 +25,9 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#define _GNU_SOURCE             
+#include <sched.h>
+
 #include <common/config.h>
 #include <common/states.h>
 //#define SHOW_DEBUGS 1
@@ -613,6 +604,36 @@ ulong eards_change_freq(ulong newfreq)
 
 	return real_freq;
 }
+unsigned long eards_change_freq_with_mask(unsigned long newfreq,cpu_set_t mask)
+{
+  ulong real_freq = EAR_ERROR;
+  struct daemon_req req;
+  if (!app_connected) return newfreq;
+  req.req_service = SET_FREQ_WITH_MASK;
+  req.sec=create_sec_tag();
+  req.req_data.f_mask.f = newfreq;
+  req.req_data.f_mask.mask= mask;
+
+  debug( "NewFreq %lu requested maskk %lu",  newfreq,(unsigned long)mask);
+
+  if (ear_fd_req[freq_req] >= 0)
+  {
+    if (warning_api(my_write(ear_fd_req[freq_req],(char *)&req, sizeof(req)) , sizeof(req),
+       "ERROR writing request for changing frequency")) return EAR_ERROR;
+
+    if (warning_api(my_read(ear_fd_ack[freq_req], (char *)&real_freq, sizeof(ulong)) , sizeof(ulong),
+      "ERROR reading ack for changing frequency ")) return EAR_ERROR;
+
+    debug("Frequency_changed to %lu",  real_freq);
+  } else {
+    real_freq = 0;
+    debug( "change_freq service not provided");
+  }
+
+  return real_freq;
+
+}
+
 
 // END FREQUENCY SERVICES
 //////////////// UNCORE REQUESTS
@@ -926,3 +947,88 @@ ulong eards_node_energy_frequency()
     return ack;
 
 }
+
+/********** GPU *********/
+int eards_gpu_model(uint *gpu_model)
+{
+  int com_fd = gpu_req;
+  ulong ack=EAR_SUCCESS;
+  struct daemon_req req;
+  
+	*gpu_model=0;
+  if (!app_connected){
+    return EAR_SUCCESS;
+  }
+  debug( "asking for gpu_model ");
+  req.req_service = GPU_MODEL;
+  req.sec=create_sec_tag();
+  if (ear_fd_req[com_fd]>=0)
+  {      
+      if (warning_api(my_write(ear_fd_req[com_fd],(char *)&req,sizeof(req)) , sizeof(req),
+      "ERROR writing request for gpu model ")) return EAR_ERROR;
+      if (warning_api(my_read(ear_fd_ack[com_fd],(char *)gpu_model,sizeof(uint)) , sizeof(uint),
+      "ERROR reading data for gpu model")) return EAR_ERROR;
+      ack = EAR_SUCCESS;
+  } else
+  { 
+    debug( "gpu_model service not provided");
+    ack=EAR_ERROR;
+  }   
+  return ack;
+
+}
+int eards_gpu_dev_count(uint *gpu_dev_count)
+{
+  int com_fd = gpu_req;
+  ulong ack=EAR_SUCCESS;
+  struct daemon_req req;
+ 
+	*gpu_dev_count=0; 
+  if (!app_connected){
+    return EAR_SUCCESS;
+  }
+  debug( "asking for gpu_dev_count ");
+  req.req_service = GPU_DEV_COUNT;
+  req.sec=create_sec_tag();
+  if (ear_fd_req[com_fd]>=0)
+  {      
+      if (warning_api(my_write(ear_fd_req[com_fd],(char *)&req,sizeof(req)) , sizeof(req),
+      "ERROR writing request for gpu dev_coubt ")) return EAR_ERROR;
+      if (warning_api(my_read(ear_fd_ack[com_fd],(char *)gpu_dev_count,sizeof(uint)) , sizeof(uint),
+      "ERROR reading data for gpu dev_count")) return EAR_ERROR;
+      ack = EAR_SUCCESS;
+  } else
+  { 
+    debug( "gpu_dev_count service not provided");
+    ack=EAR_ERROR;
+  }   
+  return ack;
+}
+int eards_gpu_data_read(gpu_t *gpu_info)
+{
+  int com_fd = gpu_req;
+  ulong ack=EAR_SUCCESS;
+  struct daemon_req req;
+  
+	memset(gpu_info,0,sizeof(gpu_t));
+  if (!app_connected){
+    return EAR_SUCCESS;
+  }
+  debug( "asking for gpu_data ");
+  req.req_service = GPU_DATA_READ;
+  req.sec=create_sec_tag();
+  if (ear_fd_req[com_fd]>=0)
+  {     
+      if (warning_api(my_write(ear_fd_req[com_fd],(char *)&req,sizeof(req)) , sizeof(req),
+      "ERROR writing request for gpu data read ")) return EAR_ERROR;
+      if (warning_api(my_read(ear_fd_ack[com_fd],(char *)gpu_info,sizeof(gpu_t)) , sizeof(gpu_t),
+      "ERROR reading data for gpu data read ")) return EAR_ERROR;
+			ack = EAR_SUCCESS;
+  } else
+  { 
+    debug( "gpu_data_read service not provided");
+    ack=EAR_ERROR;
+  }   
+	return ack;
+}
+

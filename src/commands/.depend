@@ -1,12 +1,21 @@
 ear_create_database.o: ear_create_database.c ../common/system/user.h \
- ../common/sizes.h ../common/states.h \
+ ../common/sizes.h ../common/states.h ../common/output/error.h \
+ ../common/colors.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h \
  ../common/types/configuration/cluster_conf.h ../common/config.h \
  ../common/config/config_def.h ../common/config/config_dev.h \
- ../common/config/config_install.h ../common/types/generic.h \
+ ../common/config/config_env.h ../common/config/config_install.h \
+ ../common/types/generic.h ../common/string_enhanced.h \
+ ../common/types/configuration/node_conf.h \
  ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../common/output/verbose.h ../common/output/error.h \
- ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../common/types/version.h ../common/output/verbose.h \
  ../common/output/debug.h ../common/database/db_helper.h \
  ../common/types/periodic_aggregation.h ../common/types/power_signature.h \
  ../common/types/periodic_metric.h ../common/types/application.h \
@@ -15,57 +24,92 @@ ear_create_database.o: ear_create_database.c ../common/system/user.h \
  ../common/types/log.h ../common/types/event_type.h
 ear_cleandb.o: ear_cleandb.c ../common/config.h \
  ../common/config/config_def.h ../common/config/config_dev.h \
- ../common/config/config_install.h ../common/output/verbose.h \
- ../common/output/error.h ../common/output/timestamp.h \
- ../common/output/output_conf.h ../common/output/debug.h \
- ../common/database/db_helper.h ../common/types/periodic_aggregation.h \
- ../common/types/generic.h ../common/types/power_signature.h \
- ../common/types/periodic_metric.h \
+ ../common/config/config_env.h ../common/config/config_install.h \
+ ../common/output/verbose.h ../common/output/error.h ../common/colors.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/output/debug.h ../common/database/db_helper.h \
+ ../common/types/periodic_aggregation.h ../common/types/generic.h \
+ ../common/types/power_signature.h ../common/types/periodic_metric.h \
  ../common/types/configuration/cluster_conf.h ../common/sizes.h \
- ../common/states.h ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../common/states.h ../common/string_enhanced.h \
+ ../common/types/configuration/node_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
  ../common/types/application.h ../common/types/job.h \
  ../common/types/signature.h ../common/types/gm_warning.h \
  ../common/types/loop.h ../common/types/log.h \
  ../common/types/event_type.h
-ear_control.o: ear_control.c ../common/system/user.h ../common/sizes.h \
- ../common/states.h ../common/types/configuration/cluster_conf.h \
- ../common/config.h ../common/config/config_def.h \
- ../common/config/config_dev.h ../common/config/config_install.h \
- ../common/types/generic.h ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ear_control.o: ear_control.c ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_env.h ../common/config/config_install.h \
+ ../common/states.h ../common/output/error.h ../common/colors.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
  ../daemon/eard_rapi.h ../common/types/application.h \
- ../common/types/job.h ../common/types/signature.h \
- ../common/types/power_signature.h ../daemon/eard_conf_rapi.h \
- ../common/output/verbose.h ../common/output/error.h \
- ../common/output/timestamp.h ../common/output/output_conf.h \
- ../common/output/debug.h
+ ../common/types/job.h ../common/types/generic.h \
+ ../common/types/signature.h ../common/types/power_signature.h \
+ ../common/types/configuration/cluster_conf.h ../common/sizes.h \
+ ../common/string_enhanced.h ../common/types/configuration/node_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../daemon/eard_conf_rapi.h ../common/types/risk.h \
+ ../common/system/user.h ../common/output/verbose.h \
+ ../common/output/debug.h ../common/types/version.h
 ear_acct.o: ear_acct.c ../common/system/user.h ../common/sizes.h \
- ../common/states.h ../common/types/configuration/cluster_conf.h \
- ../common/config.h ../common/config/config_def.h \
- ../common/config/config_dev.h ../common/config/config_install.h \
- ../common/types/generic.h ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../common/output/verbose.h ../common/output/error.h \
+ ../common/states.h ../common/output/error.h ../common/colors.h \
  ../common/output/timestamp.h ../common/output/output_conf.h \
- ../common/output/debug.h ../common/types/application.h \
- ../common/types/job.h ../common/types/signature.h \
- ../common/types/power_signature.h ../common/database/db_helper.h \
+ ../common/types/configuration/cluster_conf.h ../common/config.h \
+ ../common/config/config_def.h ../common/config/config_dev.h \
+ ../common/config/config_env.h ../common/config/config_install.h \
+ ../common/types/generic.h ../common/string_enhanced.h \
+ ../common/types/configuration/node_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../common/output/verbose.h ../common/output/debug.h \
+ ../common/types/application.h ../common/types/job.h \
+ ../common/types/signature.h ../common/types/power_signature.h \
+ ../common/types/version.h ../common/database/db_helper.h \
  ../common/types/periodic_aggregation.h ../common/types/periodic_metric.h \
  ../common/types/gm_warning.h ../common/types/loop.h \
  ../common/types/log.h ../common/types/event_type.h \
  ../common/database/mysql_io_functions.h
-ear_report.o: ear_report.c ../common/states.h ../common/config.h \
+ear_report.o: ear_report.c ../common/states.h ../common/output/error.h \
+ ../common/colors.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h ../common/config.h \
  ../common/config/config_def.h ../common/config/config_dev.h \
- ../common/config/config_install.h ../common/system/user.h \
- ../common/sizes.h ../common/types/configuration/cluster_conf.h \
- ../common/types/generic.h ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
- ../common/output/verbose.h ../common/output/error.h \
- ../common/output/timestamp.h ../common/output/output_conf.h \
- ../common/output/debug.h ../common/database/db_helper.h \
- ../common/types/periodic_aggregation.h ../common/types/power_signature.h \
- ../common/types/periodic_metric.h ../common/types/application.h \
- ../common/types/job.h ../common/types/signature.h \
- ../common/types/gm_warning.h ../common/types/loop.h \
- ../common/types/log.h ../common/types/event_type.h
+ ../common/config/config_env.h ../common/config/config_install.h \
+ ../common/system/user.h ../common/sizes.h \
+ ../common/types/configuration/cluster_conf.h ../common/types/generic.h \
+ ../common/string_enhanced.h ../common/types/configuration/node_conf.h \
+ ../common/types/configuration/policy_conf.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
+ ../common/output/verbose.h ../common/output/debug.h \
+ ../common/database/db_helper.h ../common/types/periodic_aggregation.h \
+ ../common/types/power_signature.h ../common/types/periodic_metric.h \
+ ../common/types/application.h ../common/types/job.h \
+ ../common/types/signature.h ../common/types/gm_warning.h \
+ ../common/types/loop.h ../common/types/log.h \
+ ../common/types/event_type.h ../common/types/version.h

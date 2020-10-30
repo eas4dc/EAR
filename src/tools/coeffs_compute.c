@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <errno.h>
@@ -36,11 +24,7 @@
 #include <sys/stat.h>
 #include <common/config.h>
 #include <sys/types.h>
-#ifndef EAR_CPUPOWER
-#include <cpufreq.h>
-#else
 #include <common/hardware/cpupower.h>
-#endif
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_multifit.h>
@@ -110,37 +94,12 @@ uint freq_to_p_state(ulong freq)
 
 uint fill_list_p_states()
 {
-	  #ifndef EAR_CPUPOWER
-    struct cpufreq_available_frequencies *list_freqs, *first_freq;
-    int num_pstates = 0;
-
-    list_freqs = cpufreq_get_available_frequencies(0);
-    first_freq = list_freqs;
-
-    while (list_freqs != NULL) {
-        list_freqs = list_freqs->next;
-        num_pstates++;
-    }
-
-    MALLOC(node_freq_list, unsigned long, num_pstates);
-    list_freqs = first_freq;
-
-    for (i = 0; i < num_pstates; i++)
-    {
-        if (i == 1) nom_freq = list_freqs->frequency;
-        node_freq_list[i] = list_freqs->frequency;
-        list_freqs = list_freqs->next;
-    }
-
-    cpufreq_put_available_frequencies(first_freq);
-		#else
 	  unsigned long num_pstates = 0;
 		unsigned long *flist;
 		flist=CPUfreq_get_available_frequencies(0,&num_pstates);
 		MALLOC(node_freq_list, unsigned long, num_pstates);
 		memcpy(node_freq_list,flist,sizeof(unsigned long)*num_pstates);
 		CPUfreq_put_available_frequencies(flist);
-		#endif
     return (uint)num_pstates;
 }
 

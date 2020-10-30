@@ -2,7 +2,14 @@ CFLAGS = $(CC_FLAGS) -fPIC -I$(SRCDIR) $(CONSTANTS)
 
 ######## FILES
 
-libc_OBJS = frequency.o cpupower.o cpuid.o hardware_info.o architecture.o
+libc_OBJS = \
+	architecture.o \
+	cpuid.o \
+	cpupower.o \
+	frequency.o \
+	hardware_info.o \
+	topology.o \
+	topology_frequency.o \
 
 ######## RULES
 

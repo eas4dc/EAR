@@ -1,5 +1,5 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR)
-LDFLAGS = $(DB_LDFLAGS) -lpthread
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -pthread
+LDFLAGS = $(DB_LDFLAGS) -lpthread -lm
 
 ######## INSTALLATION
 
@@ -11,18 +11,18 @@ eargmd_PERM = 0770
 
 comm_BINS = $(SRCDIR)/daemon/eard_rapi.o \
     $(SRCDIR)/common/libcommon.a \
-    eargm_server_api.o \
-		eargm_ext_rm.o
 
 eargmd_OBJS = eargm_rapi.o \
-    eargm_server_api.o
+    eargm_server_api.o \
+		cluster_energycap.o \
+		eargm_ext_rm.o 
 
 ######## RULES
 
 all: $(eargmd_OBJS) $(eargmd_BINS) all.others
 
-eargmd: eargm.c $(comm_BINS)
-	$(CC) $(CFLAGS) $(DB_CFLAGS) -o $@ $< $(comm_BINS) $(LDFLAGS)
+eargmd: eargm.c $(comm_BINS) $(eargmd_OBJS)
+	$(CC) $(CFLAGS) $(DB_CFLAGS) -o $@ $< $(eargmd_OBJS) $(comm_BINS) $(LDFLAGS)
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -fPIC -c $<
@@ -33,7 +33,7 @@ install: install.others eargmd.ginstall;
 
 %.install: %.install.others;
 
-clean: clean.others eard.gclean rclean;
+clean: clean.others eargmd.gclean rclean;
 
 ######## SUBFOLDERS
 

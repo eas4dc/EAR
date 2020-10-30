@@ -1,27 +1,37 @@
 app_api.o: app_api.c ../../common/config.h \
  ../../common/config/config_def.h ../../common/config/config_dev.h \
- ../../common/config/config_install.h ../../common/states.h \
+ ../../common/config/config_env.h ../../common/config/config_install.h \
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
  ../../common/types/generic.h ../../common/output/verbose.h \
- ../../common/output/error.h ../../common/output/timestamp.h \
- ../../common/output/output_conf.h ../../common/output/debug.h \
- ../../daemon/app_api/app_conf_api.h
+ ../../common/output/debug.h ../../daemon/app_api/app_conf_api.h
 app_server_api.o: app_server_api.c ../../common/config.h \
  ../../common/config/config_def.h ../../common/config/config_dev.h \
- ../../common/config/config_install.h ../../common/states.h \
- ../../common/output/verbose.h ../../common/output/error.h \
+ ../../common/config/config_env.h ../../common/config/config_install.h \
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
  ../../common/output/timestamp.h ../../common/output/output_conf.h \
- ../../common/output/debug.h ../../common/types/generic.h \
+ ../../common/output/verbose.h ../../common/output/debug.h \
+ ../../common/types/generic.h \
  ../../common/types/configuration/cluster_conf.h ../../common/sizes.h \
- ../../common/types/configuration/policy_conf.h \
+ ../../common/string_enhanced.h \
  ../../common/types/configuration/node_conf.h \
- ../../common/string_enhanced.h ../../daemon/power_monitor.h \
- ../../common/hardware/cpupower.h ../../common/types/application.h \
- ../../common/types/job.h ../../common/types/signature.h \
- ../../common/types/power_signature.h ../../metrics/energy/energy_node.h \
- ../../common/includes.h ../../common/system/time.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/cluster_conf_db.h \
+ ../../common/types/configuration/cluster_conf_tag.h \
+ ../../common/types/configuration/cluster_conf_etag.h \
+ ../../common/types/configuration/cluster_conf_eard.h \
+ ../../common/types/configuration/cluster_conf_eargm.h \
+ ../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../common/types/configuration/cluster_conf_earlib.h \
+ ../../daemon/power_monitor.h ../../common/hardware/cpupower.h \
+ ../../common/types/application.h ../../common/types/job.h \
+ ../../common/types/signature.h ../../common/types/power_signature.h \
+ ../../metrics/energy/energy_node.h ../../common/includes.h \
+ ../../common/attributes.h ../../common/system/time.h \
  ../../metrics/accumulators/types.h ../../metrics/energy/energy_cpu.h \
- ../../metrics/energy/cpu/intel_haswell.h ../../metrics/common/msr.h \
- ../../metrics/accumulators/power_metrics.h \
- ../../metrics/energy/energy_gpu.h ../../common/plugins.h \
- ../../daemon/node_metrics.h ../../daemon/eard_conf_rapi.h \
- ../../daemon/app_api/app_conf_api.h
+ ../../metrics/energy/cpu/intel_haswell.h ../../metrics/common/omsr.h \
+ ../../metrics/accumulators/power_metrics.h ../../metrics/gpu/gpu.h \
+ ../../common/types.h ../../common/plugins.h ../../daemon/node_metrics.h \
+ ../../common/hardware/topology.h ../../metrics/frequency/imc.h \
+ ../../metrics/frequency/cpu.h ../../daemon/eard_conf_rapi.h \
+ ../../common/types/risk.h ../../daemon/app_api/app_conf_api.h

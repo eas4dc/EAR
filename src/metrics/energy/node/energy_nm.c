@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <math.h>
@@ -279,6 +267,65 @@ state_t nm_ene(struct ipmi_intf *intf, struct ipmi_data *out)
 	return EAR_SUCCESS;
 }
 
+state_t nm_power_limit(struct ipmi_intf *intf, unsigned long limit,uint8_t target)
+{
+#if 0
+	/* sudo ipmitool -b 0 -t 0x2c raw 0x2E 0xD0 0x57 0x01 0x00 TARGET LIMIT_LSB LIMIT_HSB */
+	/* -b channel     Set destination channel for bridged request
+ *   -t address     Bridge request to remote target address*/
+	uint16_t limit2b;
+	uint8_t *limitb;
+	struct ipmi_rs *rsp;
+  struct ipmi_rq req;
+  uint8_t msg_data[8];
+  int i;
+  int s;
+	limit2b=(uint16_t)limit;
+	limitb=(uint8_t*)limit2b;
+
+  if (pthread_mutex_trylock(&ompi_lock)) {
+    return EAR_BUSY;
+  }
+	memset(&req, 0, sizeof(req));
+  req.msg.netfn = NM_NETFN;
+  req.msg.cmd = NM_CMD_ENERGY;
+  msg_data[0]=(uint8_t)0x66;
+  msg_data[1]=(uint8_t)0x4A;
+  msg_data[2]=(uint8_t)0x00;
+  msg_data[3]=cmd_arg;
+  msg_data[4]=(uint8_t)0x01;
+  msg_data[5]=(uint8_t)0x82;
+  msg_data[6]=(uint8_t)0x00;
+  msg_data[7]=(uint8_t)0x08;
+  intf->addr=0x0;
+  req.msg.data = msg_data;
+  req.msg.data_len = sizeof(msg_data);
+
+  rsp = send_power_cmd(intf, &req);
+  if (rsp == NULL) {
+        out->mode=-1;
+        pthread_mutex_unlock(&ompi_lock);
+        return EAR_ERROR;
+  };
+  if (rsp->ccode > 0) {
+        out->mode=-1;
+        pthread_mutex_unlock(&ompi_lock);
+        return EAR_ERROR;
+        };
+
+  out->data_len=rsp->data_len;
+  for (i=0;i<rsp->data_len; i++) {
+    out->data[i]=rsp->data[i];
+  }
+  pthread_mutex_unlock(&ompi_lock);
+  return EAR_SUCCESS;
+#endif
+
+	return EAR_SUCCESS;
+
+}
+
+
 /*
  * MAIN FUNCTIONS
  */
@@ -360,6 +407,15 @@ state_t energy_dc_read(void *c, edata_t energy_mj) {
 	return EAR_SUCCESS;
 }
 
+state_t energy_power_limit(void *c, unsigned long limit,unsigned long target) {
+  state_t st;
+
+  debug("energy_power_limit limit=%luW target=%lu\n",limit,target);
+  st=nm_power_limit((struct ipmi_intf *)c,limit,(uint8_t)target);
+  return st;
+}
+
+
 state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms) {
 	struct ipmi_data out;
 	unsigned long aux_emj = 0, *energy, *energyp;
@@ -416,4 +472,10 @@ state_t energy_to_str(char *str, edata_t e) {
         ulong *pe = (ulong *) e;
         sprintf(str, "%lu", *pe);
         return EAR_SUCCESS;
+}
+
+state_t power_limit(ulong limit)
+{
+	verbose(1,"Energy Intel Node Manager setting limit to %lu",limit);
+	return EAR_SUCCESS;
 }

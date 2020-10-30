@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #ifndef EAR_CONTROL_FREQUENCY_H
@@ -53,7 +41,9 @@ ulong frequency_get_nominal_pstate();
 ulong *frequency_get_freq_rank_list();
 ulong frequency_set_all_cpus(ulong freq);
 ulong frequency_pstate_to_freq(uint pstate);
+ulong frequency_pstate_to_freq_list(uint pstate,ulong *flist,uint np);
 uint frequency_freq_to_pstate(ulong freq);
+uint frequency_freq_to_pstate_list(ulong freq,ulong *flist,uint np);
 void frequency_set_performance_governor_all_cpus();
 void frequency_set_ondemand_governor_all_cpus();
 void frequency_set_userspace_governor_all_cpus();
@@ -67,6 +57,8 @@ int frequency_is_valid_frequency(ulong freq);
 int frequency_is_valid_pstate(uint pstate);
 uint frequency_closest_pstate(ulong freq);
 ulong frequency_closest_frequency(ulong freq);
+ulong frequency_closest_high_freq(ulong freq,int minps);
+
 
 #ifndef EAR_CPUPOWER
 void get_governor(struct cpufreq_policy *governor);

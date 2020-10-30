@@ -1,32 +1,19 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
-
 
 /**
 *    \file shared_configuration.h
@@ -38,9 +25,16 @@
 #define _SHARED_CONF_H
 
 #include <common/config.h>
+#include <common/system/shared_areas.h>
 #include <common/types/generic.h>
 #include <common/types/configuration/cluster_conf.h>
 #include <common/types/coefficient.h>
+
+#ifdef POWERCAP
+#include <daemon/powercap.h>
+#include <daemon/app_mgt.h>
+#include <common/types/pc_app_info.h>
+#endif
 
 typedef struct services_conf{
 		eard_conf_t     eard;
@@ -66,7 +60,14 @@ typedef struct settings_conf{
 	double max_power_cap;
 	uint report_loops;
 	conf_install_t 	installation;
+	ulong   max_avx512_freq;
+  ulong   max_avx2_freq;
+#if POWERCAP
+	node_powercap_opt_t pc_opt;
+#endif
 } settings_conf_t;
+
+
 
 typedef struct resched{
 	int 	force_rescheduling;
@@ -127,6 +128,35 @@ void dettach_resched_shared_area();
  * */
 void resched_shared_area_dispose(char * path);
 
+#if POWERCAP
+/****************** APP AREA ***************/
+
+/** Sets in path the filename for the shared memory area app_area between EARD and EARL
+* @param path (output)
+*/
+int get_app_mgt_path(char *tmp,char *path);
+
+/** Creates the shared mmemory. It is used by EARD and APP. App puts information here
+ *  * *   @param ear_conf_path specifies the path (folder) to create the file used by mmap
+ *   * */
+
+app_mgt_t * create_app_mgt_shared_area(char *path);
+
+/** Connects with a previously created shared memory region. It is used by EARLib (client)
+ *  * *   @param ear_conf_path specifies the path (folder) where the mapped file were created
+ *   * */
+app_mgt_t * attach_app_mgt_shared_area(char * path);
+
+/** Disconnect from a previously connected shared memory region. It is used by EARLib (client)
+ *  * */
+void dettach_app_mgt_shared_area();
+
+/** Releases a shared memory area previously created. It is used by EARD (server)
+ *  * */
+void app_mgt_shared_area_dispose(char * path);
+#endif
+
+
 /***************** COEFFICIENTS **********/
 int get_coeffs_path(char *tmp,char *path);
 
@@ -184,6 +214,14 @@ void frequencies_shared_area_dispose(char * path);
 /** Unmmaps the shared memory for the list of frequencies */
 void dettach_frequencies_shared_area();
 
+#if POWERCAP
+/************** PC_APP_INFO_T ****************/
+int get_pc_app_info_path(char *tmp,char *path);
+pc_app_info_t  * create_pc_app_info_shared_area(char *path);
+pc_app_info_t * attach_pc_app_info_shared_area(char * path);
+void dettach_pc_app_info_shared_area();
+void pc_app_info_shared_area_dispose(char * path);
+#endif
 
 
 

@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <math.h>
@@ -914,7 +902,7 @@ int stmt_error(MYSQL *connection, MYSQL_STMT *statement)
             mysql_stmt_errno(statement), mysql_stmt_error(statement));
     mysql_stmt_close(statement);
     mysql_close(connection);
-    return -1;
+    return EAR_ERROR;
 }
 #endif
 
@@ -1173,7 +1161,6 @@ int mysql_select_acum_energy_idx(MYSQL *connection, ulong divisor, char is_aggre
         if (mysql_stmt_prepare(statement, query, strlen(query)))
             return stmt_error(connection, statement);
     }
-
     //Query parameters binding
     MYSQL_BIND bind[1];
     memset(bind, 0, sizeof(bind));
@@ -1268,6 +1255,44 @@ int db_select_acum_energy_idx(ulong divisor, char is_aggregated, uint *last_inde
 
 }
 
+int db_read_loops_query(loop_t **loops, char *query)
+{
+    int num_loops = 0;
+#if DB_MYSQL
+	MYSQL *connection = mysql_create_connection();
+#elif DB_PSQL
+    PGconn *connection = postgresql_create_connection();
+#endif
+
+    if (connection == NULL) {
+        return EAR_ERROR;
+    }
+
+#if DB_MYSQL
+   	num_loops = mysql_retrieve_loops(connection, query, loops);
+#elif DB_PSQL
+    num_loops = postgresql_retrieve_loops(connection, query, loops);
+#endif
+    
+   
+  	if (num_loops == EAR_MYSQL_ERROR){
+#if DB_MYSQL
+        verbose(VDBH, "Error retrieving information from database (%d): %s\n", mysql_errno(connection), mysql_error(connection));
+        mysql_close(connection);
+#elif DB_PSQL
+        PQfinish(connection);
+#endif
+		return num_loops;
+    }
+
+#if DB_MYSQL
+    mysql_close(connection);
+#elif DB_PSQL
+    PQfinish(connection);
+#endif
+
+    return num_loops;
+}
 
 int db_read_applications_query(application_t **apps, char *query)
 {

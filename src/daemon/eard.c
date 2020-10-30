@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <signal.h>
@@ -32,18 +20,23 @@
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <linux/limits.h>
-// #define SHOW_DEBUGS 1
+//#define SHOW_DEBUGS 1
 #include <common/includes.h>
 #include <common/environment.h>
 #include <common/types/log_eard.h>
 #include <common/hardware/frequency.h>
+#include <metrics/frequency/cpu.h>
 #include <metrics/energy/energy_cpu.h>
 #include <metrics/energy/energy_node.h>
 #include <metrics/bandwidth/bandwidth.h>
+#include <metrics/gpu/gpu.h>
 #include <common/hardware/hardware_info.h>
-#include <metrics/frequency/frequency_cpu.h>
 #include <daemon/eard_conf_api.h>
 #include <daemon/power_monitor.h>
+#if POWERCAP
+#include <daemon/powercap.h>
+#include <common/types/pc_app_info.h>
+#endif
 #include <daemon/eard_checkpoint.h>
 #include <daemon/shared_configuration.h>
 #include <daemon/dynamic_configuration.h>
@@ -57,11 +50,14 @@
 
 #define MIN_INTERVAL_RT_ERROR 3600
 
+
 #if APP_API_THREAD
 pthread_t app_eard_api_th;
 #endif
 
 static ehandler_t eard_handler_energy,handler_energy;
+static ctx_t eard_main_gpu_ctx;
+static uint eard_gpu_initialized=0;
 static ulong node_energy_datasize;
 static edata_t node_energy_data;
 unsigned int power_mon_freq = POWERMON_FREQ;
@@ -81,6 +77,10 @@ resched_t *resched_conf;
 services_conf_t *my_services_conf;
 ulong *shared_frequencies;
 ulong *frequencies;
+#ifdef POWERCAP
+app_mgt_t *app_mgt_info;
+pc_app_info_t *pc_app_info_data;
+#endif
 /* END Shared memory regions */
 
 coefficient_t *my_coefficients;
@@ -93,6 +93,8 @@ char eardbd_user[GENERIC_NAME];
 char eardbd_pass[GENERIC_NAME];
 char dyn_conf_path[GENERIC_NAME];
 char resched_path[GENERIC_NAME];
+char app_mgt_path[GENERIC_NAME];
+char pc_app_info_path[GENERIC_NAME];
 char coeffs_path[GENERIC_NAME];
 char coeffs_default_path[GENERIC_NAME];
 char services_conf_path[GENERIC_NAME];
@@ -102,6 +104,7 @@ int coeffs_default_size;
 uint signal_sighup = 0;
 uint f_monitoring;
 
+loop_t current_loop_data;
 
 #define max(a, b) (a>b?a:b)
 #define min(a, b) (a<b?a:b)
@@ -131,8 +134,13 @@ struct daemon_req req;
 
 int RAPL_counting = 0;
 int eard_must_exit = 0;
+static freq_cpu_t freq_global2;
+static freq_cpu_t freq_global1;
+static freq_cpu_t freq_local2;
+static freq_cpu_t freq_local1;
+freq_cpu_t freq_job2;
+freq_cpu_t freq_job1;
 topology_t node_desc;
-
 
 /* EARD init errors control */
 static uint error_uncore=0;
@@ -250,7 +258,8 @@ void connect_service(int req, application_t *new_app) {
 	job_t *new_job = &new_app->job;
 	int pid = create_ID(new_job->id, new_job->step_id);
 	// Let's check if there is another application
-	verbose(VEARD + 1, "request for connection at service %d", req);
+	verbose(1, "request for connection at service %d (%lu,%lu)", req,new_job->id,new_job->step_id);
+	
 	if (is_new_application() || is_new_service(req, pid)) {
 		connect = 1;
 	} else {
@@ -315,6 +324,7 @@ void connect_service(int req, application_t *new_app) {
 		verbose(VEARD + 1, "Process pid %d selected as master", pid);
 		verbose(VEARD + 1, "service %d connected", req);
 	}
+	verbose(1,"Application connected with local API");
 }
 
 // Checks application connections
@@ -381,7 +391,9 @@ void eard_restart() {
 /*
 *	Depending on restart argument, exits eard or restart it
 */
-void eard_exit(uint restart) {
+void eard_exit(uint restart)
+{
+	state_t s;
 	int i;
 
 	verbose(VCONF, "Exiting");
@@ -396,14 +408,17 @@ void eard_exit(uint restart) {
 	verbose(VCONF, "frequency_dispose");
 	frequency_dispose();
 
+#if POWERCAP
+  powercap_end();
+#endif
+
+
 	verbose(VCONF, "Releasing node resources");
 
 	// More disposes
 	if (state_fail(energy_dispose(&eard_handler_energy))) {
 		error("Error disposing energy for eard");
 	}
-	dispose_uncores();
-	aperf_dispose();
 
 	// Database cache daemon disconnect
 #if USE_EARDB
@@ -419,12 +434,21 @@ void eard_exit(uint restart) {
 		close(ear_fd_req[i]);
 
 	}
+
+	// CPU Frequency
+	state_assert(s, freq_cpu_dispose(), );
+	// RAM Bandwidth
+	dispose_uncores();
+
 	/* Releasing shared memory */
 	settings_conf_shared_area_dispose(dyn_conf_path);
 	resched_shared_area_dispose(resched_path);
 	coeffs_shared_area_dispose(coeffs_path);
 	coeffs_default_shared_area_dispose(coeffs_default_path);
 	services_conf_shared_area_dispose(services_conf_path);
+	#if POWERCAP
+	app_mgt_shared_area_dispose(app_mgt_path);
+	#endif
 	/* end releasing shared memory */
 	if (restart) {
 		verbose(VCONF, "Restarting EARD\n");
@@ -485,7 +509,7 @@ void eard_close_comm() {
 	verbose(VEARD + 1, "application %d disconnected", dis_pid);
 }
 
-// Node_energy services
+/************************* Node_energy services ******************/
 int eard_node_energy(int must_read) {
 	unsigned long ack;
 	if (must_read) {
@@ -566,6 +590,7 @@ int eard_system(int must_read) {
 		case WRITE_LOOP_SIGNATURE:
 			ack = EAR_COM_OK;
 			ret1 = EAR_SUCCESS;
+			copy_loop(&current_loop_data,&req.req_data.loop);
 			// print_loop_fd(1,&req.req_data.loop);
 			if (my_cluster_conf.database.report_loops) {
 #if USE_DB
@@ -597,7 +622,7 @@ int eard_system(int must_read) {
 	return 1;
 }
 
-// FREQUENCY FUNCTIONALLITY: max_freq is the limit
+/************************ FREQUENCY FUNCTIONALLITY: max_freq is the limit *******************/
 void eard_set_freq(unsigned long new_freq, unsigned long max_freq) {
 	unsigned long ear_ok, freq;
 	verbose(VCONF, "setting node frequency . requested %lu, max %lu\n", new_freq, max_freq);
@@ -613,8 +638,10 @@ void eard_set_freq(unsigned long new_freq, unsigned long max_freq) {
 	write(ear_fd_ack[freq_req], &ear_ok, sizeof(unsigned long));
 }
 
-int eard_freq(int must_read) {
-	unsigned long ack;
+int eard_freq(int must_read)
+{
+	ulong ack;
+	state_t s;
 
 	if (must_read) {
 		if (read(ear_fd_req[freq_req], &req, sizeof(req)) != sizeof(req))
@@ -630,12 +657,16 @@ int eard_freq(int must_read) {
 			eard_set_freq(req.req_data.req_value, min(eard_max_freq, max_dyn_freq()));
 			break;
 		case START_GET_FREQ:
-			aperf_get_avg_frequency_init_all_cpus();
 			ack = EAR_COM_OK;
+			if (xtate_fail(s, freq_cpu_read(&freq_local1))) {
+				error("when reading CPU local frequency (%d, %s)", s, state_msg);
+			}
 			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
 			break;
 		case END_GET_FREQ:
-			ack = aperf_get_avg_frequency_end_all_cpus();
+			if (xtate_fail(s, freq_cpu_read_diff(&freq_local2, &freq_local1, NULL, &ack))) {
+				error("when reading CPU local frequency (%d, %s)", s, state_msg);
+			}
 			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
 			break;
 		case SET_TURBO:
@@ -651,12 +682,16 @@ int eard_freq(int must_read) {
 			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
 			break;
 		case START_APP_COMP_FREQ:
-			aperf_get_global_avg_frequency_init_all_cpus();
 			ack = EAR_COM_OK;
+			if (xtate_fail(s, freq_cpu_read(&freq_global1))) {
+				error("when reading CPU global frequency (%d, %s)", s, state_msg);
+			}
 			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
 			break;
 		case END_APP_COMP_FREQ:
-			ack = aperf_get_global_avg_frequency_end_all_cpus();
+			if (xtate_fail(s, freq_cpu_read_diff(&freq_global2, &freq_global1, NULL, &ack))) {
+				error("when reading CPU global frequency (%d, %s)", s, state_msg);
+			}
 			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
 			break;
 
@@ -719,7 +754,7 @@ int eard_uncore(int must_read) {
 }
 
 
-////// RAPL SERVICES
+/*******************+ RAPL SERVICES *******************/
 int eard_rapl(int must_read) {
 	unsigned long comm_req = rapl_req;
 	unsigned long ack = 0;
@@ -755,7 +790,46 @@ int eard_rapl(int must_read) {
 	}
 	return 1;
 }
-/// END RAPL SERVICES
+
+/***************** END RAPL SERVICES ***********/
+/***************** GPU SERVICES ****************/
+int eard_gpu(int must_read) 
+{
+  unsigned long comm_req = gpu_req;
+  unsigned long ack = 0;
+	unsigned int model=0;
+	unsigned int dev_count=0;
+	gpu_t my_gpu;
+	state_t ret;
+  if (must_read) {
+    if (read(ear_fd_req[comm_req], &req, sizeof(req)) != sizeof(req))
+      error("error when reading info at eard_gpu\n");
+  }
+  switch (req.req_service) {
+    case GPU_MODEL:
+			//if (eard_gpu_initialized) ret=gpu_model(&eard_main_gpu_ctx,&model);
+			if (eard_gpu_initialized) model=MODEL_NVML;
+			else model=MODEL_UNDEFINED;
+			write(ear_fd_ack[comm_req],&model,sizeof(model));	
+      break;
+    case GPU_DEV_COUNT:
+			if (eard_gpu_initialized) gpu_count(&eard_main_gpu_ctx,&dev_count);
+			write(ear_fd_ack[comm_req],&dev_count,sizeof(dev_count));	
+			break;
+		case GPU_DATA_READ:
+			if (eard_gpu_initialized){
+				gpu_read(&eard_main_gpu_ctx,&my_gpu);
+			}else{
+				memset(&my_gpu,0,sizeof(gpu_t));
+			}
+			write(ear_fd_ack[comm_req],&my_gpu,sizeof(my_gpu));
+			break;
+	  default:
+			error("Invalid GPU command");
+      return 0;
+  }
+  return 1;
+}
 
 void select_service(int fd) {
 	if (read(ear_fd_req[freq_req], &req, sizeof(req)) != sizeof(req))
@@ -777,6 +851,9 @@ void select_service(int fd) {
 		return;
 	}
 	if (eard_node_energy(0)) {
+		return;
+	}
+	if (eard_gpu(0)){
 		return;
 	}
 	error(" Error, request received not supported\n");
@@ -998,6 +1075,8 @@ void configure_default_values(settings_conf_t *dyn, resched_t *resched, cluster_
 	dyn->max_sig_power=node->max_sig_power;
 	dyn->max_power_cap=node->max_power_cap;
 	dyn->report_loops=cluster->database.report_loops;
+	dyn->max_avx512_freq=my_node_conf->max_avx512_freq;
+	dyn->max_avx2_freq=my_node_conf->max_avx2_freq;
 	memcpy(&dyn->installation,&cluster->install,sizeof(conf_install_t));
 
 
@@ -1106,6 +1185,13 @@ void report_eard_init_error()
 	}
 }
 
+void     update_global_configuration_with_local_ssettings(cluster_conf_t *my_cluster_conf,my_node_conf_t *my_node_conf)
+{
+	strcpy(my_cluster_conf->install.obj_ener,my_node_conf->energy_plugin);
+	strcpy(my_cluster_conf->install.obj_power_model,my_node_conf->energy_model);
+}
+
+
 
 /*
 *
@@ -1147,37 +1233,40 @@ int main(int argc, char *argv[]) {
 	verbose(0,"Executed in node name %s", nodename);
 
 	/** CONFIGURATION **/
-        int node_size;
-        state_t s;
+	int node_size;
+	state_t s;
 
-				init_eard_rt_log();
-				log_report_eard_min_interval(MIN_INTERVAL_RT_ERROR);
-				verbose(0,"Reading hardware topology");
-        /* We initialize topology */
-        s = hardware_gettopology(&node_desc);
-        node_size = node_desc.sockets * node_desc.cores * node_desc.threads;
-        if (state_fail(s) || node_size <= 0) {
-                error("topology information can't be initialized (%d)", s);
-                _exit(1);
-        }
-				num_packs=detect_packages(NULL);
-				if (num_packs==0) error("Num packages cannot be detected");
+	init_eard_rt_log();
+	log_report_eard_min_interval(MIN_INTERVAL_RT_ERROR);
+	verbose(0,"Reading hardware topology");
 
-				verbose(0,"Topology detected: packages %d Sockets %d, cores_per_sockets %d threads %d",
-					num_packs,node_desc.sockets,node_desc.cores,node_desc.threads);
-				verbose(0,"Initializing frequency list");
-				values_rapl=(unsigned long long*)calloc(num_packs*RAPL_POWER_EVS,sizeof(unsigned long long));
-				if (values_rapl==NULL) error("values_rapl returns NULL in eard initialization");
+	/* We initialize topology */
+	s = topology_init(&node_desc);
+	node_size = node_desc.cpu_count;
+	num_packs = node_desc.socket_count;
 
-        /* We initialize frecuency */
-        if (frequency_init(node_size) < 0) {
-                error("frequency information can't be initialized");
-                _exit(1);
-        }
+	if (state_fail(s) || node_size <= 0 || num_packs <= 0) {
+		error("topology information can't be initialized (%d)", s);
+		_exit(1);
+	}
+
+	verbose(0,"Topology detected: sockets %d, cores %d, threads %d",
+			node_desc.socket_count, node_desc.core_count, node_desc.cpu_count);
+
+	//
+	verbose(0,"Initializing frequency list");
+	values_rapl=(unsigned long long*)calloc(num_packs*RAPL_POWER_EVS,sizeof(unsigned long long));
+	if (values_rapl==NULL) error("values_rapl returns NULL in eard initialization");
+
+	/* We initialize frecuency */
+	if (frequency_init(node_size) < 0) {
+			error("frequency information can't be initialized");
+			_exit(1);
+	}
 
 
 
-			verbose(0,"Reading ear.conf configuration");
+	verbose(0,"Reading ear.conf configuration");
 	// We read the cluster configuration and sets default values in the shared memory
 	if (get_ear_conf_path(my_ear_conf_path) == EAR_ERROR) {
 		error("Error opening ear.conf file, not available at regular paths ($EAR_ETC/ear/ear.conf)");
@@ -1205,6 +1294,7 @@ int main(int argc, char *argv[]) {
 		check_policy_values(my_node_conf->policies,my_node_conf->num_policies);
 		print_my_node_conf(my_node_conf);
 		copy_my_node_conf(&my_original_node_conf, my_node_conf);
+		update_global_configuration_with_local_ssettings(&my_cluster_conf,my_node_conf);
 	}
 	verbose(0,"Initializing dynamic information and creating tmp");
 	/* This info is used for eard checkpointing */
@@ -1240,9 +1330,26 @@ int main(int argc, char *argv[]) {
 	verbose(VCONF + 1, "Using %s as resched path (shared memory region)", resched_path);
 	resched_conf = create_resched_shared_area(resched_path);
 	if (resched_conf == NULL) {
-		error("Error creating shared memory between EARD & EARL\n");
+		error("Error creating shared memory between EARD & EARL");
 		_exit(0);
 	}
+	/* This area is for application data */
+	#if POWERCAP
+	get_app_mgt_path(my_cluster_conf.install.dir_temp,app_mgt_path);
+	verbose(VCONF + 1, "Using %s as app_mgt data path (shared memory region)", app_mgt_path);
+	app_mgt_info=create_app_mgt_shared_area(app_mgt_path);
+	if (app_mgt_info==NULL){
+		error("Error creating shared memory between EARD & EARL for app_mgt");
+		_exit(0);
+	}
+	get_pc_app_info_path(my_cluster_conf.install.dir_temp,pc_app_info_path);
+	verbose(VCONF + 1, "Using %s as pc_app_info dat apath (shared memory region)",pc_app_info_path);
+	pc_app_info_data=create_pc_app_info_shared_area(pc_app_info_path);
+	if (pc_app_info_data==NULL){
+		error("Error creating shared memory between EARD & EARL for pc_app_info");
+		_exit(0);
+	}
+	#endif
 	verbose(0, "Basic shared memory regions created");
 	/* Coefficients */
 	verbose(0,"Loading coefficients");
@@ -1315,11 +1422,14 @@ int main(int argc, char *argv[]) {
 	eard_max_freq = ear_node_freq;
 	verbose(VCONF, "Default max frequency defined to %lu", eard_max_freq);
 
-	// Aperf (later on inside frequency_init(), but no more
-	uint num_cpus = frequency_get_num_online_cpus();
-	uint max_freq = frequency_get_nominal_freq();
-	aperf_init_all_cpus(num_cpus, max_freq);
-
+	// CPU Frequency
+	state_assert(s, freq_cpu_init(&node_desc), _exit(0));
+	state_assert(s, freq_cpu_data_alloc(&freq_global2, NULL, NULL), _exit(0));
+	state_assert(s, freq_cpu_data_alloc(&freq_global1, NULL, NULL), _exit(0));
+	state_assert(s, freq_cpu_data_alloc(&freq_local2, NULL, NULL), _exit(0));
+	state_assert(s, freq_cpu_data_alloc(&freq_local1, NULL, NULL), _exit(0));
+	state_assert(s, freq_cpu_data_alloc(&freq_job2, NULL, NULL), _exit(0));
+	state_assert(s, freq_cpu_data_alloc(&freq_job1, NULL, NULL), _exit(0));
 
 #if EARD_LOCK
 	eard_lock(ear_tmp);
@@ -1452,6 +1562,15 @@ int main(int argc, char *argv[]) {
 		log_report_eard_init_error(my_cluster_conf.eard.use_mysql,my_cluster_conf.eard.use_eardbd,APP_API_CREATION_ERROR,ret);
 	}
 #endif
+
+	/* GPU Initialization for app requests */
+	ret=gpu_init(&eard_main_gpu_ctx);
+	if (ret!=EAR_SUCCESS){
+		error("EARD error when initializing GPU context for EARD API queries");
+		eard_gpu_initialized=0;	
+	}else{
+		eard_gpu_initialized=1;
+	}
 
 	verbose(VCONF + 1, "Communicator for %s ON", nodename);
 	// we wait until EAR daemon receives a request

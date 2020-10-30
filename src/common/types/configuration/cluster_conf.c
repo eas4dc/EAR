@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <stdio.h>
@@ -36,9 +24,14 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <common/config.h>
+//#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
 #include <common/sizes.h>
 #include <common/types/configuration/cluster_conf.h>
+#include <common/types/configuration/cluster_conf_eargm.h>
+#include <common/types/configuration/cluster_conf_eard.h>
+#include <common/types/configuration/cluster_conf_eardbd.h>
+#include <common/types/configuration/cluster_conf_db.h>
 #include <common/environment.h>
 
 
@@ -228,15 +221,40 @@ node_conf_t *get_node_conf(cluster_conf_t *my_conf,char *nodename)
 	return n;
 }
 
+int tag_id_exists(cluster_conf_t *conf, char *tag)
+{
+    int i;
+    if (tag == NULL) return 0;
+    for (i = 0; i < conf->num_tags; i++)
+        if (!strcmp(tag, conf->tags[i].id)) return i;
+
+    return -1;
+
+}
+
+int get_default_tag_id(cluster_conf_t *conf)
+{
+    int i, id = -1;
+    for (i = 0; i < conf->num_tags; i++)
+        if (conf->tags[i].is_default) id = i;
+
+    return id;
+}
 
 my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf,char *nodename)
 {
 	int i=0, j=0, range_found=0;
+
+	if (my_conf->num_islands == 0) return NULL;
+
 	my_node_conf_t *n=calloc(1, sizeof(my_node_conf_t));
     n->num_policies = my_conf->num_policies;
     n->policies=malloc(sizeof(policy_conf_t)*n->num_policies);
     int num_spec_nodes = 0;
     int range_id = -1;
+    //char tag[GENERIC_NAME] = "";
+    int tag_id = -1;
+
     while(i<my_conf->num_nodes)
     {
 		if (range_conf_contains_node(&my_conf->nodes[i], nodename)) {
@@ -261,13 +279,30 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf,char *nodename)
 			if ((my_conf->islands[i].ranges[range_id].sec_ip>=0) && (my_conf->islands[i].num_backups)){
             	strcpy(n->db_sec_ip, my_conf->islands[i].backup_ips[my_conf->islands[i].ranges[range_id].sec_ip]);
 			}
-			n->max_sig_power=my_conf->islands[i].max_sig_power;
-			n->min_sig_power=my_conf->islands[i].min_sig_power;
-			n->max_error_power=my_conf->islands[i].max_error_power;
-			n->max_temp=my_conf->islands[i].max_temp;
-			n->max_power_cap=my_conf->islands[i].max_power_cap;
-			strcpy(n->power_cap_type,my_conf->islands[i].power_cap_type);
 			n->use_log=my_conf->eard.use_log;
+
+            /* This section will be removed once island configuration for this variables gets deprecated. */
+            n->max_sig_power=my_conf->islands[i].max_sig_power;
+            n->min_sig_power=my_conf->islands[i].min_sig_power;
+            n->max_error_power=my_conf->islands[i].max_error_power;
+            n->max_temp=my_conf->islands[i].max_temp;
+            n->max_power_cap=my_conf->islands[i].max_power_cap;
+            /* End of the deletable section */
+
+            j = 0;
+            if (my_conf->islands[i].ranges[range_id].num_tags > 0)
+            {
+                for (j = 0; j < my_conf->islands[i].ranges[range_id].num_tags; j++)
+                {
+                    // tags for each island are stored in specific_tags
+                    // each range of an island stores the ids in the array of specific_tags that they have assigned
+                    tag_id = tag_id_exists(my_conf, my_conf->islands[i].specific_tags[my_conf->islands[i].ranges[range_id].specific_tags[j]]);
+                    if (tag_id >= 0) {
+                        debug("found tag: %s\n", my_conf->islands[i].specific_tags[my_conf->islands[i].ranges[range_id].specific_tags[j]]);
+                        break;
+                    }
+                }
+            }
 		}
 		i++;
 	}while(i<my_conf->num_islands);
@@ -278,10 +313,41 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf,char *nodename)
         return NULL;
     }
 
+    n->energy_plugin = my_conf->install.obj_ener;
+    n->energy_model = my_conf->install.obj_power_model;
+
+    if (tag_id < 0) tag_id = get_default_tag_id(my_conf);
+    if (tag_id >= 0)
+    {
+        debug("Found my_node_conf with tag: %s\n", my_conf->tags[tag_id].id);
+        n->max_sig_power = (double)my_conf->tags[tag_id].max_power;
+        n->min_sig_power = (double)my_conf->tags[tag_id].min_power;
+        n->max_error_power = (double)my_conf->tags[tag_id].error_power;
+        n->max_temp = my_conf->tags[tag_id].max_temp;
+        n->max_power_cap = (double)my_conf->tags[tag_id].powercap;
+        n->max_avx512_freq = my_conf->tags[tag_id].max_avx512_freq;
+        n->max_avx2_freq = my_conf->tags[tag_id].max_avx2_freq;
+
+        n->powercap_type = my_conf->tags[tag_id].powercap_type;
+
+        if (my_conf->tags[tag_id].energy_plugin != NULL && strlen(my_conf->tags[tag_id].energy_plugin) > 0)
+            n->energy_plugin = my_conf->tags[tag_id].energy_plugin;
+        if (my_conf->tags[tag_id].energy_model != NULL && strlen(my_conf->tags[tag_id].energy_model) > 0)
+            n->energy_model = my_conf->tags[tag_id].energy_model;
+
+        n->powercap_plugin = my_conf->tags[tag_id].powercap_plugin;
+
+        n->coef_file = strlen(my_conf->tags[tag_id].coeffs) > 0 ? my_conf->tags[tag_id].coeffs : "coeffs.default";
+        
+    }
+    else warning("No tag found for current node in ear.conf\n");
+
 
     //pending checks for policies
-		memcpy(n->policies,my_conf->power_policies,sizeof(policy_conf_t)*my_conf->num_policies);
-		n->max_pstate=my_conf->eard.max_pstate;
+    memcpy(n->policies,my_conf->power_policies,sizeof(policy_conf_t)*my_conf->num_policies);
+    n->max_pstate=my_conf->eard.max_pstate;
+
+
 
 	return n;
 }
@@ -405,7 +471,7 @@ energy_tag_t * is_energy_tag_privileged(cluster_conf_t *my_conf, char *user,char
 	energy_tag_t *my_tag;
 	if (energy_tag==NULL) return NULL;
 	i=0;
-	while((i<my_conf->num_tags) && (!found)){
+	while((i<my_conf->num_etags) && (!found)){
 		if (strcmp(energy_tag,my_conf->e_tags[i].tag)==0){
 			found=1;
 			my_tag=&my_conf->e_tags[i];
@@ -422,7 +488,7 @@ energy_tag_t * energy_tag_exists(cluster_conf_t *my_conf,char *etag)
 	int found=0;
 	if (etag==NULL)	return NULL;
 	i=0;
-	while ((i<my_conf->num_tags) && (!found)){
+	while ((i<my_conf->num_etags) && (!found)){
 		if (strcmp(etag,my_conf->e_tags[i].tag)==0)	found=1;
 		else i++;
 	}
@@ -454,119 +520,27 @@ uint get_user_type(cluster_conf_t *my_conf, char *energy_tag, char *user,char *g
 	} else return NORMAL;
 }
 
-/* Copy src in dest */
-void copy_ear_lib_conf(earlib_conf_t *dest,earlib_conf_t *src)
-{
-	if ((dest!=NULL) && (src!=NULL)){
-		strcpy(dest->coefficients_pathname,src->coefficients_pathname);
-		dest->dynais_levels=src->dynais_levels;
-		dest->dynais_window=src->dynais_window;
-		dest->dynais_timeout=src->dynais_timeout;
-		dest->lib_period=src->lib_period;
-		dest->check_every=src->check_every;
-	}
-}
 
-/* Prints the given library conf */
-void print_ear_lib_conf(earlib_conf_t *libc)
-{
-	if (libc!=NULL){
-		verbose(VCCONF,"coeffs %s dynais level %u dynais window_size %u\n",
-		libc->coefficients_pathname,libc->dynais_levels,libc->dynais_window);
-		verbose(VCCONF,"dynais timeout %u lib_period %u check_every %u\n",
-		libc->dynais_timeout,libc->lib_period,libc->check_every);
-	}
-}
-
-void copy_eard_conf(eard_conf_t *dest,eard_conf_t *src)
-{
-	memcpy(dest,src,sizeof(eard_conf_t));
-}
-void copy_eargmd_conf(eargm_conf_t *dest,eargm_conf_t *src)
-{
-	memcpy(dest,src,sizeof(eargm_conf_t));
-}
-void copy_eardb_conf(db_conf_t *dest,db_conf_t *src)
-{
-	memcpy(dest,src,sizeof(db_conf_t));
-}
-void copy_eardbd_conf(eardb_conf_t *dest,eardb_conf_t *src)
-{
-	memcpy(dest,src,sizeof(eardb_conf_t));
-}
 
 /*** DEFAULT VALUES ****/
-void set_default_eardbd_conf(eardb_conf_t *eardbdc)
+
+void set_default_tag_values(tag_t *tag)
 {
-	eardbdc->aggr_time		= DEF_DBD_AGGREGATION_TIME;
-	eardbdc->insr_time		= DEF_DBD_INSERTION_TIME;
-	eardbdc->tcp_port		= DEF_DBD_SERVER_PORT;
-	eardbdc->sec_tcp_port	= DEF_DBD_MIRROR_PORT;
-	eardbdc->sync_tcp_port	= DEF_DBD_SYNCHR_PORT;
-	eardbdc->mem_size		= DEF_DBD_ALLOC_MBS;
-	eardbdc->use_log		= DEF_DBD_FILE_LOG;
-	eardbdc->mem_size_types[0] = 60;
-	eardbdc->mem_size_types[1] = 22;
-	eardbdc->mem_size_types[2] = 5;
-	eardbdc->mem_size_types[3] = 0;
-	eardbdc->mem_size_types[4] = 7;
-	eardbdc->mem_size_types[5] = 5;
-	eardbdc->mem_size_types[6] = 1;
+    tag->type           = TAG_TYPE_ARCH;
+    tag->powercap_type  = POWERCAP_TYPE_NODE;
+
+    tag->max_power      = MAX_SIG_POWER;
+	tag->error_power    = MAX_ERROR_POWER;
+	tag->powercap       = DEF_POWER_CAP;
+	tag->min_power      = MIN_SIG_POWER;
+	tag->max_temp       = MAX_TEMP;
+    
+    strcpy(tag->coeffs, "coeffs.default");
+    strcpy(tag->energy_model, "");
+    strcpy(tag->energy_plugin, "");
+    strcpy(tag->powercap_plugin, "");
 }
 
-void set_default_eard_conf(eard_conf_t *eardc)
-{
-	eardc->verbose=1;           /* default 1 */
-    eardc->period_powermon=POWERMON_FREQ;  /* default 30000000 (30secs) */
-    eardc->max_pstate=1;       /* default 1 */
-    eardc->turbo=USE_TURBO;             /* Fixed to 0 by the moment */
-    eardc->port=DAEMON_PORT_NUMBER;              /* mandatory */
-    eardc->use_mysql=1;         /* Must EARD report to DB */
-    eardc->use_eardbd=1;        /* Must EARD report to DB using EARDBD */
-	eardc->force_frequencies=1; /* EARD will force frequencies */
-	eardc->use_log=EARD_FILE_LOG;
-}
-
-void set_default_earlib_conf(earlib_conf_t *earlibc)
-{
-	strcpy(earlibc->coefficients_pathname,DEFAULT_COEFF_PATHNAME);
-	earlibc->dynais_levels=DEFAULT_DYNAIS_LEVELS;
-	earlibc->dynais_window=DEFAULT_DYNAIS_WINDOW_SIZE;
-	earlibc->dynais_timeout=MAX_TIME_DYNAIS_WITHOUT_SIGNATURE;
-	earlibc->lib_period=PERIOD;
-	earlibc->check_every=MPI_CALLS_TO_CHECK_PERIODIC;
-}
-
-void set_default_eargm_conf(eargm_conf_t *eargmc)
-{
-	eargmc->verbose=1;
-	eargmc->use_aggregation=1;
-	eargmc->t1=DEFAULT_T1;
-	eargmc->t2=DEFAULT_T2;
-	eargmc->energy=DEFAULT_T2*DEFAULT_POWER;
-	eargmc->units=1;
-	eargmc->policy=MAXPOWER;
-	eargmc->port=EARGM_PORT_NUMBER;
-	eargmc->mode=0;
-	eargmc->defcon_limits[0]=85;
-	eargmc->defcon_limits[1]=90;
-	eargmc->defcon_limits[2]=95;
-	eargmc->grace_periods=GRACE_T1;
-	strcpy(eargmc->mail,"nomail");
-	eargmc->use_log=EARGMD_FILE_LOG;
-}
-
-void set_default_db_conf(db_conf_t *db_conf)
-{
-    strcpy(db_conf->user, "ear_daemon");
-    strcpy(db_conf->user_commands, "ear_daemon");
-    strcpy(db_conf->ip, "127.0.0.1");
-    db_conf->port = 0;
-	db_conf->max_connections=MAX_DB_CONNECTIONS;
-	db_conf->report_node_detail=DEMO;
-	db_conf->report_sig_detail=!DB_SIMPLE;
-	db_conf->report_loops=!LARGE_CLUSTER;
-}
 
 void set_default_island_conf(node_island_t *isl_conf, uint id)
 {
@@ -582,14 +556,14 @@ void set_default_island_conf(node_island_t *isl_conf, uint id)
 	isl_conf->max_sig_power=MAX_SIG_POWER;
 	isl_conf->max_error_power=MAX_ERROR_POWER;
 	isl_conf->max_temp=MAX_TEMP;
-	isl_conf->max_power_cap=MAX_POWER_CAP;
+	isl_conf->max_power_cap=DEF_POWER_CAP;
 	strcpy(isl_conf->power_cap_type,POWER_CAP_TYPE);
 }
 
 void set_default_conf_install(conf_install_t *inst)
 {
-	sprintf(inst->obj_ener, "default");
-	sprintf(inst->obj_power_model, "default");
+	sprintf(inst->obj_ener, "energy_nm.so");
+	sprintf(inst->obj_power_model, "avx512_model.so");
 }
 
 /*
@@ -755,7 +729,7 @@ int validate_configuration(cluster_conf_t *conf)
     int i;
     for (i = 0; i < conf->num_islands; i++)
         if (conf->islands[i].num_ips < 1 || conf->islands[i].num_backups < 1) return EAR_ERROR;
-    for (i = 0; i < conf->num_tags; i++)
+    for (i = 0; i < conf->num_etags; i++)
         if (conf->e_tags[i].num_users < 1 && conf->e_tags[i].num_groups < 1 && conf->e_tags[i].num_accounts < 1) return EAR_ERROR;
 
 

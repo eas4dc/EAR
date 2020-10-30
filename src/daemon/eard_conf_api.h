@@ -1,47 +1,43 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #ifndef _EAR_DAEMON_COMMON_H
 #define _EAR_DAEMON_COMMON_H
+
+#define _GNU_SOURCE             
+#include <sched.h>
+
 
 #include <common/types/generic.h>
 #include <common/types/application.h>
 #include <common/types/job.h>
 #include <common/types/loop.h>
 
-
+typedef struct new_freq_type{
+	unsigned long f;
+	cpu_set_t mask;	
+}new_freq_type_t;
 // Data type to send the requests
 union daemon_req_opt {
     unsigned long req_value;
     application_t app;
 	loop_t		  loop;
 	ear_event_t event;
+	new_freq_type_t f_mask;
 };
 
 struct daemon_req {
@@ -57,6 +53,7 @@ struct daemon_req {
 #define rapl_req 					0
 #define system_req 					0
 #define node_energy_req 			0
+#define gpu_req 			0
 
 // Services related with frequency
 #define SET_FREQ 				0
@@ -67,6 +64,7 @@ struct daemon_req {
 #define CONNECT_FREQ 			5
 #define START_APP_COMP_FREQ 	6
 #define END_APP_COMP_FREQ 		7
+#define SET_FREQ_WITH_MASK 8
 
 #define END_COMM 				1000
 
@@ -99,6 +97,11 @@ struct daemon_req {
 #define DATA_SIZE_ENERGY_NODE 	401
 #define CONNECT_ENERGY 			402
 #define ENERGY_FREQ				403
+
+
+#define GPU_MODEL			500
+#define GPU_DEV_COUNT	501
+#define GPU_DATA_READ	502
 
 #else
 #endif

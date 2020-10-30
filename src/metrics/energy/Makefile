@@ -4,7 +4,6 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 
 ener_BINS = \
     energy_cpu.o \
-    energy_gpu.o \
     energy_node.o \
     energy_node_lib.o
 ener_DEPS = \
@@ -21,7 +20,6 @@ all:  $(ener_BINS) all.components
 
 %.components:
 	@ $(MAKE) -C 'cpu' $* || exit
-	@ $(MAKE) -C 'gpu' $* || exit
 	@ $(MAKE) -C 'node' $* || exit
 
 ######## OPTIONS

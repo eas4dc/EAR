@@ -4,6 +4,7 @@ CFLAGS = $(CC_FLAGS) -fPIC -I$(SRCDIR) $(CONSTANTS)
 
 comm_OBJS = \
     msr.o \
+    omsr.o \
     pci.o \
     papi.o
 

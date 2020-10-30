@@ -1,31 +1,56 @@
 time.o: time.c ../../common/system/time.h ../../common/types/generic.h
 user.o: user.c ../../common/system/user.h ../../common/sizes.h \
- ../../common/states.h ../../common/types/configuration/cluster_conf.h \
- ../../common/config.h ../../common/config/config_def.h \
- ../../common/config/config_dev.h ../../common/config/config_install.h \
- ../../common/types/generic.h \
- ../../common/types/configuration/policy_conf.h \
- ../../common/types/configuration/node_conf.h \
- ../../common/string_enhanced.h ../../common/output/verbose.h \
- ../../common/output/error.h ../../common/output/timestamp.h \
- ../../common/output/output_conf.h ../../common/output/debug.h
-file.o: file.c ../../common/system/file.h ../../common/sizes.h \
- ../../common/states.h ../../common/output/verbose.h \
- ../../common/output/error.h ../../common/output/timestamp.h \
- ../../common/output/output_conf.h ../../common/output/debug.h
-symplug.o: symplug.c ../../common/includes.h ../../common/sizes.h \
- ../../common/states.h ../../common/config.h \
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/types/configuration/cluster_conf.h ../../common/config.h \
  ../../common/config/config_def.h ../../common/config/config_dev.h \
- ../../common/config/config_install.h ../../common/output/verbose.h \
- ../../common/output/error.h ../../common/output/timestamp.h \
- ../../common/output/output_conf.h ../../common/output/debug.h \
- ../../common/system/symplug.h ../../common/plugins.h \
- ../../common/types/generic.h
-process.o: process.c ../../common/system/file.h ../../common/sizes.h \
- ../../common/states.h ../../common/system/process.h
+ ../../common/config/config_env.h ../../common/config/config_install.h \
+ ../../common/types/generic.h ../../common/string_enhanced.h \
+ ../../common/types/configuration/node_conf.h \
+ ../../common/types/configuration/policy_conf.h \
+ ../../common/types/configuration/cluster_conf_db.h \
+ ../../common/types/configuration/cluster_conf_tag.h \
+ ../../common/types/configuration/cluster_conf_etag.h \
+ ../../common/types/configuration/cluster_conf_eard.h \
+ ../../common/types/configuration/cluster_conf_eargm.h \
+ ../../common/types/configuration/cluster_conf_eardbd.h \
+ ../../common/types/configuration/cluster_conf_earlib.h \
+ ../../common/output/verbose.h ../../common/output/debug.h
+file.o: file.c ../../common/system/file.h ../../common/sizes.h \
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/verbose.h ../../common/output/debug.h
+symplug.o: symplug.c ../../common/includes.h ../../common/sizes.h \
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/config.h ../../common/config/config_def.h \
+ ../../common/config/config_dev.h ../../common/config/config_env.h \
+ ../../common/config/config_install.h ../../common/attributes.h \
+ ../../common/output/verbose.h ../../common/output/debug.h \
+ ../../common/system/symplug.h ../../common/types.h \
+ ../../common/types/generic.h ../../common/plugins.h
+execute.o: execute.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_env.h ../../common/config/config_install.h \
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/verbose.h ../../common/output/debug.h
 folder.o: folder.c ../../common/system/folder.h ../../common/sizes.h \
- ../../common/states.h
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h
 sockets.o: sockets.c ../../common/system/sockets.h ../../common/sizes.h \
- ../../common/states.h ../../common/types/generic.h \
- ../../common/output/debug.h
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/types/generic.h ../../common/output/debug.h
 random.o: random.c ../../common/output/debug.h
+process.o: process.c ../../common/system/file.h ../../common/sizes.h \
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/system/process.h
+shared_areas.o: shared_areas.c ../../common/config.h \
+ ../../common/config/config_def.h ../../common/config/config_dev.h \
+ ../../common/config/config_env.h ../../common/config/config_install.h \
+ ../../common/states.h ../../common/output/error.h ../../common/colors.h \
+ ../../common/output/timestamp.h ../../common/output/output_conf.h \
+ ../../common/output/verbose.h ../../common/output/debug.h \
+ ../../common/system/shared_areas.h

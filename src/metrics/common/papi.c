@@ -1,38 +1,45 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <common/config.h>
+//#define SHOW_DEBUGS	1
 #include <common/output/verbose.h>
 #include <metrics/common/papi.h>
+#include <common/system/file.h>
+
+
+static int is_online(const char *path)
+{
+        char c = '0';
+        if (access(path, F_OK) != 0) {
+                return 0;
+        }
+        if (state_fail(file_read(path, &c, sizeof(char)))) {
+                return 0;
+        }
+        if (c != '1') {
+                return 0;
+        }
+        return 1;
+}
+
 
 void  metrics_get_app_name(char *app_name)
 {
@@ -61,8 +68,18 @@ const PAPI_hw_info_t *metrics_get_hw_info()
 
 int metrics_get_node_size()
 {
+	int cpus,cpus_online=0,i;
+	char online_path[SZ_NAME_LARGE];
 	const PAPI_hw_info_t *hwinfo = metrics_get_hw_info();
-	return hwinfo->sockets * hwinfo->cores * hwinfo->threads;
+	cpus = hwinfo->sockets * hwinfo->cores * hwinfo->threads;
+	for (i=0;i<cpus;i++){
+		sprintf(online_path, "/sys/devices/system/cpu/cpu%d/online",i);
+		if (is_online(online_path)) {
+		cpus_online ++;
+		}
+	}
+	debug("%d CPUS detected and %d online",cpus,cpus_online);
+	return cpus_online;	
 }
 
 /*

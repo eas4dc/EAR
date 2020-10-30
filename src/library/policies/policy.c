@@ -1,45 +1,42 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
+#if MPI
+#include <mpi.h>
+#endif
 #include <dlfcn.h>
+//#define SHOW_DEBUGS 1
 #include <common/includes.h>
+#include <common/config/config_env.h>
 #include <common/system/symplug.h>
 #include <common/hardware/frequency.h>
 #include <library/policies/policy_ctx.h>
 #include <library/policies/policy.h>
 #include <library/common/externs.h>
+#include <library/common/global_comm.h>
 #include <common/environment.h>
 #include <daemon/eard_api.h>
+#if POWERCAP
+#include <daemon/powercap_status_conf.h>
+#include <common/types/pc_app_info.h>
+#include <library/policies/pc_suport.h>
+#endif
 
-// external symbols
-extern MPI_Comm masters_comm,new_world_comm;
-
+extern masters_info_t masters_info;
 #ifdef EARL_RESEARCH
 extern unsigned long ext_def_freq;
 #define DEF_FREQ(f) (!ext_def_freq?f:ext_def_freq)
@@ -47,6 +44,9 @@ extern unsigned long ext_def_freq;
 #define DEF_FREQ(f) f
 #endif
 
+#if POWERCAP
+extern pc_app_info_t *pc_app_info_data;
+#endif
 
 typedef struct policy_symbols {
 	state_t (*init)        (polctx_t *c);
@@ -79,7 +79,7 @@ const char     *polsyms_nam[] = {
 	"policy_new_iteration",
 	"policy_mpi_init",
 	"policy_mpi_end",
-	"policy_configure"
+	"policy_configure",
 };
 polctx_t my_pol_ctx;
 
@@ -93,13 +93,15 @@ state_t init_power_policy(settings_conf_t *app_settings,resched_t *res)
   char basic_path[SZ_PATH_INCOMPLETE];
 	conf_install_t *data=&app_settings->installation;
 
-  char *obj_path = getenv("SLURM_EAR_POWER_POLICY");
+  char *obj_path = getenv(SCHED_EAR_POWER_POLICY);
   if ((obj_path==NULL) || (app_settings->user_type!=AUTHORIZED)){
     	sprintf(basic_path,"%s/policies/%s.so",data->dir_plug,app_settings->policy_name);
     	obj_path=basic_path;
 	}
-  debug("loading policy %s",obj_path);
-	policy_load(obj_path);
+  if (masters_info.my_master_rank>=0) debug("loading policy %s",obj_path);
+	if (policy_load(obj_path)!=EAR_SUCCESS){
+		error("Error loading policy %s",obj_path);
+	}
 	ear_frequency=DEF_FREQ(app_settings->def_freq);
 	my_pol_ctx.app=app_settings;
 	my_pol_ctx.reconfigure=res;
@@ -108,8 +110,16 @@ state_t init_power_policy(settings_conf_t *app_settings,resched_t *res)
 	my_pol_ctx.ear_frequency=&ear_frequency;
 	my_pol_ctx.num_pstates=frequency_get_num_pstates();
 	my_pol_ctx.use_turbo=ear_use_turbo;
-	my_pol_ctx.mpi.comm=new_world_comm;
-	my_pol_ctx.mpi.master_comm=masters_comm;
+	#if MPI
+	if (PMPI_Comm_dup(masters_info.new_world_comm,&my_pol_ctx.mpi.comm)!=MPI_SUCCESS){
+		error("Duplicating COMM_WORLD in policy");
+	}
+	if (masters_info.my_master_rank>=0){
+	if (PMPI_Comm_dup(masters_info.masters_comm, &my_pol_ctx.mpi.master_comm)!=MPI_SUCCESS){
+    error("Duplicating master_comm in policy");
+  }
+	}
+	#endif
 	return policy_init();
 }
 
@@ -134,11 +144,23 @@ state_t policy_apply(signature_t *my_sig,ulong *freq_set, int *ready)
 	state_t st=EAR_ERROR;
 	*ready=1;
 	if (polsyms_fun.apply!=NULL){
-		if (!eards_connected()){
+		if (!eards_connected() || (masters_info.my_master_rank<0)){
 			*ready=0;
 			return EAR_SUCCESS;
 		}
 		st=polsyms_fun.apply(c, my_sig,freq_set,ready);
+#if POWERCAP
+		if (pc_app_info_data->mode==PC_DVFS){
+			ulong f;
+			pcapp_info_set_req_f(pc_app_info_data,*freq_set);
+			f=pc_support_adapt_freq(&my_pol_ctx.app->pc_opt,*freq_set,my_sig);
+			debug("Adapting frequency because pc: selected %lu new %lu",*freq_set,f);
+			*freq_set=f;
+		}else{
+			debug("PC mode %u (should be PC_POWER)",pc_app_info_data->mode);
+			pcapp_info_set_req_f(pc_app_info_data,*freq_set);		
+		}	
+#endif
   	if (*freq_set != *(c->ear_frequency))
   	{
     	*(c->ear_frequency) =  eards_change_freq(*freq_set);
@@ -165,7 +187,7 @@ state_t policy_set_default_freq()
 	state_t st;
 	if (polsyms_fun.get_default_freq!=NULL){
   	st=polsyms_fun.get_default_freq(c,c->ear_frequency);
-  	eards_change_freq(*(c->ear_frequency));
+  	if (masters_info.my_master_rank>=0) eards_change_freq(*(c->ear_frequency));
 		return st;
 	}else{ 
 		return EAR_ERROR;
@@ -178,6 +200,9 @@ state_t policy_ok(signature_t *curr,signature_t *prev,int *ok)
 {
 	polctx_t *c=&my_pol_ctx;
 	if (polsyms_fun.ok!=NULL){
+#if POWERCAP
+		pc_support_compute_next_state(&my_pol_ctx.app->pc_opt,curr);
+#endif
 		return polsyms_fun.ok(c, curr,prev,ok);
 	}else{
 		*ok=1;
@@ -244,7 +269,7 @@ state_t policy_configure()
 state_t policy_force_global_frequency(ulong new_f)
 {
   ear_frequency=new_f;
-  eards_change_freq(ear_frequency);
+  if (masters_info.my_master_rank>=0) eards_change_freq(ear_frequency);
 	return EAR_SUCCESS;
 }
 

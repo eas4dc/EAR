@@ -1,0 +1,153 @@
+# EAR Mariadb CONFIGURATION
+
+MariaDBIp=172.30.5.45
+MariaDBPassw=1234
+#----------------------------
+#MariaDBCommandsUser=ear_commands
+#MariaDBPort=3306
+#MariaDBCommandsPassw=1234
+#MariaDBUser=ear_daemon
+#MariaDBDatabase=EAR
+#-----------------------------
+MariaDBCommandsUser=ear_daemon
+#MariaDBPort=5432
+#MariaDBPort=5434
+MariaDBCommandsPassw=1234
+MariaDBUser=ear_daemon
+MariaDBDatabase=EAR
+
+ReportSigDetail=0
+ReportNodeDetail=1
+
+# EAR Global Manager
+
+GlobalManagerVerbose=2
+#Period T1 and Period T2 are specified in seconds T1 (ex. must be less than T2, ex. 10min and 1 month)
+GlobalManagerPeriodT1=60
+GlobalManagerPeriodT2=300
+GlobalManagerUnits=-
+GlobalManagerPolicy=maxenergy
+GlobalManagerEnergyLimit=300000
+#GlobalManagerEnergyLimit=150000
+GlobalManagerPowerLimit=1300
+GlobalManagerPowerPeriod=60
+EARGMPowercapMode=0
+EARGMPowercapActionLimit=90
+EARGMPowercapAction=/home/xjcorbalan/git/ear_private/src/tests/functionals/dummy_powercap_action.sh
+EARGMEnergyAction=/home/xjcorbalan/git/ear_private/src/tests/functionals/dummy_energycap_action.sh
+#GlobalManagerEnergyLimit=990000
+#GlobalManagerEnergyLimit=2800000
+#GlobalManagerEnergyLimit=1080000
+#GlobalManagerEnergyLimit=1800000
+#GlobalManagerEnergyLimit=54000
+GlobalManagerUseAggregated=1
+GlobalManagerHost=cmp2545
+GlobalManagerPort=50000
+GlobalManagerMode=0
+GlobalManagerMail=nomail
+GlobalManagerWarningsPerc=85,90,95
+GlobalManagerGracePeriods=2
+GlobalManagerUseLog=1
+
+# EARD
+NodeDaemonVerbose=1
+NodeDaemonPowermonFreq=30
+NodeDaemonMaxPstate=1
+NodeDaemonTurbo=0
+NodeDaemonPort=5000
+NodeUseDB=1
+NodeUseEARDBD=1
+NodeForceFrequencies=1
+NodeUseLog=1
+
+# DATABASE MANAGER
+DBDaemonAggregationTime=30
+DBDaemonInsertionTime=10
+DBDaemonPortTCP=4711
+DBDaemonPortSecTCP=4712
+DBDaemonSyncPort=4713
+DBDaemonMemorySize=120
+DBDaemonMemorySizePerType=40,20,5,24,5,1,5
+DBDaemonUseLog=1
+
+# Common
+TmpDir=/var/run/ear
+EtcDir=/hpc/opt/ear/etc
+InstDir=/hpc/opt/ear3.1
+#InstDir=/usr_juli_conf/ear
+#PluginEnergy=energy_rapl.so
+#PluginEnergy=energy_nm.so
+#PluginPowerModel=avx512_model.so
+Verbose=4
+
+#Library conf
+CoefficientsDir=/hpc/opt/ear/etc/ear/coeffs
+DynAISLevels=7
+#DynAISWindowSize=500
+#DynAISWindowSize=100
+DynAISWindowSize=220
+DynaisTimeout=30
+LibraryPeriod=30
+CheckEARModeEvery=1000
+
+# DEFAULT POWER POLICIES VALUES
+#DefaultPowerPolicy=MONITORING_ONLY
+
+#LRZ NEW POLICY
+MinTimePerformanceAccuracy=10000000
+#Policy=MONITORING_ONLY Settings=0 DefaultFreq=1 Privileged=1
+#Policy=MIN_TIME_TO_SOLUTION Settings=0.1 DefaultFreq=3 Privileged=1
+#Policy=MIN_ENERGY_TO_SOLUTION Settings=0.7 DefaultFreq=1 Privileged=1
+
+DefaultPowerPolicy=min_time
+
+#Policy=monitoring Settings=0 DefaultFreq=2.6 Privileged=0
+#Policy=min_energy Settings=0.1 DefaultFreq=2.6 Privileged=1
+#Policy=min_time Settings=0.7 DefaultFreq=2.3 Privileged=0
+
+Policy=monitoring Settings=0 DefaultPstate=1 Privileged=0
+Policy=min_energy Settings=0.1 DefaultPstate=1 Privileged=1
+Policy=min_time Settings=0.7 DefaultPstate=5 Privileged=0
+
+#Policy=min_time_cp Settings=0.7 DefaultFreq=2.3 Privileged=0
+#Policy=min_time_power_cap Settings=0.7 DefaultFreq=2.3 Privileged=0
+#Policy=min_time_no_models Settings=0.7 DefaultFreq=2.3 Privileged=0
+#Policy=two_phases Settings=0.7,0.05 DefaultFreq=2.3 Privileged=0
+#Policy=min_energy_no_models Settings=0.1 DefaultFreq=2.6 Privileged=1
+#Policy=dummy Settings=0.1 DefaultFreq=2.6 Privileged=0
+#Policy=empty Settings=0.1 DefaultFreq=2.6 Privileged=0
+
+# AUTHORIZED USERS
+#AuthorizedUsers=xjcorbalan,xjaneas,xlalonso,root
+AuthorizedUsers=xjcorbalan,xjaneas,root
+AuthorizedGroups=xbsc
+
+# ENERGY TAGS
+EnergyTag=memory-intensive pstate=4 users=all
+EnergyTag=eturbo pstate=0 users=all
+EnergyTag=epstate1 pstate=1 users=all
+EnergyTag=epstate2 pstate=2 users=all
+EnergyTag=epstate3 pstate=3 users=all
+EnergyTag=epstate4 pstate=4 users=all
+EnergyTag=epstate5 pstate=5 users=all
+EnergyTag=epstate6 pstate=6 users=all
+
+# NODES CONFIGURATION
+#NodeName=cmp25[45-48] CPUs=24 Island=0 DefCoefficientsFile=coeffs.default
+#NodeName=
+
+# TAGS
+tag=mini_tag default=yes type=arch powercap=0 min_power=20 coeffs=coeffs.default max_avx512=2.3 energy_model=avx512_model.so  powercap_plugin=dvfs.so energy_plugin=energy_nm.so
+tag=mini_tag2 type=arch powercap=0 min_power=20 coeffs=coeffs.default max_avx512=2.3 energy_model=avx512_model.so energy_plugin=energy_nm.so powercap_plugin=dvfs.so
+
+# ISLES CONFIGURATION
+#Island=0 Nodes=cmp25[45-46] DBIP=cmp2545.hpc.eu.lenovo.com DBSECIP=cmp2545 
+#Island=0 Nodes=cmp25[47-48] DBIP=cmp2545.hpc.eu.lenovo.com DBSECIP=cmp2545 tags=mini_tag2
+#Island=0 Nodes=cmp25[45-46] DBIP=cmp2545.hpc.eu.lenovo.com DBSECIP=cmp2545 power_cap=0 min_power=20
+#Island=1 Nodes=cmp25[47-48] DBIP=cmp2545.hpc.eu.lenovo.com DBSECIP=cmp2545 power_cap=0 min_power=20
+Island=0 Nodes=cmp25[45-48] DBIP=cmp2545.hpc.eu.lenovo.com DBSECIP=cmp2545 power_cap=0
+#Island=0 Nodes=cmp25[47-48] DBIP=cmp2545.hpc.eu.lenovo.com 
+#Island=0 Nodes=cmp25[45-46] 
+#Island=0 Nodes=cmp25[45-48] DBIP=cmp2545.hpc.eu.lenovo.com
+#Island=0 Nodes=cmp25[45-48]
+#Island=0 Nodes=cmp25[045-046] DBIP=cmp2545

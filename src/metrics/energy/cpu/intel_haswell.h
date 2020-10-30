@@ -1,42 +1,31 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #ifndef _RAPL_METRICS_H_
 #define _RAPL_METRICS_H_
 
-#include <metrics/common/msr.h>
+#include <metrics/common/omsr.h>
 
 #define RAPL_POWER_EVS            2
 #define RAPL_DRAM0          0
 #define RAPL_DRAM1          1
 #define RAPL_PACKAGE0       2
 #define RAPL_PACKAGE1       3
+#define RAPL_MSR_UNITS 			1000000000.0
 
 /** Opens the necessary fds to read the MSR registers. Returns 0 on success
 * 	and -1 on error. */
@@ -48,5 +37,10 @@ void dispose_rapl_msr(int *fd_map);
 /** Reads rapl counters and stores them in values array. Returns 0 on success 
 *	and -1 on error. */
 int read_rapl_msr(int *fd_map,unsigned long long *_values);
+
+void rapl_msr_energy_to_str(char *b,unsigned long long *values);
+unsigned long long acum_rapl_energy(unsigned long long *values);
+void diff_rapl_msr_energy(unsigned long long *diff,unsigned long long *end, unsigned long long *init);
+
 
 #endif

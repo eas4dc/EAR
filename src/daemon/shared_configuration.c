@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <fcntl.h>
@@ -42,10 +30,11 @@
 #include <common/output/verbose.h>
 #include <common/types/coefficient.h>
 #include <common/types/configuration/cluster_conf.h>
+#include <common/types/configuration/cluster_conf_earlib.h>
 #include <daemon/shared_configuration.h>
 
-static int fd;
 static int fd_settings,fd_resched,fd_coeffs,fd_services,fd_freq;
+static int fd_app_mgt,fd_pc_app_info;
 static coefficient_t null_coeffs[1],null_coeffs_default[1];
 
 /** These functions created path names, just to avoid problems if changing the path name in the future */
@@ -81,95 +70,6 @@ int get_coeffs_default_path(char *tmp,char *path)
 }
 
 
-/** BASIC FUNCTIONS */
-
-void *create_shared_area(char *path,char *data,int area_size,int *shared_fd,int must_clean)
-{
-	/* This function creates a shared memory region based on files and mmap */
-	int ret;
-	void * my_shared_region=NULL;		
-	char buff[256];
-	mode_t my_mask;
-	if ((area_size==0) || (data==NULL) || (path==NULL)){
-		error("creatinf shared region, invalid arguments. Not created\n");
-		return NULL;
-	}
-	my_mask=umask(0);
-	strcpy(buff,path);
-	verbose(VCONF+2,"creating file %s for shared memory\n",buff);
-	fd=open(buff,O_CREAT|O_RDWR|O_TRUNC,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-	if (fd<0){
-		error("error creating sharing memory (%s)\n",strerror(errno));
-		umask(my_mask);
-		return NULL;
-	}
-	verbose(VCONF+2,"shared file for mmap created\n");
-	umask(my_mask);
-	// Default values
-	if (must_clean) bzero(data,area_size);
-	verbose(VCONF+2,"writting default values\n");
-	ret=write(fd,data,area_size);
-	if (ret<0){
-		error("error creating sharing memory (%s)\n",strerror(errno));
-		close(fd);
-		return NULL;
-	}
-	verbose(VCONF+2,"mapping shared memory\n");
-	my_shared_region= mmap(NULL, area_size,PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);                                     
-	if ((my_shared_region == MAP_FAILED) || (my_shared_region == NULL)){
-		error(" error creating sharing memory (%s)\n",strerror(errno));
-		close(fd);
-		return NULL;
-	}
-	*shared_fd=fd;
-	return my_shared_region;
-}
-
-void * attach_shared_area(char *path,int area_size,uint perm,int *shared_fd,int *s)
-{
-    void * my_shared_region=NULL;
-		char buff[256];
-		int flags;
-		int size;
-		strcpy(buff,path);
-    fd=open(buff,perm);
-    if (fd<0){
-        error("error attaching to sharing memory (%s)\n",strerror(errno));
-        return NULL;
-    }
-	if (area_size==0){
-		size=lseek(fd,0,SEEK_END);
-		if (size<0){
-			error("Error computing shared memory size (%s) ",strerror(errno));
-		}else area_size=size;
-		if (s!=NULL) *s=size;
-	}
-	if (perm==O_RDWR){
-		flags=PROT_READ|PROT_WRITE;
-	}else{
-		flags=PROT_READ;
-	}
-    my_shared_region= mmap(NULL, area_size,flags, MAP_SHARED, fd, 0);
-    if ((my_shared_region == MAP_FAILED) || (my_shared_region == NULL)){
-        error("error attaching to sharing memory (%s)\n",strerror(errno));
-        close(fd);
-        return NULL;
-    }
-	*shared_fd=fd;
-    return my_shared_region;
-}
-
-void dettach_shared_area(int fd)
-{
-	close(fd);
-}
-void dispose_shared_area(char *path,int fd)
-{
-	close(fd);
-	unlink(path);
-}
-
-/***** SPECIFIC FUNCTIONS *******************/
 
 
 //// SETTINGS
@@ -203,7 +103,7 @@ void print_settings_conf(settings_conf_t *setting)
 	verbose(VCONF,"settings: user_type(0=NORMAL,1=AUTH,2=ENERGY) %u learning %u lib_enabled %d policy(0=min_energy, 1=min_time,2=monitoring) %u \n",
 	setting->user_type,setting->learning,setting->lib_enabled,setting->policy);
 	verbose(VCONF,"\tmax_freq %lu def_freq %lu def_p_state %u th %.2lf\n",setting->max_freq,setting->def_freq,setting->def_p_state,setting->settings[0]);
-	print_ear_lib_conf(&setting->lib_info);	
+	print_earlib_conf(&setting->lib_info);	
 	verbose(VCONF,"\tmin_sig_power %.0lf",setting->min_sig_power);
 
 }
@@ -231,6 +131,84 @@ void resched_shared_area_dispose(char * path)
 {
 	dispose_shared_area(path,fd_resched);
 }
+
+
+#if POWERCAP
+/************* APP_MGT
+ *
+ * Sets in path the filename for the shared memory area app_area between EARD and EARL
+ * * @param path (output)
+ * */
+int get_app_mgt_path(char *tmp,char *path)
+{
+  if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
+  sprintf(path,"%s/.ear_app_mgt",tmp);
+  return EAR_SUCCESS;
+}
+
+/** Creates the shared mmemory. It is used by EARD and APP. App puts information here
+ *  *  * *   @param ear_conf_path specifies the path (folder) to create the file used by mmap
+ *   *   * */
+
+app_mgt_t * create_app_mgt_shared_area(char *path)
+{
+  app_mgt_t my_app_data;
+
+  return (app_mgt_t *)create_shared_area(path,(char *)&my_app_data,sizeof(my_app_data),&fd_app_mgt,1);
+
+}
+
+/** Connects with a previously created shared memory region. It is used by EARLib (client)
+ *  *  * *   @param ear_conf_path specifies the path (folder) where the mapped file were created
+ *   *   * */
+app_mgt_t * attach_app_mgt_shared_area(char * path)
+{
+    return (app_mgt_t *)attach_shared_area(path,sizeof(app_mgt_t),O_RDWR,&fd_app_mgt,NULL);
+
+}
+
+/** Disconnect from a previously connected shared memory region. It is used by EARLib (client)
+ *  *  * */
+void dettach_app_mgt_shared_area()
+{
+	dettach_shared_area(fd_app_mgt);
+}
+
+/** Releases a shared memory area previously created. It is used by EARD (server)
+ *  *  * */
+void app_mgt_shared_area_dispose(char * path)
+{
+	dispose_shared_area(path,fd_app_mgt);
+}
+
+/****************************** PC_APP_INFO REGION *******************/
+int get_pc_app_info_path(char *tmp,char *path)
+{
+  if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
+  sprintf(path,"%s/.ear_pc_app_info",tmp);
+  return EAR_SUCCESS;
+}
+pc_app_info_t  * create_pc_app_info_shared_area(char *path)
+{
+	pc_app_info_t my_data;
+  return (pc_app_info_t *)create_shared_area(path,(char *)&my_data,sizeof(my_data),&fd_pc_app_info,1);
+
+}
+pc_app_info_t * attach_pc_app_info_shared_area(char * path)
+{
+    return (pc_app_info_t *)attach_shared_area(path,sizeof(pc_app_info_t),O_RDWR,&fd_pc_app_info,NULL);
+}
+void dettach_pc_app_info_shared_area()
+{
+	dettach_shared_area(fd_pc_app_info);
+}
+void pc_app_info_shared_area_dispose(char * path)
+{
+	dispose_shared_area(path,fd_pc_app_info);
+}
+
+#endif
+
 
 /* COEFFS */
 

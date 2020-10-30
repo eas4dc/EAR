@@ -1,0 +1,15 @@
+#!/bin/bash
+
+export EAR_INSTALL_PATH="@prefix@"
+export EAR_SOURCE_PATH="@abs_top_builddir@"
+
+#
+ln -s specs/ear.spec ear.spec
+#ln -s specs/ear.intel.openmpi.spec ear.spec
+#ln -s specs/ear.openmpi.spec ear.spec
+
+#
+rpmbuild -bb ear.spec
+
+#
+rm ear.spec

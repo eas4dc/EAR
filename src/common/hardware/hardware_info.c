@@ -1,82 +1,98 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
+#define _GNU_SOURCE
 #include <time.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sched.h>
+#include <common/hardware/topology.h>
 #include <common/hardware/hardware_info.h>
+
+void print_affinity_mask(topology_t *topo) 
+{
+    cpu_set_t mask;
+		int i;
+    if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1) return;
+    fprintf(stdout,"sched_getaffinity = ");
+    for (i = 0; i < topo->cpu_count; i++) {
+        fprintf(stdout,"%d=%d ", i,CPU_ISSET(i, &mask));
+    }
+    printf("\n");
+}
+
+state_t is_affinity_set(topology_t *topo,int pid,int *is_set)
+{
+	cpu_set_t mask;
+	*is_set=0;
+	if (sched_getaffinity(pid,sizeof(cpu_set_t), &mask) == -1) return EAR_ERROR;
+	int i;
+	for (i = 0; i < topo->cpu_count; i++) {
+		if (!CPU_ISSET(i, &mask)) {
+			*is_set=1;
+			return EAR_SUCCESS;	
+		}
+	}
+	return EAR_SUCCESS;
+}
+
 
 static int file_is_accessible(const char *path)
 {
 	return (access(path, F_OK) == 0);
 }
 
+static topology_t topo1;
+static topology_t topo2;
+static int init;
+
 int detect_packages(int **mypackage_map) 
 {
-	char filename[BUFSIZ];
-	FILE *fff;
-	int package;
+	int num_cpus, num_cores, num_packages = 0;
 	int *package_map;
 	int i;
-	int num_cpus,num_cores, num_packages = 0;
-    topology_t topo;
-    hardware_gettopology(&topo);
-    num_cpus = topo.sockets;
-    num_cores = topo.cores*topo.sockets;
-    package_map = calloc(num_cores, sizeof(int));
-    
-	if (num_cpus < 1 || num_cores < 1) {
-        return 0;
-	}
 
-	for(i=0;i<num_cores;i++) {
-		package_map[i]=-1;
-	}
-
-	for(i=0;i<num_cores;i++)
+	// TODO: spaguettis
+	if (!init)
 	{
-		sprintf(filename,"/sys/devices/system/cpu/cpu%d/topology/physical_package_id",i);
-		fff=fopen(filename,"r");
-		if (fff==NULL) break;
-		fscanf(fff,"%d",&package);
-		fclose(fff);
-
-		if (package_map[package]==-1) {
-		    num_packages++;
-	    	package_map[package]=i;
-	    }
+		topology_init(&topo1);
+		topology_select(&topo1, &topo2, TPSelect.socket, TPGroup.merge, 0);
+		init = 1;
 	}
-	if (mypackage_map!=NULL) *mypackage_map=package_map;
-	else free(package_map);
+    
+	num_cores    = topo1.core_count;
+	num_packages = topo1.socket_count;
+	num_cpus     = topo1.socket_count;
+	
+	if (num_cpus < 1 || num_cores < 1) {
+        	return 0;
+	}
+
+	if (mypackage_map != NULL) {
+		*mypackage_map = calloc(num_cores, sizeof(int));
+		package_map = *mypackage_map;
+	}
+
+	for (i = 0; mypackage_map != NULL && i < topo2.cpu_count; ++i) {
+		package_map[i] = topo2.cpus[i].id;
+	}
 
 	return num_packages;
 }
@@ -111,85 +127,6 @@ static state_t hardware_sibling_read(const char *path, int *result)
 	}
 
 	state_return(EAR_SUCCESS);
-}
-
-state_t hardware_topology_getsize(uint *size)
-{
-	topology_t topo;
-	state_t s;
-
-	s = hardware_gettopology(&topo);
-
-	if (state_fail(s)) {
-		return s;
-	}
-
-	*size = topo.sockets * topo.cores * topo.threads;
-
-	return EAR_SUCCESS;
-}
-
-state_t hardware_gettopology(topology_t *topo)
-{
-	char path[SZ_NAME_LARGE];
-	int aux1 = -1;
-	int aux2 = -1;
-	state_t s;
-
-	topo->cores = 0;
-	topo->threads = 0;
-	topo->sockets = 0;
-	topo->numas = 0;
-
-
-	/* Number of CPUs */
-	do {
-		aux1 += 1;
-		sprintf(path, PATH_SYS_SYSTEM "/cpu/cpu%d", aux1);
-	} while(file_is_accessible(path));
-
-	/* Number of threads per core */
-	if (file_is_accessible(PATH_SYS_CPU0_TOTH)) {
-		s = hardware_sibling_read(PATH_SYS_CPU0_TOTH, &topo->threads);
-
-		if (state_fail(s)) {
-			return s;
-		}
-	}
-
-	/* Number of cores per socket */
-	if (file_is_accessible(PATH_SYS_CPU0_TOCO) && topo->threads > 0) {
-		s = hardware_sibling_read(PATH_SYS_CPU0_TOCO, &topo->cores);
-
-		if (state_fail(s)) {
-			return s;
-		}
-
-		topo->cores /= topo->threads;
-	}
-
-	if (topo->cores <= 0) {
-		return s;
-	}
-
-	/* Number of CPUs per numa node */
-	do {
-		aux2 += 1;
-		sprintf(path, PATH_SYS_SYSTEM "/node/node%d", topo->cores);
-	} while(file_is_accessible(path));
-
-	if (aux2 > 1) {
-		aux2 = aux1 / aux2;
-	} else {
-		aux2 = aux1;
-	}
-
-	/* Number of sockets */
-	if (topo->threads > 0 && topo->cores > 0) {
-		topo->sockets = aux2 / topo->cores / topo->threads;
-	}
-
-	return EAR_SUCCESS;
 }
 
 int is_cpu_examinable()

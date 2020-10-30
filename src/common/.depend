@@ -1,12 +1,27 @@
 environment.o: environment.c ../common/config.h \
  ../common/config/config_def.h ../common/config/config_dev.h \
- ../common/config/config_install.h ../common/environment.h \
+ ../common/config/config_env.h ../common/config/config_install.h \
+ ../common/output/verbose.h ../common/output/error.h ../common/colors.h \
+ ../common/output/timestamp.h ../common/output/output_conf.h \
+ ../common/output/debug.h ../common/environment.h \
  ../common/types/generic.h ../common/types/configuration/cluster_conf.h \
- ../common/sizes.h ../common/states.h \
+ ../common/sizes.h ../common/states.h ../common/string_enhanced.h \
+ ../common/types/configuration/node_conf.h \
  ../common/types/configuration/policy_conf.h \
- ../common/types/configuration/node_conf.h ../common/string_enhanced.h \
+ ../common/types/configuration/cluster_conf_db.h \
+ ../common/types/configuration/cluster_conf_tag.h \
+ ../common/types/configuration/cluster_conf_etag.h \
+ ../common/types/configuration/cluster_conf_eard.h \
+ ../common/types/configuration/cluster_conf_eargm.h \
+ ../common/types/configuration/cluster_conf_eardbd.h \
+ ../common/types/configuration/cluster_conf_earlib.h \
  ../common/environment_common.h
 environment_common.o: environment_common.c
+monitor.o: monitor.c ../common/monitor.h ../common/types.h \
+ ../common/types/generic.h ../common/states.h ../common/output/error.h \
+ ../common/colors.h ../common/output/timestamp.h \
+ ../common/output/output_conf.h ../common/system/time.h \
+ ../common/output/debug.h
 math_operations.o: math_operations.c
 string_enhanced.o: string_enhanced.c ../common/sizes.h ../common/colors.h \
  ../common/string_enhanced.h

@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <pwd.h>
@@ -155,7 +143,7 @@ static int frequency_exists(spank_t sp, ulong *freqs, int n_freqs, ulong freq)
 	return 0;
 }
 
-int plug_print_application(spank_t sp, application_t *app)
+int plug_print_application(spank_t sp, new_job_req_t *app)
 {
 	plug_verbose(sp, 3, "---------- application summary ---");
 	plug_verbose(sp, 3, "job/step/name '%lu'/'%lu'/'%s'", app->job.id, app->job.step_id, app->job.app_id);
@@ -170,12 +158,12 @@ int plug_read_application(spank_t sp, plug_serialization_t *sd)
 {
 	plug_verbose(sp, 2, "function plug_read_application");
 	
-	application_t *app = &sd->job.app;
+	new_job_req_t *app = &sd->job.app;
 	ulong *freqs = sd->pack.eard.freqs.freqs;
 	int n_freqs = sd->pack.eard.freqs.n_freqs;
 	int item;
 
-	init_application(app);
+	memset(app,0,sizeof(new_job_req_t));
 
 	// Gathering variables
 	app->is_mpi = plug_component_isenabled(sp, Component.library);
@@ -254,7 +242,7 @@ int plug_print_variables(spank_t sp)
 	printenv_agnostic(sp, Var.comp_moni.cmp);
 	printenv_agnostic(sp, Var.comp_test.cmp);
 	printenv_agnostic(sp, Var.comp_verb.cmp);
-	printenv_agnostic(sp, Var.hack_libr.hck);
+	printenv_agnostic(sp, Var.hack_load.hck);
 
 	printenv_agnostic(sp, Var.verbose.loc);
 	printenv_agnostic(sp, Var.policy.loc);
@@ -264,7 +252,7 @@ int plug_print_variables(spank_t sp)
 	printenv_agnostic(sp, Var.learning.loc);
 	printenv_agnostic(sp, Var.tag.loc);
 	printenv_agnostic(sp, Var.path_usdb.loc);
-	printenv_agnostic(sp, Var.path_trac.loc);
+	//printenv_agnostic(sp, Var.path_trac.loc);
 	printenv_agnostic(sp, Var.version.loc);
 	printenv_agnostic(sp, Var.gm_host.loc);
 	printenv_agnostic(sp, Var.gm_port.loc);
@@ -354,7 +342,7 @@ int plug_deserialize_local(spank_t sp, plug_serialization_t *sd)
 	unsetenv_agnostic(sp, Var.learning.ear);
 	unsetenv_agnostic(sp, Var.tag.ear);
 	unsetenv_agnostic(sp, Var.path_usdb.ear);
-	unsetenv_agnostic(sp, Var.path_trac.ear);
+	//unsetenv_agnostic(sp, Var.path_trac.ear);
 	unsetenv_agnostic(sp, Var.name_app.ear);
 
 	// Exception (in testing)
@@ -446,7 +434,7 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 	repenv_agnostic(sp, Var.learning.loc, Var.learning.ear);
 	repenv_agnostic(sp, Var.tag.loc, Var.tag.ear);
 	repenv_agnostic(sp, Var.path_usdb.loc, Var.path_usdb.ear);
-	repenv_agnostic(sp, Var.path_trac.loc, Var.path_trac.ear);
+	//repenv_agnostic(sp, Var.path_trac.loc, Var.path_trac.ear);
 
 	/*
 	 * User
@@ -543,6 +531,7 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 	 * out of APP serialization.
 	 */ 	
 	repenv_agnostic(sp, Var.path_temp.rem, Var.path_temp.ear);
+	repenv_agnostic(sp, Var.path_inst.rem, Var.path_inst.ear);
 
 	/*
 	 * Clean
@@ -603,21 +592,11 @@ int plug_serialize_task(spank_t sp, plug_serialization_t *sd)
 	 * LD_PRELOAD
 	 */
 	#if !EAR_CORE
-	char *lib_path = MPI_C_LIB_PATH;
-	char ext1[64];
-	char ext2[64];
+	char *lib_path = REL_PATH_LOAD;
 
 	buffer1[0] = '\0';
 	buffer2[0] = '\0';
 	
-	if(getenv_agnostic(sp, Var.version.loc, ext1, 64)) {
-		snprintf(ext2, 64, "%s.so", ext1);
-	} else {
-		snprintf(ext2, 64, "so");
-	}
-
-	// Appending libraries to LD_PRELOAD
-	apenv_agnostic(buffer2, sd->pack.path_inst, 64);
 
 	#define t(max, val) \
 		((val + 1) > max) ? max : val + 1
@@ -625,18 +604,25 @@ int plug_serialize_task(spank_t sp, plug_serialization_t *sd)
 	//
 	const int m = SZ_BUFF_EXTRA;
 	int n;
-	
-	n = snprintf(      0,       0, "%s/%s.%s", buffer2, lib_path, ext2);
-	n = snprintf(buffer1, t(m, n), "%s/%s.%s", buffer2, lib_path, ext2);
 
-	if (file_is_regular(buffer1))
+	if (getenv_agnostic(sp, Var.hack_load.hck, buffer2, m)) {
+		n = snprintf(      0,       0, "%s", buffer2);
+		n = snprintf(buffer1, t(m, n), "%s", buffer2);
+	} else {	
+		// Appending libraries to LD_PRELOAD
+		apenv_agnostic(buffer2, sd->pack.path_inst, 64);
+
+		n = snprintf(      0,       0, "%s/%s", buffer2, lib_path);
+		n = snprintf(buffer1, t(m, n), "%s/%s", buffer2, lib_path);
+	}
+
+	plug_verbose(sp, 2, "trying to load file '%s'", buffer1);
+
+	//if (file_is_regular(buffer1))
+	if (access(buffer1, X_OK) == 0)
 	{
 		char *ld_buf = sd->job.user.env.ld_preload;
 
-		if (getenv_agnostic(sp, Var.hack_libr.hck, buffer2, m)) {
-			n = snprintf(      0,       0, "%s", buffer2);
-			n = snprintf(buffer1, t(m, n), "%s", buffer2);
-		}
 		if (getenv_agnostic(sp, Var.ld_prel.ear, ld_buf, m))
 		{
 			if (n > 0) {

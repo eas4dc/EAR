@@ -1,31 +1,20 @@
-/**************************************************************
-*   Energy Aware Runtime (EAR)
-*   This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*   EAR provides a dynamic, transparent and ligth-weigth solution for
-*   Energy management.
+* This program is part of the EAR software.
 *
-*       It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017
-*   BSC Contact     mailto:ear-support@bsc.es
-*   Lenovo contact  mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*   EAR is free software; you can redistribute it and/or
-*   modify it under the terms of the GNU Lesser General Public
-*   License as published by the Free Software Foundation; either
-*   version 2.1 of the License, or (at your option) any later version.
-*
-*   EAR is distributed in the hope that it will be useful,
-*   but WITHOUT ANY WARRANTY; without even the implied warranty of
-*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*   Lesser General Public License for more details.
-*
-*   You should have received a copy of the GNU Lesser General Public
-*   License along with EAR; if not, write to the Free Software
-*   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*   The GNU LEsser General Public License is contained in the file COPYING
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <common/config.h>
@@ -38,8 +27,11 @@ int main(int argc,char *argv[])
 	my_node_conf_t *my_node_conf;
 	char nodename[256];
 	char ear_path[256];
+	strcpy(nodename,"");
 	if (argc>1){
 		strcpy(ear_path,argv[1]);
+        if (argc > 2)
+            strcpy(nodename, argv[2]);
 	}else{
 		if (get_ear_conf_path(ear_path)==EAR_ERROR){
 			printf("Error getting ear.conf path\n");
@@ -48,15 +40,22 @@ int main(int argc,char *argv[])
 	}
 	read_cluster_conf(ear_path,&my_cluster);
 	print_cluster_conf(&my_cluster);
-	gethostname(nodename,sizeof(nodename));
-	strtok(nodename,".");
-    my_node_conf = get_my_node_conf(&my_cluster, nodename);
-    if (my_node_conf==NULL) {
-		fprintf(stderr,"get_my_node_conf for node %s returns NULL\n",nodename);
-	}else print_my_node_conf(my_node_conf);
-
+    //gethostname(nodename,sizeof(nodename));
+	//strtok(nodename,".");
+    if (strlen(nodename) > 0)
+    {
+        my_node_conf = get_my_node_conf(&my_cluster, nodename);
+        if (my_node_conf==NULL) {
+          	fprintf(stderr,"get_my_node_conf for node %s returns NULL\n",nodename);
+    	} else {
+            printf("\nNODE_CONF FOR NODE: %s\n\n", nodename);
+            print_my_node_conf(my_node_conf);
+            free(my_node_conf->policies);
+            free(my_node_conf);
+        }
+    }
+		printf("Releasing cluste_cnf\n");
     free_cluster_conf(&my_cluster);
-    free(my_node_conf);
     printf("freed cluster_conf\n");
     printf("reading cluster_conf again\n");
 	read_cluster_conf(ear_path,&my_cluster);

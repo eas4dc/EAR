@@ -1,30 +1,18 @@
-/**************************************************************
-*   Energy Aware Runtime (EAR)
-*   This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*   EAR provides a dynamic, transparent and ligth-weigth solution for
-*   Energy management.
+* This program is part of the EAR software.
 *
-*       It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017
-*   BSC Contact     mailto:ear-support@bsc.es
-*   Lenovo contact  mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*   EAR is free software; you can redistribute it and/or
-*   modify it under the terms of the GNU Lesser General Public
-*   License as published by the Free Software Foundation; either
-*   version 2.1 of the License, or (at your option) any later version.
-*
-*   EAR is distributed in the hope that it will be useful,
-*   but WITHOUT ANY WARRANTY; without even the implied warranty of
-*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*   Lesser General Public License for more details.
-*
-*   You should have received a copy of the GNU Lesser General Public
-*   License along with EAR; if not, write to the Free Software
-*   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*   The GNU LEsser General Public License is contained in the file COPYING
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <errno.h>
@@ -43,6 +31,7 @@
 #include <common/states.h>
 #include <daemon/eard_rapi.h>
 #include <common/system/user.h>
+#include <common/system/time.h>
 #include <common/output/verbose.h>
 #include <common/types/version.h>
 #include <common/types/application.h>
@@ -69,6 +58,8 @@ typedef struct ip_table
 } ip_table_t;
 
 cluster_conf_t my_cluster_conf;
+timestamp init_app,comm_time,process_results;
+ulong ms_comm_time,ms_process_results;
 
 void fill_ip(char *buff, ip_table_t *table)
 {
@@ -141,6 +132,8 @@ int generate_node_names(cluster_conf_t my_cluster_conf, ip_table_t **ips)
                     strcat(node_name, my_cluster_conf.net_ext);
 
                 fill_ip(node_name, &new_ips[num_ips]);
+                free(aux_node_conf->policies);
+                free(aux_node_conf);
                 num_ips++;
             }
         }
@@ -233,6 +226,7 @@ void usage(char *app)
 void check_ip(status_t status, ip_table_t *ips, int num_ips)
 {
     int i, j;
+    //printf("checking ip %d with status %d and power %lu\n", status.ip, status.ok, status.node.power);
     for (i = 0; i < num_ips; i++)
         if (htonl(status.ip) == htonl(ips[i].ip_int))
 		{
@@ -269,6 +263,7 @@ void process_status(int num_status, status_t *status, char error_only)
         for (i = 0; i < num_status; i++)
             check_ip(status[i], ips, num_ips);
         print_ips(ips, num_ips, error_only);
+        free(ips);
         free(status);
     }
     else printf("An error retrieving status has occurred.\n");
@@ -342,6 +337,10 @@ int main(int argc, char *argv[])
             {"restore-conf", 	optional_argument, 0, 6},
 	        {"ping", 	     	optional_argument, 0, 'p'},
             {"status",       	optional_argument, 0, 's'},
+            {"powerstatus",     optional_argument, 0, 'w'},
+            {"release",         optional_argument, 0, 'l'},
+            {"set-risk",        required_argument, 0, 'r'},
+            {"setopt",        required_argument, 0, 'o'},
             {"error",           no_argument, 0, 'e'},
             {"help",         	no_argument, 0, 'h'},
             {"version",         no_argument, 0, 'v'},
@@ -465,13 +464,13 @@ int main(int argc, char *argv[])
                     if (rc<0){
                         printf("Error connecting with node %s\n", node_name);
                     }else{
-                        verbose(1,"Node %s ping!\n", node_name);
+                        printf("Node %s ping!\n", node_name);
                         if (!eards_ping()) printf("Error doing ping for node %s\n", node_name);
                         eards_remote_disconnect();
                     }
                 }
                 else
-                    old_ping_all_nodes(my_cluster_conf);
+                    ping_all_nodes(my_cluster_conf);
                 break;
             case 's':
                 if (optarg)
@@ -499,10 +498,120 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
+		    #if DEBUG_TIME
+		    timestamp_get(&init_app);
+		    #endif
                     num_status = status_all_nodes(my_cluster_conf, &status);
+		    #if DEBUG_TIME
+		    timestamp_get(&comm_time);
+		    ms_comm_time=timestamp_diff(&comm_time,&init_app,TIME_MSECS);
+		    fprintf(stdout,"Time to get status %lu ms\n",ms_comm_time);
+		    #endif
                     process_status(num_status, status, 0);
+		    #if DEBUG_TIME
+		    timestamp_get(&process_results);
+		    ms_process_results=timestamp_diff(&process_results,&comm_time,TIME_MSECS);
+		    fprintf(stdout,"Time to process messages %lu ms\n",ms_process_results);
+		    #endif
                 }
                 break;
+            case 'r':
+                if (optarg)
+                {
+                    arg = atoi(optarg);
+                    if (optind+1 > argc)
+                    {
+                        printf("Sending risk level %d to all nodes\n", arg);
+                        set_risk_all_nodes(arg, arg2, my_cluster_conf);
+                        break;
+                    }
+                    int rc = eards_remote_connect(argv[optind], my_cluster_conf.eard.port);
+                    if (rc < 0){
+                        printf("Error connecting with node %s\n", argv[optind]);
+                    }else{
+                        printf("Sending risk level %d to %s\n", arg, argv[optind]);
+                        eards_set_risk(arg, 0);
+                        eards_remote_disconnect();
+                    }
+                }
+                break;
+						#if POWERCAP
+            case 'w':
+                if (optarg)
+                {
+                    int num_power_status = 0;
+                    powercap_status_t *powerstatus;
+                    int rc = eards_remote_connect(optarg, my_cluster_conf.eard.port);
+                    if (rc < 0) {
+                        printf("Error connecting with node %s\n", optarg);
+                    }else{
+                        printf("Reading power_status from node %s\n", optarg);
+                        num_power_status = eards_get_powercap_status(my_cluster_conf, &powerstatus);
+                        eards_remote_disconnect();
+                    }
+                    if (num_power_status > 0)
+                    {
+                        int i;
+                        for (i = 0; i < num_power_status; i++)
+                        {
+                            printf("powercap_status %d: idle_nodes: %d\t released_pow: %d\t int num_greedy: %d \trequested: %d\t current_pow: %u total_powcap: %u\n", i, powerstatus[i].idle_nodes,
+                                        powerstatus[i].released, powerstatus[i].num_greedy, powerstatus[i].requested, powerstatus[i].current_power, powerstatus[i].total_powercap);
+                        }
+                        free(powerstatus);
+                    }
+
+                }
+                else
+                {
+                    int num_power_status = 0;
+                    powercap_status_t *powerstatus;
+                    num_power_status = cluster_get_powercap_status(&my_cluster_conf, &powerstatus);
+                    if (num_power_status > 0)
+                    {
+                        int i;
+                        for (i = 0; i < num_power_status; i++)
+                        {
+                            printf("powercap_status %d: idle_nodes: %d\t released_pow: %d\t int num_greedy: %d \trequested: %d\t current_pow: %u total_powcap: %u\t total_nodes: %d\n", i, powerstatus[i].idle_nodes,
+                                        powerstatus[i].released, powerstatus[i].num_greedy, powerstatus[i].requested, powerstatus[i].current_power, powerstatus[i].total_powercap, powerstatus[i].total_nodes);
+                        }
+                        free(powerstatus);
+                    }
+                    else printf("powercap_status returned with invalid (%d) num_powerstatus\n", num_power_status);
+                }
+                break;
+            case 'o':
+                if (optarg)
+                {
+                    powercap_opt_t msg;
+                    memset(&msg, 0, sizeof(powercap_opt_t));
+                    msg.num_greedy = 1;
+                    msg.greedy_nodes[0] = 772087468;
+                    msg.extra_power[0] = 25;
+                    request_t command;
+                    command.req = EAR_RC_SET_POWERCAP_OPT;
+                    command.time_code = time(NULL);
+                    command.my_req.pc_opt = msg;
+                    int rc = eards_remote_connect(optarg, my_cluster_conf.eard.port);
+                    
+                    if (rc < 0) {
+                        printf("Error connecting with node %s\n", optarg);
+                    }else{
+                        printf("Reading power_status from node %s\n", optarg);
+                        send_command(&command);
+                        eards_remote_disconnect();
+                    }
+                   
+                }
+                break;
+            case 'l':
+                if (optarg) {}
+                else
+                {
+                    pc_release_data_t pc;
+                    cluster_release_idle_power(&my_cluster_conf, &pc);
+                    printf("released %u watts\n", pc.released);
+                }
+						#endif
             case 'e':
                 num_status = status_all_nodes(my_cluster_conf, &status);
                 process_status(num_status, status, 1);

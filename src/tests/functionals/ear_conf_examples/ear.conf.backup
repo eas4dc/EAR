@@ -1,0 +1,101 @@
+# EAR Mariadb CONFIGURATION
+
+MariaDBCommandsUser=ear_commands
+MariaDBCommandsPassw=1234
+MariaDBIp=172.30.5.45
+MariaDBUser=ear_daemon
+#MariaDBUser=ear_daemon
+MariaDBPassw=1234
+MariaDBPort=3306
+MariaDBDatabase=EAR
+
+ReportSigDetail=0;
+ReportNodeDetail=1;
+
+# EAR Global Manager
+
+GlobalManagerVerbose=0
+#Period T1 and Period T2 are specified in seconds T1 (ex. must be less than T2, ex. 10min and 1 month)
+GlobalManagerPeriodT1=60
+GlobalManagerPeriodT2=3600
+GlobalManagerUnits=-
+GlobalManagerPolicy=maxenergy
+GlobalManagerEnergyLimit=200000
+#GlobalManagerEnergyLimit=990000
+#GlobalManagerEnergyLimit=2800000
+#GlobalManagerEnergyLimit=1080000
+#GlobalManagerEnergyLimit=1800000
+#GlobalManagerEnergyLimit=54000
+GlobalManagerUseAggregated=1
+GlobalManagerHost=cmp2545
+GlobalManagerPort=50000
+GlobalManagerMode=0
+GlobalManagerMail=nomail
+GlobalManagerWarningsPerc=85,90,95
+GlobalManagerGracePeriods=6
+
+# EARD
+NodeDaemonVerbose=4
+NodeDaemonPowermonFreq=5
+NodeDaemonMaxPstate=1
+NodeDaemonTurbo=0
+NodeDaemonPort=5000
+NodeUseDB=1
+NodeUseEARDBD=1
+NodeForceFrequencies=1
+
+# DATABASE MANAGER
+DBDaemonAggregationTime=30
+DBDaemonInsertionTime=10
+DBDaemonPortTCP=4711
+DBDaemonPortSecTCP=4712
+DBDaemonSyncPort=4713
+DBDaemonMemorySize=120
+DBDaemonMemorySizePerType=40,20,5,24,5,1,5
+#DBDaemonUseLog=1
+
+# Common
+TmpDir=/var/run/ear
+EtcDir=/hpc/opt/ear/etc
+InstDir=/hpc/opt/ear
+#PluginEnergy=ipmi.node.manager.so.caca
+PluginEnergy=default
+PluginPolicy=default
+Verbose=4
+
+#Library conf
+CoefficientsDir=/hpc/opt/ear/etc/ear/coeffs
+DynAISLevels=7
+#DynAISWindowSize=500
+#DynAISWindowSize=100
+DynAISWindowSize=220
+DynaisTimeout=30
+LibraryPeriod=30
+CheckEARModeEvery=1000
+
+# DEFAULT POWER POLICIES VALUES
+DefaultPowerPolicy=MONITORING_ONLY
+
+#LRZ NEW POLICY
+MinTimePerformanceAccuracy=10000000
+Policy=MONITORING_ONLY Settings=0 DefaultFreq=1 Privileged=1
+Policy=MIN_TIME_TO_SOLUTION Settings=0.1 DefaultFreq=3 Privileged=1
+Policy=MIN_ENERGY_TO_SOLUTION Settings=0.7 DefaultFreq=1 Privileged=1
+
+
+# AUTHORIZED USERS
+AuthorizedUsers=xjcorbalan,xjaneas,xlalonso
+AuthorizedGroups=xbsc
+
+# ENERGY TAGS
+EnergyTag=memory-intensive pstate=4 users=all
+
+# NODES CONFIGURATION
+#NodeName=cmp25[45-48] CPUs=24 Island=0 DefCoefficientsFile=coeffs.default
+NodeName=
+
+# ISLES CONFIGURATION
+#Island=0 Nodes=cmp25[45-48] DBIP=cmp2545.hpc.eu.lenovo.com DBSECIP=
+#Island=0 Nodes=cmp25[45-48] DBIP=cmp2545.hpc.eu.lenovo.com
+Island=0 Nodes=cmp25[45-48] DBIP=cmp2545.hpc.eu.lenovo.com DBSECIP=cmp2545.hpc.eu.lenovo.com
+#Island=0 Nodes=cmp25[045-046] DBIP=cmp2545

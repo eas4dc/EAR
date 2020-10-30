@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <stdlib.h>
@@ -77,8 +65,22 @@ int loop_init(loop_t *loop, job_t *job,ulong event, ulong size, ulong level)
   loop->jid = job->id;
 	loop->step_id=job->step_id;
 	gethostname(loop->node_id,sizeof(loop->node_id));
+	strtok(loop->node_id, ".");
 	return EAR_SUCCESS;
 }
+
+int set_null_loop(loop_t *loop)
+{
+	return create_loop(loop);
+	
+}
+/** Returns true if the loop data is not, return -1 in case of error */
+int is_null(loop_t *loop)
+{
+	if (loop==NULL) return EAR_ERROR;
+	return (loop->total_iterations==0);
+}
+
 
 
 void add_loop_signature(loop_t *loop,  signature_t *sig)
@@ -108,6 +110,7 @@ void print_loop_fd(int fd, loop_t *loop)
     signature_print_fd(fd, &loop->signature, 1);
 	dprintf(fd, "%lu\n", loop->total_iterations);
 }
+
 
 int append_loop_text_file(char *path, loop_t *loop,job_t *job)
 {

@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <math.h>
@@ -41,7 +29,7 @@
 #include <common/hardware/hardware_info.h>
 #include <common/math_operations.h>
 #include <metrics/energy/energy_cpu.h>
-#include <metrics/common/msr.h>
+#include <metrics/common/omsr.h>
 
 
 
@@ -62,6 +50,10 @@
 static pthread_mutex_t rapl_msr_lock = PTHREAD_MUTEX_INITIALIZER;
 static int rapl_msr_instances=0;
 
+#define RAPL_ENERGY_EV 2
+#define RAPL_DRAM_EV 0
+#define RAPL_PCK_EV 1
+
 
 
 double power_units, cpu_energy_units, time_units, dram_energy_units;
@@ -81,8 +73,8 @@ int init_rapl_msr(int *fd_map)
     /* Ask for msr info */
     for(j=0;j<get_total_packages();j++) 
     {
-        if (msr_read(&fd_map[j], &result, sizeof result, MSR_INTEL_RAPL_POWER_UNIT)){ 
-					debug("Error in msr_read init_rapl_msr");
+        if (omsr_read(&fd_map[j], &result, sizeof result, MSR_INTEL_RAPL_POWER_UNIT)){ 
+					debug("Error in omsr_read init_rapl_msr");
 					pthread_mutex_unlock(&rapl_msr_lock);
 					return EAR_ERROR;
 				}
@@ -96,7 +88,7 @@ int init_rapl_msr(int *fd_map)
     return EAR_SUCCESS;
 }
 
-
+/* DRAM 0, DRAM 1,..DRAM N, PCK0,PCK1,...PCKN */
 int read_rapl_msr(int *fd_map,unsigned long long *_values)
 {
 	unsigned long long result;
@@ -106,16 +98,16 @@ int read_rapl_msr(int *fd_map,unsigned long long *_values)
 
 	for(j=0;j<nump;j++) {
 		/* PKG reading */	    
-	    if (msr_read(&fd_map[j], &result, sizeof result, MSR_INTEL_PKG_ENERGY_STATUS)){
-				debug("Error in msr_read read_rapl_msr");
+	    if (omsr_read(&fd_map[j], &result, sizeof result, MSR_INTEL_PKG_ENERGY_STATUS)){
+				debug("Error in omsr_read read_rapl_msr");
 				return EAR_ERROR;
 			}
 		result &= 0xffffffff;
 		_values[nump+j] = (unsigned long long)result*(cpu_energy_units*1000000000);
 
 		/* DRAM reading */
-	    if (msr_read(&fd_map[j], &result, sizeof result, MSR_DRAM_ENERGY_STATUS)){
-				debug("Error in msr_read read_rapl_msr");
+	    if (omsr_read(&fd_map[j], &result, sizeof result, MSR_DRAM_ENERGY_STATUS)){
+				debug("Error in omsr_read read_rapl_msr");
 				return EAR_ERROR;
 			}
 		result &= 0xffffffff;
@@ -133,8 +125,66 @@ void dispose_rapl_msr(int *fd_map)
   rapl_msr_instances--;
 	if (rapl_msr_instances==0){
 		tp=get_total_packages();
-		for (j = 0; j < tp; j++) msr_close(&fd_map[j]);
+		for (j = 0; j < tp; j++) omsr_close(&fd_map[j]);
 	}
 	pthread_mutex_unlock(&rapl_msr_lock);
 }
 
+void diff_rapl_msr_energy(unsigned long long *diff,unsigned long long *end, unsigned long long *init)
+{
+  unsigned long long ret = 0;
+  int nump,j;
+  nump=get_total_packages();
+
+	for(j=0;j<nump*RAPL_ENERGY_EV;j++) {
+  	if (end[j] >= init[j]) {
+    	ret = end[j] - init[j];
+  	} else {
+    	ret = ullong_diff_overflow(init[j], end[j]);
+  	}
+		diff[j]=ret;
+	}
+}
+
+unsigned long long acum_rapl_energy(unsigned long long *values)
+{
+	unsigned long long ret = 0;
+  int nump,j;
+  nump=get_total_packages();
+	for(j=0;j<nump*RAPL_ENERGY_EV;j++) {
+		ret=ret+values[j];
+	}	
+	return ret;
+}
+
+
+
+void rapl_msr_energy_to_str(char *b,unsigned long long *values)
+{
+	int nump,j;
+	char baux[512];
+  nump=get_total_packages();
+
+  sprintf(baux,", CPU (");
+  for (j = 0; j < nump; j++) {
+  	if (j < (nump - 1)) {
+  		sprintf(b,"%llu,", values[nump*RAPL_PCK_EV+j]);
+  	} else {
+  		sprintf(b,"%llu)", values[nump*RAPL_PCK_EV+j]);
+  	}
+		strcat(baux,b);
+  }
+
+	sprintf(b,", DRAM (");
+	strcat(baux,b);
+	for (j = 0; j < nump; j++) {
+		if (j < (nump - 1)) {
+			sprintf(b,"%llu,", values[nump*RAPL_DRAM_EV+j]);
+		} else {
+			sprintf(b,"%llu)", values[nump*RAPL_DRAM_EV+j]);
+		}
+		strcat(baux,b);
+	}
+	strcpy(b,baux);
+
+}

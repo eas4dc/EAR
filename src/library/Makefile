@@ -1,11 +1,13 @@
-CFLAGS  = -fPIC -O3 -I$(SRCDIR) $(CONSTANTS) $(PAPI_CFLAGS) 
-LDFLAGS = -shared $(PAPI_LDFLAGS) -ldl
-
-######## VARS
-
-export DIR
+MPI_API = 1
+export MPI_API
+ifdef MPI_API 
+CFLAGS  = -fPIC -O3 -I$(SRCDIR) $(CONSTANTS) $(PAPI_CFLAGS) -pthread -DMPI=1
+else
+CFLAGS  = -fPIC -O3 -I$(SRCDIR) $(CONSTANTS) $(PAPI_CFLAGS) -pthread -DMPI=0
+MPI_VERSION = seq
+endif
 export CFLAGS
-export LDFLAGS
+LDFLAGS = -shared $(PAPI_LDFLAGS) -ldl -lm
 
 ########
 
@@ -15,10 +17,10 @@ else
 ext = so
 endif
 
-ifdef MPICC
+ifdef MPI_CFLAGS
 libs_BINS += libear.$(ext)
 libs_PATH  = $(DESTDIR)/lib
-libs_OBJS  = all.components libear.so
+libs_OBJS  = libear.so
 libs_PERM  = 0755
 endif
 
@@ -30,37 +32,36 @@ comm_OBJS = \
     $(SRCDIR)/metrics/libmetrics.a \
     $(SRCDIR)/common/libcommon.a
 
+api_OBJS=api/ear.o
+
 mpix_OBJS = \
+    api/ear_mpi.o \
+    api/ear_default.o \
+    api/mpic.o \
+    api/mpif.o \
+		common/global_comm.o
+
+core_OBJS = \
     metrics/metrics.o \
     models/models.o \
     policies/policy.o \
     states/states.o \
     states/states_periodic.o \
     tracer/tracer.o \
-    mpi_intercept/ear_api.o \
-    mpi_intercept/process_MPI.o \
-    dynais/dynais.a
-
-mpic_OBJS = \
-    mpi_intercept/mpi_definitions_c.o \
-    mpi_intercept/mpi_interception_c.o \
-    mpi_intercept/MPI_interface.o
-
-ifeq ($(FEAT_FORT), 1)
-mpif_OBJS = \
-    mpi_intercept/mpi_definitions_f.o \
-    mpi_intercept/mpi_interception_f.o \
-    mpi_intercept/MPI_interfaceF.o
-endif
+    dynais/dynais.a \
+		common/library_shared_data.o 
 
 ######## RULES
 
 all: all.components $(libs_OBJS)
 
-%.so: $(mpix_OBJS) $(comm_OBJS)
-	$(MPICC) $(MPICC_FLAGS) $(CFLAGS) -o $*.$(ext) $(mpix_OBJS) $(mpic_OBJS) $(mpif_OBJS) \
-	$(comm_OBJS) $(LDFLAGS)
-
+ifdef MPI_API
+%.so: $(api_OBJS)  $(mpix_OBJS) $(core_OBJS) $(comm_OBJS)
+	$(MPICC) $(MPICC_FLAGS) -o $*.$(ext) $(api_OBJS) $(mpix_OBJS) $(core_OBJS) $(comm_OBJS) $(LDFLAGS)
+else
+%.so:  $(api_OBJS)  $(core_OBJS) $(comm_OBJS)
+	$(CC) $(CC_FLAGS) -o $*.$(ext) $(api_OBJS) $(core_OBJS) $(comm_OBJS) $(LDFLAGS)
+endif
 
 ######## OPTIONS
 
@@ -73,13 +74,15 @@ clean: clean.components rclean;
 ######## SUBFOLDERS
 
 %.components:
-	@ $(MAKE) -C 'dynais' $* || exit
-	@ $(MAKE) -C 'metrics' $* || exit
-	@ $(MAKE) -C 'models' $* || exit
-	@ $(MAKE) -B -C 'policies' $* MPICC='$(MPICC)' || exit
-	@ $(MAKE) -B -C 'mpi_intercept' $* MPICC='$(MPICC)' || exit
-	@ $(MAKE) -B -C 'states' $* MPICC='$(MPICC)' || exit
-	@ $(MAKE) -B -C 'tracer' $* MPICC='$(MPICC)' || exit
+	@ $(MAKE) -C 'api'        $* || exit
+	@ $(MAKE) -C 'dynais'     $* || exit
+	@ $(MAKE) -C 'loader'     $* || exit
+	@ $(MAKE) -C 'metrics'    $* || exit
+	@ $(MAKE) -C 'models'     $* || exit
+	@ $(MAKE) -C 'policies'   $* || exit
+	@ $(MAKE) -C 'states'     $* || exit
+	@ $(MAKE) -C 'tracer'     $* || exit
+	@ $(MAKE) -C 'common'     $* || exit
 
 ######## DEPENDENCIES
 

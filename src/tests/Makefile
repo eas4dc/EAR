@@ -1,14 +1,10 @@
-######## FILES
-
-COMPONENTS = check
-
 ######## RULES
 
 .PHONY: check
 
 all: all.components
 
-install: ;
+install: install.components;
 
 %.install: ;
 

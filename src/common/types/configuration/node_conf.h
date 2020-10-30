@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #ifndef _NODE_CONF_H
@@ -73,23 +61,26 @@ typedef struct node_conf
 
 typedef struct my_node_conf
 {
-	uint cpus;
-	uint island;
-	ulong max_pstate;
-	char db_ip[NODE_PREFIX];
-	char db_sec_ip[NODE_PREFIX];
-	char *coef_file;
-	uint num_policies;
-	policy_conf_t *policies;
-  double min_sig_power;
-  double max_sig_power;
-  double max_error_power;
-	ulong  max_temp;
-	double max_power_cap;
-	char power_cap_type[SHORT_NAME];
-	uint 	use_log;
-    int num_tags;
-    char **tags;
+    uint cpus;
+    uint island;
+    ulong max_pstate;
+    char db_ip[NODE_PREFIX];
+    char db_sec_ip[NODE_PREFIX];
+    char *coef_file;
+    char *energy_plugin;
+    char *energy_model;
+    char *powercap_plugin;
+    uint num_policies;
+    policy_conf_t *policies;
+    double  min_sig_power;
+    double  max_sig_power;
+    double  max_error_power;
+    ulong   max_temp;
+    ulong   max_avx512_freq;
+    ulong   max_avx2_freq;
+    double  max_power_cap;
+    char    powercap_type;
+    uint 	use_log;
 }my_node_conf_t;
 
 

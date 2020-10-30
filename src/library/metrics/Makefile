@@ -1,7 +1,13 @@
-all: metrics.o
+CFLAGS = $(CC_FLAGS) -I$(SRCDIR) $(PAPI_CFLAGS) -O2 -fPIC
 
-metrics.o: metrics.c metrics.h
-	$(CC) $(CC_FLAGS) $(CFLAGS) -c metrics.c
+########
+
+all: \
+        gpu.o \
+        metrics.o 
+
+%.o: %.c %.h
+	$(MPICC) $(CFLAGS) -c $<
 
 ######## OPTIONS 
 

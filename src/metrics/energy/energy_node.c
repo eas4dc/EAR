@@ -1,39 +1,28 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <common/config.h>
-// #define SHOW_DEBUGS 0
+//#define SHOW_DEBUGS 1
 #include <common/includes.h>
 #include <common/output/verbose.h>
 #include <common/system/symplug.h>
 #include <common/hardware/hardware_info.h>
 #include <metrics/energy/energy_node.h>
+#include <common/types/configuration/cluster_conf.h>
 
 struct energy_op
 {
@@ -47,10 +36,11 @@ struct energy_op
 	state_t (*units)							(uint *uints);
 	state_t (*accumulated)				(ulong *e,edata_t init, edata_t end);
 	state_t (*energy_to_str)			(char *str,edata_t end);
+	state_t (*power_limit)				(void *c, ulong limit,ulong target);
 } energy_ops;
 static char energy_objc[SZ_PATH];
 static int  energy_loaded  = 0;
-const int   energy_nops    = 10;
+const int   energy_nops    = 11;
 const char *energy_names[] = {
 	"energy_init",
 	"energy_dispose",
@@ -61,7 +51,8 @@ const char *energy_names[] = {
 	"energy_ac_read",
 	"energy_units",
 	"energy_accumulated",
-	"energy_to_str"
+	"energy_to_str",
+	"energy_power_limit"
 };
 
 state_t energy_init(cluster_conf_t *conf, ehandler_t *eh)
@@ -206,4 +197,9 @@ state_t energy_accumulated(ehandler_t *eh,unsigned long *e,edata_t init,edata_t 
 state_t energy_to_str(ehandler_t *eh,char *str,edata_t e)
 {
   preturn (energy_ops.energy_to_str,str,e );
+}
+
+state_t energy_set_power_limit(ehandler_t *eh,ulong limit,ulong target)
+{
+  preturn (energy_ops.power_limit, eh->context, limit ,target);
 }

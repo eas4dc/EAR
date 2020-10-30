@@ -1,5 +1,5 @@
 CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(GSL_CFLAGS)
-LDFLAGS = $(GSL_LDFLAGS)
+LDFLAGS = $(GSL_LDFLAGS) -lm
 CCC     = $(CC) $(CFLAGS)
 
 ######## INSTALLATION
@@ -22,7 +22,7 @@ tool_PERM = 0770
 
 ######## FILES
 
-comm_OBJS = $(ROOTDIR)/src/common/libcommon.a
+comm_OBJS = $(ROOTDIR)/src/common/libcommon.a -lm
 
 ######## RULES
 

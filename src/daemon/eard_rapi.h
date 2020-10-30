@@ -1,33 +1,19 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
-
-
 
 /**
 *    \file remote_daemon_client.h
@@ -39,10 +25,12 @@
 #ifndef _REMOTE_CLIENT_API_H
 #define _REMOTE_CLIENT_API_H
 
+#define NEW_STATUS 1
 #include <common/config.h>
 #include <common/types/application.h>
 #include <common/types/configuration/cluster_conf.h>
 #include <daemon/eard_conf_rapi.h>
+#include <common/types/risk.h>
 
 /** Connects with the EARD running in the given nodename. The current implementation supports a single command per connection
 *	The sequence must be : connect +  command + disconnect
@@ -52,7 +40,7 @@ int eards_remote_connect(char *nodename,uint port);
 
 /** Notifies the EARD the job with job_id starts the execution. It is supposed to be used by the EAR slurm plugin
 */
-int eards_new_job(application_t *new_job);
+int eards_new_job(new_job_req_t  *new_job);
 
 /** Notifies the EARD the job with job_id ends the execution. It is supposed to be used by the EAR slurm plugin
 */
@@ -122,18 +110,22 @@ void set_def_freq_all_nodes(ulong freq, ulong policy, cluster_conf_t my_cluster_
 void restore_conf_all_nodes(cluster_conf_t my_cluster_conf);
 
 /** Executes a simple ping to all nodes */
-void ping_all_nodes(cluster_conf_t my_cluster_conf);
+void ping_all_nodes_propagated(cluster_conf_t my_cluster_conf);
 
 /** Executes a simple ping to all nodes in a sequential manner */
-void old_ping_all_nodes(cluster_conf_t my_cluster_conf);
+void ping_all_nodes(cluster_conf_t my_cluster_conf);
 
-/** Executes a simple ping to all nodes with the next nodes calculated at runtime */
-void new_ping_all_nodes(cluster_conf_t my_cluster_conf);
-
+/** Asks all the nodes for their current status */
 int status_all_nodes(cluster_conf_t my_cluster_conf, status_t **status);
+
+
+
 
 /** Sends the command to the currently connected fd */
 int send_command(request_t *command);
+
+/** Sends data of size size through the open fd*/
+int send_data(int fd, size_t size, char *data, int type);
 
 /** Sets frequency for all nodes. */
 void set_freq_all_nodes(ulong freq, cluster_conf_t my_cluster_conf);
@@ -151,23 +143,21 @@ void set_th_all_nodes(ulong th, ulong p_id, cluster_conf_t my_cluster_conf);
 void send_command_all(request_t command, cluster_conf_t my_cluster_conf);
 
 /** Corrects a propagation error, sending to the child nodes when the parent isn't responding. */
-#if USE_NEW_PROP
 void correct_error(int target_idx, int total_ips, int *ips, request_t *command, uint port);
-#else
-void correct_error(uint target_ip, request_t *command, uint port);
-#endif
-
-/** Corrects a status propagation error, sending to the child nodes when the parent isn't responding. 
-*   The corresponding status are placed in status, while the return value is the amount of status obtained. */
-#if USE_NEW_PROP
-int correct_status(int target_idx, int total_ips, int *ips, request_t *command, uint port, status_t **status);
-#else
-int correct_status(uint target_ip, request_t *command, uint port, status_t **status);
-#endif
 
 /** Sends the status command through the currently open fd, reads the returning value and places it
 *   in **status. Returns the amount of status_t placed in **status. */
 int send_status(request_t *command, status_t **status);
 
 void correct_error_starter(char *host_name, request_t *command, uint port);
+
+request_header_t correct_data_prop(int target_idx, int total_ips, int *ips, request_t *command, uint port, void **data);
+
+/** Recieves data from a previously send command */
+request_header_t recieve_data(int fd, void **data);
+
+request_header_t process_data(request_header_t data_head, char **temp_data_ptr, char **final_data_ptr, int final_size);
+
+int eards_set_risk(risk_t risk,unsigned long target);
+void set_risk_all_nodes(risk_t risk, unsigned long target, cluster_conf_t my_cluster_conf);
 #endif

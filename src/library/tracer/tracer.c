@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <time.h>
@@ -38,6 +26,7 @@
 #include <sys/types.h>
 #include <common/sizes.h>
 #include <common/config.h>
+#include <common/config/config_env.h>
 //#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
 #include <library/tracer/tracer.h>
@@ -111,7 +100,7 @@ void traces_init(settings_conf_t *conf,char *app,int global_rank, int local_rank
 {
   int found=0,ret;
 	char *traces_plugin;
-	traces_plugin=getenv("SLURM_EAR_TRACE_PLUGIN");
+	traces_plugin=getenv(SCHED_EAR_TRACE_PLUGIN);
 	if (traces_plugin==NULL) trace_plugin=0;
 	else trace_plugin=1;
 
@@ -125,7 +114,8 @@ void traces_init(settings_conf_t *conf,char *app,int global_rank, int local_rank
 		debug("NULL configuration in traces_init");
 		return;
   }
-	debug("loading %s",traces_plugin);
+	//debug("loading %s",traces_plugin);
+	verbose(1,"loading %s",traces_plugin);
 
   ret = symplug_open(traces_plugin, (void **) &trace_syms_fun, trace_syms_nam, trace_syms_n);
   if (ret!=EAR_SUCCESS){ 

@@ -9,33 +9,31 @@ dyna_BINS = libmetrics.so
 
 mets_OBJS = \
     $(SRCDIR)/metrics/common/pci.o \
-    $(SRCDIR)/metrics/common/msr.o \
     $(SRCDIR)/metrics/common/papi.o \
+    $(SRCDIR)/metrics/common/msr.o \
+    $(SRCDIR)/metrics/common/omsr.o \
     $(SRCDIR)/metrics/accumulators/power_metrics.o \
     $(SRCDIR)/metrics/bandwidth/bandwidth.o \
     $(SRCDIR)/metrics/bandwidth/cpu/intel_haswell.o \
     $(SRCDIR)/metrics/bandwidth/cpu/utils.o \
     $(SRCDIR)/metrics/cache/cache.o \
-    $(SRCDIR)/metrics/cache/cpu/papi.o \
     $(SRCDIR)/metrics/cpi/cpi.o \
-    $(SRCDIR)/metrics/cpi/cpu/papi.o \
+		$(SRCDIR)/metrics/cpi/cpu/papi.o \
     $(SRCDIR)/metrics/energy/energy_cpu.o \
-    $(SRCDIR)/metrics/energy/energy_gpu.o \
     $(SRCDIR)/metrics/energy/energy_node.o \
     $(SRCDIR)/metrics/energy/energy_node_lib.o \
     $(SRCDIR)/metrics/energy/cpu/intel_haswell.o \
-    $(SRCDIR)/metrics/energy/gpu/nvsmi.o \
+    $(SRCDIR)/metrics/gpu/gpu.o \
+    $(SRCDIR)/metrics/gpu/gpu/dummy.o \
+    $(SRCDIR)/metrics/gpu/gpu/nvml.o \
     $(SRCDIR)/metrics/flops/flops.o \
     $(SRCDIR)/metrics/flops/cpu/papi.o \
-    $(SRCDIR)/metrics/frequency/frequency_imc.o \
-    $(SRCDIR)/metrics/frequency/frequency_cpu.o \
-    $(SRCDIR)/metrics/frequency/cpu/intel_haswell.o \
-    $(SRCDIR)/metrics/frequency/imc/intel_haswell.o \
+    $(SRCDIR)/metrics/frequency/imc.o \
+    $(SRCDIR)/metrics/frequency/cpu.o \
+    $(SRCDIR)/metrics/frequency/cpu/intel63.o \
+    $(SRCDIR)/metrics/frequency/imc/intel63.o \
     $(SRCDIR)/metrics/stalls/stalls.o \
-    $(SRCDIR)/metrics/stalls/cpu/papi.o \
     $(SRCDIR)/metrics/temperature/temperature.o
-
-# $(SRCDIR)/metrics/energy/cpu/intel_haswell.o \
 
 ######## RULES
 
@@ -67,9 +65,10 @@ clean: clean.components rclean;
 	@ $(MAKE) -C 'energy'       $* || exit
 	@ $(MAKE) -C 'flops'        $* || exit
 	@ $(MAKE) -C 'frequency'    $* || exit
+	@ $(MAKE) -C 'gpu'          $* || exit
 	@ $(MAKE) -C 'stalls'       $* || exit
 	@ $(MAKE) -C 'accumulators' $* || exit
-	@ $(MAKE) -C 'temperature' $* || exit
+	@ $(MAKE) -C 'temperature'  $* || exit
 
 ######## DEPENDENCIES
 

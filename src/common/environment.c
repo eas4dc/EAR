@@ -1,30 +1,18 @@
-/**************************************************************
-*	Energy Aware Runtime (EAR)
-*	This program is part of the Energy Aware Runtime (EAR).
+/*
 *
-*	EAR provides a dynamic, transparent and ligth-weigth solution for
-*	Energy management.
+* This program is part of the EAR software.
 *
-*    	It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-*       Copyright (C) 2017  
-*	BSC Contact 	mailto:ear-support@bsc.es
-*	Lenovo contact 	mailto:hpchelp@lenovo.com
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
 *
-*	EAR is free software; you can redistribute it and/or
-*	modify it under the terms of the GNU Lesser General Public
-*	License as published by the Free Software Foundation; either
-*	version 2.1 of the License, or (at your option) any later version.
-*	
-*	EAR is distributed in the hope that it will be useful,
-*	but WITHOUT ANY WARRANTY; without even the implied warranty of
-*	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-*	Lesser General Public License for more details.
-*	
-*	You should have received a copy of the GNU Lesser General Public
-*	License along with EAR; if not, write to the Free Software
-*	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*	The GNU LEsser General Public License is contained in the file COPYING	
+* This file is licensed under both the BSD-3 license for individual/non-commercial
+* use and EPL-1.0 license for commercial use. Full text of both licenses can be
+* found in COPYING.BSD and COPYING.EPL files.
 */
 
 #include <errno.h>
@@ -36,6 +24,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <common/config.h>
+// #define SHOW_DEBUGS 1
+#include <common/output/verbose.h>
 #include <common/environment.h>
 #include <common/types/generic.h>
 #include <common/types/configuration/cluster_conf.h>
@@ -497,31 +487,33 @@ void ear_print_lib_environment()
 
 int check_threads()
 {
-        my_omp_get_max_threads = (int(*)(void)) dlsym (RTLD_DEFAULT, "mkl_get_num_threads");
+        my_omp_get_max_threads = (int(*)(void)) dlsym (RTLD_DEFAULT, "mkl_get_max_threads");
         if (my_omp_get_max_threads==NULL){
-                my_omp_get_max_threads = (int(*)(void)) dlsym (RTLD_DEFAULT, "omp_get_num_threads");
-                if (my_omp_get_max_threads==NULL) return 0;
-                else return 1;
-        }
-        else return 1;
+							debug("mkl_get_num_threads symbol not found");
+                my_omp_get_max_threads = (int(*)(void)) dlsym (RTLD_DEFAULT, "omp_get_max_threads");
+                if (my_omp_get_max_threads==NULL){ 
+									debug("omp_get_max_threads symbol not found");
+									return 0;
+								}
+                else{ 
+									debug("omp_get_max_threads symbol found");
+									return 1;
+								}
+        }else{
+					debug("mkl_get_num_threads symbol found");
+				}
+        return 1;
 }
 
 
 
 int get_num_threads()
 {
-    //int num_th;
+    int num_th;
     if (my_omp_get_max_threads!=NULL){
-        char *omp_numth=getenv("OMP_NUM_THREADS");
-        // we check first for openmp
-        if (omp_numth!=NULL){
-            return atoi(omp_numth);
-        }   
-        omp_numth=getenv("MKL_NUM_THREADS");
-        // we check for MKL
-        if (omp_numth!=NULL){
-            return atoi(omp_numth);
-        }   
+    	num_th=my_omp_get_max_threads();
+			debug("num_threads_detected %d",num_th);
+			return num_th;
     }   
     return 1;
 } 
