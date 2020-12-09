@@ -5,12 +5,12 @@ CFLAGS = $(CC_FLAGS) $(MPI_CFLAGS) -I$(SRCDIR) -O2 -fPIC
 poli_OBJS = \
     policy.o 
 
-modl_BINS = monitoring.so 
+modl_BINS = monitoring.so min_time.so min_energy.so min_energy_no_models.so min_time_no_models.so
 
 modl_PATH = $(DESTDIR)/lib/plugins/policies
 modl_PERM = 0775
 
-eard_modl_BINS =  monitoring_eard.so 
+eard_modl_BINS = monitoring_eard.so min_energy_no_models_eard.so min_time_no_models_eard.so
 
 eard_modl_PATH = $(DESTDIR)/lib/plugins/eard_policies
 eard_modl_PERM = 0775
