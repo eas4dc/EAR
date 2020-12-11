@@ -1953,7 +1953,7 @@ int mysql_batch_insert_periodic_metrics(MYSQL *connection, periodic_metric_t *pe
             bind[offset+j].buffer_type = MYSQL_TYPE_LONG;
             bind[offset+j].is_unsigned = 1;
         }
-        bind[offset+3].buffer_type = MYSQL_TYPE_VARCHAR;
+        bind[offset+3].buffer_type = MYSQL_TYPE_STRING;
         bind[offset+3].buffer_length = strlen(per_mets[i].node_id);
 
         bind[0+offset].buffer = (char *)&per_mets[i].start_time;
@@ -2026,7 +2026,7 @@ int mysql_batch_insert_periodic_aggregations(MYSQL *connection, periodic_aggrega
             bind[j+offset].buffer_type = MYSQL_TYPE_LONGLONG;
         }
         //varchar types
-        bind[PERIODIC_AGGREGATION_ARGS - 1 + offset].buffer_type = MYSQL_TYPE_VARCHAR;
+        bind[PERIODIC_AGGREGATION_ARGS - 1 + offset].buffer_type = MYSQL_TYPE_STRING;
         bind[PERIODIC_AGGREGATION_ARGS - 1 + offset].buffer_length = strlen(per_aggs[i].eardbd_host);
 
         //storage variable assignation

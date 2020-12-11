@@ -52,7 +52,7 @@
  * save space */
 #define DB_SIMPLE                           0
 /* When set to 1, avg frequency and temp is reported with periodic metrics */
-#define DEMO								0
+#define DEMO								1
 /* Maximum number of simultaneous DB connection for mysql user commands */
 #define MAX_DB_CONNECTIONS					20
 /* */
