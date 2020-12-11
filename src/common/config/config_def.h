@@ -52,7 +52,7 @@
  * save space */
 #define DB_SIMPLE                           0
 /* When set to 1, avg frequency and temp is reported with periodic metrics */
-#define DEMO								0
+#define DEMO								1
 /* Maximum number of simultaneous DB connection for mysql user commands */
 #define MAX_DB_CONNECTIONS					20
 /* */
@@ -64,7 +64,7 @@
 #define DEFAULT_T1                          60
 #define DEFAULT_T2                          600
 #define MAX_ENERGY                          300
-#define EARGM_PORT_NUMBER                   60000
+#define EARGM_PORT_NUMBER                   50001
 #define DEFAULT_POWER                       275
 #define GRACE_T1                            3
 #define EAR_OVERHEAD_CONTROL                1
@@ -85,9 +85,9 @@
 #define DEF_DBD_FILE_LOG					1
 #define DEF_DBD_AGGREGATION_TIME			60
 #define DEF_DBD_INSERTION_TIME				30
-#define DEF_DBD_SERVER_PORT					4711
-#define DEF_DBD_MIRROR_PORT					4712
-#define DEF_DBD_SYNCHR_PORT					4713
+#define DEF_DBD_SERVER_PORT					50002
+#define DEF_DBD_MIRROR_PORT					50003
+#define DEF_DBD_SYNCHR_PORT					50004
 /* MegaBytes allocated for caching the node metrics. */
 #define DEF_DBD_ALLOC_MBS					120
 
