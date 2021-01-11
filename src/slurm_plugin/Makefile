@@ -1,11 +1,14 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(SLURM_CFLAGS) -fPIC
+CFLAGS  = -fPIC -O2 $(SLURM_CFLAGS) -I$(SRCDIR)
 LDFLAGS = -lm
 
 ######## INSTALLATION
 
-plug_BINS = erun 
+erun_BINS = erun
+erun_PATH = $(DESTDIR)/bin
+erun_PERM = 0775
+
 ifdef SLURM_BASE
-plug_BINS += earplug.so
+plug_BINS = earplug.so
 endif
 plug_PATH = $(DESTDIR)/lib
 plug_PERM = 0775
@@ -18,10 +21,10 @@ erun_SRCS = \
         erun_lock.c
 
 plug_OBJS = \
-        $(SRCDIR)/daemon/eard_rapi.o \
+        $(SRCDIR)/daemon/remote_api/eard_rapi.o \
         $(SRCDIR)/daemon/shared_configuration.o \
         $(SRCDIR)/global_manager/eargm_rapi.o \
-        $(SRCDIR)/common/libcommon.a 
+        $(SRCDIR)/common/libcommon.a
 
 plug_SRCS = \
         slurm_plugin.c \
@@ -43,21 +46,21 @@ plug_HDRS = \
 
 ######## RULES
 
-all: $(plug_BINS)
+all: $(erun_BINS) $(plug_BINS)
 
 earplug.so: $(plug_SRCS) $(plug_HDRS)
-	$(CC) $(CFLAGS) -shared -o $@ $(plug_SRCS) $(plug_OBJS) $(LDFLAGS)
+	$(CC) $(CC_FLAGS) $(CFLAGS) -shared -o $@ $(plug_SRCS) $(plug_OBJS) $(LDFLAGS)
 
 erun: $(erun_SRCS) $(plug_SRCS) $(plug_HDRS)
-	$(CC) $(CFLAGS) -DERUN -g -o $@ $(erun_SRCS) $(plug_SRCS) $(plug_OBJS) $(LDFLAGS)
+	$(CC) $(CC_FLAGS) $(CFLAGS) -DERUN -o $@ $(erun_SRCS) $(plug_SRCS) $(plug_OBJS) $(LDFLAGS)
 
 ######## OPTIONS
 
-install: plug.ginstall;
+install: erun.ginstall plug.ginstall;
 
 %.install: ;
 
-clean: plug.gclean rclean;
+clean: erun.gclean plug.gclean rclean;
 
 ######## DEPENDENCIES
 
