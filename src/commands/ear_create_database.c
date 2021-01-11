@@ -255,16 +255,16 @@ TPI FLOAT,\
 CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
-FLOPS1 INT unsigned,\
-FLOPS2 INT unsigned,\
-FLOPS3 INT unsigned,\
-FLOPS4 INT unsigned,\
-FLOPS5 INT unsigned,\
-FLOPS6 INT unsigned,\
-FLOPS7 INT unsigned,\
-FLOPS8 INT unsigned,\
-instructions INT unsigned, \
-cycles INT unsigned,\
+FLOPS1 BIGINT unsigned,\
+FLOPS2 BIGINT unsigned,\
+FLOPS3 BIGINT unsigned,\
+FLOPS4 BIGINT unsigned,\
+FLOPS5 BIGINT unsigned,\
+FLOPS6 BIGINT unsigned,\
+FLOPS7 BIGINT unsigned,\
+FLOPS8 BIGINT unsigned,\
+instructions BIGINT unsigned, \
+cycles BIGINT unsigned,\
 avg_f INT unsigned,\
 def_f INT unsigned, \
 PRIMARY KEY (id))");
@@ -406,16 +406,16 @@ TPI FLOAT,\
 CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
-FLOPS1 INT unsigned,\
-FLOPS2 INT unsigned,\
-FLOPS3 INT unsigned,\
-FLOPS4 INT unsigned,\
-FLOPS5 INT unsigned,\
-FLOPS6 INT unsigned,\
-FLOPS7 INT unsigned,\
-FLOPS8 INT unsigned,\
-instructions INT unsigned, \
-cycles INT unsigned,\
+FLOPS1 BIGINT unsigned,\
+FLOPS2 BIGINT unsigned,\
+FLOPS3 BIGINT unsigned,\
+FLOPS4 BIGINT unsigned,\
+FLOPS5 BIGINT unsigned,\
+FLOPS6 BIGINT unsigned,\
+FLOPS7 BIGINT unsigned,\
+FLOPS8 BIGINT unsigned,\
+instructions BIGINT unsigned, \
+cycles BIGINT unsigned,\
 avg_f INT unsigned,\
 def_f INT unsigned, \
 PRIMARY KEY (id))");
@@ -499,16 +499,16 @@ TPI FLOAT,\
 CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
-FLOPS1 INT ,\
-FLOPS2 INT ,\
-FLOPS3 INT ,\
-FLOPS4 INT ,\
-FLOPS5 INT ,\
-FLOPS6 INT ,\
-FLOPS7 INT ,\
-FLOPS8 INT ,\
-instructions INT , \
-cycles INT ,\
+FLOPS1 BIGINT ,\
+FLOPS2 BIGINT ,\
+FLOPS3 BIGINT ,\
+FLOPS4 BIGINT ,\
+FLOPS5 BIGINT ,\
+FLOPS6 BIGINT ,\
+FLOPS7 BIGINT ,\
+FLOPS8 BIGINT ,\
+instructions BIGINT , \
+cycles BIGINT ,\
 avg_f INT ,\
 def_f INT , \
 PRIMARY KEY (id))");
@@ -650,16 +650,16 @@ TPI FLOAT,\
 CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
-FLOPS1 INT ,\
-FLOPS2 INT ,\
-FLOPS3 INT ,\
-FLOPS4 INT ,\
-FLOPS5 INT ,\
-FLOPS6 INT ,\
-FLOPS7 INT ,\
-FLOPS8 INT ,\
-instructions INT , \
-cycles INT ,\
+FLOPS1 BIGINT ,\
+FLOPS2 BIGINT ,\
+FLOPS3 BIGINT ,\
+FLOPS4 BIGINT ,\
+FLOPS5 BIGINT ,\
+FLOPS6 BIGINT ,\
+FLOPS7 BIGINT ,\
+FLOPS8 BIGINT ,\
+instructions BIGINT , \
+cycles BIGINT ,\
 avg_f INT ,\
 def_f INT , \
 PRIMARY KEY (id))");
