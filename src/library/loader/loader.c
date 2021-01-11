@@ -24,7 +24,7 @@ int _loaded_default;
 void  __attribute__ ((constructor)) loader()
 {
 	// Module default
-	_loaded_default = module_constructor();
+	// _loaded_default = module_constructor();
 	// Module MPI
 	module_mpi();
 
