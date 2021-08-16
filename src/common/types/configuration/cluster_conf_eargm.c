@@ -120,26 +120,36 @@ state_t EARGM_parse_token(eargm_conf_t *conf,char *token)
 			token = strtok(NULL, "=");
 			conf->powercap_mode = atoi(token);
 			found=EAR_SUCCESS;
-		}else if (!strcmp(token, "GLOBALMANAGERPOWERCAPACTIONLIMIT") || !strcmp(token, "EARGMPOWERCAPACTIONLIMIT"))
+		}else if (!strcmp(token, "GLOBALMANAGERPOWERCAPSUSPENDLIMIT") || !strcmp(token, "EARGMPOWERCAPSUSPENDLIMIT"))
 		{
 			token = strtok(NULL, "=");
 			conf->defcon_power_limit = atoi(token);
 			found=EAR_SUCCESS;
-		}else if (!strcmp(token, "GLOBALMANAGERPOWERCAPACTION") || !strcmp(token,"EARGMPOWERCAPACTION"))
+		}else if (!strcmp(token, "GLOBALMANAGERPOWERCAPSUSPENDACTION") || !strcmp(token,"EARGMPOWERCAPSUSPENDACTION"))
 		{
 			token = strtok(NULL, "=");
 			strclean(token, '\n');
-			strcpy(conf->powercap_action,token);
+			strcpy(conf->powercap_limit_action,token);
+			found=EAR_SUCCESS;
+		}else if (!strcmp(token, "GLOBALMANAGERPOWERCAPRESUMEACTION") || !strcmp(token, "EARGMPOWERCAPRESUMEACTION"))
+		{
+			token = strtok(NULL, "=");
+			strclean(token, '\n');
+			strcpy(conf->powercap_lower_action,token);
+			found=EAR_SUCCESS;
+		}else if (!strcmp(token, "GLOBALMANAGERPOWERCPRESUMELIMIT") || !strcmp(token,"EARGMPOWERCAPRESUMELIMIT"))
+		{
+			token = strtok(NULL, "=");
+			conf->defcon_power_lower = atoi(token);
+			found=EAR_SUCCESS;
+		}else if (!strcmp(token, "GLOBALMANAGERENERGYACTION") || !strcmp(token, "EARGMENERGYACTION"))
+		{
+			token = strtok(NULL, "=");
+			strclean(token, '\n');
+			strcpy(conf->energycap_action,token);
 			found=EAR_SUCCESS;
 		}
 		#endif
-		else if (!strcmp(token, "GLOBALMANAGERENERGYACTION") || !strcmp(token, "EARGMENERGYACTION"))
-    {
-      token = strtok(NULL, "=");
-      strclean(token, '\n');
-      strcpy(conf->energycap_action,token);
-      found=EAR_SUCCESS;
-    }
 		else if (!strcmp(token, "GLOBALMANAGERWARNINGSPERC") || !strcmp(token, "EARGMWARNINGSPERC"))
 		{
 			token = strtok(NULL, "=");
@@ -211,7 +221,7 @@ void set_default_eargm_conf(eargm_conf_t *eargmc)
   eargmc->t2=DEFAULT_T2;
   eargmc->energy=DEFAULT_T2*DEFAULT_POWER;
   eargmc->units=1;
-  eargmc->policy=MAXENERGY;
+  eargmc->policy=MAXPOWER;
   eargmc->port=EARGM_PORT_NUMBER;
   eargmc->mode=0;
   eargmc->defcon_limits[0]=85;
@@ -220,14 +230,16 @@ void set_default_eargm_conf(eargm_conf_t *eargmc)
   eargmc->grace_periods=GRACE_T1;
   strcpy(eargmc->mail,"nomail");
   eargmc->use_log=EARGMD_FILE_LOG;
-  sprintf(eargmc->energycap_action,EARGM_ENERGYCAP_DEF_ACTION);
   /* Values for POWERCAP */
   #if POWERCAP
   eargmc->power=EARGM_DEF_POWERCAP_LIMIT;
   eargmc->t1_power=EARGM_DEF_T1_POWER;
   eargmc->powercap_mode=EARGM_POWERCAP_DEF_MODE;  /* 1=auto by default, 0=monitoring_only */
-  sprintf(eargmc->powercap_action,EARGM_POWERCAP_DEF_ACTION);
+  sprintf(eargmc->powercap_limit_action,EARGM_POWERCAP_DEF_ACTION);
+  sprintf(eargmc->powercap_lower_action,EARGM_POWERCAP_DEF_ACTION);
+  sprintf(eargmc->energycap_action,EARGM_ENERGYCAP_DEF_ACTION);
   eargmc->defcon_power_limit=EARGM_POWERCAP_DEF_ACTION_LIMIT;
+  eargmc->defcon_power_lower=EARGM_POWERCAP_DEF_ACTION_LOWER;
   #endif
 
 }
@@ -243,8 +255,8 @@ void print_eargm_conf(eargm_conf_t *conf)
   #if POWERCAP
   verbosen(VCCONF,"\t cluster_power_limit %lu powercap_check_period %lu\n",conf->power,conf->t1_power);
   verbosen(VCCONF,"\t powercap_mode %lu (0=monitoring, 1=auto [def])\n",conf->powercap_mode);
-  verbosen(VCCONF,"\t power limit for action %lu\n",conf->defcon_power_limit);
-  verbosen(VCCONF,"\t powercap_action %s\n",conf->powercap_action);
+  verbosen(VCCONF,"\t power limit for action %lu and for lower %lu\n",conf->defcon_power_limit, conf->defcon_power_lower);
+  verbosen(VCCONF,"\t powercap_limit_action %s and powercap_lower_action %s\n",conf->powercap_limit_action, conf->powercap_lower_action);
   verbosen(VCCONF,"\t energycap_action %s\n",conf->energycap_action);
   #endif
 }

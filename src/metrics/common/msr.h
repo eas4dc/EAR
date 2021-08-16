@@ -21,21 +21,27 @@
 #include <unistd.h>
 #include <common/types.h>
 #include <common/states.h>
+#include <common/hardware/topology.h>
 
 #define msr_clean(fd) \
 	*fd = -1
 
-/* */
+/** Tests if the MSR register is available and readable. */
+state_t msr_test(topology_t *tp);
+
+/** Opens an MSR register for a specific CPU */
 state_t msr_open(uint cpu);
 
-/* */
+/** */
 state_t msr_close(uint cpu);
 
-/* */
+/** Reads data (buffer) in specific CPU and memory offset MSR register. */
 state_t msr_read(uint cpu, void *buffer, size_t count, off_t offset);
 
-/* */
+/** Writes data (buffer) in a MSR for specific CPU and memory offset. */
 state_t msr_write(uint cpu, const void *buffer, size_t count, off_t offset);
 
+/** Prints a register of all threads in the node. */
+state_t msr_print(topology_t *tp, off_t offset);
 
 #endif //EAR_MSR_H

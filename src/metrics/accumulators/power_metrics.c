@@ -24,7 +24,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <common/config.h>
-#include <common/monitor.h>
+#include <common/system/monitor.h>
 //#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
 #include <common/math_operations.h>
@@ -45,11 +45,10 @@ static int 		*pm_fds_rapl;
 
 // GPU
 #if USE_GPUS
-gpu_t		*gpu_diff;
-ctx_t		 gpu_context;
-uint		 gpu_loop_ms;
-uint		 gpu_model;
-uint		 gpu_num;
+static gpu_t	*gpu_diff;
+static ctx_t	 gpu_context;
+static uint		 gpu_sel_model;
+static uint		 gpu_num;
 #endif
 
 // Things to do
@@ -62,6 +61,8 @@ uint		 gpu_num;
 /*
  *
  */
+/** Computes the difference betwen two RAPL energy measurements */
+static rapl_data_t diff_RAPL_energy(rapl_data_t end,rapl_data_t init);
 
 static int pm_get_data_size_rapl()
 {
@@ -116,24 +117,25 @@ static int pm_node_dc_energy(ehandler_t *my_eh, node_data_t *dc)
 static int pm_connect(ehandler_t *my_eh)
 {
 	int status_enode,i;
-	if ((pm_already_connected) && (pm_connected_status==EAR_SUCCESS)){
-		status_enode=energy_init(NULL, my_eh);
-		if (status_enode!=EAR_SUCCESS){ 
+	
+	if ((pm_already_connected) && (pm_connected_status==EAR_SUCCESS))
+	{
+		if (state_fail(status_enode = energy_init(NULL, my_eh))) {
 			pm_connected_status=status_enode;
 			return status_enode;
 		}
 		/* We reuse RAPL fdds */
-		for (i=0;i<num_packs;i++) my_eh->fds_rapl[i]=pm_fds_rapl[i];
+		for (i=0;i<num_packs;i++) {
+			my_eh->fds_rapl[i]=pm_fds_rapl[i];
+		}
 		/* Nothing for GPUS */
 		return EAR_SUCCESS;
 	}
 
 	rootp = (getuid() == 0);
-
 	if (!rootp) {
-		return EAR_ERROR;
+		return_msg(EAR_ERROR, Generr.no_permissions);
 	}
-
 	// Initializing node energy
 	debug("Initializing energy in main power_monitor thread");
 	pm_connected_status  = energy_init(NULL, my_eh);
@@ -148,9 +150,7 @@ static int pm_connect(ehandler_t *my_eh)
 	energy_units(my_eh, &node_units);
 	energy_datasize(my_eh, &node_size);
 
-
 	num_packs = detect_packages(NULL);
-
 	if (num_packs == 0) {
 		error("Packages cannot be detected");
 		pm_connected_status = EAR_ERROR;
@@ -191,11 +191,7 @@ static int pm_connect(ehandler_t *my_eh)
 	int gpu_error = 0;
 	state_t s;
 
-	if (xtate_fail(s, monitor_init())) {
-		error("monitor_init returned %d (%s)", s, state_msg);
-		gpu_error = 1;
-	}
-	if (xtate_fail(s, gpu_load(empty, none, &gpu_model))) {
+	if (xtate_fail(s, gpu_load(empty, none, &gpu_sel_model))) {
 		error("gpu_load returned %d (%s)", s, state_msg);
 		gpu_error = 1;
 	}
@@ -225,12 +221,10 @@ static int pm_connect(ehandler_t *my_eh)
 
 int init_power_ponitoring(ehandler_t *my_eh)
 {
-	int ret;
+	state_t s;
 	debug("init_power_ponitoring");
-	ret = pm_connect(my_eh);
-	if (ret != EAR_SUCCESS) {
-		error("Error in init_power_ponitoring");
-		return EAR_ERROR;
+	if (state_fail(s = pm_connect(my_eh))) {
+		return s;
 	}
 	power_mon_connected = 1;
 	return EAR_SUCCESS;

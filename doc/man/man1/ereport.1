@@ -1,0 +1,70 @@
+.\" Manpage for ereport.
+.TH man 1 "July 2021" "4.0" "ereport man page"
+.SH NAME
+ereport \- Produces a summary of the energy consumption reported by EAR's daemons.
+.SH SYNOPSIS
+ereport [options]
+
+.SH DESCRIPTION
+ereport is an administrator command that reports energy consumption data reported by EAR's daemons.
+
+.SH OPTIONS
+
+ -s start_time            indicates the start of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default: end_time minus insertion time*2.
+ -e end_time              indicates the end of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default: current time.
+ -n node_name |all        indicates from which node the energy will be computed. Default: none (all nodes computed)
+                                         'all' option shows all users individually, not aggregated.
+ -u user_name |all        requests the energy consumed by a user in the selected period of time. Default: none (all users computed).
+                                         'all' option shows all users individually, not aggregated.
+ -t energy_tag|all        requests the energy consumed by energy tag in the selected period of time. Default: none (all tags computed).
+                                         'all' option shows all tags individually, not aggregated.
+ -i eardbd_name|all       indicates from which eardbd (island) the energy will be computed. Default: none (all islands computed)
+                                         'all' option shows all eardbds individually, not aggregated.
+ -g                       shows the contents of EAR's database Global_energy table. The default option will show the records for the two previous T2 periods of EARGM.
+                                         This option can only be modified with -s, not -e
+ -x                       shows the daemon events from -s to -e. If no time frame is specified, it shows the last 20 events.
+ -v                       shows current EAR version.
+ -h                       shows this message.
+
+.SH Usage examples
+
+The following example uses the 'all' nodes option to display information for each node, as well as a start_time so it will give the accumulated energy from that point moment until the current time.
+
+[user@host EAR]$ ereport -n all -s 2018-09-18 
+    Energy (J)       Node      Avg. Power (W)
+    20668697         node1        146
+    20305667         node2        144
+    20435720         node3        145
+    20050422         node4        142
+    20384664         node5        144
+    20432626         node6        145
+    18029624         node7        128
+
+This example filters by EARDBD host (one per island typically) instead:
+
+[user@host EAR]$ ereport -s 2019-05-19 -i all
+    Energy (J)        Node     
+    9356791387        island1 
+    30475201705       island2
+    37814151095       island3 
+    28573716711       island4 
+    29700149501       island5 
+    26342209716       island6
+
+And to see the state of the custer's energy budget (set by the sysadmin) you can use the following:
+
+[user@host EAR]$ ereport -g 
+    Energy%  Warning lvl            Timestamp       INC th      p_state    ENERGY T1    ENERGY T2      TIME T1      TIME T2        LIMIT       POLICY
+    111.486          100  2019-05-22 10:31:34            0          100          893      1011400       907200          600       604800 EnergyBudget 
+    111.492          100  2019-05-22 10:21:34            0          100          859      1011456       907200          600       604800 EnergyBudget 
+    111.501          100  2019-05-22 10:11:34            0          100          862      1011533       907200          600       604800 EnergyBudget 
+    111.514          100  2019-05-22 10:01:34            0          100          842      1011658       907200          600       604800 EnergyBudget 
+    111.532          100  2019-05-22 09:51:34            0          100          828      1011817       907200          600       604800 EnergyBudget 
+    111.554            0  2019-05-22 09:41:34            0            0          837      1012019       907200          600       604800 EnergyBudget 
+
+.\".SH SEE ALSO
+.\"ecreate_database, eenergy_over_time, estore_database
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+EAR suport team (ear-support@bsc.es)

@@ -2,28 +2,31 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 
 ######## FILES
 
-gpu_BINS = \
-    gpu.o
+gpu_BINS = gpu.o
 
 ######## RULES
 
 all: $(gpu_BINS) all.components
 
 %.o: %.c %.h
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) $(gpu_DEFS) -c $<
 
 ######## SUBFOLDERS
 
 %.components:
-	@ $(MAKE) -C 'gpu' $* || exit
+	@ $(MAKE) -C 'archs' $* || exit
 
 ######## OPTIONS
 
-install: install.components;
+install: install.components
 
 %.install: ;
 
-clean: rclean clean.components;
+clean: rclean clean.components
+
+depend: depend.components
+
+depend-clean: depend-clean.components
 
 ######## DEPENDENCIES
 

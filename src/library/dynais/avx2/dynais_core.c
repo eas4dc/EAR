@@ -15,154 +15,141 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <immintrin.h>
 #include <library/dynais/dynais.h>
 #include <library/dynais/avx2/dynais_core.h>
 
 // General indexes.
-extern uint _levels;
-extern uint _window;
-extern uint _topmos;
-
+extern uint avx2_levels;
+extern uint avx2_window;
+extern uint avx2_topmos;
 // Circular buffers
-extern uint *circ_samps[MAX_LEVELS];
-extern uint *circ_zeros[MAX_LEVELS];
-extern uint *circ_sizes[MAX_LEVELS];
-extern uint *circ_indxs[MAX_LEVELS];
-extern uint *circ_accus[MAX_LEVELS];
-
-// Current and previous data
-extern  int cur_resul[MAX_LEVELS];
-extern uint cur_width[MAX_LEVELS];
-extern uint cur_index[MAX_LEVELS];
-extern uint cur_fight[MAX_LEVELS];
-extern uint old_sizes[MAX_LEVELS];
-extern uint old_width[MAX_LEVELS];
-
+extern uint *avx2_circular_samps[MAX_LEVELS];
+extern uint *avx2_circular_zeros[MAX_LEVELS];
+extern uint *avx2_circular_sizes[MAX_LEVELS];
+extern uint *avx2_circular_indxs[MAX_LEVELS];
+extern uint *avx2_circular_accus[MAX_LEVELS];
+// Current data
+extern  int avx2_current_resul[MAX_LEVELS];
+extern uint avx2_current_width[MAX_LEVELS];
+extern uint avx2_current_index[MAX_LEVELS];
+extern uint avx2_current_fight[MAX_LEVELS];
+// Previous data
+extern uint avx2_previous_sizes[MAX_LEVELS];
+extern uint avx2_previous_width[MAX_LEVELS];
 // Static replicas
-extern __m256i zmmx31; // Ones
-extern __m256i zmmx30; //
-extern __m256i zmmx29; // Shifts
-
-//
-//
-// Dynamic Application Iterative Structure Detection (DynAIS)
-//
-//
+extern __m256i ymmx31; // Ones
+extern __m256i ymmx30; //
+extern __m256i ymmx29; // Shifts
 
 #ifdef DYN_CORE_N
-void dynais_core_n(uint sample, uint size, uint level)
+void avx2_dynais_core_n(uint sample, uint size, uint level)
 #else
-void dynais_core_0(uint sample, uint size, uint level)
+void avx2_dynais_core_0(uint sample, uint size, uint level)
 #endif
 {
-	__m256i zmmx00; // S
-	__m256i zmmx04; // W
-	__m256i zmmx08; // Z
-	__m256i zmmx12; // I
+	__m256i ymmx00; // S
+	__m256i ymmx04; // W
+	__m256i ymmx08; // Z
+	__m256i ymmx12; // I
 	#ifdef DYN_CORE_N
-	__m256i zmmx16; // A
+	__m256i ymmx16; // A
 	#endif
-	__m256i zmmx28; // Replica S
-	__m256i zmmx27; // Replica W
-	__m256i zmmx26; // Maximum Z
-	__m256i zmmx25; // Maximum I
+	__m256i ymmx28; // Replica S
+	__m256i ymmx27; // Replica W
+	__m256i ymmx26; // Maximum Z
+	__m256i ymmx25; // Maximum I
 	#ifdef DYN_CORE_N
-	__m256i zmmx24; // Maximum A
+	__m256i ymmx24; // Maximum A
 	#endif
-
 	__m256i mask00;
 	__m256i mask01;
 	__m256i mask02; // Macro aux
 	__m256i mask03; // Macro aux
 	__m256i mask04; // Macro aux (0xFF)
-
-	// Basura
-	uint *samp;
-	uint *zero;
-	uint *indx;
-	uint *sizz;
+	// Others
+	uint *p_samps;
+	uint *p_zeros;
+	uint *p_indxs;
+	uint *p_sizes;
 	#ifdef DYN_CORE_N
-	uint *accu;
+	uint *p_accus;
 	#endif
-
+	uint i, k, l;
 	uint index;
-	uint i, k;
 
-	index = cur_index[level];
-
-	samp = circ_samps[level];
-	sizz = circ_sizes[level];
-	zero = circ_zeros[level];
-	indx = circ_indxs[level];
+	index = avx2_current_index[level];
+	//
+	p_samps = avx2_circular_samps[level];
+	p_sizes = avx2_circular_sizes[level];
+	p_zeros = avx2_circular_zeros[level];
+	p_indxs = avx2_circular_indxs[level];
 	#ifdef DYN_CORE_N
-	accu = circ_accus[level];
+	p_accus = avx2_circular_accus[level];
 	#endif
-
-	samp[index] = 0;
-	sizz[index] = 0;
+	p_samps[index] = 0;
+	p_sizes[index] = 0;
 	#ifdef DYN_CORE_N
-	accu[index] = 0;
+	p_accus[index] = 0;
 	#endif
 
 	// Statics
-	zmmx28 = _mm256_set1_epi32(sample);
-	zmmx27 = _mm256_set1_epi32(size);
-	zmmx26 = _mm256_setzero_si256();
-	zmmx25 = _mm256_set1_epi32(0x7FFFFFFF);
+	ymmx28 = _mm256_set1_epi32(sample);
+	ymmx27 = _mm256_set1_epi32(size);
+	ymmx26 = _mm256_setzero_si256();
+	ymmx25 = _mm256_set1_epi32(0x7FFFFFFF);
 	#ifdef DYN_CORE_N
-	zmmx24 = _mm256_set1_epi32(0x7FFFFFFF);
+	ymmx24 = _mm256_set1_epi32(0x7FFFFFFF);
 	#endif
 	mask04 = _mm256_set1_epi32(0xFFFFFFFF);
 
 	/* Outsiders */
-	zero[_window] = zero[0];
-	indx[_window] = indx[0];
+	p_zeros[avx2_window] = p_zeros[0];
+	p_indxs[avx2_window] = p_indxs[0];
 	#ifdef DYN_CORE_N
-	accu[_window] = accu[0];
+	p_accus[avx2_window] = p_accus[0];
 	#endif
 
 	/* Main iteration */
-	for (k = 0, i = 8; k < _window; k += 8, i += 8)
+	for (k = 0, i = 8; k < avx2_window; k += 8, i += 8)
 	{
-		zmmx00 = _mm256_load_si256((__m256i *) &samp[k]);
-		zmmx04 = _mm256_load_si256((__m256i *) &sizz[k]);
-		zmmx08 = _mm256_load_si256((__m256i *) &zero[k]);
-		zmmx12 = _mm256_load_si256((__m256i *) &indx[k]);
+		ymmx00 = _mm256_load_si256((__m256i *) &p_samps[k]);
+		ymmx04 = _mm256_load_si256((__m256i *) &p_sizes[k]);
+		ymmx08 = _mm256_load_si256((__m256i *) &p_zeros[k]);
+		ymmx12 = _mm256_load_si256((__m256i *) &p_indxs[k]);
 		#ifdef DYN_CORE_N
-		zmmx16 = _mm256_load_si256((__m256i *) &accu[k]);
+		ymmx16 = _mm256_load_si256((__m256i *) &p_accus[k]);
 		#endif
-
 		/* Circular buffer processing */
-		mask00 = _mm256_cmpeq_epi32(zmmx00, zmmx28);
-		mask01 = _mm256_cmpeq_epi32(zmmx04, zmmx27);
+		mask00 = _mm256_cmpeq_epi32(ymmx00, ymmx28);
+		mask01 = _mm256_cmpeq_epi32(ymmx04, ymmx27);
 		mask00 = _mm256_and_si256  (mask00, mask01);
-
 		/* */
-		zmmx08 = _mm256_permutevar8x32_epi32(zmmx08, zmmx29);
-		zmmx12 = _mm256_permutevar8x32_epi32(zmmx12, zmmx29);
+		ymmx08 = _mm256_permutevar8x32_epi32(ymmx08, ymmx29);
+		ymmx12 = _mm256_permutevar8x32_epi32(ymmx12, ymmx29);
 		#ifdef DYN_CORE_N
-		zmmx16 = _mm256_permutevar8x32_epi32(zmmx16, zmmx29);
+		ymmx16 = _mm256_permutevar8x32_epi32(ymmx16, ymmx29);
 		#endif
-
 		/* */
-		zmmx08 = _mm256_insert_epi32(zmmx08, zero[i], 7);
-		zmmx12 = _mm256_insert_epi32(zmmx12, indx[i], 7);
+		ymmx08 = _mm256_insert_epi32(ymmx08, p_zeros[i], 7);
+		ymmx12 = _mm256_insert_epi32(ymmx12, p_indxs[i], 7);
 		#ifdef DYN_CORE_N
-		zmmx16 = _mm256_insert_epi32(zmmx16, accu[i], 7);
+		ymmx16 = _mm256_insert_epi32(ymmx16, p_accus[i], 7);
 		#endif
-
-		zmmx08 = _mm256_add_epi32(zmmx08, zmmx31);
-		zmmx08 = _mm256_and_si256(zmmx08, mask00);
+		ymmx08 = _mm256_add_epi32(ymmx08, ymmx31);
+		ymmx08 = _mm256_and_si256(ymmx08, mask00);
 		#ifdef DYN_CORE_N
-		zmmx16 = _mm256_add_epi32(zmmx16, zmmx04);
-		zmmx16 = _mm256_and_si256(zmmx16, mask00);
+		ymmx16 = _mm256_add_epi32(ymmx16, ymmx04);
+		ymmx16 = _mm256_and_si256(ymmx16, mask00);
 		#endif
-
 		/* Data storing */
-		_mm256_store_si256((__m256i *) &zero[k], zmmx08);
-		_mm256_store_si256((__m256i *) &indx[k], zmmx12);
+		_mm256_store_si256((__m256i *) &p_zeros[k], ymmx08);
+		_mm256_store_si256((__m256i *) &p_indxs[k], ymmx12);
 		#ifdef DYN_CORE_N
-		_mm256_store_si256((__m256i *) &accu[k], zmmx16);
+		_mm256_store_si256((__m256i *) &p_accus[k], ymmx16);
 		#endif
 
 		#define _mm257_cmplt_epi32(src1, src2, dest) \
@@ -172,13 +159,11 @@ void dynais_core_0(uint sample, uint size, uint level)
 			mask02 = _mm256_or_si256(mask02, mask03); \
 			dest   = _mm256_andnot_si256(mask02, mask04); \
 		}
-
 		#define _mm257_cmpeq_epi32_mask(mask, src1, src2, dest)	\
 		{ \
 			mask02 = _mm256_cmpeq_epi32(src1, src2); \
 			dest   = _mm256_and_si256(mask02, mask); \
 		}
-
 		#define _mm257_cmplt_epi32_mask(mask, src1, src2, dest)	\
 		{ \
 			mask02 = _mm256_cmpgt_epi32(src1, src2); \
@@ -187,138 +172,135 @@ void dynais_core_0(uint sample, uint size, uint level)
 			mask02 = _mm256_andnot_si256(mask02, mask04); \
 			dest   = _mm256_and_si256(mask02, mask); \
 		}
-
 		#define _mm257_blendv_epi32(src1, src2, mask) \
 			(__m256i) _mm256_blendv_ps((__m256) src1, (__m256) src2, (__m256) mask);
 
 		/* Maximum preparing */
-		_mm257_cmplt_epi32(zmmx12, zmmx08, mask01);
+		_mm257_cmplt_epi32(ymmx12, ymmx08, mask01);
 
 		if (_mm256_testz_si256(mask01, mask01) == 1) {
 			continue;
 		}
 
-		_mm257_cmplt_epi32_mask(mask01, zmmx26, zmmx08, mask00);
-		_mm257_cmpeq_epi32_mask(mask01, zmmx26, zmmx08, mask01);
-		_mm257_cmplt_epi32_mask(mask01, zmmx25, zmmx12, mask01);
+		_mm257_cmplt_epi32_mask(mask01, ymmx26, ymmx08, mask00);
+		_mm257_cmpeq_epi32_mask(mask01, ymmx26, ymmx08, mask01);
+		_mm257_cmplt_epi32_mask(mask01, ymmx25, ymmx12, mask01);
 		mask00 = _mm256_or_si256(mask00, mask01);
-
 		/* */
-		zmmx26 = _mm257_blendv_epi32(zmmx26, zmmx08, mask00);
-		zmmx25 = _mm257_blendv_epi32(zmmx25, zmmx12, mask00);
+		ymmx26 = _mm257_blendv_epi32(ymmx26, ymmx08, mask00);
+		ymmx25 = _mm257_blendv_epi32(ymmx25, ymmx12, mask00);
 		#ifdef DYN_CORE_N
-		zmmx24 = _mm257_blendv_epi32(zmmx24, zmmx16, mask00);
+		ymmx24 = _mm257_blendv_epi32(ymmx24, ymmx16, mask00);
 		#endif
 	}
 
-	uint l = level;
-	uint cur_width_aux;
-	uint cur_sizes_aux;
-	uint cur_zeros_aux;
-	uint res_nol;
-	uint res_inl;
-	uint res_ite;
-	uint res_new;
-	uint res_end;
-	uint res_dif;
-	uint *pz;
-	uint *pw;
-	uint *ps;
-
-	pz = (uint *) &zmmx26;
-	pw = (uint *) &zmmx25;
+	/*
+	 *
+	 * State logic
+	 *
+	 */
+	uint result_noloop;
+	uint result_inloop;
+	uint result_newite;
+	uint result_newlop;
+	uint result_endlop;
+	uint result_diflop;
+	uint current_width;
+	uint current_zeros;
 	#ifdef DYN_CORE_N
-	ps = (uint *) &zmmx24;
+	uint current_sizes;
 	#endif
-	cur_width_aux = 0;
-	cur_zeros_aux = 0;
+	uint *array_zeros;
+	uint *array_width;
 	#ifdef DYN_CORE_N
-	cur_sizes_aux = 0x7FFFFFFF;
+	uint *array_sizes;
+	#endif
+
+	// Using l to cut names
+	l = level;
+	// Initialiing
+	current_width = 0;
+	current_zeros = 0;
+	#ifdef DYN_CORE_N
+	current_sizes = 0x7FFFFFFF;
+	#endif
+	// Converting ymmx to array of ints
+	array_zeros = (uint *) &ymmx26;
+	array_width = (uint *) &ymmx25;
+	#ifdef DYN_CORE_N
+	array_sizes = (uint *) &ymmx24;
 	#endif
 
 	for (i = 0; i < 8; ++i)
 	{
-		if (pz[i] > cur_zeros_aux)
-		{
-			cur_width_aux = pw[i];
-			cur_zeros_aux = pz[i];
+		if (array_zeros[i] > current_zeros) {
+			current_width = array_width[i];
+			current_zeros = array_zeros[i];
 		}
 		#ifdef DYN_CORE_N
-		if (pz[i] == cur_zeros_aux && ps[i] < cur_sizes_aux)
-		{
-			cur_sizes_aux = ps[i];
+		if (array_zeros[i] == current_zeros && array_sizes[i] < current_sizes) {
+			current_sizes = array_sizes[i];
 		}
 		#endif
 	}
 
 	// New loop
-	res_inl = (cur_zeros_aux >= _window);
+	result_inloop = (current_zeros >= avx2_window);
 
-	if (!res_inl)
-	{
+	if (!result_inloop) {
 		//
-		cur_width[l] = cur_width_aux;
-
+		avx2_current_width[l] = current_width;
 		// New loop again
-		res_inl = (cur_width[l] > 0) & (cur_zeros_aux > cur_width[l]);
+		result_inloop = (avx2_current_width[l] > 0) & (current_zeros > avx2_current_width[l]);
 	}
-
 	// New no loop
-	res_nol = !res_inl;
-
+	result_noloop = !result_inloop;
 	// New different loop
-	res_dif = old_width[l] != cur_width[l];
-
+	result_diflop = avx2_previous_width[l] != avx2_current_width[l];
 	// Array in loop counter
-	if (res_dif || cur_fight[l] == cur_width[l]) {
-		cur_fight[l] = 0;
+	if (result_diflop || avx2_current_fight[l] == avx2_current_width[l]) {
+		avx2_current_fight[l] = 0;
 	}
-
 	// New iteration
-	res_ite = res_inl && (cur_width[l] == 1 || cur_fight[l] == 0);
-	
-	cur_fight[l] += res_inl;
-
+	result_newite = result_inloop && (avx2_current_width[l] == 1 || avx2_current_fight[l] == 0);
+	avx2_current_fight[l] += result_inloop;
 	// New loop
-	res_new = res_ite & (old_width[l] != cur_width[l]);
-
+	result_newlop = result_newite & (avx2_previous_width[l] != avx2_current_width[l]);
 	// New end-new loop
-	res_end = ((old_width[l] != cur_width[l]) && old_width[l] != 0);
+	result_endlop = ((avx2_previous_width[l] != avx2_current_width[l]) && avx2_previous_width[l] != 0);
 
-	i = (index + cur_width[l]) % _window;
-	k = index;
+	i = (index + avx2_current_width[l]) % avx2_window;
+	k = (index);
 
-	if (res_new)
-	{
+	if (result_newlop) {
 		#ifdef DYN_CORE_N
-		//old_sizes[l] = cur_sizes_aux - size;
-		old_sizes[l] = cur_width[l];
+		//avx2_previous_sizes[l] = current_sizes - size;
+		avx2_previous_sizes[l] = avx2_current_width[l];
 		#else
-		old_sizes[l] = cur_width[l];
+		avx2_previous_sizes[l] = avx2_current_width[l];
 		#endif
-		old_width[l] = cur_width[l];
+		avx2_previous_width[l] = avx2_current_width[l];
 	}
 
-	if (res_nol)
-	{
-		cur_fight[l] = 0;
-		old_width[l] = 0;
+	if (result_noloop) {
+		avx2_current_fight[l] = 0;
+		avx2_previous_width[l] = 0;
 	}
-
 	// Level result
-	cur_resul[l] = 0;
-	cur_resul[l] -= (!res_inl) & res_end;	// -1 = end lopp
-	cur_resul[l] += res_inl;				// 1 = in loop
-	cur_resul[l] += res_ite;				// 2 = new iteration
-	cur_resul[l] += res_new;				// 3 = new loop
-	cur_resul[l] += res_new & res_end;	// 4 = end and new loop
-
+	avx2_current_resul[l] = 0;
+	avx2_current_resul[l] -= (!result_inloop) & result_endlop;	// -1 = end lopp
+	avx2_current_resul[l] += result_inloop;						//  1 = in loop
+	avx2_current_resul[l] += result_newite;						//  2 = new iteration
+	avx2_current_resul[l] += result_newlop;						//  3 = new loop
+	avx2_current_resul[l] += result_newlop & result_endlop;		//  4 = end and new loop
 	// Cleaning
-	samp[index] = sample;
-	sizz[index] = size;
+	p_samps[index] = sample;
+	p_sizes[index] = size;
 
-	if (index == 0) index = _window;
+	if (index == 0) {
+		index = avx2_window;
+	}
 	index = index - 1;
-	
-	cur_index[level] = index;
+	//
+	avx2_current_index[level] = index;
 }

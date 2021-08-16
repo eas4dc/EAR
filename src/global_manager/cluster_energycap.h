@@ -22,7 +22,7 @@
 #include <common/states.h>
 //#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
-#include <daemon/eard_rapi.h>
+#include <daemon/remote_api/eard_rapi.h>
 #include <common/types/configuration/cluster_conf.h>
 
 

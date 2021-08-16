@@ -18,6 +18,8 @@
 #ifndef _EAR_CONFIGURATION_H_
 #define _EAR_CONFIGURATION_H_
 
+#include <common/states.h>
+
 #define DEFAULT_LEARNING_PHASE          0
 #define DEFAULT_RESET_FREQ              0
 #define DEFAULT_VERBOSE                 0
@@ -157,6 +159,8 @@ void set_ear_dynais_window_size(int size);
 void set_ear_learning(int learning);
 
 
+state_t read_config_env(char *var, const char* sched_env_var);
+state_t read_config(uint *var, const char *config_var);
 
 
 

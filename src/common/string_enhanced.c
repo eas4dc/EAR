@@ -31,9 +31,6 @@ static unsigned int columns;
 static unsigned int mode;
 static int fd;
 
-// Utils
-static char buffer1[SZ_BUFF_BIG];
-static char buffer2[SZ_BUFF_BIG];
 
 /*
  *
@@ -75,7 +72,7 @@ static void tprintf_color_close(char **oput)
 
 /*
  *
-	 *
+ *
  *
  */
 
@@ -213,13 +210,78 @@ void strtoup(char *string)
     }
 }
 
-int strinc(const char *string1, const char *string2)
+int strinlist(const char *list, const char *separator, const char *element)
 {
-	strncpy(buffer1, string1, SZ_BUFF_BIG);
-	strncpy(buffer2, string2, SZ_BUFF_BIG);
-	strtoup(buffer1);
-	strtoup(buffer2);
-	return (strstr(buffer1, buffer2) != NULL);
+	char buffer[SZ_PATH];
+	char *e;
+
+	strcpy(buffer, list);	
+	e = strtok(buffer, separator);
+	while (e != NULL) {
+		// An extra parameter would be needed to switch between strcmp and strncmp.
+		if (strncmp(element, e, strlen(e)) == 0) {
+			return 1;
+		}
+		e = strtok(NULL, separator);
+	}
+	return 0;
+}
+
+int strinargs(int argc, char *argv[], const char *opt, char *value)
+{
+    int expected;
+    int result;
+	int auxind;
+	int auxerr;
+	size_t len;
+    // Saving opt globals, and setting to 0 to prevent prints
+	auxind = optind;
+	auxerr = opterr;
+    optind = 1;
+    opterr = 0;
+	// If the option argument is long
+    if ((len = strlen(opt)) > 2)
+	{
+    	struct option long_options[2];
+    	int has_arg = 2;
+        //
+        memset(long_options, 0, sizeof(struct option) * 2);
+        // has_value is 2 by default because means optional, if not
+        // has_value is 1, which means the argument is required.
+		if (opt[len-1] == ':') {
+            has_arg = 1;
+		}
+        // Filling long_options structure to return 2.
+        long_options[0].name    = opt;
+        long_options[0].has_arg = has_arg;
+        long_options[0].flag    = NULL;
+        long_options[0].val     = 2;
+        // This function is for '-long' or '--long' type arguments, 
+        // and returns 2 as we specified.
+        do { 
+        	result = getopt_long (argc, argv, "", long_options, NULL);
+		} while (result != 2 && result != -1);
+        // Expected result
+        expected = 2;
+        //int result2 = getopt_long (argc, argv, "", long_options, NULL);
+    } else {
+        // This function is for '-i' type parameters.
+        result = getopt(argc, argv, opt);
+        // Expected result
+        expected = opt[0];
+    }
+    // Recovering opterr default value.
+    opterr = auxerr;
+    optind = auxind;
+    // Copying option argument in value buffer. 
+    if (value != NULL) {
+        value[0] = '\0';
+        if (optarg != NULL) {
+            strcpy(value, optarg);
+        }
+    }
+    // If the result value is the letter option.
+    return (result == expected);
 }
 
 char* strclean(char *string, char chr)

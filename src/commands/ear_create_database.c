@@ -1,6 +1,4 @@
-/*
-*
-* This program is part of the EAR software.
+/* This program is part of the EAR software.
 *
 * EAR provides a dynamic, transparent and ligth-weigth solution for
 * Energy management. It has been developed in the context of the
@@ -28,19 +26,21 @@
 #include <common/database/db_helper.h>
 #include <common/types/configuration/cluster_conf.h>
 
-char print_out = 0;
+char print_out = 1;
 cluster_conf_t my_cluster;
 char signature_detail = !DB_SIMPLE;
-char db_node_detail = DEMO;
+char db_node_detail = 1;
 
 void usage(char *app)
 {
 	fprintf(stdout, "Usage:%s [options]\n", app);
     fprintf(stdout, "\t-p\t\tSpecify the password for MySQL's root user.\n");
-    fprintf(stdout, "\t-o\t\tOutputs the commands that would run.\n");
-    fprintf(stdout, "\t-r\t\tRuns the program. If '-o' this option will be override.\n");
+    fprintf(stdout, "\t-e\t\tSpecify ear.conf file location. [default: $EAR_ETC/ear/ear.conf].\n");
+    fprintf(stdout, "\t-o\t\tOutputs the queries that would run.\n");
+    fprintf(stdout, "\t-r\t\tRuns the the queries and creates the database.\n");
     fprintf(stdout, "\t-v\t\tShows current EAR version.\n");
     fprintf(stdout, "\t-h\t\tShows this message.\n");
+    fprintf(stdout, "\nIf neither -o or -r options are used it will default to -o. \n\n");
 	exit(0);
 }
 
@@ -111,7 +111,7 @@ void create_users(void *connection, char *db_name, char *db_user, char *db_user_
 #elif DB_PSQL
     sprintf(query, "GRANT SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO %s", db_user);
     run_query(connection, query);
-    sprintf(query, "GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA public TO %s", db_user);
+    sprintf(query, "GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO %s", db_user);
 #endif
     run_query(connection, query);
     
@@ -203,7 +203,7 @@ void create_tables(void *connection)
     sprintf(query, "CREATE TABLE IF NOT EXISTS Applications (\
 job_id INT unsigned NOT NULL, \
 step_id INT unsigned NOT NULL, \
-node_id VARCHAR(128), \
+node_id VARCHAR(64), \
 signature_id INT unsigned, \
 power_signature_id INT unsigned, \
 PRIMARY KEY(job_id, step_id, node_id))");
@@ -215,7 +215,7 @@ size INT unsigned NOT NULL, \
 level INT unsigned NOT NULL, \
 job_id INT unsigned NOT NULL, \
 step_id INT unsigned NOT NULL, \
-node_id VARCHAR(8), \
+node_id VARCHAR(64), \
 total_iterations INT unsigned, \
 signature_id INT unsigned)");
     run_query(connection, query);
@@ -245,16 +245,15 @@ PRIMARY KEY(id, step_id))");
 id INT unsigned NOT NULL AUTO_INCREMENT,\
 DC_power FLOAT,\
 DRAM_power FLOAT,\
-PCK_power FLOAT,"
-#if 0
-"GPU_power FLOAT,"
-#endif
-"EDP FLOAT,\
+PCK_power FLOAT,\
+EDP FLOAT,\
 GBS FLOAT,\
+IO_MBS FLOAT,\
 TPI FLOAT,\
 CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
+perc_MPI FLOAT,\
 FLOPS1 BIGINT unsigned,\
 FLOPS2 BIGINT unsigned,\
 FLOPS3 BIGINT unsigned,\
@@ -266,8 +265,13 @@ FLOPS8 BIGINT unsigned,\
 instructions BIGINT unsigned, \
 cycles BIGINT unsigned,\
 avg_f INT unsigned,\
-def_f INT unsigned, \
-PRIMARY KEY (id))");
+avg_imc_f INT unsigned,\
+def_f INT unsigned, "
+#if USE_GPUS
+"min_GPU_sig_id INT unsigned, \
+max_GPU_sig_id INT unsigned, "
+#endif
+"PRIMARY KEY (id))");
     else
         sprintf(query, "CREATE TABLE IF NOT EXISTS Signatures (\
 id INT unsigned NOT NULL AUTO_INCREMENT,\
@@ -276,14 +280,33 @@ DRAM_power FLOAT,\
 PCK_power FLOAT,\
 EDP FLOAT,\
 GBS FLOAT,\
+IO_MBS FLOAT,\
 TPI FLOAT,\
 CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
+perc_MPI FLOAT,\
 avg_f INT unsigned,\
-def_f INT unsigned, \
-PRIMARY KEY (id))");
+avg_imc_f INT unsigned,\
+def_f INT unsigned, "
+#if USE_GPUS
+"min_GPU_sig_id INT unsigned, \
+max_GPU_sig_id INT unsigned, "
+#endif
+"PRIMARY KEY (id))");
     run_query(connection, query);
+
+#if USE_GPUS
+    sprintf(query, "CREATE TABLE IF NOT EXISTS GPU_signatures ( \
+id INT unsigned NOT NULL AUTO_INCREMENT, \
+GPU_power FLOAT NOT NULL, \
+GPU_freq INT unsigned NOT NULL, \
+GPU_mem_freq INT unsigned NOT NULL, \
+GPU_util INT unsigned NOT NULL, \
+GPU_mem_util INT unsigned NOT NULL, "
+"PRIMARY KEY (id))");
+    run_query(connection, query);
+#endif
 
 if (db_node_detail){
     sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_metrics ( \
@@ -291,7 +314,7 @@ id INT unsigned NOT NULL AUTO_INCREMENT, \
 start_time INT NOT NULL, \
 end_time INT NOT NULL, \
 DC_energy INT unsigned NOT NULL, \
-node_id VARCHAR(256) NOT NULL, \
+node_id VARCHAR(64) NOT NULL, \
 job_id INT unsigned NOT NULL, \
 step_id INT unsigned NOT NULL, \
 avg_f INT, \
@@ -308,7 +331,7 @@ id INT unsigned NOT NULL AUTO_INCREMENT, \
 start_time INT NOT NULL, \
 end_time INT NOT NULL, \
 DC_energy INT unsigned NOT NULL, \
-node_id VARCHAR(256) NOT NULL, \
+node_id VARCHAR(64) NOT NULL, \
 job_id INT unsigned NOT NULL, \
 step_id INT unsigned NOT NULL, "
 "PRIMARY KEY (id))");
@@ -336,7 +359,7 @@ event_type INT NOT NULL, \
 job_id INT unsigned NOT NULL, \
 step_id INT unsigned NOT NULL, \
 freq INT unsigned NOT NULL, \
-node_id VARCHAR(256), \
+node_id VARCHAR(64), \
 PRIMARY KEY (id))");
     run_query(connection, query);
 
@@ -359,7 +382,7 @@ PRIMARY KEY (time))");
     sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_applications (\
 job_id INT unsigned NOT NULL, \
 step_id INT unsigned NOT NULL, \
-node_id VARCHAR(128), \
+node_id VARCHAR(64), \
 signature_id INT unsigned,\
 power_signature_id INT unsigned, \
 PRIMARY KEY(job_id, step_id, node_id))");
@@ -402,10 +425,12 @@ DRAM_power FLOAT,\
 PCK_power FLOAT,\
 EDP FLOAT,\
 GBS FLOAT,\
+IO_MBS FLOAT,\
 TPI FLOAT,\
 CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
+perc_MPI FLOAT,\
 FLOPS1 BIGINT unsigned,\
 FLOPS2 BIGINT unsigned,\
 FLOPS3 BIGINT unsigned,\
@@ -417,8 +442,13 @@ FLOPS8 BIGINT unsigned,\
 instructions BIGINT unsigned, \
 cycles BIGINT unsigned,\
 avg_f INT unsigned,\
-def_f INT unsigned, \
-PRIMARY KEY (id))");
+avg_imc_f INT unsigned,\
+def_f INT unsigned, "
+#if USE_GPUS
+"min_GPU_sig_id INT unsigned, \
+max_GPU_sig_id INT unsigned, "
+#endif
+"PRIMARY KEY (id))");
     else
         sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_signatures (\
 id INT unsigned NOT NULL AUTO_INCREMENT,\
@@ -427,13 +457,20 @@ DRAM_power FLOAT,\
 PCK_power FLOAT,\
 EDP FLOAT,\
 GBS FLOAT,\
+IO_MBS FLOAT,\
 TPI FLOAT,\
 CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
+perc_MPI FLOAT,\
 avg_f INT unsigned,\
-def_f INT unsigned, \
-PRIMARY KEY (id))");
+avg_imc_f INT unsigned,\
+def_f INT unsigned, "
+#if USE_GPUS
+"min_GPU_sig_id INT unsigned, \
+max_GPU_sig_id INT unsigned, "
+#endif
+"PRIMARY KEY (id))");
 
     run_query(connection, query);
 
@@ -447,7 +484,7 @@ void create_tables(void *connection)
     sprintf(query, "CREATE TABLE IF NOT EXISTS Applications (\
 job_id INT  NOT NULL, \
 step_id INT  NOT NULL, \
-node_id VARCHAR(128), \
+node_id VARCHAR(64), \
 signature_id INT , \
 power_signature_id INT , \
 PRIMARY KEY(job_id, step_id, node_id))");
@@ -459,7 +496,7 @@ size INT  NOT NULL, \
 level INT  NOT NULL, \
 job_id INT  NOT NULL, \
 step_id INT  NOT NULL, \
-node_id VARCHAR(8), \
+node_id VARCHAR(64), \
 total_iterations INT , \
 signature_id INT )");
     run_query(connection, query);
@@ -489,16 +526,15 @@ PRIMARY KEY(id, step_id))");
 id SERIAL NOT NULL,\
 DC_power FLOAT,\
 DRAM_power FLOAT,\
-PCK_power FLOAT,"
-#if 0
-"GPU_power FLOAT,"
-#endif
-"EDP FLOAT,\
+PCK_power FLOAT,\
+EDP FLOAT,\
 GBS FLOAT,\
+IO_MBS FLOAT,\
 TPI FLOAT,\
 CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
+perc_MPI FLOAT,\
 FLOPS1 BIGINT ,\
 FLOPS2 BIGINT ,\
 FLOPS3 BIGINT ,\
@@ -510,8 +546,13 @@ FLOPS8 BIGINT ,\
 instructions BIGINT , \
 cycles BIGINT ,\
 avg_f INT ,\
-def_f INT , \
-PRIMARY KEY (id))");
+avg_imc_f INT ,\
+def_f INT , "
+#if USE_GPUS
+"min_GPU_sig_id INT, \
+max_GPU_sig_id INT, "
+#endif
+"PRIMARY KEY (id))");
     else
         sprintf(query, "CREATE TABLE IF NOT EXISTS Signatures (\
 id SERIAL NOT NULL,\
@@ -520,22 +561,40 @@ DRAM_power FLOAT,\
 PCK_power FLOAT,\
 EDP FLOAT,\
 GBS FLOAT,\
+IO_MBS FLOAT,\
 TPI FLOAT,\
 CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
+perc_MPI FLOAT,\
 avg_f INT ,\
-def_f INT , \
-PRIMARY KEY (id))");
+avg_imc_f INT ,\
+def_f INT , "
+#if USE_GPUS
+"min_GPU_sig_id INT, \
+max_GPU_sig_id INT, "
+#endif
+"PRIMARY KEY (id))");
     run_query(connection, query);
 
+#if USE_GPUS
+    sprintf(query, "CREATE TABLE IF NOT EXISTS GPU_signatures ( \
+id SERIAL NOT NULL, \
+GPU_power FLOAT, \
+GPU_freq INT, \
+GPU_mem_freq INT, \
+GPU_util INT, \
+GPU_mem_util INT, "
+"PRIMARY KEY (id))");
+    run_query(connection, query);
+#endif
 if (db_node_detail){
     sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_metrics ( \
 id SERIAL NOT NULL, \
 start_time INT NOT NULL, \
 end_time INT NOT NULL, \
 DC_energy INT  NOT NULL, \
-node_id VARCHAR(256) NOT NULL, \
+node_id VARCHAR(64) NOT NULL, \
 job_id INT  NOT NULL, \
 step_id INT  NOT NULL, \
 avg_f INT, \
@@ -552,7 +611,7 @@ id SERIAL NOT NULL, \
 start_time INT NOT NULL, \
 end_time INT NOT NULL, \
 DC_energy INT  NOT NULL, \
-node_id VARCHAR(256) NOT NULL, \
+node_id VARCHAR(64) NOT NULL, \
 job_id INT  NOT NULL, \
 step_id INT  NOT NULL, "
 "PRIMARY KEY (id))");
@@ -580,7 +639,7 @@ event_type INT NOT NULL, \
 job_id INT  NOT NULL, \
 step_id INT  NOT NULL, \
 freq INT  NOT NULL, \
-node_id VARCHAR(256), \
+node_id VARCHAR(64), \
 PRIMARY KEY (id))");
     run_query(connection, query);
 
@@ -603,7 +662,7 @@ PRIMARY KEY (time))");
     sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_applications (\
 job_id INT  NOT NULL, \
 step_id INT  NOT NULL, \
-node_id VARCHAR(128), \
+node_id VARCHAR(64), \
 signature_id INT ,\
 power_signature_id INT , \
 PRIMARY KEY(job_id, step_id, node_id))");
@@ -661,8 +720,12 @@ FLOPS8 BIGINT ,\
 instructions BIGINT , \
 cycles BIGINT ,\
 avg_f INT ,\
-def_f INT , \
-PRIMARY KEY (id))");
+def_f INT , "
+#if USE_GPUS
+"min_GPU_sig_id INT, \
+max_GPU_sig_id INT, "
+#endif
+"PRIMARY KEY (id))");
     else
         sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_signatures (\
 id SERIAL NOT NULL,\
@@ -676,8 +739,12 @@ CPI FLOAT,\
 Gflops FLOAT,\
 time FLOAT,\
 avg_f INT ,\
-def_f INT , \
-PRIMARY KEY (id))");
+def_f INT , "
+#if USE_GPUS
+"min_GPU_sig_id INT, \
+max_GPU_sig_id INT, "
+#endif
+"PRIMARY KEY (id))");
 
     run_query(connection, query);
 
@@ -700,6 +767,9 @@ int main(int argc,char *argv[])
 {
     int c;
     char passw[256], root_user[256];;
+    char ear_path[256];
+    char default_ear_path = 1;
+
     if (argc < 2) usage(argv[0]);
 #if DB_MYSQL
     strcpy(root_user, "root");
@@ -710,12 +780,16 @@ int main(int argc,char *argv[])
     strcpy(passw, "");
 
     struct termios t;
-    while ((c = getopt(argc, argv, "phrouv")) != -1)
+    while ((c = getopt(argc, argv, "phrouve:")) != -1)
     {
         switch(c)
         {
             case 'h':
                usage(argv[0]);
+               break;
+            case 'e':
+               strcpy(ear_path, optarg); 
+               default_ear_path = 0;
                break;
             case 'v':
                print_version();
@@ -735,6 +809,7 @@ int main(int argc,char *argv[])
                 fprintf(stdout, " ");
                 break;
             case 'r':
+                print_out = 0;
                 break;
             case 'u':
                 verbosen(0, "Introduce root's user: ");
@@ -751,13 +826,17 @@ int main(int argc,char *argv[])
 
 
     //cluster_conf_t my_cluster;
-    char ear_path[256];
-
-    if (get_ear_conf_path(ear_path) == EAR_ERROR)
+    if (default_ear_path)
     {
-        fprintf(stdout, "Error getting ear.conf path"); //error
-        exit(0);
+        if (get_ear_conf_path(ear_path) == EAR_ERROR)
+        {
+            fprintf(stdout, "Error getting ear.conf path"); //error
+            exit(0);
+        }
     }
+
+
+
 #if DB_MYSQL 
     MYSQL *connection = mysql_init(NULL); 
 #elif DB_PSQL
@@ -769,7 +848,7 @@ int main(int argc,char *argv[])
 	print_database_conf(&my_cluster.database);
 
     signature_detail = my_cluster.database.report_sig_detail;
-		db_node_detail= my_cluster.database.report_node_detail;
+    db_node_detail = my_cluster.database.report_node_detail;
 
 #if DB_PSQL
     char **keys, **values, temp[32];
@@ -799,11 +878,12 @@ int main(int argc,char *argv[])
         keys[1] = "user";
         keys[2] = "password";
         keys[3] = "host";
-        if (my_cluster.database.port > 0)
+        //setting port value makes the connector crash
+        /*if (my_cluster.database.port > 0)
         {
             keys[4] = "port";
             values[4] = temp;
-        }
+        }*/
 
         strtolow(my_cluster.database.database);
         strtolow(my_cluster.database.ip);
@@ -814,11 +894,13 @@ int main(int argc,char *argv[])
         values[2] = passw;
         values[3] = my_cluster.database.ip;
 
+        fprintf(stdout, "connecting to database\n");
         connection = PQconnectdbParams((const char * const *)keys, (const char * const *)values, 0);
+        fprintf(stdout, "connected to database\n");
 
         if (PQstatus(connection) != CONNECTION_OK)
         {
-            fprintf(stderr, "ERROR connecting to the database: %s\n", PQerrorMessage(connection));
+            fprintf(stdout, "ERROR connecting to the database: %s\n", PQerrorMessage(connection));
             free(keys);
             free(values);
             PQfinish(connection);

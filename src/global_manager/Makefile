@@ -9,11 +9,11 @@ eargmd_PERM = 0770
 
 ######## FILES
 
-comm_BINS = $(SRCDIR)/daemon/eard_rapi.o \
-    $(SRCDIR)/common/libcommon.a \
+comm_BINS = $(SRCDIR)/daemon/remote_api/eard_rapi.o \
+    $(SRCDIR)/common/libcommon.a 
 
 eargmd_OBJS = eargm_rapi.o \
-    eargm_server_api.o \
+		cluster_powercap.o \
 		cluster_energycap.o \
 		eargm_ext_rm.o 
 

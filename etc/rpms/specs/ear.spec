@@ -6,19 +6,19 @@
 # -qpl        query + package + list, list all the files in RPM
 
 # Var definitions
-%define __requires_exclude libmpi*.*$|libpapi.so.*|libgsl*|libimf.so|libintlc.so|libsvml.so|libirng.so
+%define __requires_exclude libmpi*.*$|libpapi.so.*|libgsl*
 
 %define name    ear
-%define release   3
-%define version   3.3
+%define release   4
+%define version   4.0
 
 # Information
 # Prefix  Just for when missing any prefix
 Summary:  EAR package
 Group:    System
 Packager: EAR Team
-URL:    https://gitlab.bsc.es/ear_team/ear
-License:  BSD-3 license for individual/non-commercial use and EPL-1.0 license for commercial use
+URL:    https://github.com/BarcelonaSupercomputingCenter/ear_private
+License:  GPL 2.1
 Name:   %{name}
 Version:  %{version}%{?dist}
 Release:  %{release}
@@ -41,7 +41,6 @@ mkdir -p  %{buildroot}/usr/lib/plugins
 mkdir -p  %{buildroot}/usr/sbin
 mkdir -p  %{buildroot}/usr/bin
 mkdir -p  %{buildroot}/usr/bin/tools
-mkdir -p  %{buildroot}/usr/bin/tests
 mkdir -p  %{buildroot}/etc/ear
 mkdir -p  %{buildroot}/etc/ear/coeffs
 mkdir -p  %{buildroot}/etc/systemd/system
@@ -49,7 +48,6 @@ mkdir -p  %{buildroot}/etc/module
 mkdir -p  %{buildroot}/etc/slurm
 mkdir -p  %{buildroot}/var/ear
 cp    -rp ${EAR_INSTALL_PATH}/bin/tools/* %{buildroot}/usr/bin/tools/
-cp    -rp ${EAR_INSTALL_PATH}/bin/tests/* %{buildroot}/usr/bin/tests/
 cp    -rp ${EAR_INSTALL_PATH}/bin/eacct %{buildroot}/usr/bin/
 cp    -rp ${EAR_INSTALL_PATH}/bin/ereport %{buildroot}/usr/bin/
 cp    -rp ${EAR_INSTALL_PATH}/bin/econtrol %{buildroot}/usr/bin/
@@ -67,7 +65,7 @@ cp	-rp ${EAR_INSTALL_PATH}/lib/libearld.* %{buildroot}/usr/lib/
 cp    -rp ${EAR_INSTALL_PATH}/lib/libear_api.a %{buildroot}/usr/lib/libear_api.a
 cp    -rp ${EAR_INSTALL_PATH}/lib/plugins/* %{buildroot}/usr/lib/plugins/
 cp	-rp ${EAR_INSTALL_PATH}/lib/earplug.so %{buildroot}/usr/lib/
-cp	-rp ${EAR_INSTALL_PATH}/lib/erun %{buildroot}/usr/bin/
+cp	-rp ${EAR_INSTALL_PATH}/bin/erun %{buildroot}/usr/bin/
 cp  -p  ${EAR_SOURCE_PATH}/etc/systemd/eargmd.service.in %{buildroot}/etc/systemd/system
 cp  -p  ${EAR_SOURCE_PATH}/etc/systemd/eardbd.service.in %{buildroot}/etc/systemd/system
 cp  -p  ${EAR_SOURCE_PATH}/etc/systemd/eard.service.in %{buildroot}/etc/systemd/system
@@ -90,9 +88,6 @@ exit
 #Comments for change log
 # * [dow mon dd yyyy] [packager [email address]] [RPM version]-list of changes
 %changelog
-* Wed Jul 1 2020 Julita Corbalan <julita.corbalan@bsc.es> 3.3
-- NVML library support for NVIDIA report
-- EAR loader included
 * Tue Mar 31 2020 Julita Corbalan <julita.corbalan@bsc.es> 3.2
 - GPU, PCK and DRAM reported in DB
 - USE_GPU set to 1

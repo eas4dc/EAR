@@ -69,7 +69,6 @@ static struct ipmi_rs * sendcmd(struct ipmi_intf * intf, struct ipmi_rq * req)
 		};
 	static struct ipmi_rs rsp;
 	uint8_t * data = NULL;
-	int data_len = 0;
 	static int curr_seq = 0;
 	fd_set rset;
 	
@@ -280,36 +279,36 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
 	uint32_t aux_ts = 0;
 	uint8_t *bytes_rs;
 	state_t st;
-	ulong *penergy_mj=(ulong *)energy_mj;
+	ulong *penergy_mj = (ulong *)energy_mj;
 
-	*penergy_mj=0;
-	*time_ms=0;
-	st=sd650_ene((struct ipmi_intf *)c,&out);
-	if (st!=EAR_SUCCESS) return st;
-	bytes_rs=out.data;
-	aux_ej=(bytes_rs[FIRST_BYTE_EJ+3] << 24) | (bytes_rs[FIRST_BYTE_EJ+2] << 16) | (bytes_rs[FIRST_BYTE_EJ+1] << 8) | (bytes_rs[FIRST_BYTE_EJ]);
-	aux_emj=(bytes_rs[FIRST_BYTE_EMJ+1] << 8)  | (bytes_rs[FIRST_BYTE_EMJ]);
-	*penergy_mj=	((ulong)aux_ej*1000)+(ulong)aux_emj;
-	aux_tms=bytes_rs[FIRST_BYTE_TMS+1] <<  8 | bytes_rs[FIRST_BYTE_TMS];
-	aux_ts=bytes_rs[FIRST_BYTE_TS+3] << 24 | bytes_rs[FIRST_BYTE_TS+2] << 16 | bytes_rs[FIRST_BYTE_TS+1] << 8 | bytes_rs[FIRST_BYTE_TS];
-	*time_ms=((ulong)aux_ts*1000)+(ulong)aux_tms;
+	*penergy_mj = 0;
+	*time_ms = 0;
+	st = sd650_ene((struct ipmi_intf *)c,&out);
+	if (st != EAR_SUCCESS) return st;
+	bytes_rs = out.data;
+	aux_ej = (bytes_rs[FIRST_BYTE_EJ+3] << 24) | (bytes_rs[FIRST_BYTE_EJ+2] << 16) | (bytes_rs[FIRST_BYTE_EJ+1] << 8) | (bytes_rs[FIRST_BYTE_EJ]);
+	aux_emj = (bytes_rs[FIRST_BYTE_EMJ+1] << 8)  | (bytes_rs[FIRST_BYTE_EMJ]);
+	*penergy_mj =	((ulong)aux_ej*1000)+(ulong)aux_emj;
+	aux_tms = bytes_rs[FIRST_BYTE_TMS+1] <<  8 | bytes_rs[FIRST_BYTE_TMS];
+	aux_ts = bytes_rs[FIRST_BYTE_TS+3] << 24 | bytes_rs[FIRST_BYTE_TS+2] << 16 | bytes_rs[FIRST_BYTE_TS+1] << 8 | bytes_rs[FIRST_BYTE_TS];
+	*time_ms = ((ulong)aux_ts*1000)+(ulong)aux_tms;
 	return EAR_SUCCESS;
 }
 state_t energy_ac_read(void *c, edata_t energy_mj)
 {
-	ulong *penergy_mj=(ulong *)energy_mj;
-	*penergy_mj=0;
+	ulong *penergy_mj = (ulong *)energy_mj;
+	*penergy_mj = 0;
 	return EAR_SUCCESS;
 }
 
 
 unsigned long diff_node_energy(ulong init,ulong end)
 {
-  ulong ret=0;
-  if (end>init){
-    ret=end-init;
+  ulong ret = 0;
+  if (end > init){
+    ret = end - init;
   } else{
-    ret=ulong_diff_overflow(init,end);
+    ret = ulong_diff_overflow(init,end);
   }
   return ret;
 }
@@ -322,17 +321,23 @@ state_t energy_units(uint *units)
 }
 state_t energy_accumulated(unsigned long *e,edata_t init,edata_t end)
 {
-  int i;
-	ulong *pinit=(ulong *)init,*pend=(ulong *)end;
+	ulong *pinit = (ulong *)init,*pend=(ulong *)end;
 
-  unsigned long total=diff_node_energy(*pinit,*pend);
-  *e=total;
+  unsigned long total = diff_node_energy(*pinit,*pend);
+  *e = total;
   return EAR_SUCCESS;
 }
 state_t energy_to_str(char *str,edata_t e)
 {
-  ulong *pe=(ulong *)e;
+  ulong *pe = (ulong *)e;
   sprintf(str,"%lu",*pe);
   return EAR_SUCCESS;
+}
+
+uint energy_data_is_null(edata_t e)  
+{
+  ulong *pe = (ulong *)e;
+  return (*pe == 0);
+
 }
 

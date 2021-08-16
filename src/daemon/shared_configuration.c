@@ -35,7 +35,6 @@
 
 static int fd_settings,fd_resched,fd_coeffs,fd_services,fd_freq;
 static int fd_app_mgt,fd_pc_app_info;
-static coefficient_t null_coeffs[1],null_coeffs_default[1];
 
 /** These functions created path names, just to avoid problems if changing the path name in the future */
 /** This functions creates the name of the file mapping the shared memory for the dynamic power settings, it is placed at TMP 

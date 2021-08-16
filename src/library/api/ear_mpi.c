@@ -15,6 +15,7 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+//#define SHOW_DEBUGS 1
 #include <library/api/ear.h>
 #include <library/api/ear_mpi.h>
 #include <library/policies/policy.h>
@@ -34,14 +35,14 @@ void after_init()
 void before_mpi(mpi_call call_type, p2i buf, p2i dest)
 {
 	debug("before_mpi");
-	policy_mpi_init();
+	policy_mpi_init(call_type);
 	ear_mpi_call(call_type,buf,dest);
 }
 
 void after_mpi(mpi_call call_type)
 {
 	debug("after_mpi");
-	policy_mpi_end();
+	policy_mpi_end(call_type);
 }
 
 void before_finalize()

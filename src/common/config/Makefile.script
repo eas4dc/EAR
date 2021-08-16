@@ -1,0 +1,15 @@
+function append()
+{
+	printf -- "--------------------------------------------------------------------------------\n" &>> $1
+	printf -- "file: " &>> $1
+	printf -- $2 &>> $1
+	printf -- "\n--------------------------------------------------------------------------------\n" &>> $1
+    cat $2 &>> $1
+    printf -- "\n" &>> $1
+}
+
+printf "" &> $1
+append $1 config_install.h
+append $1 config_def.h 
+append $1 config_dev.h 
+append $1 config_env.h 

@@ -40,7 +40,7 @@ void sync_fd_get_ip(int fd, long *ip);
 
 void sync_fd_disconnect(int fd);
 
-int sync_question(uint sync_option, int veteran, sync_ans_t *answer);
+int sync_question(uint sync_option, int veteran, sync_answer_t *answer);
 
 int sync_answer(int fd, int veteran);
 

@@ -34,10 +34,13 @@ typedef struct tags
     ulong min_power;
     ulong max_temp;
     ulong error_power;
+		ulong gpu_def_freq;
     long powercap;
+    long max_powercap;
     char energy_model[GENERIC_NAME];
     char energy_plugin[GENERIC_NAME];
     char powercap_plugin[GENERIC_NAME];
+    char powercap_gpu_plugin[GENERIC_NAME];
     char coeffs[GENERIC_NAME];
 } tag_t;
 

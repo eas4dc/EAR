@@ -1,6 +1,6 @@
 # EAR Configuration File
 #---------------------------------------------------------------------------------------------------
-# DB confguration
+# DB confguration:This configuration conrrespondons with the DB server installation
 #---------------------------------------------------------------------------------------------------
 DBIp=127.0.0.1
 DBUser=ear_daemon
@@ -15,41 +15,47 @@ DBMaxConnections=20
 DBReportNodeDetail=1
 # Extended signature information saves also the hardware counters.
 DBreportSIGDetail=1
-# Report loop signature
-DBReportLoops=0
+# Report loop signatures
+DBReportLoops=1
 #---------------------------------------------------------------------------------------------------
-# EAR Daemon (EARD)
+# EAR Daemon (EARD): Update that section to change EARD configuration
 #---------------------------------------------------------------------------------------------------
+#Port is used for connections with the EAR plugin and commands
 NodeDaemonPort=50001
-# In seconds
+# Frequency at wich the periodic metrics are reported: In seconds
 NodeDaemonPowermonFreq=60
+# Max frequency used by eard. It's max frequency but min pstate.
 NodeDaemonMaxPstate=1
 NodeDaemonTurbo=0
+# Dedines if EARD used the DB or not
 NodeUseDB=1
+# Defines if EARD connects with EARDBD to report data or directly with the DB server. Only for testing
 NodeUseEARDBD=1
+# Whe set to 1, this flag means EARD must set frequencies before job starts, if not, frequency is only changed in case job runs with EARL
 NodeDaemonForceFrequencies=1
 # Verbosity
 NodeDaemonVerbose=1
 # When set to 1, the output is saved in 'TmpDir'/eard.log (common configuration) as a log file.
 NodeUseLog=1
 #---------------------------------------------------------------------------------------------------
-# EAR Database Manager (EARDBD)
+# EAR Database Manager (EARDBD): Update that section to change EARDBD configuration
 #---------------------------------------------------------------------------------------------------
 DBDaemonPortTCP=50002
 DBDaemonPortSecTCP=50003
 DBDaemonSyncPort=50004
-# In seconds
+# Aggregation time id frequency at which power metrics are aggregated in aggregated metrics: In seconds
 DBDaemonAggregationTime=60
+# Frequency at which buffered data is sent to DB server
 DBDaemonInsertionTime=30
 # Memory size expressed in MB per process (server and/or mirror) to cache the values.
 DBDaemonMemorySize=120
-# Percentage of this memory chunk for types: mpi, non-mpi and learning applications, loops, energy
-# metrics and aggregations and events, in that order.
-DBDaemonMemorySizePerType=60,22,5,0,7,1,5
+# The percentage of the memory buffer used by the previous field, by each type. These types are: mpi, non-mpi and learning applications, loops, energy metrics and aggregations and events, in that order. If a type gets 0% of space, this metric is discarded and not saved into the database.
+#DBDaemonMemorySizePerType=40,20,5,24,5,1,5
+
 # When set to 1, the output is saved in 'TmpDir'/eardbd.log (common configuration) as a log file.
 DBDaemonUseLog=1
 #---------------------------------------------------------------------------------------------------
-# EAR Library (EARL)
+# EAR Library (EARL): These options modify internal EARL behaviour. Do not modify except you are an expert
 #---------------------------------------------------------------------------------------------------
 CoefficientsDir=@sysconfdir@/ear/coeffs
 # Default power policy values
@@ -67,7 +73,7 @@ CheckEARModeEvery=1000
 
 
 #---------------------------------------------------------------------------------------------------
-# EAR Global Manager (EARGMD)
+# EAR Global Manager (EARGMD): Update that section to use EARGM
 #---------------------------------------------------------------------------------------------------
 EARGMHost=node1001
 # Use aggregated periodic metrics or periodic power metrics. Aggregated metrics are only available
@@ -92,8 +98,26 @@ EARGMGracePeriods=3
 EARGMVerbose=1
 # When set to 1, the output is saved in 'TmpDir'/eargmd.log (common configuration) as a log file.
 EARGMUseLog=1
-# DEfines
+# Format for action is: command_name energy_T1 energy_T2  energy_limit T2 T1  units "
+# This action is automatically executed at each warning level (only once per grace periods)
 EARGMEnergyAction=no_action
+
+#### POWERCAP definition for EARGM: Powercap is still under development. Do not activate
+# 0 means no powercap
+EARGMPowerLimit=0
+# Period at which the powercap thread is activated
+EARGMPowerPeriod=120
+# 1 means automatic, 0 is only monitoring
+EARGMPowerCapMode=1
+# Admins can specify to automatically execute a command in EARGMPowerCapSuspendAction when total_power >= EARGMPowerLimit*EARGMPowerCapResumeLimit/100
+EARGMPowerCapSuspendLimit=90
+# Format for action is: command_name current_power current_limit total_idle_nodes total_idle_power 
+EARGMPowerCapSuspendAction=no_action
+# Admins can specify to automatically execute a command in EARGMPowerCapResumeAction to undo EARGMPowerCapSuspendAction
+# when total_power >= EARGMPowerLimit*EARGMPowerCapResumeLimit/100. Note that this will only be executed if a suspend action was executed previously.
+EARGMPowerCapResumeLimit=40
+# Format for action is: command_name current_power current_limit total_idle_nodes total_idle_power 
+EARGMPowerCapResumeAction=no_action
 
 #---------------------------------------------------------------------------------------------------
 # Common configuration
@@ -109,8 +133,12 @@ Verbose=0
 # Plugin configuration. These values are used for the whole cluster except a specific configuration is
 # explicitly applied to one tag. They are mandatory since they are used by default 
 #---------------------------------------------------------------------------------------------------
+## Energy readings sources: List of plugins available at $EAR_INSTALL_PATH/lib/plugins/energy
 energy_plugin=energy_nm.so
+### Energy models: List of plugins available at $EAR_INSTALL_PATH/lib/plugins/models
 energy_model=avx512_model.so
+### Powercap plugins: List of plugins available at $EAR_INSTALL_PATH/lib/plugins/powercap
+powercap_plugin=dvfs.so
 
 #---------------------------------------------------------------------------------------------------
 # Authorized Users
@@ -126,10 +154,13 @@ AuthorizedGroups=grp1,grp2
 #---------------------------------------------------------------------------------------------------
 # Tags are used for architectural descriptions. Max. AVX frequencies are used in predictor models
 # and are SKU-specific. Max. and min. power are used for warning and error tracking. 
-# At least a default tag is mandatory
-# to be included in this file for a cluster to work properly.
-Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=500 min_power=50 error_power=600 coeffs=coeffs.default
-Tag=6126 max_avx512=2.3 max_avx2=2.9 ceffs=coeffs.6126.default max_power=600 error_power=700
+# Powercap specifies the maximum power a node is allowed to use by default. If EARGM is actively
+# monitoring the cluster's powercap, max_powercap can be used to ensure that a node's power will never
+# go beyond that value, regardless of the free power available cluster-wide. A different than the
+# default powercap plugin can be specified for nodes using the tag.
+# At least a default tag is mandatory to be included in this file for a cluster to work properly.
+Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=500 min_power=50 error_power=600 coeffs=coeffs.default powercap=0 powercap_plugin=nm.so
+Tag=6126 max_avx512=2.3 max_avx2=2.9 ceffs=coeffs.6126.default max_power=600 error_power=700 powercap=150 max_powercap=250
 
 #---------------------------------------------------------------------------------------------------
 ## Power policies
@@ -139,17 +170,23 @@ Tag=6126 max_avx512=2.3 max_avx2=2.9 ceffs=coeffs.6126.default max_power=600 err
 DefaultPowerPolicy=min_time
 Policy=monitoring Settings=0 DefaultFreq=2.4 Privileged=0
 Policy=min_time Settings=0.7 DefaultFreq=2.0 Privileged=0
-Policy=min_energy Settings=0.1 DefaultFreq=2.4 Privileged=1
+Policy=min_energy Settings=0.05 DefaultFreq=2.4 Privileged=1
 
-# For homogeneous systems, default frequencies can be easily specified using freqs, for heterogeneous systems it is preferred to use pstates  
+# For homogeneous systems, default frequencies can be easily specified using freqs, for heterogeneous systems it is preferred to use pstates or use tags 
 
 # Example with pstates (lower pstates corresponds with higher frequencies). Pstate=1 is nominal and 0 is turbo
 #Policy=monitoring Settings=0 DefaultPstate=1 Privileged=0
 #Policy=min_time Settings=0.7 DefaultPstate=4 Privileged=0
-#Policy=min_energy Settings=0.1 DefaultPstate=1 Privileged=1
+#Policy=min_energy Settings=0.05 DefaultPstate=1 Privileged=1
 
 
-
+#Example with tags
+#Policy=monitoring Settings=0 DefaultFreq=2.6 Privileged=0 tag=6126
+#Policy=min_time Settings=0.7 DefaultFreq=2.1 Privileged=0 tag=6126
+#Policy=min_energy Settings=0.05 DefaultFreq=2.6 Privileged=1 tag=6126
+#Policy=monitoring Settings=0 DefaultFreq=2.4 Privileged=0 tag=6148
+#Policy=min_time Settings=0.7 DefaultFreq=2.0 Privileged=0 tag=6148
+#Policy=min_energy Settings=0.05 DefaultFreq=2.4 Privileged=1 tag=6148
 
 #---------------------------------------------------------------------------------------------------
 # Energy Tags
@@ -169,14 +206,15 @@ EnergyTag=memory-intensive pstate=4 users=usr1,usr2 groups=grp1,grp2 accounts=ac
 #
 # In the following example the nodes are clustered in two different islands, but the Island 1 have
 # two types of EARDBDs configurations. 
-Island=0 Nodes=node10[01-80] DBIP=node1081 DBSECIP=node1082 
+#
+
+Island=0 Nodes=node10[01-80] DBIP=node1081 DBSECIP=node1082
 
 # These nodes are in island0 using different DB connections and with a different architecture
-Island=0 Nodes=node11[01-80] DBIP=node1084 DBSECIP=node1085 tag=6126 
+Island=0 Nodes=node11[01-80] DBIP=node1084 DBSECIP=node1085 tag=6126
 # These nodes are is island0 and will use default values for DB connection (line 0 for island0) and default tag
-Island=0 Nodes=node12[01-80]  
+Island=0 Nodes=node12[01-80]
 
 
 # Will use default tag 
-Island=1 Nodes=node11[01-40] DBIP=node1181 DBSECIP=node1182
-Island=1 Nodes=node11[41-80] DBIP=node1183 DBSECIP=node1184
+Island=1 Nodes=node11[01-80] DBIP=node1181 DBSECIP=node1182 

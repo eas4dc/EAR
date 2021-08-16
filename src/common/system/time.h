@@ -59,15 +59,21 @@ void timestamp_getreal(timestamp *ts);
 /* Converts timestamp_t format to ullong in the selected time units. */
 ullong timestamp_convert(timestamp *ts, ullong time_unit);
 
+/* A combination of getfast and convert. */
+ullong timestamp_getconvert(ullong time_unit);
+
 /* Computes the difference between two timestamp_t values (ts2-ts1) and converts to the
  * selected time units. time_unit=1 means ns. */
 ullong timestamp_diff(timestamp *ts2, timestamp *ts1, ullong time_unit);
 
-/* A combination of getfast and convert. */
-ullong timestamp_getconvert(ullong time_unit);
+/* Gets the current time and diffs between now and ts1. */
+ullong timestamp_diffnow(timestamp *ts1, ullong time_unit);
 
-void print_timestamp(timestamp *ts);
 /* Converts a time to timestamp */
 void timestamp_revert(timestamp *ts, ullong *tr, ullong time_unit);
+
+void timestamp_to_str(timestamp *ts,char *txt,uint size);
+
+void print_timestamp(timestamp *ts);
 
 #endif //EAR_COMMON_TIME_H

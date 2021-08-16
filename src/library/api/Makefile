@@ -1,13 +1,18 @@
-API_CFLAGS = $(CFLAGS) $(MPI_CFLAGS) 
-
 ######## FILES
 
 OBJS = \
     ear.o \
-    ear_mpi.o \
     ear_seq.o \
+    clasify.o \
+    mpi_support.o \
+    cupti.o
+
+ifeq ($(FEAT_MPI_API), 1)
+OBJS += \
+    ear_mpi.o \
     mpic.o \
-    mpif.o \
+    mpif.o
+endif
 
 BINS = libear_seq.so
 
@@ -15,14 +20,11 @@ BINS = libear_seq.so
 
 all: $(OBJS) $(BINS)
 
-ear.o: ear.c ear.h
-	$(CC) $(API_CFLAGS)  $(PAPI_CFLAGS) -c $<	
-
 %.o: %.c %.h
-	$(CC) $(API_CFLAGS) -c $<
+	$(CC) $(CC_FLAGS) $(LIB_CFLAGS) $(CFLAGS) -c $<
 
 libear_seq.so: ear_seq.o
-	$(CC) -shared -o libear_seq.so ear_seq.o -ldl
+	$(CC) $(CC_FLAGS) -shared -o $@ $^ -ldl
 
 ######## OPTIONS 
 

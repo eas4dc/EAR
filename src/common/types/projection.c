@@ -15,6 +15,7 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+//#define SHOW_DEBUGS 1
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,7 +24,6 @@
 #include <common/config/config_env.h>
 #include <common/types/projection.h>
 #include <common/system/symplug.h>
-//#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
 #include <common/types/configuration/cluster_conf.h>
 #include <common/hardware/architecture.h>
@@ -48,7 +48,6 @@ typedef struct model_symbols {
 
 // Static data
 static models_sym_t models_syms_fun;
-static void    *models_syms_obj = NULL;
 const int       models_funcs_n = 4;
 const char     *models_syms_nam[] = {
   "model_init",
@@ -66,19 +65,26 @@ state_t projections_init(uint user_type, conf_install_t *data, architecture_t * 
 {
 	char basic_path[SZ_PATH_INCOMPLETE];
 	char *obj_path = getenv(SCHED_EAR_POWER_MODEL);
+  char *ins_path = getenv(SCHED_EARL_INSTALL_PATH);
+
 	state_t st;
 
 	if (data->obj_power_model!=NULL) debug("obj_power_model defined with %s\n",data->obj_power_model);
 	if (data->obj_power_model== NULL) debug("obj_power_model NULL\n");
-	if ((obj_path == NULL) || (user_type != AUTHORIZED))
+	if (((obj_path == NULL) && (ins_path == NULL)) || (user_type != AUTHORIZED))
 	{
 		if ((strcmp(data->obj_power_model,"default")==0) || (data->obj_power_model==NULL)){
-			sprintf(basic_path, "%s/models/basic_model.so", data->dir_plug);
+			xsnprintf(basic_path,sizeof(basic_path), "%s/models/basic_model.so", data->dir_plug);
 		}else if (data->obj_power_model!=NULL){
-			sprintf(basic_path, "%s/models/%s", data->dir_plug,data->obj_power_model);
+			xsnprintf(basic_path, sizeof(basic_path),"%s/models/%s", data->dir_plug,data->obj_power_model);
 		}
 		obj_path = basic_path;
 		
+	}else{
+    if (obj_path == NULL){
+      snprintf(basic_path,sizeof(basic_path),"%s/plugins/models/%s",ins_path,data->obj_power_model);
+      obj_path=basic_path;
+    }
 	}
 	debug("Using power model path  %s", obj_path);
 	
@@ -87,7 +93,7 @@ state_t projections_init(uint user_type, conf_install_t *data, architecture_t * 
 	if (st == EAR_SUCCESS) {
 		freturn(models_syms_fun.init,data->dir_conf, data->dir_temp, arch_desc);
 	}else{
-		error("Error when loading shared object %s",obj_path);
+		verbose(2,"Error when loading shared object %s",obj_path);
 	}
 	
 	return st;

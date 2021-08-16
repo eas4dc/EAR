@@ -6,21 +6,24 @@ temp_OBJS = temperature.o
 
 ######## RULES
 
-all:  $(temp_OBJS)
+all: all.components $(temp_OBJS)
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<
+#	$(CC) $(CFLAGS) -o temp temperature.o $(SRCDIR)/metrics/libmetrics.a $(SRCDIR)/common/libcommon.a
 
 ######## SUBFOLDERS
 
+%.components:
+	@ $(MAKE) -C 'archs' $* || exit
 
 ######## OPTIONS
 
-install: ;
+install: install.components;
 
 %.install: ;
 
-clean: rclean;
+clean: rclean clean.components;
 
 ######## DEPENDENCIES
 

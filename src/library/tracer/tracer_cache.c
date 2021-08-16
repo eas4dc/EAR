@@ -18,7 +18,6 @@
 #ifndef _EAR_TRACES_H_
 #define _EAR_TRACES_H_
 
-#include <papi.h>
 #include <common/config.h>
 #include <common/output/verbose.h>
 #include <common/types/generic.h>

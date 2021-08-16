@@ -95,6 +95,29 @@ void init_db_helper(db_conf_t *conf)
 }
 
 #if DB_MYSQL
+float run_query_float_result(char *query)
+{
+    MYSQL_RES *result = db_run_query_result(query);
+    float num_indexes;
+    if (result == NULL) {
+        verbose(VDBH, "Error while retrieving result");
+        return EAR_ERROR;
+    } else {
+        MYSQL_ROW row;
+        unsigned int num_fields;
+        unsigned int i;
+
+        num_fields = mysql_num_fields(result);
+        while ((row = mysql_fetch_row(result)))
+        {
+            mysql_fetch_lengths(result);
+            for(i = 0; i < num_fields; i++)
+                num_indexes = atof(row[i]);
+        }
+    }
+    return num_indexes;
+}
+
 int run_query_int_result(char *query)
 {
     MYSQL_RES *result = db_run_query_result(query);
@@ -195,15 +218,36 @@ MYSQL *mysql_create_connection()
 PGconn *postgresql_create_connection()
 {
     char temp[32];
+    char **keys, **values;
     PGconn *connection;
 
     sprintf(temp, "%d", db_config->port);
     strtolow(db_config->database);
 
+    keys = calloc(4, sizeof(char *));
+    values = calloc(4, sizeof(char*));
+
+    keys[0] = "dbname";
+    keys[1] = "user";
+    keys[2] = "password";
+    keys[3] = "host";
+
+    values[0] = db_config->database;
+    values[1] = db_config->user;
+    values[2] = db_config->pass;
+    values[3] = db_config->ip;
+
+#if 0
     if (db_config->port > 0)
         connection = PQsetdbLogin(db_config->ip, temp, NULL,NULL, db_config->database, db_config->user, db_config->pass);
     else
         connection = PQsetdbLogin(db_config->ip, NULL, NULL,NULL, db_config->database, db_config->user, db_config->pass);
+#endif
+
+    connection = PQconnectdbParams((const char * const *)keys, (const char * const *)values, 0);
+
+    free(keys);
+    free(values);
 
     if (PQstatus(connection) != CONNECTION_OK)
     {
@@ -1637,3 +1681,28 @@ ulong get_num_applications(char is_learning, char *node_name)
     return ret;
 }
 
+#define MAX_DC_POWER_QUERY  "SELECT MAX(DC_power) FROM Learning_applications INNER JOIN Power_signatures ON "\
+                            "power_signature_id = id INNER JOIN Learning_jobs ON job_id = Learning_jobs.id AND "\
+                            "Learning_applications.step_id = Learning_jobs.step_id WHERE app_id LIKE '%%%s%%' AND "\
+                            "Learning_jobs.def_f = %lu"
+
+#define MMAX_DC_POWER_QUERY "SELECT MAX(max_DC_power) FROM Learning_applications INNER JOIN Power_signatures ON "\
+                            "power_signature_id = id INNER JOIN Learning_jobs ON job_id = Learning_jobs.id AND "\
+                            "Learning_applications.step_id = Learning_jobs.step_id WHERE app_id LIKE '%%%s%%' AND "\
+                            "Learning_jobs.def_f = %lu"
+
+float get_max_dc_power(char is_max, char *app_name, ulong freq)
+{
+    char query[512];
+    if (is_max)
+        sprintf(query, MMAX_DC_POWER_QUERY, app_name, freq);
+    else
+        sprintf(query, MAX_DC_POWER_QUERY, app_name, freq);
+
+#if DB_MYSQL
+    return run_query_float_result(query);
+#else
+    warning("Method not implemented for current database library");
+    return 0;
+#endif
+}

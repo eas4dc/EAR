@@ -82,7 +82,7 @@ state_t DB_parse_token(db_conf_t *conf,char *token)
       remove_chars(token, ' ');
       strcpy(conf->pass_commands, token);
     }
-    else if (!strcmp(token, "MARIADBDATABASE") || !strcmp(token, "DBDATABASE") )
+    else if (!strcmp(token, "MARIADBDATABASE") || !strcmp(token, "DBDATABASE"))
     {
 			found = EAR_SUCCESS;
       token = strtok(NULL, "=");
@@ -141,7 +141,7 @@ void set_default_db_conf(db_conf_t *db_conf)
   strcpy(db_conf->ip, "127.0.0.1");
   db_conf->port = 3306;
   db_conf->max_connections=MAX_DB_CONNECTIONS;
-  db_conf->report_node_detail=DEMO;
+  db_conf->report_node_detail=1;
   db_conf->report_sig_detail=!DB_SIMPLE;
   db_conf->report_loops=!LARGE_CLUSTER;
 }

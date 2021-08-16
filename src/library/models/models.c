@@ -31,27 +31,16 @@
 #include <library/common/externs.h>
 #include <library/models/models.h>
 
-static int use_default=1;
-
-
-
-// Normals
-//
-static uint reset_freq_opt = RESET_FREQ;
-static uint ear_models_pstates = 0;
-static ulong user_selected_freq;
-static int model_nominal=1;
 
 
 state_t init_power_models(uint user_type,conf_install_t *data,architecture_t *arch_desc)
 {
 	state_t st;
-	st=projections_init(user_type,data,arch_desc);
-	ear_models_pstates = arch_desc->pstates;
+	st = projections_init(user_type,data,arch_desc);
 	debug("Projections for %d pstates",arch_desc->pstates);
 	projection_create(arch_desc->pstates);
 	projection_reset(arch_desc->pstates);
-	return EAR_SUCCESS;
+	return st;
 }
 
 

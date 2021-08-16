@@ -44,7 +44,9 @@ typedef struct eargm_conf
   ulong t1_power;
   ulong powercap_mode;  /* 1=auto by default, 0=monitoring_only */
   ulong defcon_power_limit;   /* Percentages from the maximum to execute the action (0..100)*/
-  char powercap_action[GENERIC_NAME]; /* Script file for powercap actions */
+  ulong defcon_power_lower;   /* Percentages from the maximum to execute the restore (0..100)*/
+  char powercap_limit_action[GENERIC_NAME]; /* Script file for powercap actions */
+  char powercap_lower_action[GENERIC_NAME]; /* Script file for powercap actions */
   #endif
   /****/
   uint  units;      /* 0=J, 1=KJ=default, 2=MJ, or Watts when using Power */

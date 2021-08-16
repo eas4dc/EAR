@@ -78,8 +78,10 @@ typedef struct my_node_conf
     ulong   max_temp;
     ulong   max_avx512_freq;
     ulong   max_avx2_freq;
-    double  max_power_cap;
+    long    max_powercap;
+    long    powercap;
     char    powercap_type;
+		ulong   gpu_def_freq;
     uint 	use_log;
 }my_node_conf_t;
 
@@ -125,6 +127,8 @@ void print_node_conf(node_conf_t *node_conf);
 
 /** prints in the stderr the specific node configuration */
 void print_my_node_conf(my_node_conf_t *my_node_conf);
+int policy_name_to_nodeid(char *my_policy, my_node_conf_t *conf);
+
 
 void print_my_node_conf_fd_binary(int fd,my_node_conf_t *myconf);
 void read_my_node_conf_fd_binary(int fd,my_node_conf_t *myconf);

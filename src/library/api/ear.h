@@ -19,6 +19,7 @@
 #define _EAR_API_H_
 
 #include <library/api/mpi.h>
+#include <library/common/global_comm.h>
 
 /** Initializes all the elements of the library as well as connecting to the daemon. */
 void ear_init();

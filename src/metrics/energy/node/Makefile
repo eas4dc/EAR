@@ -5,20 +5,21 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 ener_OBJS = \
     energy_nm.o \
     energy_rapl.o \
-    energy_sd650.o \
-    energy_dcmi.o
+    energy_dcmi.o \
+    energy_sd650.o 
 ener_BINS = \
     energy_nm.so \
     energy_rapl.so \
-    energy_sd650.so \
-    energy_dcmi.so
+    energy_dcmi.so \
+    energy_sd650.so 
+
 ener_PATH = $(DESTDIR)/lib/plugins/energy
 ener_PERM = 0775
 ener_DEPS = \
     $(SRCDIR)/common/libcommon.a
 rapl_DEPS = \
     $(SRCDIR)/metrics/common/omsr.o \
-    $(SRCDIR)/metrics/energy/cpu/intel_haswell.o
+    $(SRCDIR)/metrics/energy/cpu/intel63.o
 
 ######## RULES
 

@@ -3,7 +3,8 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 ######## FILES
 
 freq_OBJS = \
-	intel63.o
+	intel63.o\
+	intel_dummy.o
 
 ######## RULES
 

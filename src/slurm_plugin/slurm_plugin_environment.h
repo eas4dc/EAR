@@ -55,15 +55,9 @@ typedef int   plug_context_t;
 struct component_s {
 	plug_component_t plugin;
 	plug_component_t library;
-	plug_component_t monitor;
-	plug_component_t test;
-	plug_component_t verbose;
 } Component __attribute__((weak)) = {
 	.plugin  = "SLURM_ECPLUG",
 	.library = "SLURM_ECLIBR",
-	.monitor = "SLURM_ECMONI",
-	.test    = "SLURM_ECTEST",
-	.verbose = "SLURM_ECVERB"
 };
 
 struct context_s {
@@ -91,18 +85,16 @@ struct constring_s {
 };
 
 typedef struct varname_s {
-	char *loc;
-	char *rem;
-	char *ear;
-	char *cmp;
-	char *hck;
+	char *loc; // Variables from user environment
+	char *rem; // Variables from local to remote
+	char *ear; // Variables from remote to task
+	char *cmp; // Component variables
+	char *hck; // Hack variables
 } varnames_t;
 
 struct variables_s {
 	varnames_t comp_libr;
 	varnames_t comp_plug;
-	varnames_t comp_moni;
-	varnames_t comp_test;
 	varnames_t comp_verb;
 	varnames_t hack_load;
 	varnames_t verbose;
@@ -114,9 +106,8 @@ struct variables_s {
 	varnames_t tag;
 	varnames_t path_usdb;
 	varnames_t path_trac;
-	varnames_t gm_host;
-	varnames_t gm_port;
-	varnames_t gm_min;
+//	varnames_t gm_host;
+//	varnames_t gm_port;
 	varnames_t gm_secure;
 	varnames_t perf_pen;
 	varnames_t eff_gain;
@@ -130,6 +121,7 @@ struct variables_s {
 	varnames_t job_nodn;
 	varnames_t step_nodl;
 	varnames_t step_nodn;
+	varnames_t task_pid;
 	varnames_t ctx_last;
 	varnames_t was_sbac;
 	varnames_t was_srun;
@@ -137,13 +129,13 @@ struct variables_s {
 	varnames_t ld_libr;
 	varnames_t node_num;
 	varnames_t version;
+//	varnames_t nodes_allowed;
+//	varnames_t nodes_excluded;
 }
 	Var __attribute__((weak)) =
 {
 .comp_libr = { .cmp = "SLURM_COMP_LIBRARY" },
 .comp_plug = { .cmp = "SLURM_COMP_PLUGIN"  },
-.comp_moni = { .cmp = "SLURM_COMP_MONITOR" },
-.comp_test = { .cmp = "SLURM_COMP_TEST"    },
 .comp_verb = { .cmp = "SLURM_COMP_VERBOSE" },
 .hack_load = { .hck =  HACK_FILE_LOAD      },
 .verbose   = { .loc = "SLURM_LOC_VERB",      .ear = VAR_OPT_VERB      },
@@ -155,8 +147,8 @@ struct variables_s {
 .tag       = { .loc = "SLURM_LOC_ETAG",      .ear = VAR_OPT_ETAG      },
 .path_usdb = { .loc = "SLURM_LOC_USDB",      .ear = VAR_OPT_USDB      },
 .path_trac = { .loc = "SLURM_LOC_TRAC",      .ear = VAR_OPT_TRAC      },
-.gm_host   = { .loc = "SLURM_LOC_GMHS",      .ear = ""                },
-.gm_port   = { .loc = "SLURM_LOC_GMPR",      .ear = ""                },
+//.gm_host   = { .loc = "SLURM_LOC_GMHS",      .ear = ""                },
+//.gm_port   = { .loc = "SLURM_LOC_GMPR",      .ear = ""                },
 .gm_secure = { .loc = "SLURM_LOC_GMSC",      .ear = ""                },
 .perf_pen  = { .loc = "",                    .ear = VAR_OPT_THRB      },
 .eff_gain  = { .loc = "",                    .ear = VAR_OPT_THRC      },
@@ -164,19 +156,22 @@ struct variables_s {
 .user      = { .rem = "SLURM_ERUSER",        .ear = "" },
 .group     = { .rem = "SLURM_ERGRUP",        .ear = "" },
 .account   = { .rem = "SLURM_JOB_ACCOUNT",   .ear = "" },
-.path_temp = { .rem = "SLURM_ERTEMP",        .ear = VAR_TMP_PATH      },
-.path_inst = { .rem = "SLURM_ERINST",        .ear = VAR_INS_PATH      },
+.path_temp = { .rem = "",                    .ear = VAR_TMP_PATH      },
+.path_inst = { .rem = "",                    .ear = VAR_INS_PATH      },
 .job_nodl  = { .rem = "SLURM_JOB_NODELIST",  .ear = "" },
 .job_nodn  = { .rem = "SLURM_JOB_NUM_NODES", .ear = "" },
 .step_nodl = { .rem = "SLURM_STEP_NODELIST", .ear = "" },
 .step_nodn = { .rem = "SLURM_STEP_NUM_NODES",.ear = "" },
+.task_pid  = { .rem =  FLAG_TASK_PID,        .ear = "" },
 .ctx_last  = { .rem = "SLURM_ERLAST",        .ear = "" },
 .was_sbac  = { .rem = "SLURM_ERSBAC",        .ear = "" },
 .was_srun  = { .rem = "SLURM_ERSRUN",        .ear = "" },
 .ld_prel   = { .rem = "",                    .ear = "LD_PRELOAD"      },
 .ld_libr   = { .rem = "",                    .ear = "LD_LIBRARY_PATH" },
 .node_num  = { .loc = "SLURM_NNODES",        .ear = "" },
-.version   = { .loc = "SLURM_EAR_MPI_VERSION", .ear = ""              }
+.version   = { .loc = "SLURM_EAR_MPI_VERSION",     .ear = ""          },
+//.nodes_allowed  = { .rem = "SLURM_NODES_ALLOWED",  .ear = ""          },
+//.nodes_excluded = { .rem = "SLURM_NODES_EXCLUDED", .ear = ""          },
 };
 
 /*

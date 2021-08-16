@@ -1,0 +1,79 @@
+.\" Manpage for eacct.
+.TH man 1 "July 2021" "4.0" "eacct man page"
+.SH NAME
+eacct \- See a report of the last job executions reported by EAR's daemons.
+.SH SYNOPSIS
+eacct [options]
+
+.SH DESCRIPTION
+
+eacct is a simple command to see a jobs' energy accounting information. It can also retrieve EARL events that occurred on a job execution.
+
+.SH OPTIONS
+
+    -h      displays this message
+    -v      displays current EAR version
+    -u      specifies the user whose applications will be retrieved. Only available to privileged users. [default: all users]
+    -j      specifies the job id and step id to retrieve with the format [jobid.stepid] or the format [jobid1,jobid2,...,jobid_n].
+                                A user can only retrieve its own jobs unless said user is privileged. [default: all jobs]
+    -a      specifies the application names that will be retrieved. [default: all app_ids]
+    -c      specifies the file where the output will be stored in CSV format. [default: no file]
+    -t      specifies the energy_tag of the jobs that will be retrieved. [default: all tags].
+    -l      shows the information for each node for each job instead of the global statistics for said job.
+    -x      shows the last EAR events. Nodes, job ids, and step ids can be specified as if were showing job information.
+    -m      prints power signatures regardless of whether mpi signatures are available or not.
+    -r      shows the EAR loop signatures. Nodes, job ids, and step ids can be specified as if were showing job information.
+    -n      specifies the number of jobs to be shown, starting from the most recent one. [default: 20][to get all jobs use -n all]
+    -f      specifies the file where the user-database can be found. If this option is used, the information will be read from the file and not the database.
+    -b      verbose mode for debugging purposes
+
+.SH Usage examples
+
+The basic usage of eacct retrieves the last 20 applications (by default) of the user executing it. If a user is privileged, they may see all users applications.
+The default behaviour shows data from each job-step, aggregating the values from each node in said job-step. If using SLURM as a job manager, a sb (sbatch) 
+job-step is created with the data from the entire execution.
+A specific job may be specified with -j:
+
+[user@host EAR]$ eacct -j 175966
+
+    JOB-STEP USER       APPLICATION      POLICY NODES AVG/DEF/IMC(GHz) TIME(s)    POWER(W) GBS     CPI   ENERGY(J)    GFLOPS/W IO(MBs) MPI%  G-POW (T/U)   G-FREQ  G-UTIL(G/MEM)
+ 175966-sb   user       afid             NP     2     2.97/3.00/---    3660.00    381.51   ---     ---   2792619      ---      ---     ---   ---           ---     ---
+ 175966-2    user       afid             MO     2     2.97/3.00/2.39   1205.26    413.02   146.21  1.04  995590       0.1164   0.0     21.0  ---           ---     ---
+ 175966-1    user       afid             MT     2     2.62/2.60/2.37   1234.41    369.90   142.63  1.02  913221       0.1265   0.0     19.7  ---           ---     ---
+ 175966-0    user       afid             ME     2     2.71/3.00/2.19   1203.33    364.60   146.23  1.07  877479       0.1310   0.0     17.9  ---           ---     ---
+
+For node-specific information, the -l option provides detailed accounting of each individual node:
+
+[user@host EAR]$ eacct -j 175966 -l
+     JOB-STEP    NODE ID    USER ID    APPLICATION      AVG-F/IMC-F TIME(s)    POWER(s)   GBS        CPI        ENERGY(J)  IO(MBS) MPI%  VPI(%)  G-POW(T/U)    G-FREQ G-UTIL(G/M)
+  175966-sb      cmp2506    user       afid              2.97/---   3660.00    388.79     ---        ---        1422970    ---     ---   ---     ---     ---      ---
+  175966-sb      cmp2507    user       afid              2.97/---   3660.00    374.22     ---        ---        1369649    ---     ---   ---     ---     ---      ---
+  175966-2       cmp2506    user       afid              2.97/2.39  1205.27    423.81     146.06     1.03       510807     0.0     21.2  0.23    ---     ---      ---
+  175966-2       cmp2507    user       afid              2.97/2.39  1205.26    402.22     146.35     1.05       484783     0.0     20.7  0.01    ---     ---      ---
+  175966-1       cmp2506    user       afid              2.58/2.38  1234.46    374.14     142.51     1.02       461859     0.0     19.4  0.00    ---     ---      ---
+  175966-1       cmp2507    user       afid              2.67/2.37  1234.35    365.67     142.75     1.03       451362     0.0     20.0  0.01    ---     ---      ---
+  175966-0       cmp2506    user       afid              2.71/2.19  1203.32    371.76     146.25     1.08       447351     0.0     17.9  0.01    ---     ---      ---
+  175966-0       cmp2507    user       afid              2.71/2.19  1203.35    357.44     146.21     1.05       430128     0.0     17.9  0.01    ---     ---      ---
+
+For runtime data (EAR loops) one may retrieve them with -r. Both job_id and step_id filtering works:
+
+[user@host EAR]$ eacct -j 175966.1 -r
+    JOB-STEP      NODE ID    ITER.  POWER(W) GBS      CPI      GFLOPS/W TIME(s)  AVG_F IMC_F IO(MBS) MPI%  G-POWER(T/U) G-FREQ   G-UTIL(G/MEM)
+ 175966-1         cmp2506    21     360.6    115.8    0.838    0.086    1.001    2.58  2.30  0.0     11.6  0.0   /   0.0  0.00     0%/0%
+ 175966-1         cmp2507    21     333.7    118.4    0.849    0.081    1.001    2.58  2.32  0.0     12.0  0.0   /   0.0  0.00     0%/0%
+ 175966-1         cmp2506    31     388.6    142.3    1.010    0.121    1.113    2.58  2.38  0.0     19.7  0.0   /   0.0  0.00     0%/0%
+ 175966-1         cmp2507    31     362.8    142.8    1.035    0.130    1.113    2.59  2.37  0.0     19.5  0.0   /   0.0  0.00     0%/0%
+ 175966-1         cmp2506    41     383.3    143.2    1.034    0.124    1.114    2.58  2.38  0.0     19.6  0.0   /   0.0  0.00     0%/0%
+
+To easily transfer eacct's output, -c option saves it in .csv format. Both aggregated and detailed accountings are available, as well as filtering:
+
+[user@host EAR]$ eacct -j 175966 -c test.csv
+ Successfully written applications to csv. Only applications with EARL will have its information properly written.
+
+[user@host EAR]$ eacct -j 175966.1 -c -l test.csv
+ Successfully written applications to csv. Only applications with EARL will have its information properly written.
+
+.SH BUGS
+    - Saving the output to a file with the -c option and then reading it with -f may cause some issues if there are empty fields.
+.SH AUTHOR
+EAR suport team (ear-support@bsc.es)

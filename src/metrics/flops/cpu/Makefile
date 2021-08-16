@@ -2,14 +2,20 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 
 ######## FILES
 
-flop_OBJS = papi.o
+flop_OBJS = \
+    amd49.o \
+    intel63.o \
+    dummy.o
 
 ######## RULES
 
 all: $(flop_OBJS)
 
 %.o: %.c %.h
-	$(CC) $(CFLAGS) $(PAPI_CFLAGS) -c $< $(PAPI_LDFLAGS)
+	$(CC) $(CFLAGS) -c $<
+
+papi.o: papi.c papi.h
+	$(CC) $(CFLAGS) $(PAPI_CFLAGS) -c $<
 
 ######## OPTIONS
 

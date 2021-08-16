@@ -15,8 +15,8 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#ifndef EAR_MSR_H
-#define EAR_MSR_H
+#ifndef EAR_OMSR_H
+#define EAR_OMSR_H
 #include <unistd.h>
 #include <common/states.h>
 #include <common/types/generic.h>

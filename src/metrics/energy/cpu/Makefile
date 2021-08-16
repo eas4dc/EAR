@@ -3,7 +3,7 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 ######## FILES
 
 ener_OBJS = \
-    intel_haswell.o
+    intel63.o
 
 ######## RULES
 

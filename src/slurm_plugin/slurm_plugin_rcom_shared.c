@@ -30,7 +30,7 @@ int plug_shared_readservs(spank_t sp, plug_serialization_t *sd)
 	plug_verbose(sp, 3, "looking for services in '%s'", buffer);
 
 	if (servs == NULL) {
-		plug_verbose(sp, 2, "while reading the shared services memory in '%s@%s'", sd->subject.host, buffer);
+		plug_error(sp, "while reading the shared services memory in '%s@%s'", sd->subject.host, buffer);
 		return ESPANK_ERROR;
 	}
 

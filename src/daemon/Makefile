@@ -1,31 +1,47 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(CONSTANTS) 
-LDFLAGS = $(DB_LDFLAGS) -rdynamic -lm -pthread -ldl -lm
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(CONSTANTS) -Wall
+LDFLAGS = $(DB_LDFLAGS) -lm -pthread -ldl -rdynamic 
 
 ######## INSTALLATION
 
 eard_BINS = eard
 eard_PATH = $(DESTDIR)/sbin
 eard_PERM = 0770
-oths_BINS = eard_api.o
 
 ######## FILES
 
+local_api_OBJS = \
+	local_api/eard_api.o
+
+remote_api_OBJS= \
+    remote_api/eard_server_api.o \
+    remote_api/dyn_conf_theading.o \
+    remote_api/dynamic_configuration.o 
+
+powercap_OBJS = \
+	powercap/powercap_status.o \
+	powercap/powercap_mgt.o \
+	powercap/powercap.o 
+
+gpu_mgt_OBJS = \
+	gpu/gpu_mgt.o
+
 eard_OBJS = \
     eard_checkpoint.o \
-    eard_rapi.o \
-    eard_server_api.o \
-    dynamic_configuration.o \
-		dyn_conf_theading.o \
     power_monitor.o \
-	  app_mgt.o \
+	app_mgt.o \
     shared_configuration.o \
     app_api/app_server_api.o \
-    node_metrics.o
+    node_metrics.o 
 
 eard_OBJS += \
+    $(remote_api_OBJS) \
+    $(powercap_OBJS) \
+    $(gpu_mgt_OBJS) \
     $(SRCDIR)/database_cache/eardbd_api.o \
+    $(SRCDIR)/management/libmgt.a \
     $(SRCDIR)/metrics/libmetrics.a \
-    $(SRCDIR)/common/libcommon.a \
+	$(local_api_OBJS) \
+    $(SRCDIR)/common/libcommon.a
 
 ######## RULES
 
@@ -37,27 +53,12 @@ eard: eard.c $(eard_OBJS)
 power_monitor.o: power_monitor.c power_monitor.h 
 	$(CC) $(CFLAGS) -c $<
 
-
 node_metrics.o:node_metrics.c node_metrics.h
-	$(CC) $(CFLAGS) -c $<
-
-dynamic_configuration.o: dynamic_configuration.c dynamic_configuration.h
-	$(CC) $(CFLAGS) -c $<
-
-dyn_conf_theading.o: dyn_conf_theading.c dyn_conf_theading.h
 	$(CC) $(CFLAGS) -c $<
 
 shared_configuration.o: shared_configuration.c shared_configuration.h
 	$(CC) $(CFLAGS) -fPIC -c $<
 
-eard_api.o: eard_api.c eard_api.h
-	$(CC) $(CFLAGS) -fPIC -c $<
-
-eard_rapi.o: eard_rapi.c eard_rapi.h
-	$(CC) $(CFLAGS) -fPIC -c $<
-
-eard_server_api.o: eard_server_api.c eard_server_api.h
-	$(CC) $(CFLAGS) -c $< 
 
 eard_checkpoint.o: eard_checkpoint.c eard_checkpoint.h
 	$(CC) $(CFLAGS) -c $<
@@ -73,7 +74,11 @@ clean: clean.components clean.others eard.gclean rclean;
 ######## SUBFOLDERS
 
 %.components:
-	$(MAKE) -C 'app_api' $*
+	@ $(MAKE) -C 'app_api' $*
+	@ $(MAKE) -C 'remote_api' $*
+	@ $(MAKE) -C 'local_api' $*
+	@ $(MAKE) -C 'powercap' $*
+	@ $(MAKE) -C 'gpu' $*
 
 %.others: ;
 

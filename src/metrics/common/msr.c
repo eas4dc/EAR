@@ -15,6 +15,8 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+//#define SHOW_DEBUGS 1
+
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,8 +26,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <common/sizes.h>
-#include <common/states.h>
-//#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
 #include <metrics/common/msr.h>
 
@@ -55,7 +55,25 @@ static struct error_s {
 	pthread_mutex_unlock(lock); \
 	return s;
 
-/* */
+
+state_t msr_test(topology_t *tp)
+{
+	state_t s = EAR_SUCCESS;
+	int c, b;
+	if (tp->cpu_count == 0) {
+		return_msg(EAR_ERROR, Generr.input_uninitialized);
+	}
+	for (c = 0; c < tp->cpu_count; ++c) {
+		if (xtate_fail(s, msr_open(c))) {
+			break;
+		}
+	}
+	for (b = 0; b < c; ++b) {
+		msr_close(b);
+	}
+	return s;
+}
+
 state_t msr_open(uint cpu)
 {
 	char msr_file_name[SZ_PATH_KERNEL];
@@ -63,7 +81,6 @@ state_t msr_open(uint cpu)
 	if (cpu >= MSR_MAX) {
 		return_msg(EAR_BAD_ARGUMENT, Error.cpu_invalid);
 	}
-
 	// General exclusion
 	while (pthread_mutex_trylock(&lock_gen));
 
@@ -72,77 +89,64 @@ state_t msr_open(uint cpu)
 			return_unlock_msg(EAR_ERROR, Error.lock, &lock_gen);
 		}
 	}
-
 	init[cpu] = 1;
 	pthread_mutex_unlock(&lock_gen);
-
 	// CPU exclusion
 	while (pthread_mutex_trylock(&lock_cpu[cpu]));
-	
 	if (counters[cpu] == 0) {
 		sprintf(msr_file_name, "/dev/cpu/%d/msr", cpu);
 		fds[cpu] = open(msr_file_name, O_RDWR);
-		debug("msr open %d", fds[cpu]);
 	}
-		
+	debug("msr open cpu[%d] = %d", cpu,fds[cpu]);
 	if (fds[cpu] < 0) {
-		return_unlock_msg(EAR_SYSCALL_ERROR, strerror(errno), &lock_cpu[cpu]);
+		if (errno == EACCES) {
+			return_unlock_msg(EAR_NO_PERMISSIONS, strerror(errno), &lock_cpu[cpu]);
+		}
+		return_unlock_msg(EAR_ERROR, strerror(errno), &lock_cpu[cpu]);
 	}
-	
 	counters[cpu] += 1;
+
 	return_unlock(EAR_SUCCESS, &lock_cpu[cpu]);
 }
 
-/* */
 state_t msr_close(uint cpu)
 {
 	if (cpu >= MSR_MAX) {
 		return_msg(EAR_BAD_ARGUMENT, Error.cpu_invalid);
 	}
-	
 	if (counters[cpu] == 0) {
 		return_msg(EAR_NOT_INITIALIZED, Error.cpu_uninitialized);
 	}
-	
 	while (pthread_mutex_trylock(&lock_cpu[cpu]));
-	
 	if (counters[cpu] == 0) {
 		return_unlock_msg(EAR_NOT_INITIALIZED, Error.cpu_uninitialized, &lock_cpu[cpu]);
 	}
-
 	counters[cpu] -= 1;
-
 	if (counters[cpu] == 0) {
 		close(fds[cpu]);
 		fds[cpu] = -1;
 	}
-	
 	return_unlock(EAR_SUCCESS, &lock_cpu[cpu]);
 }
 
-/* */
 state_t msr_read(uint cpu, void *buffer, size_t size, off_t offset)
 {
 	if (cpu >= MSR_MAX) {
 		return_msg(EAR_BAD_ARGUMENT, Error.cpu_invalid);
 	}
-	
 	if (counters[cpu] == 0 || fds[cpu] < 0) {
 		return_msg(EAR_NOT_INITIALIZED, Error.cpu_uninitialized);
 	}
-
 	#ifdef MSR_LOCK
 	while (pthread_mutex_trylock(&lock_cpu[cpu]));
 	#endif
-
 	if (pread(fds[cpu], buffer, size, offset) != size) {
 		#ifdef MSR_LOCK
-		return_unlock_msg(EAR_SYSCALL_ERROR, strerror(errno), &lock_cpu[cpu]);
+		return_unlock_msg(EAR_ERROR, strerror(errno), &lock_cpu[cpu]);
 		#else
-		return_msg(EAR_SYSCALL_ERROR, strerror(errno));
+		return_msg(EAR_ERROR, strerror(errno));
 		#endif
 	}
-
 	#ifdef MSR_LOCK
 	return_unlock(EAR_SUCCESS, &lock_cpu[cpu]);
 	#else
@@ -150,32 +154,62 @@ state_t msr_read(uint cpu, void *buffer, size_t size, off_t offset)
 	#endif
 }
 
-/* */
 state_t msr_write(uint cpu, const void *buffer, size_t size, off_t offset)
 {
 	if (cpu >= MSR_MAX) {
 		return_msg(EAR_BAD_ARGUMENT, Error.cpu_invalid);
 	}
-
 	if (counters[cpu] == 0 || fds[cpu] < 0) {
 		return_msg(EAR_NOT_INITIALIZED, Error.cpu_uninitialized);
 	}
-
 	#ifdef MSR_LOCK
 	while (pthread_mutex_trylock(&lock_cpu[cpu]));
 	#endif
-
 	if (pwrite(fds[cpu], buffer, size, offset) != size) {
 		#ifdef MSR_LOCK
-		return_unlock_msg(EAR_SYSCALL_ERROR, strerror(errno), &lock_cpu[cpu]);
+		return_unlock_msg(EAR_ERROR, strerror(errno), &lock_cpu[cpu]);
 		#else
-		return_msg(EAR_SYSCALL_ERROR, strerror(errno));
+		return_msg(EAR_ERROR, strerror(errno));
 		#endif
 	}
-
 	#ifdef MSR_LOCK
 	return_unlock(EAR_SUCCESS, &lock_cpu[cpu]);
 	#else
 	return EAR_SUCCESS;
 	#endif
+}
+
+state_t msr_print(topology_t *tp, off_t offset)
+{
+	ulong value_c;
+	ulong value_t;
+	state_t s_c;
+	state_t s_t;
+	int id_c;
+	int id_t;
+	int i;
+
+	for (i = 0; i < tp->cpu_count; ++i)
+	{
+		if (tp->cpus[i].is_thread) {
+			continue;
+		}
+		id_c = tp->cpus[i].id;
+		id_t = tp->cpus[i].sibling_id;
+		value_c = 0LU;
+		value_t = 0LU;
+		// Open both core and thread
+		s_c = msr_open(id_c);
+		s_t = msr_open(id_t);
+		// Reading both values
+		if (state_ok(s_c)) msr_read(id_c, &value_c, sizeof(ulong), offset);
+		if (state_ok(s_t)) msr_read(id_t, &value_t, sizeof(ulong), offset);
+		// Printing
+		verbose(0, "%d/%d: %lu %lu", id_c, id_t, value_c, value_t);
+		// Closing
+		if (state_ok(s_c)) msr_close(id_c);
+		if (state_ok(s_t)) msr_close(id_t);
+	}
+
+	return EAR_SUCCESS;
 }

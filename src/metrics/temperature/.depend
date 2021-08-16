@@ -1,8 +1,0 @@
-temperature.o: temperature.c ../../common/config.h \
- ../../common/config/config_def.h ../../common/config/config_dev.h \
- ../../common/config/config_env.h ../../common/config/config_install.h \
- ../../metrics/common/omsr.h ../../common/states.h \
- ../../common/output/error.h ../../common/colors.h \
- ../../common/output/timestamp.h ../../common/output/output_conf.h \
- ../../common/types/generic.h ../../common/output/verbose.h \
- ../../common/output/debug.h

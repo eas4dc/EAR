@@ -1,16 +1,15 @@
-CFLAGS = $(CC_FLAGS) $(MPI_CFLAGS) -I$(SRCDIR) -O2 -fPIC
-
 ######## FILES
 
-OBJS = states.o \
-       states_periodic.o
+OBJS = \
+		states_comm.o \
+    states.o 
 
 ######## RULES
 
 all: $(OBJS)
 
 %.o: %.c %.h
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CC_FLAGS) $(LIB_CFLAGS) $(CFLAGS) -c $<
 
 ######## OPTIONS 
 

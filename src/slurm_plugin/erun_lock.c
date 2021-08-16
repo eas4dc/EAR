@@ -22,104 +22,99 @@
 
 // Externs
 extern int _sp;
-
 // Buffers
-char path_mas[SZ_PATH];
-char path_stp[SZ_PATH];
-char path_job[SZ_PATH];
-
+static char path_master[SZ_PATH];
+static char path_step[SZ_PATH];
+static char path_job[SZ_PATH];
+static char command[SZ_PATH];
 //
-int fd_mas = -1;
-int fd_stp = -1;
-int fd_job = -1;
+static int fd_master = -1;
 
-int lock_clean(char *path_tmp)
+int lock_clean(char *path_tmp, int step_id)
 {
 	plug_verbose(_sp, 3, "function lock_clean");
-
-	// 1. Clean erun.master.lock
-	// 2. Clean erun.step.lock
-	file_unlock_master(fd_mas, path_mas);
-
-	if (strlen(path_stp) > 0) {
-		file_clean(path_stp);
-	}
-
+	// 1. Creating the cleaning command
+	sprintf(command, "rm %s/erun.*.lock 2> /dev/null", path_tmp);
+	// 2. Remove erun.master.lock
+	file_unlock_master(fd_master, path_master);
+	// 3. Remove erun.step.lock
+	file_clean(path_step);
+	// 5. Remove erun.%job_id.lock
+	file_clean(path_job);
+	// 6. Launch cleaning command to remove old erun files.
+	system(command);
+	// 5. Write again erun.%job_id.lock 
+	file_write(path_job, (char *) &step_id, sizeof(int));
 	return 0;
 }
 
 int lock_master(char *path_tmp)
 {
-	plug_verbose(_sp, 3, "function lock_master");
-
-	//
-	sprintf(path_mas, "%s/erun.master.lock", path_tmp);
-	fd_mas = file_lock_master(path_mas);
-
-	if (fd_mas >= 0) {
-		return 1;
-	}
-
-	fd_mas = -1;
-	return 0;
+    plug_verbose(_sp, 3, "function lock_master");
+    // Getting the master lock
+    sprintf(path_master, "%s/erun.master.lock", path_tmp);
+    fd_master = file_lock_master(path_master);
+    // Returning FD means it got the unique master lock
+    return fd_master >= 0;
 }
 
-int lock_step(char *path_tmp, int job_id, int step_id)
+int lock_job(char *path_tmp, int job_id, int step_id)
 {
 	plug_verbose(_sp, 3, "function lock_step (%d,%d)", job_id, step_id);
-
+	// Forming erun.%job_id.lock path
 	sprintf(path_job, "%s/erun.%d.lock", path_tmp, job_id);
-
-	// 1. Test erun.1394394.lock
-	//		 SLURM_STEP_ID -> Set step_id to SLURM_STEP_ID
-	//		!SLURM_STEP_ID
-	// 			!file -> Set step_id to 0
-	// 			 file -> Read the step_id + 1
-	// 2. Clean erun.1394394.lock
-	// 3. Create erun.1394394.lock with the step_id
-	// 4. Return step_id
+    // Locking in node processes:
+    // 1. Try to take erun.master.lock.
+    //      2. If taken erun.master.lock
+    //          2.1. Test erun.%job_id.lock
+    //                SLURM_STEP_ID -> Set step_id to SLURM_STEP_ID
+    //               !SLURM_STEP_ID
+    //                   erun.%job_id.lock -> Read the step_id + 1
+    //                  !erun.%job_id.lock -> Set step_id to 0
+    //          2.2. Remove erun.%job_id.lock
+    //          2.3. Create erun.%job_id.lock with the step_id
+    //          2.4. Create erun.step.lock
+    //          2.5. Write %step_id in erun.step.lock
+    //          2.6. Execute the application
+    //          2.7. Remove erun.master.lock
+    //          2.8. Remove erun.step.lock
+    //          2.9. Launch a cleanning command
+    //          2.10. Create erun.%job_id.lock with the step_id
+    //      3. If not taken erun.master.lock
+    //          3.1 Spin while can't access erun.step.lock
+    //          3.2 Read the %step_id in erun.step.lock
 	if (step_id == 0) {
 		if (state_ok(file_read(path_job, (char *) &step_id, sizeof(int)))) {
-			plug_verbose(_sp, 2, "read %d step_id in the file '%s'", step_id, path_job);
+        	    	plug_verbose(_sp, 2, "read %d step_id in the file '%s'", step_id, path_job);
 			step_id += 1;
 		} else {
+			// In case the reading fails, force step_id to 0
 			step_id = 0;
 		}
 	}
-
-	file_clean(path_job);
-	file_write(path_job, (char *) &step_id, sizeof(int));
-
 	return step_id;
 }
 
 int unlock_step(char *path_tmp, int step_id)
 {
-	plug_verbose(_sp, 3, "function unlock_step");
-
-	//
-	sprintf(path_stp, "%s/erun.step.lock", path_tmp);
-
-	// 1. Create and write erun.step.lock
-	file_write(path_stp, (char *) &step_id, sizeof(int));
-
-	return step_id;
+    plug_verbose(_sp, 3, "function unlock_step");
+    // 1. Form the erun.step.lock path
+    sprintf(path_step, "%s/erun.step.lock", path_tmp);
+    // 2. Create and write erun.step.lock
+    file_write(path_step, (char *) &step_id, sizeof(int));
+    return step_id;
 }
 
 int spinlock_step(char *path_tmp, int step_id)
 {
-	plug_verbose(_sp, 3, "function spinlock_step");
-	
-	//
-	sprintf(path_stp, "%s/erun.step.lock", path_tmp);
-	
-	// 1. While !erun.step.lock file
-	// 2. Read erun.step.lock step_id
-	// 3. Return step_id
-	while (access(path_stp, F_OK) != 0);
-
-	file_read(path_stp, (char *) &step_id, sizeof(int));
-	plug_verbose(_sp, 2, "read %d step_id in the file '%s'", step_id, path_job);
-
-	return step_id;
+    plug_verbose(_sp, 3, "function spinlock_step");
+    // 1. Form the erun.step.lock path
+    sprintf(path_step, "%s/erun.step.lock", path_tmp);
+    // 2. While !erun.step.lock file, spinlock
+    while (access(path_step, F_OK) != 0);
+    // 3. Read the step_id contained in erun.step.lock
+    file_read(path_step, (char *) &step_id, sizeof(int));
+    // 4. Return step_id
+    plug_verbose(_sp, 2, "read %d step_id in the file '%s'", step_id, path_job);
+    return step_id;
 }

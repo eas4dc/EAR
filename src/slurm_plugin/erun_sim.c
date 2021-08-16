@@ -19,6 +19,9 @@
 #include <slurm_plugin/slurm_plugin_environment.h>
 #include <slurm_plugin/slurm_plugin_serialization.h>
 
+// 
+extern plug_serialization_t sd;
+
 // Buffers
 extern char buffer[SZ_PATH];
 
@@ -74,6 +77,8 @@ spank_err_t spank_get_item (spank_t spank, spank_item_t item, int *p)
 		*p = atoi(getenv("SLURM_JOB_ID"));
 	} else if (item == S_JOB_STEPID) {
 		*p = atoi(getenv("SLURM_STEP_ID"));
+	} else if (item == S_TASK_EXIT_STATUS) {
+		*p = sd.subject.exit_status; 
 	} else {
 		*p = 0;
 	}

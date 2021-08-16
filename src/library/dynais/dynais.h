@@ -15,15 +15,35 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#ifndef EAR_DYNAIS_H
-#define EAR_DYNAIS_H
+/*
+ * Usage summary:
+ * Just call dynais() passing the sample and the size of this sample. It will be
+ * returned one of these states:
+ *      END_LOOP
+ *      NO_LOOP
+ *      IN_LOOP
+ *      NEW_ITERATION
+ *      NEW_LOOP
+ *      END_NEW_LOOP
+ *
+ * To initialize, you have to call dynais_init() method before, passing a
+ * topology, window length and number of levels. The function
+ * dynais_dispose() frees its memory allocation.
+ *
+ * Level is capped to a maximum of 10, and window to 40.000. But it is
+ * recommended to set a window of 500 at most to perform at its best.
+ *
+ * Errors:
+ * A NULL returned by dynais_init() means that something went wrong while
+ * allocating memory.
+ *
+ */
 
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <immintrin.h>
+#ifndef DYNAIS_H
+#define DYNAIS_H
+
 #include <common/types/generic.h>
-#include <common/config/config_install.h>
+#include <common/hardware/topology.h>
 
 #define MAX_LEVELS      10
 #define METRICS_WINDOW  40000
@@ -36,28 +56,17 @@
 #define NEW_LOOP        3
 #define END_NEW_LOOP    4
 
-#if FEAT_AVX512
-#define udyn_t ushort
-#define sdyn_t short
-#else
-#define udyn_t uint
-#define sdyn_t int
-#endif
+typedef int (*dynais_call_t) (uint sample, uint *size, uint *level);
 
-// Functions
-/** Given a sample and its size, returns the state the application is in (in
-*   a loop, in an iteration, etc.). */
-sdyn_t dynais(udyn_t sample, udyn_t *size, udyn_t *level);
+// Returns a dynais_call_t type. It is a pointer a specific AVX dynais call.
+dynais_call_t dynais_init(topology_t *tp, uint window, uint levels);
 
-/** Converts a long sample to short sample. */
-udyn_t dynais_sample_convert(ulong sample);
-
-int dynais_build_type();
-
-/** Allocates memory in preparation to use dynais. Returns 0 on success */
-int dynais_init(udyn_t window, udyn_t levels);
-
-/** Frees the memory previously allocated. */
 void dynais_dispose();
 
-#endif //EAR_DYNAIS_H
+// Returns DynAIS type. 512 if it's AVX512, 2 if it's AVX2.
+int dynais_build_type();
+
+// Applies CRC to 64 bits sample, converting it to 32 bit value.
+uint dynais_sample_convert(ulong sample);
+
+#endif //DYNAIS_H

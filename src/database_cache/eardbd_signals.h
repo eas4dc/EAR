@@ -20,10 +20,12 @@
 
 #include <signal.h>
 
-#define _error(...) \
-	verbose_line(); \
+#define edb_error(...) \
+	print_line(); \
 	verbose(0, "ERROR, " __VA_ARGS__); \
 	error_handler();
+
+void log_handler(cluster_conf_t *conf_clus, uint close_previous);
 
 void signal_handler(int signal, siginfo_t *info, void *context);
 

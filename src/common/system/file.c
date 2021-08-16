@@ -138,7 +138,7 @@ state_t file_write(const char *path, const char *buffer, size_t size)
 	close(fd);
 
 	if (w < 0) {
-		state_return_msg(EAR_WRITE_ERROR, errno, strerror(errno));
+		state_return_msg(EAR_SYSCALL_ERROR, errno, strerror(errno));
 	}
 
 	state_return(EAR_SUCCESS);

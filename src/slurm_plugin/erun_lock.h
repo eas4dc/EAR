@@ -15,11 +15,11 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-int lock_clean(char *path_tmp);
+int lock_clean(char *path_tmp, int step_id);
 
 int lock_master(char *path_tmp);
 
-int lock_step(char *path_tmp, int job_id, int step_id);
+int lock_job(char *path_tmp, int job_id, int step_id);
 
 int unlock_step(char *path_tmp, int step_id);
 

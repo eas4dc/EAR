@@ -24,6 +24,8 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sched.h>
+//#define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/states.h>
 #include <common/output/verbose.h>
@@ -32,6 +34,8 @@
 #include <daemon/power_monitor.h>
 #include <daemon/app_api/app_conf_api.h>
 #include <metrics/energy/energy_node.h>
+#include <management/gpu/gpu.h>
+#include <management/cpufreq/frequency.h>
 
 #define close_app_connection()
 
@@ -126,9 +130,10 @@ void accept_new_connection(char *root,int pid)
 	int i,tries=0;	
 	char eard_to_app[MAX_PATH_SIZE];
 	char app_to_eard[MAX_PATH_SIZE];
-	debug("accepting connection from %d\n",pid);
+	debug("APP_API:accepting connection from %d\n",pid);
 	sprintf(app_to_eard,"%s/.app_to_eard.%d",root,pid);
 	sprintf(eard_to_app,"%s/.eard_to_app.%d",root,pid);
+	debug("APP_API: %s and %s used",app_to_eard,eard_to_app);
 	if (connections<MAX_FDS) i=connections;
 	else{
 		i=find_first_free();
@@ -205,7 +210,7 @@ void remove_connection(char *root,int i)
 	unlink(app_to_eard);
 	unlink(eard_to_app);
 }
-void close_connection(int fd_in,int fd_out)
+static void close_connection(int fd_in,int fd_out)
 {
 	int i,found=0;
 	int max=-1,new_con=-1;
@@ -236,7 +241,7 @@ void close_connection(int fd_in,int fd_out)
 	
 }
 
-uint read_app_command(int fd_in,app_send_t *app_req)
+static uint read_app_command(int fd_in,app_send_t *app_req)
 {
 	int ret;
     int flags,orig_flags,tries;
@@ -244,7 +249,7 @@ uint read_app_command(int fd_in,app_send_t *app_req)
 	if ((ret=read(fd_in,app_req,sizeof(app_send_t)))!=sizeof(app_send_t)){
 		if (ret<0){		
 			error("Error reading NON-EARL application request\n");
-			return INVALID_COMMAND;
+			return DISCONNECT;
 		}else{    
 			/* If we have read something different, we read in non blocking mode */
 			orig_flags = fcntl(fd_in, F_GETFD);
@@ -280,7 +285,7 @@ uint read_app_command(int fd_in,app_send_t *app_req)
 
 
 /** Releases resources to connect with applications */
-void dispose_app_connection()
+static void dispose_app_connection()
 {
 	close(fd_app_to_eard);
 	unlink(app_to_eard);
@@ -295,7 +300,7 @@ void dispose_app_connection()
 /*********************************************************/
 
 /** Returns the energy in mJ and the time in ms  */
-void ear_energy(int fd_out)
+static void ear_energy(int fd_out)
 {
 	app_recv_t data;
 	ulong energy_mj,time_ms;
@@ -322,7 +327,7 @@ void ear_energy(int fd_out)
 
 }
 
-void ear_energy_debug(int fd_out)
+static void ear_energy_debug(int fd_out)
 {
         app_recv_t data;
         ulong energy_mj, time_ms;
@@ -362,6 +367,71 @@ void ear_energy_debug(int fd_out)
 
 }
 
+static void  ear_set_cpufreq(int fd_out, cpu_set_t *mask,unsigned long cpuf)
+{
+	app_recv_t data;
+  /* Execute specific request */
+  data.ret=EAR_SUCCESS;
+	debug("APP_API: ear_set_cpufreq %lu",cpuf);	
+	frequency_set_with_mask(mask,cpuf);	
+
+	send_app_answer(fd_out,&data);
+}
+
+/* This funcion sets the frequency in one GPU */
+static void ear_set_gpufreq(int fd_out,uint gpuid,ulong gpu_freq)
+{
+	app_recv_t data;
+	state_t ret;
+	ctx_t c;
+	uint gnum;
+	
+	ulong * array;
+	debug("APP_API: ear_set_gpufreq %lu",gpu_freq);	
+	if ((ret = mgt_gpu_init(&c)) != EAR_SUCCESS){
+		data.ret = ret;
+		send_app_answer(fd_out,&data);
+	}
+	mgt_gpu_count(&c,&gnum);
+	if (gpuid >= gnum){
+		data.ret =EAR_ERROR;
+		send_app_answer(fd_out,&data);
+	}
+	if ((ret = mgt_gpu_alloc_array(&c, &array, NULL)) != EAR_SUCCESS){
+    data.ret = ret;
+    send_app_answer(fd_out,&data);
+  }
+	if ((ret = mgt_gpu_freq_limit_get_current(&c,array)) != EAR_SUCCESS){
+    data.ret = ret;
+    send_app_answer(fd_out,&data);
+  }
+	array[gpuid] = gpu_freq;
+	if ((ret = mgt_gpu_freq_limit_set(&c,array)) != EAR_SUCCESS){
+    data.ret = ret;
+    send_app_answer(fd_out,&data);
+  }
+	mgt_gpu_dispose(&c);
+}
+
+/* This function sets th frequency in all the GPUS */
+static void ear_set_gpufreqlist(int fd_out,ulong *gpu_freq_list)
+{
+  app_recv_t data;
+  state_t ret;
+  ctx_t c;
+  
+	debug("ear_set_gpufreqlist %lu",gpu_freq_list[0]);
+  if ((ret = mgt_gpu_init(&c)) != EAR_SUCCESS){
+    data.ret = ret;
+    send_app_answer(fd_out,&data);
+  }
+  if ((ret = mgt_gpu_freq_limit_set(&c,gpu_freq_list)) != EAR_SUCCESS){
+    data.ret = ret;
+    send_app_answer(fd_out,&data);
+  }
+  mgt_gpu_dispose(&c);
+
+}
 
 
 
@@ -370,10 +440,10 @@ void ear_energy_debug(int fd_out)
 /***************** THREAD IMPLEMENTING NON-EARL API ************/
 /***************************************************************/
 
-void process_connection(char *root)
+void app_api_process_connection(char *root)
 {
 	app_send_t req;
-	debug("process_connection\n");
+	debug("APP_API:process_connection\n");
 	if (read(fd_app_to_eard,&req,sizeof(app_send_t))!=sizeof(app_send_t)) return;
 	switch (req.req){
 		case CONNECT:
@@ -391,12 +461,12 @@ int get_fd_out(int fd_in)
 	return EAR_ERROR;
 }
 
-void process_request(int fd_in)
+void app_api_process_request(int fd_in)
 {
 	int req;
 	app_send_t app_req;
 	int fd_out;
-	debug("process_request from %d\n",fd_in);
+	debug("APP_API:process_request from %d\n",fd_in);
 	fd_out=get_fd_out(fd_in);
 	if (fd_out==EAR_ERROR){ 
 		debug("fd_out not found for %d",fd_in);
@@ -410,9 +480,18 @@ void process_request(int fd_in)
 	case ENERGY_TIME:
 		ear_energy(fd_out);
 		break;
-     case ENERGY_TIME_DEBUG:
+  case ENERGY_TIME_DEBUG:
      	ear_energy_debug(fd_out);
      	break;
+	case SELECT_CPU_FREQ:
+			ear_set_cpufreq(fd_out,&app_req.send_data.cpu_freq.mask,app_req.send_data.cpu_freq.cpuf);
+			break;
+	case SET_GPUFREQ:
+			ear_set_gpufreq(fd_out,app_req.send_data.gpu_freq.gpu_id,app_req.send_data.gpu_freq.gpu_freq);	
+			break;
+	case SET_GPUFREQ_LIST:
+			ear_set_gpufreqlist(fd_out,app_req.send_data.gpu_freq_list.gpu_freq);	
+			break;
 	case INVALID_COMMAND:
 		verbose(0,"PANIC, invalid command received and not recognized\n");
 		break;
@@ -463,13 +542,14 @@ void *eard_non_earl_api_service(void *noinfo)
 	/* Wait for messages */
 	verbose(0,"Waiting for non-earl requestst\n");
 	while ((eard_must_exit==0) && (numfds_ready=select(numfds_req,&rfds,NULL,NULL,NULL))>=0){
+		verbose(0,"New APP_API connections");
 		if (numfds_ready>0){
 			for (i=0;i<numfds_req;i++){
 				if (FD_ISSET(i,&rfds)){
 					if (i==fd_app_to_eard){
-						process_connection(my_cluster_conf.install.dir_temp);
+						app_api_process_connection(my_cluster_conf.install.dir_temp);
 					}else{
-						process_request(i);	
+						app_api_process_request(i);	
 					}
 				}
 			}	

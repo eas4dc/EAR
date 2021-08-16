@@ -31,9 +31,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+//#define SHOW_DEBUGS 0
 #include <common/states.h>
 #include <common/config.h>
-//#define SHOW_DEBUGS 0
 #include <common/output/verbose.h>
 #include <common/types/daemon_log.h>
 #include <common/colors.h>
@@ -44,7 +44,7 @@
 #include <common/types/configuration/cluster_conf.h>
 #include <common/types/configuration/cluster_conf_verbose.h>
 #include <global_manager/eargm_ext_rm.h>
-#include <daemon/eard_rapi.h>
+#include <daemon/remote_api/eard_rapi.h>
 #include <global_manager/cluster_energycap.h>
 #if POWERCAP
 #include <global_manager/cluster_powercap.h>
@@ -128,16 +128,12 @@ uint reload_eargm_configuration(cluster_conf_t *current,cluster_conf_t *new)
 		verbose(1,"New energy arguments: T1 %lu T2 %lu EnergyBudget %lu",newc->t1,newc->t2,newc->energy);
 		must_refil=1;
 	}
-	#if POWERCAP
 	if ((cc->power!=newc->power) || (cc->t1_power!=newc->t1_power)){
 		verbose(1,"New powercap arguments: Powercap %lu Power cap period %lu",newc->power,newc->t1_power);
-		#if 0
-		if (cc->power>new->power)    set_default_powercap_all_nodes(&my_cluster_conf);  
-  	#endif
+		if (cc->power>newc->power)    cluster_reset_default_powercap_all_nodes(&my_cluster_conf);  
 		if ((cc->power==0) && (newc->power>0)) powercap_th_start=1;
 
 	}
-	#endif
 	if (cc->use_log!=newc->use_log){
 		verbose(1,"Log output cannot be dynamically changed, Stop and Start the service");
 	}
@@ -153,10 +149,8 @@ uint reload_eargm_configuration(cluster_conf_t *current,cluster_conf_t *new)
 	cc->mode=newc->mode;
 	cc->energy=newc->energy;
 	cc->use_aggregation=newc->use_aggregation;
-	#if POWERCAP
 	cc->power=newc->power;
 	cc->t1_power=newc->t1_power;
-	#endif
 	cc->verbose=newc->verbose;
 	strcpy(cc->mail,newc->mail);
 	memcpy(cc->defcon_limits,newc->defcon_limits,sizeof(uint)*3);
@@ -164,7 +158,7 @@ uint reload_eargm_configuration(cluster_conf_t *current,cluster_conf_t *new)
 	/** Global variables */
 	verb_level=cc->verbose;
 	period_t1=cc->t1;
-	period_t2=cc->t1;	
+	period_t2=cc->t2;	
 	energy_budget=cc->energy;
 	#if POWERCAP
   max_cluster_power=cc->power;
@@ -210,26 +204,36 @@ void update_eargm_configuration(cluster_conf_t *conf)
 					break;
         default:break;
     }
-		#if POWERCAP
 		max_cluster_power=max_cluster_power*divisor;
-		#else
-		max_cluster_power=0;
-		#endif
 }
+void reopen_log()
+{
+  close(fd_my_log);
+  fd_my_log=create_log(my_cluster_conf.install.dir_temp,"eargmd");
+  if (fd_my_log<0) fd_my_log=2;
+  VERB_SET_FD(fd_my_log);
+  ERROR_SET_FD(fd_my_log);
+  WARN_SET_FD(fd_my_log);
+  DEBUG_SET_FD(fd_my_log);
 
+}
 
 static void my_signals_function(int s)
 {
-	uint ppolicy;
+	// uint ppolicy; // unused
 	cluster_conf_t new_conf;	
 	if (s==SIGALRM){
 		alarm(period_t1);
 		t1_expired=1;	
 		return;
 	}
+	if (s == SIGUSR2){
+		reopen_log();
+		return;
+	}
 	if (s==SIGHUP){
 		verbose(VCONF,"Reloading EAR configuration");
-		ppolicy=my_cluster_conf.eargm.policy;
+		// ppolicy=my_cluster_conf.eargm.policy; // unused
 		// Reading the configuration
 			
     	if (read_cluster_conf(my_ear_conf_path,&new_conf)!=EAR_SUCCESS){
@@ -259,6 +263,7 @@ static void catch_signals()
     sigaddset(&set,SIGTERM);
     sigaddset(&set,SIGINT);
     sigaddset(&set,SIGALRM);
+    sigaddset(&set,SIGUSR2);
     if (sigprocmask(SIG_SETMASK,&set,NULL)<0){
         error("Setting signal mask (%s)",strerror(errno));
         exit(1);
@@ -281,6 +286,10 @@ static void catch_signals()
     }
     if (sigaction(SIGALRM,&my_action,NULL)<0){
         error(" sigaction for SIGALRM (%s)",strerror(errno));
+        exit(1);
+    }
+    if (sigaction(SIGUSR2,&my_action,NULL)<0){
+        error(" sigaction for SIGUSR2 (%s)",strerror(errno));
         exit(1);
     }
 
@@ -369,7 +378,6 @@ void process_status(pid_t pid_process_created,int process_created_status)
 
 int execute_action(ulong e_t1,ulong e_t2,ulong e_limit,uint t2,uint t1,char *units)
 {
-  int ret;
 	char command_to_execute[512];
   char *my_command=my_cluster_conf.eargm.energycap_action;
 	/* If action text is different from no_action, we must execute it */
@@ -388,11 +396,10 @@ int execute_action(ulong e_t1,ulong e_t2,ulong e_limit,uint t2,uint t1,char *uni
 
 int send_mail(uint level, double energy)
 {
-	
-	char buff[128];
-  char command[1024];
+    char buff[400];
+  char command[4400];
   char mail_filename[SZ_PATH];
-  int fd,ret;
+  int fd;
   if (strcmp(my_cluster_conf.eargm.mail,"nomail")){ 
 		sprintf(buff,"Detected WARNING level %u, %lfi %% of energy from the total energy limit\n",level,energy);
 		sprintf(mail_filename,"%s/warning_mail.txt",my_cluster_conf.install.dir_temp);
@@ -687,7 +694,7 @@ int main(int argc,char *argv[])
 				verbose(VGM,"****************************************************************");
 				if ((my_cluster_conf.eargm.mode) && (last_level==EARGM_NO_PROBLEM) && (!default_state)){ 
 					verbose(VGM,"Restoring default configuration");
-					restore_conf_all_nodes(my_cluster_conf);
+					restore_conf_all_nodes(&my_cluster_conf);
 					last_risk_sent=EARGM_NO_PROBLEM;
 					default_state=1;
 				}
@@ -701,7 +708,7 @@ int main(int argc,char *argv[])
 	
 				if (my_cluster_conf.eargm.mode && last_risk_sent!=EARGM_WARNING1){ // my_cluster_conf.eargm.mode==1 is AUTOMATIC mode
 					create_risk(&current_risk,EARGM_WARNING1);
-					set_risk_all_nodes(current_risk,MAXENERGY,my_cluster_conf);
+					set_risk_all_nodes(current_risk,MAXENERGY,&my_cluster_conf);
 				}
 				new_actions=send_mail(EARGM_WARNING1,perc_energy);
 				new_actions+=execute_action(energy_t1,total_energy_t2,energy_budget,period_t2,period_t1,unit_energy);
@@ -760,17 +767,15 @@ int main(int argc,char *argv[])
 			}
 			if (current_level!=last_level) T1_stables=0;
 			else T1_stables++;
-			last_level=current_level;
 			#if USE_DB
 			db_insert_gm_warning(&my_warning);
 			#endif
+			last_level = current_level;
 		}// ALARM
-		#if POWERCAP
 		if (powercap_th_start){
 			cluster_powercap_init(&my_cluster_conf);	
 			powercap_th_start=0;
 		}
-		#endif
 		if (must_refill){
 			must_refill=0;
     		aggregate_samples=period_t2/period_t1;

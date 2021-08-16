@@ -1,3 +1,4 @@
+
 /*
 *
 * This program is part of the EAR software.
@@ -32,7 +33,7 @@
 #include <common/sizes.h>
 #include <common/states.h>
 #include <common/config.h>
-#include <common/attributes.h>
+#include <common/plugins.h>
 #include <common/output/verbose.h>
 
 #endif //EAR_INCLUDES_H

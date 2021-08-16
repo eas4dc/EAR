@@ -19,7 +19,9 @@
 #define _STRING_ENHANCED_H_
 
 #include <stdio.h>
+#include <getopt.h>
 #include <linux/limits.h>
+#include <common/utils/string.h>
 
 #define STR_MAX_COLUMNS		20
 #define STR_SIZE_BUFFER		PIPE_BUF
@@ -61,9 +63,11 @@ void strtolow(char *string);
 /** Converts a string to upper case. */
 void strtoup(char *string);
 
-/** Compares if the string2 is included in the string 1 regardless they are
- * upper or lowercase */
-int strinc(const char *string1, const char *string2);
+/** Given a list and a separator in strtok format, search an element in the list. */
+int strinlist(const char *list, const char *separator, const char *element);
+
+/** */
+int strinargs(int argc, char *argv[], const char *opt, char *value);
 
 /** Removes characters c from string s. */
 void remove_chars(char *s, char c);

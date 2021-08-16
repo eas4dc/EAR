@@ -24,7 +24,7 @@
 
 #include <common/types/generic.h>
 #include <common/hardware/topology.h>
-#include <metrics/frequency/imc.h>
+#include <metrics/imcfreq/imcfreq.h>
 #include <metrics/frequency/cpu.h>
 
 typedef struct nm{
@@ -35,11 +35,12 @@ typedef struct nm{
 }nm_t;
 
 typedef struct node_metrics{
-	freq_cpu_t freq_cpu;
-	freq_imc_t freq_imc;
+	cpufreq_t freq_cpu;
+	imcfreq_t *freq_imc;
 	ulong avg_cpu_freq;
 	ulong avg_imc_freq;
-	ullong *temp;
+	llong avg_temp;
+	llong *temp;
 } nm_data_t;
 
 int init_node_metrics(nm_t *id, topology_t *topo, ulong def_freq);

@@ -19,7 +19,9 @@
 #define EAR_PRIVATE_TYPES_H
 
 #include <common/sizes.h>
-#include <metrics/energy/energy_cpu.h>
+#include <metrics/common/omsr.h>
+
+//#include <metrics/energy/energy_cpu.h>
 
 typedef void *edata_t;
 

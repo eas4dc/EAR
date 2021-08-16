@@ -29,7 +29,7 @@ static char opt_opt[SZ_PATH];
 
 struct spank_option spank_options_manual[SRUN_OPTIONS] =
 {
-	{ "ear", "on|off", "Enables/disables Energy Aware Runtime",
+	{ "ear", "on|off", "Enables/disables Energy Aware Runtime Library",
 	  1, 0, (spank_opt_cb_f) _opt_ear
 	},
 	{ 
@@ -39,7 +39,7 @@ struct spank_option spank_options_manual[SRUN_OPTIONS] =
 	{ "ear-cpufreq", "frequency", "Specifies the start frequency to be used by EAR policy (in KHz)",
 	  1, 0, (spank_opt_cb_f) _opt_ear_frequency
 	},
-	{ "ear-policy-th", "value", "Specifies the threshold to be used by EAR policy" \
+	{ "ear-policy-th", "value", "Specifies the threshold to be used by EAR policy (max 2 decimals)" \
 	  " {value=[0..1]}",
 	  1, 0, (spank_opt_cb_f) _opt_ear_threshold
 	},
@@ -109,7 +109,7 @@ static int _opt_register_mpi(spank_t sp, int ac, char **av)
 	*pop = '\0';
 
 	// Filling the option string with distribution options
-	sprintf(opt_mpi, "Selects the MPI distribution for compatibility of your application {dist=%s}", opt_opt);
+	xsprintf(opt_mpi, "Selects the MPI distribution for compatibility of your application {dist=%s}", opt_opt);
 
 	return ESPANK_SUCCESS;
 }
@@ -154,7 +154,7 @@ static int _opt_register_pol(spank_t sp, int ac, char **av)
 	*pop = '\0';
 
 	// Filling the option string with distribution options
-	sprintf(opt_pol, "Selects an energy policy for EAR {type=%s}", opt_opt);
+	xsprintf(opt_pol, "Selects an energy policy for EAR {type=%s}", opt_opt);
 
 	return ESPANK_SUCCESS;
 }
@@ -232,7 +232,7 @@ int _opt_ear_learning (int val, const char *optarg, int remote)
 			return ESPANK_BAD_ARG;
 		}
 
-		snprintf(buffer, 4, "%d", ioptarg);
+		xsnprintf(buffer, 4, "%d", ioptarg);
 		setenv_agnostic(NULL_C, Var.learning.loc, buffer, 1);
 		setenv_agnostic(NULL_C, Var.comp_libr.cmp, "1", 1);
 	}

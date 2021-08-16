@@ -23,25 +23,27 @@
 #include <common/output/verbose.h>
 #include <common/types/application.h>
 #include <common/config/config_install.h>
-#include <daemon/eard_rapi.h>
+#include <daemon/remote_api/eard_rapi.h>
 #include <daemon/shared_configuration.h>
 #include <global_manager/eargm_rapi.h>
 #include <slurm_plugin/spank_interposer.h>
+
+#define ESPANK_STACKABLE  0 // Allows the same plugin stacking N times.
+#define ESPANK_STOP      -1
 
 #ifndef ERUN
 #define NULL_C NULL
 #else
 #define NULL_C 0
 #endif
-#define ESPANK_STOP	-1
 
 /*
  * Job data
  */
 
 typedef struct plug_vars {
-	char ld_preload[SZ_BUFF_EXTRA];
-	char ld_library[SZ_BUFF_EXTRA];
+	char ld_preload[SZ_BUFFER_EXTRA];
+	char ld_library[SZ_BUFFER_EXTRA];
 } plug_vars_t;
 
 typedef struct plug_user {
@@ -51,17 +53,16 @@ typedef struct plug_user {
 	plug_vars_t env;
 } plug_user_t;
 
-typedef struct plug_job
-{
+typedef struct plug_job {
 	new_job_req_t app;
 	plug_user_t user;
-	uint node_n;
+	char **nodes_list;
+	uint nodes_count;
 } plug_job_t;
 
 /*
  * EAR Package data
  */
-
 typedef struct plug_freqs {
 	ulong *freqs;
 	int n_freqs;
@@ -85,6 +86,8 @@ typedef struct plug_eargmd {
 } plug_eargmd_t;
 
 typedef struct plug_package {
+	char nodes_excluded[SZ_PATH];
+	char nodes_allowed[SZ_PATH];
 	char path_temp[SZ_PATH];
 	char path_inst[SZ_PATH];
 	plug_eargmd_t eargmd;
@@ -94,18 +97,24 @@ typedef struct plug_package {
 /*
  * Current subject
  */
-typedef struct plug_subject
-{
+typedef struct plug_subject {
 	char host[SZ_NAME_MEDIUM];
 	int context_local;
 	int exit_status;
 	int is_master;
 } plug_subject_t;
 
-typedef struct plug_serialization
-{
+typedef struct plug_erun {
+	int is_master;
+	int is_erun;
+	int step_id;
+	int job_id;
+} plug_erun_t;
+
+typedef struct plug_serialization {
 	plug_subject_t subject;
 	plug_package_t pack;
+	plug_erun_t erun;
 	plug_job_t job;
 } plug_serialization_t;
 

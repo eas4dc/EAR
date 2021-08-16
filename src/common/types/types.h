@@ -31,5 +31,6 @@
 #include <common/types/loop.h>
 #include <common/types/services.h>
 #include <common/types/daemon_log.h>
+#include <common/types/pc_app_info.h>
 
 #endif //EAR_TYPES_H

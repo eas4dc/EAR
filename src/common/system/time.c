@@ -48,32 +48,43 @@ ullong timestamp_convert(timestamp *ts, ullong time_unit)
 	return stamp;
 }
 
-ullong timestamp_diff(timestamp *ts2, timestamp *ts1, ullong time_unit)
-{
-	ullong stamp;
-
-	if (ts2->tv_nsec < ts1->tv_nsec) {
-		ts2->tv_sec   = ts2->tv_sec - 1;
-		ts2->tv_nsec += 1000000000;
-	}
-
-	stamp  = (ullong) ((ts2->tv_sec - ts1->tv_sec) * 1000000000);
-	stamp += (ullong) ((ts2->tv_nsec - ts1->tv_nsec));
-	stamp /= time_unit;
-
-	return stamp;
-}
-
-void print_timestamp(timestamp *ts)
-{
-	fprintf(stdout,"Secs %llu nsec %llu\n",ts->tv_sec,ts->tv_nsec);
-}
-
 ullong timestamp_getconvert(ullong time_unit)
 {
 	timestamp_t ts;
 	timestamp_getfast(&ts);
 	return timestamp_convert(&ts, time_unit);
+}
+
+ullong timestamp_diff(timestamp *ts2, timestamp *ts1, ullong time_unit)
+{
+	ullong stamp;
+	ullong initsec, initnsec;
+	ullong endsec, endnsec;
+
+	initsec = ts1->tv_sec;
+	initnsec = ts1->tv_nsec;
+	endsec = ts2->tv_sec;
+	endnsec = ts2->tv_nsec;
+	
+	if (endnsec < initnsec){
+		endsec--;
+		endnsec += 1000000000;
+	}
+	endnsec /= time_unit;
+	initnsec /= time_unit;
+
+	stamp = ((endsec - initsec) * (1000000000/time_unit));
+	if (endnsec < initnsec) return stamp;
+	stamp += endnsec - initnsec;
+
+	return stamp;
+}
+
+ullong timestamp_diffnow(timestamp *ts1, ullong time_unit)
+{
+	timestamp_t time_now;
+	timestamp_get(&time_now);
+	return timestamp_diff(&time_now, ts1, time_unit);
 }
 
 void timestamp_revert(timestamp *ts, ullong *tr, ullong time_unit)
@@ -82,3 +93,14 @@ void timestamp_revert(timestamp *ts, ullong *tr, ullong time_unit)
     ts->tv_sec    = aux_ns / 1000000000; 
     ts->tv_nsec   = aux_ns - (ts->tv_sec * 1000000000);
 }
+
+void print_timestamp(timestamp *ts)
+{
+	fprintf(stdout,"Secs %ld nsec %ld\n", ts->tv_sec,ts->tv_nsec);
+}
+
+void timestamp_to_str(timestamp *ts,char *txt,uint size)
+{
+	snprintf(txt,size,"Secs %ld nsec %ld", ts->tv_sec,ts->tv_nsec);
+}
+

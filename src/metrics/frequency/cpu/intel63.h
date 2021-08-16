@@ -20,26 +20,28 @@
 
 #include <metrics/frequency/cpu.h>
 
-state_t freq_intel63_init(topology_t *tp);
+state_t cpufreq_intel63_status(topology_t *tp);
 
-state_t freq_intel63_dispose();
+state_t cpufreq_intel63_init();
 
-state_t freq_intel63_read(freq_cpu_t *ef);
+state_t cpufreq_intel63_dispose();
 
-state_t freq_intel63_read_diff(freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average);
+state_t cpufreq_intel63_read(cpufreq_t *f);
 
-state_t freq_intel63_read_copy(freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average);
+state_t cpufreq_intel63_read_diff(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
 
-state_t freq_intel63_data_alloc(freq_cpu_t *ef, ulong *freqs[], ulong *freqs_count);
+state_t cpufreq_intel63_read_copy(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
 
-state_t freq_intel63_data_count(uint *count);
+state_t cpufreq_intel63_data_alloc(cpufreq_t *f, ulong *freqs[]);
 
-state_t freq_intel63_data_copy(freq_cpu_t *ef_dst, freq_cpu_t *ef_src);
+state_t cpufreq_intel63_data_count(uint *cpufreq_size, uint *freqs_count);
 
-state_t freq_intel63_data_free(freq_cpu_t *ef, ulong *freqs[]);
+state_t cpufreq_intel63_data_copy(cpufreq_t *f_dst, cpufreq_t *f_src);
 
-state_t freq_intel63_data_diff(freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average);
+state_t cpufreq_intel63_data_free(cpufreq_t *f, ulong *freqs[]);
 
-state_t freq_intel63_data_print(ulong *freqs, ulong *average);
+state_t cpufreq_intel63_data_diff(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
+
+state_t cpufreq_intel63_data_print(ulong *freqs, ulong *average);
 
 #endif //METRICS_FREQUENCY_CPU_INTEL63_H

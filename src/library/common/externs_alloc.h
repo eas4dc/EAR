@@ -21,6 +21,7 @@
 #include <common/states.h>
 #include <daemon/shared_configuration.h>
 #include <library/common/library_shared_data.h>
+#include <library/api/clasify.h>
 
 loop_t loop;
 application_t loop_signature;
@@ -39,6 +40,7 @@ char ear_app_name[PATH_MAX]; //TODO: use application.app_id
 ulong ear_frequency; 
 ulong EAR_default_frequency; 
 uint EAR_default_pstate;
+timestamp ear_application_time_init;
 
 int ear_use_turbo = USE_TURBO; 
 int ear_whole_app;
@@ -61,4 +63,14 @@ uint check_periodic_mode=1;
 lib_shared_data_t *lib_shared_region=NULL;
 shsignature_t *sig_shared_region=NULL;
 int my_node_id;
+
+uint sh_sig_per_node=1;
+uint sh_sig_per_proces=0;
+uint show_signatures=0;
+uint report_node_sig=0;
+uint report_all_sig=0;
+
+uint earl_phase_classification = APP_COMP_BOUND;
+topology_t mtopo;
+ulong *cpufreq_data_per_core;
 

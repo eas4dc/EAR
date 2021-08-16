@@ -35,6 +35,7 @@ typedef struct application
 	signature_t	signature; 		 // signature refers to the mpi part, it includes power metrics and performance metrics
 } application_t;
 
+
 /** Resets the data. */
 void init_application(application_t *app);
 
@@ -75,6 +76,10 @@ int scan_application_fd(FILE *fd, application_t *app, char is_extended);
 void read_application_fd_binary(int fd,application_t *app);
 
 void print_application_fd_binary(int fd,application_t *app);
+
+void mark_as_eard_connected(int jid,int sid,int pid);
+uint is_already_connected(int jid,int sid,int pid);
+void mark_as_eard_disconnected(int jid,int sid,int pid);
 
 /*
  *

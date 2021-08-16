@@ -1,4 +1,4 @@
-CFLAGS = $(CC_FLAGS) -fPIC -I$(SRCDIR) $(CONSTANTS) $(DB_CFLAGS) -Wall -Wextra
+CFLAGS = $(CC_FLAGS) -fPIC -I$(SRCDIR) $(CONSTANTS) $(DB_CFLAGS) -Wall -Wextra 
 
 ######## FILES
 

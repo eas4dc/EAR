@@ -31,7 +31,7 @@
 #include <common/types/coefficient.h>
 
 #ifdef POWERCAP
-#include <daemon/powercap.h>
+#include <daemon/powercap/powercap.h>
 #include <daemon/app_mgt.h>
 #include <common/types/pc_app_info.h>
 #endif
@@ -41,6 +41,7 @@ typedef struct services_conf{
     eargm_conf_t    eargmd;
 		db_conf_t 		db;
     eardb_conf_t 	eardbd;
+		char net_ext[ID_SIZE];
 }services_conf_t;
 
 typedef struct settings_conf{

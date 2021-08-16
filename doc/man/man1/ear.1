@@ -1,0 +1,47 @@
+.\" Manpage for EAR: The Energy Management System for Data Centers.
+.TH man 1 "June 2021" "4.0" "ear man page"
+.SH NAME
+ear overview
+
+.SH DESCRIPTION
+
+EAR is the energy management software for Data centers. EAR contains different components, all together provide three main services: Energy optimization, accopunting and control.
+
+A easy-to-use and lightweight optimizarion service to automatically select the optimal CPU and GPU frequency according to the application and the node characteristics. This service is provided by two components: the EAR library (EARL) and the EAR daemon (EARD). 
+
+Optimization: EARL is a smart component which is loaded next to the application and optimizes both the CPU and GPU frequencesy based on the application behaviour on the fly. The library is loaded automatically through the EAR Loader (EARLO) and SLURM plugin (EARPLUG, earplug.so). In order to check if EAR library is loaded by default execute the ear-info command. 
+
+
+Accounting: A complete energy and performance accounting and monitoring system based on SQL database (MariaDB and PostgreSQL are supported). The energy accounting system is configurable in terms of application details and update frequency. The EAR database daemon (EARDBD) is used to cache those metrics prior to DB insertions.
+
+
+Control: A global energy management to monitor and control the energy consumed in the system through the EAR global manager daemon (EARGMD) and the EARD. This control is configurable, it can dynamically adapt  policy settings based on global energy limits or just offer global cluster monitoring.
+
+Three commands are offered to ask for job accounting (eacct), energy reports (ereport) and control (econtrol)
+
+EAR monitors and optimizes jobs automatically. If EAR optimization is enabled by default, there is no need to add any flag or option at submission time. If EAR optimization is not enabled by default, using any EAR flag at submisstion time will activate it. To check EAR optimization configuration you can execute ear-info command. 
+
+Performance and power metrics are available once jobs/steps are finished. Use "eacct -j JOBID" and see eacct man pages for more information. 
+
+.SH EXAMPLES
+
+In case EAR optimization is not enabled by default, you can activate by using EAR options.
+
+sbatch --ear=on job.sh
+sbatch --ear-verbose=1 job.sh --> will activate ear verbosity
+
+When having multiple sruns, you can activate independently for each step
+
+srun --ear-verbose=1  application arguments
+srun --ear-policy=min_energy application arguments --> selects a specific optimization policy
+
+When using mpirun, be sure the execution uses the scheduler, for example, with Intel MPI
+
+export I_MPI_HYDRA_BOOTSTRAP=slurm
+export I_MPI_HYDRA_BOOTSTRAP_EXEC_EXTRA_ARGS="--ear=on"
+miexec.hydra -n procs application arguments
+
+.SH SEE ALSO
+ear-info, eacct, ereport, econtrol
+.SH AUTHOR
+EAR suport team (ear-support@bsc.es)

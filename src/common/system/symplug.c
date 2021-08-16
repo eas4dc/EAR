@@ -15,7 +15,6 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-//#define SHOW_DEBUGS 0
 #include <common/includes.h>
 #include <common/system/symplug.h>
 
@@ -26,50 +25,46 @@ state_t symplug_join(void *handle, void *calls[], const char *names[], uint n)
 
 	for (i = 0; i < n; ++i)
 	{
-		debug("Looking for %s",names[i]);
 		calls[i] = dlsym(handle, names[i]);
 		error    = dlerror();
-	
 		if ((calls[i] != NULL) && (error == NULL)) {
 			debug("symbol %s found (%p)", names[i], calls[i]);
 		} else {
-			debug("symbol %s not found (%s)", names[i], error);
+			debug("warning, symbol %s not found (%s)", names[i], error);
 			calls[i] = NULL;
 		}
 	}
-	debug("plugjoin end");
 
 	return EAR_SUCCESS;
 }
 
-state_t symplug_open(char *path, void *calls[], const char *names[], uint n)
+static state_t load(char *path, void *calls[], const char *names[], uint n, int flags)
 {
-	void *handle = dlopen(path, RTLD_GLOBAL | RTLD_NOW);
-	int i;
-	if (!handle)
-	{
-		
-		debug("error when loading shared object (%s)", dlerror());
-		for (i=0;i<n;i++) calls[i]=NULL;	
-		state_return_msg(EAR_DL_ERROR, 0, dlerror());
+	void *handle = dlopen(path, flags);
+	if (handle == NULL) {
+		return_msg(EAR_ERROR, dlerror());
 	}
-	
-	debug("dlopen returned correctly");
 	return symplug_join(handle, calls, names, n);
 }
 
-state_t symplug_open_lazy(char *path, void *calls[], const char *names[], uint n)
+state_t symplug_open(char *path, void *calls[], const char *names[], uint n)
 {
-  void *handle = dlopen(path, RTLD_LOCAL | RTLD_LAZY);
-
-  if (!handle)
-  {
-
-    debug("error when loading shared object (%s)", dlerror());
-    state_return_msg(EAR_DL_ERROR, 0, dlerror());
-  }
-
-  debug("dlopen returned correctly");
-  return symplug_join(handle, calls, names, n);
+	return load(path, calls, names, n, RTLD_GLOBAL | RTLD_NOW);
 }
 
+state_t symplug_open_flags(char *path, void *calls[], const char *names[], uint n, int flags)
+{
+	return load(path, calls, names, n, flags);
+}
+
+state_t symplug_test(void *calls[], uint n)
+{
+	uint i;
+	for (i = 0; i < n; ++i)
+	{
+		if (calls[i] == NULL) {
+			return EAR_ERROR;
+		}
+	}
+	return EAR_SUCCESS;
+}

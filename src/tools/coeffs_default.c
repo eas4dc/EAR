@@ -182,7 +182,7 @@ static void write_coefficients()
 	verbose(0, "-----------------------------------------------------------------------------------------------------");
 
 	if (!opt_o) {
-		sprintf(path_output, "%s/coeffs.default", path_root);
+		xsprintf(path_output, "%s/coeffs.default", path_root);
 	}
 
 	fd = -1;
@@ -218,6 +218,7 @@ static void read_file(char *path, char *node)
 	int i;
 
 	fd = open(path, O_RDONLY);
+	printf("Reading %s file\n",path);
 
 	if (fd < 0) {
 		printf("ERROR while opening file %s (%s)\n", path, strerror(errno));
@@ -249,12 +250,13 @@ static void read_coefficients(int argc, char *argv[], int n_nodes)
 	char *node_name;
 	int i;
 
-	for (i = 2; i < n_nodes; i++)
+	for (i = (argc - n_nodes); i < argc; i++)
 	{
+		printf("Processing node %d node %s\n",i , argv[i]);
 		node_name = argv[i];
 
 		/* The program reports coefficients in stdout and csv file */
-		sprintf(buffer, "%s/coeffs.%s", path_root, node_name);
+		xsprintf(buffer, "%s/coeffs.%s", path_root, node_name);
 
 		if (file_is_regular(buffer))
 		{
@@ -276,20 +278,19 @@ static int usage(int argc, char *argv[])
 
 	if (argc < 3)
 	{
-		verbose(0, "Usage: %s coeffs.path node.list [OPTIONS...]\n", argv[0]);
-		verbose(0, "  The coeffs.path includes the island.");
-		verbose(0, "  The node.list is splitted by spaces.");
+		verbose(0, "Usage: %s [OPTIONS...] coeffs.path node.list\n", argv[0]);
 		verbose(0, "\nOptions:");
 		verbose(0, "\t-A\tDoes the armonic mean, reducing the weight");
 		verbose(0, "\t\tof radical coefficient values.");
 		verbose(0, "\t-O <p>\tSaves the default coefficients file in a");
 		verbose(0, "\t\tfile of custom location.");
+		verbose(0, "  The coeffs.path includes the island.");
+		verbose(0, "  The node.list is splitted by spaces.");
 		
 		exit(1);
 	}
 
 	// Basic parametrs
-	sprintf(path_root, argv[1]);
 
 	while ((c = getopt (argc, argv, "AO:")) != -1)
 	{
@@ -309,7 +310,7 @@ static int usage(int argc, char *argv[])
 		}
 	}
 
-	return argc - opt_a - (opt_o * 2);
+	return 1+ opt_a + (opt_o * 2);
 }
 
 void init()
@@ -321,15 +322,19 @@ void init()
 
 int main(int argc, char *argv[])
 {
+	int no_opt;
 	int n_nodes;
+	char **argvcopy = argv;
 
 	// Initialization
-	n_nodes = usage(argc, argv);
+	no_opt = usage(argc, argv);
+	sprintf(path_root, argv[no_opt]);
+	n_nodes = argc - (no_opt + 1 );
 
 	init();
 
 	//
-	read_coefficients(argc, argv, n_nodes);
+	read_coefficients(argc, argvcopy, n_nodes);
 
 	//	
 	compute();

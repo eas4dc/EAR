@@ -16,78 +16,113 @@
 */
 
 #include <stdlib.h>
+#include <common/output/debug.h>
+#include <metrics/temperature/temperature.h>
+#include <metrics/temperature/archs/amd17.h>
+#include <metrics/temperature/archs/intel63.h>
+#include <metrics/temperature/archs/dummy.h>
 
-//#define SHOW_DEBUGS 0
-
-#include <common/config.h>
-#include <metrics/common/omsr.h>
-#include <common/output/verbose.h>
-/* Thermal Domain */
-#define IA32_THERM_STATUS               0x19C
-#define IA32_PKG_THERM_STATUS           0x1B1
-#define MSR_TEMPERATURE_TARGET          0x1A2
-int *throttling_temp;
-
-int init_temp_msr(int *fd_map)
+static struct temp_ops
 {
-    int j;
-    unsigned long long result;
-    if (is_msr_initialized()==0){
-        debug("Temperature: msr was not initialized, initializing");
-        init_msr(fd_map);
-    }else get_msr_ids(fd_map);
+	state_t (*init)          (ctx_t *c);
+	state_t (*dispose)       (ctx_t *c);
+	state_t (*count_devices) (ctx_t *c, uint *count);
+	state_t (*read)          (ctx_t *c, llong *temp, llong *average);
+} ops;
 
-    throttling_temp = calloc(get_total_packages(), sizeof(int));
-    for(j=0;j<get_total_packages();j++) {
-        if (omsr_read(fd_map, &result, sizeof result, MSR_TEMPERATURE_TARGET)) return EAR_ERROR;
-            throttling_temp[j] = (result >> 16);
-    }
-
-    return EAR_SUCCESS;
-}
-
-int read_temp_msr(int *fds,unsigned long long *_values)
+state_t temp_load(topology_t *tp)
 {
-	unsigned long long result;
-	int j;
-
-	for(j=0;j<get_total_packages();j++)
-	{
-	    /* PKG reading */    
-        if (omsr_read(&fds[j], &result, sizeof result, IA32_PKG_THERM_STATUS)) return EAR_ERROR;
-	    _values[j] = throttling_temp[j] - ((result>>16)&0xff);
-
-    }
+	if (ops.init != NULL) {
+		return EAR_SUCCESS;
+	}
+	if (state_ok(temp_intel63_status(tp))) {
+		ops.init          = temp_intel63_init;
+		ops.dispose       = temp_intel63_dispose;
+		ops.read          = temp_intel63_read;
+		ops.count_devices = temp_intel63_count_devices;
+		debug("selected intel63 temperature");
+	} else if (state_ok(temp_amd17_status(tp))) {
+		ops.init          = temp_amd17_init;
+		ops.dispose       = temp_amd17_dispose;
+		ops.read          = temp_amd17_read;
+		ops.count_devices = temp_amd17_count_devices;
+		debug("selected amd17 temperature");
+	} else if (state_ok(temp_dummy_status(tp))) {
+		ops.init          = temp_dummy_init;
+		ops.dispose       = temp_dummy_dispose;
+		ops.read          = temp_dummy_read;
+		ops.count_devices = temp_dummy_count_devices;
+		debug("selected dummy temperature");
+	}
+	if (ops.init == NULL) {
+		return_msg(EAR_ERROR, Generr.api_incompatible);
+	}
 	return EAR_SUCCESS;
 }
 
-int read_temp_limit_msr(int *fds, unsigned long long *_values)
+state_t temp_init(ctx_t *c)
 {
-	unsigned long long result;
-	int j;
+	preturn(ops.init, c);
+}
 
-	for(j=0;j<get_total_packages();j++)
-	{
-	    /* PKG reading */    
-        if (omsr_read(&fds[j], &result, sizeof result, IA32_PKG_THERM_STATUS)) return EAR_ERROR;
-	    _values[j] = ((result)&0x2);
+state_t temp_dispose(ctx_t *c)
+{
+	preturn(ops.dispose, c);
+}
 
-    }
+state_t temp_count_devices(ctx_t *c, uint *count)
+{
+	preturn(ops.count_devices, c, count);
+}
+
+// Data
+state_t temp_data_alloc(ctx_t *c, llong **temp, uint *temp_count)
+{
+	uint socket_count;
+	state_t s;
+	if (temp == NULL) {
+		return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
+	}
+	if (xtate_fail(s, temp_count_devices(c, &socket_count))) {
+		return s;
+	}
+	if ((*temp = (llong *) calloc(socket_count, sizeof(llong))) == NULL) {
+		return_msg(EAR_ERROR, strerror(errno));
+	}
+	if (temp_count != NULL) {
+		*temp_count = socket_count;
+	}
 	return EAR_SUCCESS;
 }
 
-int reset_temp_limit_msr(int *fds)
+state_t temp_data_copy(ctx_t *c, llong *temp2, llong *temp1)
 {
-	unsigned long long result;
-	int j;
-
-	for(j=0;j<get_total_packages();j++)
-	{
-	    /* PKG reading */    
-        if (omsr_read(&fds[j], &result, sizeof result, IA32_PKG_THERM_STATUS)) return EAR_ERROR;
-        result &= ~(0x2);
-        if (omsr_write(&fds[j], &result, sizeof result, IA32_PKG_THERM_STATUS)) return EAR_ERROR;
-
-    }
+	uint socket_count;
+	state_t s;
+	if (temp2 == NULL || temp1 == NULL) {
+		return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
+	}
+	if (xtate_fail(s, temp_count_devices(c, &socket_count))) {
+		return s;
+	}
+	if (memcpy((void *) temp2, (const void *) temp1, sizeof(llong)*socket_count) != temp2) {
+		return_msg(EAR_ERROR, strerror(errno));
+	}
 	return EAR_SUCCESS;
+}
+
+state_t temp_data_free(ctx_t *c, llong **temp)
+{
+	if (temp == NULL || *temp == NULL) {
+		return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
+	}
+	free(*temp);
+	*temp = NULL;
+	return EAR_SUCCESS;
+}
+
+// Getters
+state_t temp_read(ctx_t *c, llong *temp, llong *average)
+{
+	preturn(ops.read, c, temp, average);
 }

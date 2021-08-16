@@ -36,7 +36,7 @@ int plug_read_hostlist(spank_t sp, plug_serialization_t *sd);
  */
 int plug_print_variables(spank_t sp);
 
-int plug_clean_components(spank_t sp);
+int plug_deserialize_components(spank_t sp);
 
 int plug_deserialize_local(spank_t sp, plug_serialization_t *sd);
 
@@ -46,7 +46,9 @@ int plug_serialize_remote(spank_t sp, plug_serialization_t *sd);
 
 int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd);
 
-int plug_serialize_task(spank_t sp, plug_serialization_t *sd);
+int plug_serialize_task_settings(spank_t sp, plug_serialization_t *sd);
+
+int plug_serialize_task_preload(spank_t sp, plug_serialization_t *sd);
 
 /*
  * Cleaning functions

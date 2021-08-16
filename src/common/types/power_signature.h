@@ -50,4 +50,6 @@ uint are_equal_power_sig(power_signature_t *sig1,power_signature_t *sig2,double 
 /** Outputs the power_signature contents to the file pointed by the fd. */
 void print_power_signature_fd(int fd, power_signature_t *sig);
 
+void clean_db_power_signature(power_signature_t *ps, double limit);
+
 #endif

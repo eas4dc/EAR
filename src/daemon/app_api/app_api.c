@@ -25,11 +25,11 @@
 #include <errno.h>
 
 
+//#define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/states.h>
 #include <common/types/generic.h>
 #include <common/output/verbose.h>
-//#define SHOW_DEBUGS 1
 #include <daemon/app_api/app_conf_api.h>
 
 static int fd_app_to_eard=-1;
@@ -37,6 +37,7 @@ static int fd_eard_to_app=-1;
 static char app_to_eard[MAX_PATH_SIZE];
 static char eard_to_app[MAX_PATH_SIZE];
 static char my_app_to_eard[MAX_PATH_SIZE];
+
 
 #define MAX_TRIES 100
 
@@ -80,6 +81,7 @@ static int create_connection()
 		}
     }
 	chmod(eard_to_app,S_IRUSR|S_IWGRP|S_IWOTH);
+  debug("Pipes created\n");
 	/* EARD connection */	
 	debug("opening pipe and sending request\n");
     	fd_app_to_eard=open(app_to_eard,O_WRONLY|O_NONBLOCK);
@@ -125,7 +127,7 @@ static int create_connection()
 			return EAR_ERROR;
 		}
 	}
-
+	debug("Connection created");
 	return EAR_SUCCESS;
 }
 static int send_request(app_send_t *req)
@@ -167,7 +169,7 @@ static int wait_answer(app_recv_t *rec)
 		return EAR_ERROR;
 	}
 	debug("Data received\n");
-        return EAR_SUCCESS;
+  return EAR_SUCCESS;
 }
 
 static void close_connection()
@@ -184,13 +186,16 @@ static void close_connection()
 	fd_app_to_eard=-1;
 	fd_eard_to_app=-1;
 	remove_pipes();
+	debug("disconnected");
 }
-
+/************** ear_energy ***************/
 int ear_energy(ulong *energy_mj,ulong *time_ms)
 {
 	int ret=EAR_ERROR;
 	app_send_t my_req;
 	app_recv_t my_data;	
+
+	debug("ear_energy");
 
 	#if 0
 	/* Creating the connection */
@@ -216,8 +221,11 @@ int ear_energy(ulong *energy_mj,ulong *time_ms)
 	close_connection();
 	#endif
 
+	debug("end ear_energy");
 	return my_data.ret;
 }
+
+/********* ear_debug_energy *********/
 
 int ear_debug_energy(ulong *energy_j,ulong *energy_mj,ulong *time_sec,ulong *time_ms,ulong *os_time_sec,ulong *os_time_ms)
 {
@@ -259,6 +267,72 @@ int ear_debug_energy(ulong *energy_j,ulong *energy_mj,ulong *time_sec,ulong *tim
 		#endif
 
         return my_data.ret;
+}
+/************* ear_set_cpufreq *************/
+int ear_set_cpufreq(cpu_set_t *mask,unsigned long cpufreq)
+{
+  int ret=EAR_ERROR;
+  app_send_t my_req;
+  app_recv_t my_data;
+ 
+	debug("ear_set_cpufreq"); 
+  /* Preparing the request */
+  my_req.req=SELECT_CPU_FREQ;
+	my_req.send_data.cpu_freq.mask=*mask;
+	my_req.send_data.cpu_freq.cpuf=cpufreq;
+  
+  /* Sending the request */
+  if ((ret=send_request(&my_req))!=EAR_SUCCESS) return ret;
+  
+  /* Waiting for an answer */
+  if ((ret=wait_answer(&my_data))!=EAR_SUCCESS) return ret;
+  
+  
+  return my_data.ret;
+
+}
+
+int ear_set_gpufreq(int gpu_id,unsigned long gpufreq)
+{
+  int ret=EAR_ERROR;
+  app_send_t my_req;
+  app_recv_t my_data;
+  
+  /* Preparing the request */
+  my_req.req=SET_GPUFREQ;
+  my_req.send_data.gpu_freq.gpu_id=gpu_id;
+  my_req.send_data.gpu_freq.gpu_freq=gpufreq;
+  
+  /* Sending the request */
+  if ((ret=send_request(&my_req))!=EAR_SUCCESS) return ret;
+  
+  /* Waiting for an answer */
+  if ((ret=wait_answer(&my_data))!=EAR_SUCCESS) return ret;
+
+  
+  return my_data.ret;
+
+}
+int ear_set_gpufreq_list(uint num_gpus,unsigned long *gpufreqlist)
+{
+  int ret=EAR_ERROR;
+  app_send_t my_req;
+  app_recv_t my_data;
+ 
+  /* Preparing the request */
+  my_req.req=SET_GPUFREQ_LIST;
+	if (num_gpus > MAX_GPUS_SUPPORTED) return EAR_ERROR;
+  memcpy(my_req.send_data.gpu_freq_list.gpu_freq,gpufreqlist,sizeof(unsigned long)*num_gpus);
+
+  /* Sending the request */
+  if ((ret=send_request(&my_req))!=EAR_SUCCESS) return ret;
+
+  /* Waiting for an answer */
+  if ((ret=wait_answer(&my_data))!=EAR_SUCCESS) return ret;
+
+
+  return my_data.ret;
+
 }
 
 

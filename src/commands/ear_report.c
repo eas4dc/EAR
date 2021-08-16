@@ -31,11 +31,14 @@
 #include <common/output/verbose.h>
 #include <common/database/db_helper.h>
 #include <common/types/version.h>
+#include <common/types/log_eard.h>
 #include <common/types/configuration/cluster_conf.h>
 
 #if DB_MYSQL
 #include <mysql/mysql.h>
 #endif
+
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
 
 /* MYSQL QUERIES */
 #if DB_MYSQL
@@ -93,8 +96,13 @@
                     "INNER JOIN Jobs ON job_id = Jobs.id AND Applications.step_id = Jobs.step_id " \
                     "WHERE start_time >= %d AND end_time <= %d AND DC_power < %d GROUP BY Jobs.user_id ORDER BY energy"
 
-#define ALL_NODES   "select SUM(DC_energy), node_id FROM Periodic_metrics WHERE start_time >= %d " \
+#if USE_GPUS
+#define ALL_NODES   "select SUM(DC_energy), MIN(start_time), MAX(end_time), SUM(GPU_energy), node_id FROM Periodic_metrics WHERE start_time >= %d " \
                     " AND end_time <= %d GROUP BY node_id "
+#else
+#define ALL_NODES   "select SUM(DC_energy), MIN(start_time), MAX(end_time), node_id FROM Periodic_metrics WHERE start_time >= %d " \
+                    " AND end_time <= %d GROUP BY node_id "
+#endif
 
 #define ALL_ISLANDS "SELECT SUM(DC_energy), eardbd_host FROM Periodic_aggregations WHERE start_time >= %d "\
                     " AND end_time <= %d GROUP BY eardbd_host"
@@ -131,7 +139,7 @@ void usage(char *app)
     printf( "%s is a tool that reports energy consumption data\n", app);
 	printf( "Usage: %s [options]\n", app);
     printf( "Options are as follows:\n"\
-        "\t-s start_time     \t indicates the start of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default 1970-01-01.\n"
+        "\t-s start_time     \t indicates the start of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default: end_time minus insertion time*2.\n"
         "\t-e end_time       \t indicates the end of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default: current time.\n"
         "\t-n node_name |all \t indicates from which node the energy will be computed. Default: none (all nodes computed) \n\t\t\t\t\t 'all' option shows all users individually, not aggregated.\n"
         "\t-u user_name |all \t requests the energy consumed by a user in the selected period of time. Default: none (all users computed). \n\t\t\t\t\t 'all' option shows all users individually, not aggregated.\n"
@@ -236,9 +244,25 @@ long long get_sum(MYSQL *connection, int start_time, int end_time, unsigned long
 
     uint max_power = MAX_ERROR_POWER;
     int def_id = get_default_tag_id(&my_conf);
-    if (def_id > -1)
+    char is_node = 0;
+    if (node_name != NULL) 
     {
-        max_power = my_conf.tags[def_id].error_power;
+        my_node_conf_t *n_c = get_my_node_conf(&my_conf, node_name);
+        if (n_c != NULL) {
+            max_power = n_c->max_error_power;
+            is_node = 1;
+        }
+        
+    } 
+    if (!is_node)
+    {
+        if (def_id > -1)
+        {
+            max_power = my_conf.tags[def_id].error_power;
+        }   
+        int i;
+        for (i = 0; i < my_conf.num_tags; i++)
+            max_power = ear_max(my_conf.tags[i].error_power, max_power);
     }
     
     char query[512];
@@ -328,9 +352,25 @@ long long get_sum(PGconn *connection, int start_time, int end_time, unsigned lon
 
     uint max_power = MAX_ERROR_POWER;
     int def_id = get_default_tag_id(&my_conf);
-    if (def_id > -1)
+    char is_node = 0;
+    if (node_name != NULL) 
     {
-        max_power = my_conf.tags[def_id].error_power;
+        my_node_conf_t *n_c = get_my_node_conf(&my_conf, node_name);
+        if (n_c != NULL) {
+            max_power = n_c->max_error_power;
+            is_node = 1;
+        }
+        
+    } 
+    if (!is_node)
+    {
+        if (def_id > -1)
+        {
+            max_power = my_conf.tags[def_id].error_power;
+        }   
+        int i;
+        for (i = 0; i < my_conf.num_tags; i++)
+            max_power = ear_max(my_conf.tags[i].error_power, max_power);
     }
     
     if (node_name != NULL)
@@ -477,6 +517,11 @@ void compute_pow(MYSQL *connection, int start_time, int end_time, unsigned long 
         }
         if (global_start_time != global_end_time && result > 0)
             avg_pow = result / (global_end_time-global_start_time);
+        else if (start_time > 0)
+        {
+            global_start_time = start_time;
+            global_end_time = end_time;
+        }
     
         if (verbose)
         {
@@ -559,50 +604,60 @@ void compute_pow(PGconn *connection, int start_time, int end_time, unsigned long
 }
 #endif
 
-#define PM_CREATION_ERROR			100
-#define APP_API_CREATION_ERROR	101
-#define DYN_CREATION_ERROR			102
-#define UNCORE_INIT_ERROR		103
-#define RAPL_INIT_ERROR 104
-#define ENERGY_INIT_ERROR 105
-#define CONNECTOR_INIT_ERROR 106
-#define RCONNECTOR_INIT_ERROR 107
-
-
-
-/* EARD runtime events */
-#define DC_POWER_ERROR		300
-#define TEMP_ERROR				301
-#define FREQ_ERROR				302
-#define RAPL_ERROR				303
-#define GBS_ERROR					304
-#define CPI_ERROR					305
-void print_event_type(int type)
+void event_type_to_str(int type, char *buff, size_t size)
 {
     switch(type)
     {
-        case 300:
-            printf("%15s ", "DC_POW_ERROR");
+        case DC_POWER_ERROR:
+            strncpy(buff, "DC_POW_ERROR", size);
             break;
-        case 301:
-            printf("%15s ", "TEMP_ERROR");
+        case TEMP_ERROR:
+            strncpy(buff, "TEMP_ERROR", size);
             break;
-        case 302:
-            printf("%15s ", "FREQ_ERROR");
+        case FREQ_ERROR:
+            strncpy(buff, "FREQ_ERROR", size);
             break;
-        case 303:
-            printf("%15s ", "RAPL_ERROR");
+        case RAPL_ERROR:
+            strncpy(buff, "RAPL_ERROR", size);
             break;
-        case 304:
-            printf("%15s ", "GBS_ERROR");
+        case GBS_ERROR:
+            strncpy(buff, "GBS_ERROR", size);
             break;
-        case 305:
-            printf("%15s ", "CPI_ERROR");
+        case CPI_ERROR:
+            strncpy(buff, "CPI_ERROR", size);
+            break;
+        case RESET_POWERCAP:
+            strncpy(buff, "RESET_POWERCAP", size);
+            break;
+        case INC_POWERCAP:
+            strncpy(buff, "INC_POWERCAP", size);
+            break;
+        case RED_POWERCAP:
+            strncpy(buff, "RED_POWERCAP", size);
+            break;
+        case SET_POWERCAP:
+            strncpy(buff, "SET_POWERCAP", size);
+            break;
+        case SET_ASK_DEF:
+            strncpy(buff, "SET_ASK_DEF", size);
+            break;
+        case RELEASE_POWER:
+            strncpy(buff, "RELEASE_POWER", size);
+            break;
+        case POWERCAP_VALUE:
+            strncpy(buff, "POWERCAP_VALUE", size);
             break;
         default:
-            printf("%11s(%d) ", "UNKNOWN", type);
+            snprintf(buff, size, "UNKNOWN(%d) ", type);
             break;
     }
+}
+/* EARD runtime events */
+void print_event_type(int type)
+{
+    char buff[15];
+    event_type_to_str(type, buff, 15);
+    printf("%15s ", buff);
 }
 
 #if DB_MYSQL
@@ -619,7 +674,7 @@ void mysql_print_events(MYSQL_RES *result)
         if (!has_records)
         {
             printf("%12s %20s %15s %8s %8s %20s %12s\n",
-               "Event ID", "Timestamp", "Event type", "Job id", "Step id", "Freq.", "node_id");
+               "Event ID", "Timestamp", "Event type", "Job id", "Step id", "Value", "node_id");
             has_records = 1;
         }
         for(i = 0; i < num_fields; i++) {
@@ -653,7 +708,7 @@ void postgresql_print_events(PGresult *res)
         if (!has_records)
         {
             printf("%12s %22s %15s %8s %8s %20s %12s\n",
-               "Event ID", "Timestamp", "Event type", "Job id", "Step id", "Freq.", "node_id");
+               "Event ID", "Timestamp", "Event type", "Job id", "Step id", "Value", "node_id");
             has_records = 1;
         }
         for (j = 0; j < num_fields; j++) {
@@ -757,13 +812,19 @@ void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query,
     char query[512];
     int i;
     char all_nodes = 0;
+#if USE_GPUS
+    char has_gpus = 0;
+#endif
 
     uint max_power = MAX_ERROR_POWER;
     int def_id = get_default_tag_id(&my_conf);
     if (def_id > -1)
     {
         max_power = my_conf.tags[def_id].error_power;
-    }
+    }   
+    for (i = 0; i < my_conf.num_tags; i++)
+        max_power = ear_max(my_conf.tags[i].error_power, max_power);
+    
     
     if (type == GLOBAL_ENERGY_TYPE)
         sprintf(query, inc_query, end_time-start_time);
@@ -829,10 +890,23 @@ void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query,
     {
         if (!strcmp(inc_query, ALL_USERS)) {
             printf( "%15s %15s\n", "Energy (J)", "User");
+#if USE_GPUS
+            has_gpus = 1;
+#endif
         } else if (!strcmp(inc_query, ALL_TAGS)) {
             printf( "%15s %15s\n", "Energy (J)", "Energy tag");
+#if USE_GPUS
+            has_gpus = 1;
+#endif
+        } else if (!strcmp(inc_query, ALL_ISLANDS)) {
+            printf( "%15s %15s\n", "Energy (J)", "EARDBD");
         } else if (global_end_time > 0) {
-                printf( "%15s %15s %15s\n", "Energy (J)", "Node", "Avg. Power");
+#if USE_GPUS
+            printf( "%15s %15s %15s %15s\n", "Energy (J)", "Node", "Avg. DC Power", "Avg. GPU Power");
+            has_gpus = 1;
+#else
+            printf( "%15s %15s %15s\n", "Energy (J)", "Node", "Avg. Power");
+#endif
             all_nodes = 1;
         }
         else {
@@ -842,12 +916,29 @@ void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query,
 
         while ((row = mysql_fetch_row(result))!= NULL) 
         { 
+#if USE_GPUS
             for(i = 0; i < num_fields; i++) {
-                printf("%15s ", row[i] ? row[i] : "NULL");
+                if (has_gpus) {
+                    if (!all_nodes || (i != 1 && i != 2 && i != 3))
+                        printf("%15s ", row[i] ? row[i] : "NULL");
+                } else {
+                    for(i = 0; i < num_fields; i++) {
+                        printf("%15s ", row[i] ? row[i] : "NULL");
+                    }
+                }
             }
+#else
+            for(i = 0; i < num_fields; i++) {
+                if (!all_nodes || (i!= 2 && i != 1))
+                    printf("%15s ", row[i] ? row[i] : "NULL");
+            }
+#endif
           
-            if (row[0] && all_nodes) { //when getting energy we compute the avg_power
-                printf("%15lld", (atoll(row[0]) /(global_end_time - global_start_time)));
+            if (row[0] && all_nodes && (atoll(row[2]) != atoll(row[1]))) { //when getting energy we compute the avg_power
+                printf("%15lld", (atoll(row[0]) /(atoll(row[2]) - atoll(row[1]))));
+#if USE_GPUS
+                printf("%15lld", (atoll(row[3]) /(atoll(row[2]) - atoll(row[1]))));
+#endif
     	}
             printf("\n");
         }
@@ -866,7 +957,10 @@ void print_all(PGconn *connection, int start_time, int end_time, char *inc_query
     if (def_id > -1)
     {
         max_power = my_conf.tags[def_id].error_power;
-    }
+    }   
+    int i;
+    for (i = 0; i < my_conf.num_tags; i++)
+        max_power = ear_max(my_conf.tags[i].error_power, max_power);
     
     if (type == GLOBAL_ENERGY_TYPE)
         sprintf(query, inc_query, end_time-start_time);
@@ -928,6 +1022,8 @@ void print_all(PGconn *connection, int start_time, int end_time, char *inc_query
             printf( "%15s %15s\n", "Energy (J)", "User");
         } else if (!strcmp(inc_query, ALL_TAGS)) {
             printf( "%15s %15s\n", "Energy (J)", "Energy tag");
+        } else if (!strcmp(inc_query, ALL_ISLANDS)) {
+            printf( "%15s %15s\n", "Energy (J)", "EARDBD");
         } else if (global_end_time > 0) {
                 printf( "%15s %15s %15s\n", "Energy (J)", "Node", "Avg. Power");
             all_nodes = 1;
@@ -1101,6 +1197,7 @@ int main(int argc,char *argv[])
         }
     }
 
+    if (start_time == 0) start_time = end_time - MAX(my_conf.eard.period_powermon, my_conf.db_manager.insr_time)*4;
     if (!all_users && !all_nodes && !all_tags && !all_eardbds && !global_energy && !report_events)
     {
         long long result = get_sum(connection, start_time, end_time, divisor);
@@ -1128,8 +1225,16 @@ int main(int argc,char *argv[])
                 printf( "Average power during the reported period: %llu W\n", avg_pow);
             }
         }    
+#if DB_MYSQL
+        mysql_close(connection);
+#elif DB_PSQL
+        PQfinish(connection);
+#endif
+        free_cluster_conf(&my_conf);
+        exit(0);
     }
-    else if (all_users)
+
+    if (all_users)
         print_all(connection, start_time, end_time, ALL_USERS, ALL_PER_METRIC_TYPE);
     else if (all_tags)
         print_all(connection, start_time, end_time, ALL_TAGS, ALL_PER_METRIC_TYPE);

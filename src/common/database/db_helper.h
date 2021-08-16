@@ -96,6 +96,9 @@ PGresult *db_run_query_result(char *query);
 int get_num_rows(PGconn *connection, char *query);
 #endif
 
+float get_max_dc_power(char is_max, char *app_name, ulong freq);
+float run_query_float_result(char *query);
+
 int run_query_int_result(char *query);
 
 int get_num_columns(char *query);

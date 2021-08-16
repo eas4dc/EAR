@@ -20,17 +20,17 @@
 #include <common/output/verbose.h>
 #include <common/sizes.h>
 #include <common/states.h>
-#include <common/hardware/cpupower.h>
+//#include <common/hardware/cpupower.h>
 #include <common/hardware/architecture.h>
 
 /** Fills the current architecture in arch*/
 state_t get_arch_desc(architecture_t *arch)
 {
-	state_t ret;
+	state_t ret = EAR_SUCCESS;
 	if (arch==NULL) return EAR_ERROR;
-	arch->pstates=CPUfreq_get_num_pstates(0);
+	arch->pstates = 0;
 	topology_init(&arch->top);
-	return EAR_SUCCESS;	
+	return ret;	
 }
 
 /** Copy src in dest */
@@ -45,11 +45,8 @@ state_t copy_arch_desc(architecture_t *dest,architecture_t *src)
 void print_arch_desc(architecture_t *arch)
 {
 	if (arch==NULL){ 
-		printf("arch NULL pointer\n");
 		return;
 	}
-	printf("max avx512 %lu max freq for avx2 instructions %lu num pstates %d\n",arch->max_freq_avx512,
-	arch->max_freq_avx2,arch->pstates);
 	
 }
 

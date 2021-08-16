@@ -28,6 +28,7 @@
 #include <common/types/configuration/cluster_conf_db.h>
 #include <common/types/configuration/cluster_conf_etag.h>
 
+#if 0
 static void insert_th_policy(cluster_conf_t *conf, char *token, int policy, int main)
 {
 	int i;
@@ -42,6 +43,7 @@ static void insert_th_policy(cluster_conf_t *conf, char *token, int policy, int 
 	}
 
 }
+#endif
 
 static int set_nodes_conf(cluster_conf_t *conf, char *namelist)
 {
@@ -122,7 +124,7 @@ static int set_nodes_conf(cluster_conf_t *conf, char *namelist)
 	}
 	return 1;
 }
-
+#if 0
 static int get_default_pstate(policy_conf_t *pow_pol, int num_pol, int policy)
 {
 	int i;
@@ -133,6 +135,7 @@ static int get_default_pstate(policy_conf_t *pow_pol, int num_pol, int policy)
 	}
 	return 0;
 }
+#endif
 
 static void fill_policies(cluster_conf_t *conf)
 {
@@ -300,15 +303,14 @@ void parse_island(cluster_conf_t *conf, char *line)
             int id_f = idx < 0 ? conf->num_islands: idx;
             if (conf->islands[id_f].num_ips < 1)
                 conf->islands[id_f].db_ips = NULL;
-            for (i = 0; i < conf->islands[id_f].num_ips; i++)
+            for (i = 0; i < conf->islands[id_f].num_ips; i++) //search if the ip already exists
                 if (!strcmp(conf->islands[id_f].db_ips[i], token)) ip_id = i;
             if (ip_id < 0)
             {
-                conf->islands[id_f].db_ips = realloc(conf->islands[id_f].db_ips,
-                                                                    (conf->islands[id_f].num_ips+1)*sizeof(char *));
-                                                if (conf->islands[id_f].db_ips==NULL){
-                                                    error("NULL pointer in DB IPS definition");
-                                                    return;
+                conf->islands[id_f].db_ips = realloc(conf->islands[id_f].db_ips, (conf->islands[id_f].num_ips+1)*sizeof(char *));
+                if (conf->islands[id_f].db_ips==NULL){
+                    error("NULL pointer in DB IPS definition");
+                return;
                                                 }
                 conf->islands[id_f].db_ips[conf->islands[id_f].num_ips] = malloc(strlen(token)+1);
                 remove_chars(token, ' ');
@@ -362,6 +364,7 @@ void parse_island(cluster_conf_t *conf, char *line)
         }
         else if (!strcmp(token, "NODES"))
         {
+            contains_ip = contains_sec_ip = 0;
             token = strtok(NULL, " ");
             int id_f = idx < 0 ? conf->num_islands: idx;
             current_ranges = conf->islands[id_f].num_ranges;
@@ -402,20 +405,23 @@ void parse_island(cluster_conf_t *conf, char *line)
             }
             token = next_token;
         }
-        else if (!strcmp(token, "TAGS") || !strcmp(token, "TAG"))
+        else if (!strcmp(token, "TAGS") || !strcmp(token, "TAG") )
         {
             tag_parsing = 1;
             char aux_token[256], *next_token = NULL;
             token = strtok(NULL, " ");
             strcpy(aux_token, token);
             token = strtok(NULL, " ");
+
             if (token != NULL && strlen(token) > 0)
                 next_token = token;
+
             token = aux_token;
             token = strtok(token, ",");
             int id_f = idx < 0 ? conf->num_islands: idx;
             int current_num_tags = 0;
             int *current_tags = NULL;
+
             if (conf->islands[id_f].num_specific_tags < 1)
                     conf->islands[id_f].specific_tags = NULL;
             char found = 0;
@@ -459,34 +465,17 @@ void parse_island(cluster_conf_t *conf, char *line)
         tag_parsing = 0;
     }
     int id_f = idx < 0 ? conf->num_islands: idx;
-    if (!contains_ip && conf->islands[id_f].num_ips > 0)
+    if (!contains_ip)
     {
+        int id_db = conf->islands[id_f].num_ips > 0 ? 0 : -1;
         for (i = current_ranges; i < conf->islands[id_f].num_ranges; i++)
-            conf->islands[id_f].ranges[i].db_ip = 0;
+            conf->islands[id_f].ranges[i].db_ip = id_db;
     }
-    else if (!contains_ip)
+    if (!contains_sec_ip)
     {
+        int id_sec_db = conf->islands[id_f].num_backups > 0 ? 0 : -1;
         for (i = current_ranges; i < conf->islands[id_f].num_ranges; i++)
-            conf->islands[id_f].ranges[i].db_ip = -1;
-    }
-    if (!contains_sec_ip && conf->islands[id_f].num_backups > 0)
-    {
-        for (i = current_ranges; i < conf->islands[id_f].num_ranges; i++)
-            conf->islands[id_f].ranges[i].sec_ip = 0;
-    }
-    else if (!contains_sec_ip)
-    {
-        for (i = current_ranges; i < conf->islands[id_f].num_ranges; i++)
-            conf->islands[id_f].ranges[i].sec_ip = -1;
-    }
-    if (conf->islands[id_f].num_ips)
-    {
-        for (i = 0; i < current_ranges; i++)
-        {
-            if (conf->islands[id_f].ranges[i].db_ip < 0) conf->islands[id_f].ranges[i].db_ip = 0;
-
-            if (conf->islands[id_f].ranges[i].sec_ip < 0) conf->islands[id_f].ranges[i].sec_ip = 0;
-        }
+            conf->islands[id_f].ranges[i].sec_ip = id_sec_db;
     }
     if (idx < 0)
         conf->num_islands++;
@@ -550,7 +539,6 @@ void get_cluster_config(FILE *conf_file, cluster_conf_t *conf)
 		else if (!strcmp(token, "NODENAME"))
 		{
 			int i = 0;
-			int island = 0;
 			int num_nodes = 0;
 			int num_cpus = 0;
 			//fully restore the line
@@ -598,7 +586,7 @@ void get_cluster_config(FILE *conf_file, cluster_conf_t *conf)
 			if (coef_file != NULL)
 				for (i = 0; i < num_nodes; i++)
 					conf->nodes[conf->num_nodes+i].coef_file = coef_file;
-				conf->num_nodes += num_nodes;
+			conf->num_nodes += num_nodes;
 		} // NODENAME END
 
 
@@ -665,6 +653,7 @@ int read_cluster_conf(char *conf_path,cluster_conf_t *my_conf)
 		error( "Error: ear.conf does not contain any island or policy definition or there is no default policy specified.\n");
 		return EAR_ERROR;
     }
+	my_conf->cluster_num_nodes=get_num_nodes(my_conf);
 	fclose(conf_file);
 	//print_cluster_conf(my_conf);
 	return EAR_SUCCESS;
@@ -739,7 +728,7 @@ void free_cluster_conf(cluster_conf_t *conf)
 
         for (j = 0; j < conf->islands[i].num_specific_tags; j++)
             free(conf->islands[i].specific_tags[j]);
-        free(conf->islands[i].specific_tags);
+        if (conf->islands[i].num_specific_tags > 0) free(conf->islands[i].specific_tags);
         conf->islands[i].num_specific_tags = 0;
 
 

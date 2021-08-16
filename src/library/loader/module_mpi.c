@@ -19,30 +19,52 @@
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <common/config.h>
 #include <common/system/file.h>
 #include <common/system/symplug.h>
-#include <common/output/verbose.h>
 #include <common/string_enhanced.h>
-#include <common/config/config_env.h>
+#include <library/loader/loader.h>
 #include <library/loader/module_mpi.h>
+#include <library/loader/module_common.h>
+#include <library/loader/module_cuda.h>
+#include <library/api/mpi_support.h>
 
-extern int _loaded_default;
 static mpic_t next_mpic;
 static mpif_t next_mpif;
 mpic_t ear_mpic;
 mpif_t ear_mpif;
 
-static int module_file_exists(char *path)
+void (*func_con) (void);
+void (*func_des) (void);
+
+static uint mpi_on = 0;
+static uint intelmpi = 0;
+static uint openmpi = 0;
+
+int is_mpi_enabled()
 {
-	return (access(path, X_OK) == 0);
+        return mpi_on;
 }
 
-static void module_mpi_get_libear(char *path_so, int *lang_c, int *lang_f)
+void ear_mpi_enabled()
+{
+        mpi_on = 1;
+}
+
+int is_intelmpi()
+{
+	return intelmpi;
+}
+
+int is_openmpi()
+{
+	return openmpi;
+}
+
+static void module_mpi_get_libear(char *path_lib_so,char *libhack,char *path_so, size_t path_so_size, int *lang_c, int *lang_f)
 {
 	static char buffer[4096];
 	char *extension = NULL;
-	char *path = NULL;
-	char *hack = NULL;
 	char *vers = NULL;
 	int len = 4096;
 	int fndi = 0;
@@ -51,13 +73,8 @@ static void module_mpi_get_libear(char *path_so, int *lang_c, int *lang_f)
 
 	*lang_c = 0;
 	*lang_f = 0;
-
-	if ((hack = getenv(HACK_PATH_LIBR)) != NULL) {
-		hack = getenv(HACK_PATH_LIBR);
-	} else if ((path = getenv(VAR_INS_PATH)) == NULL) {
-		verbose(2, "LOADER: installation path not found");
-		return;
-	}
+	if (path_lib_so != NULL) verbose(2,"LOADER path_lib_so %s",path_lib_so);
+	if (libhack != NULL) verbose(2,"LOADER  using HACK %s",libhack);
 
 	// Getting the library version
 	MPI_Get_library_version(buffer, &len);
@@ -66,8 +83,10 @@ static void module_mpi_get_libear(char *path_so, int *lang_c, int *lang_f)
 
 	if (strstr(buffer, "intel") != NULL) {
 		fndi = 1;
+		intelmpi = 1;
 	} else if (strstr(buffer, "open mpi") != NULL) {
 		fndo = 1;
+		openmpi = 1;
 	} else if (strstr(buffer, "mvapich") != NULL) {
 		fndm = 1;
 	} else {
@@ -79,34 +98,32 @@ static void module_mpi_get_libear(char *path_so, int *lang_c, int *lang_f)
 		fndi, fndo, fndm);
 
 	//
-	extension = "so";
+	extension = INTEL_EXT;
 
 	if (fndo) {
-		extension = "ompi.so";
+		extension = OPENMPI_EXT;
 	}
 
 	if ((vers = getenv(FLAG_NAME_LIBR)) != NULL) {
 		if (strlen(vers) > 0) {
-			sprintf(buffer, "%s.so", vers);		
+			xsnprintf(buffer,sizeof(buffer), "%s.so", vers);		
 			extension = buffer;
 		}
 	}
+  if (path_lib_so != NULL) verbose(2,"LOADER: path %s rellibname %s extension %s",path_lib_so, REL_NAME_LIBR, extension);
 
 	//
-	if (!hack) {
-		sprintf(path_so, "%s/%s/%s.%s", path, REL_PATH_LIBR, REL_NAME_LIBR, extension);
-	} else {
-		sprintf(path_so, "%s/%s.%s", hack, REL_NAME_LIBR, extension);
+	if (libhack == NULL){	
+		xsnprintf(path_so,path_so_size, "%s/%s.%s", path_lib_so, REL_NAME_LIBR, extension);
+	}else{
+		xsnprintf(path_so, path_so_size,"%s", libhack);
 	}
 
-	// Last chance to force a concrete library file.
-	if ((hack = getenv(HACK_FILE_LIBR)) != NULL) {
-		sprintf(path_so, "%s", hack);
-	}
+	verbose(2,"LOADER: lib path %s",path_so);
 	
 	//if (!file_is_regular(path_so)) {
 	if (!module_file_exists(path_so)) {
-		verbose(0, "LOADER: impossible to find library '%s'", path_so);
+		verbose(0,"EARL cannot be found at '%s'", path_so);
 		return;
 	}
 
@@ -117,16 +134,8 @@ static void module_mpi_get_libear(char *path_so, int *lang_c, int *lang_f)
 	return;
 }
 
-static void module_mpi_dlsym_next()
-{
-	verbose(2, "LOADER: module_mpi_dlsym_next loading library");
-	symplug_join(RTLD_NEXT, (void **) &ear_mpic, mpic_names, MPIC_N);
-	symplug_join(RTLD_NEXT, (void **) &ear_mpif, mpif_names, MPIF_N);
-	verbose(3, "LOADER: dlsym for C init returned %p", ear_mpic.Init);
-	verbose(3, "LOADER: dlsym for F init returned %p", ear_mpif.init);
-}
 
-static void module_mpi_dlsym(char *path_so, int lang_c, int lang_f)
+static int module_mpi_dlsym(char *path_so, int lang_c, int lang_f)
 {
 	void **next_mpic_v = (void **) &next_mpic;
 	void **next_mpif_v = (void **) &next_mpif;
@@ -140,28 +149,40 @@ static void module_mpi_dlsym(char *path_so, int lang_c, int lang_f)
 
 	symplug_join(RTLD_NEXT, (void **) &next_mpic, mpic_names, MPIC_N);
 	symplug_join(RTLD_NEXT, (void **) &next_mpif, mpif_names, MPIF_N);
-	verbose(3, "LOADER: dlsym for C init returned %p", next_mpic.Init);
-	verbose(3, "LOADER: dlsym for F init returned %p", next_mpif.init);
+	verbose(3, "LOADER: MPI (C) next symbols loaded, Init address is %p", next_mpic.Init);
+	verbose(3, "LOADER: MPI (F) next symbols loaded, Init address is %p", next_mpif.init);
 
 	//
 	libear = dlopen(path_so, RTLD_NOW | RTLD_GLOBAL);
 	if (libear == NULL){
-		error("LOADER: dlopen error %s",dlerror());
+		verbose(0,"EARL at %s canot be loaded %s",path_so, dlerror());
 	}else{
 		verbose(3, "LOADER: dlopen returned %p", libear);
 	}
+	
+	void (*ear_mpic_setnext) (mpic_t *) = NULL;
+	void (*ear_mpif_setnext) (mpif_t *) = NULL;
 
 	if (libear != NULL)
 	{
-		if (lang_c) {
-			symplug_join(libear, (void **) &ear_mpic, ear_mpic_names, MPIC_N);
+		ear_mpic_setnext = dlsym(libear, "ear_mpic_setnext");
+		ear_mpif_setnext = dlsym(libear, "ear_mpif_setnext");
+
+		if (ear_mpic_setnext == NULL && lang_c) {
+			lang_c = 0;
 		}
-		if (lang_f) {
-			symplug_join(libear, (void **) &ear_mpif, ear_mpif_names, MPIF_N);
+		if (ear_mpif_setnext == NULL && lang_f) {
+			lang_f = 0;
 		}
-	} else {
-		verbose(0, "LOADER: dlopen failed %s", dlerror())
+		if (!lang_c && !lang_f) {
+			verbose(2, "LOADER: the loaded library does not have MPI symbols");
+			dlclose(libear);
+			libear = NULL;
+		}
 	}
+
+	if (libear != NULL && lang_c) symplug_join(libear, (void **) &ear_mpic, ear_mpic_names, MPIC_N);
+	if (libear != NULL && lang_f) symplug_join(libear, (void **) &ear_mpif, ear_mpif_names, MPIF_N);
 
 	//
 	for(i = 0; i < MPIC_N; ++i)
@@ -178,13 +199,18 @@ static void module_mpi_dlsym(char *path_so, int lang_c, int lang_f)
 	}
 	
 	// Setting MPI next symbols
-	if (libear != NULL)
-	{
-		void (*ear_mpic_setnext) (mpic_t *) = dlsym(libear, "ear_mpic_setnext");
-		void (*ear_mpif_setnext) (mpif_t *) = dlsym(libear, "ear_mpif_setnext");
-		if (ear_mpic_setnext != NULL) ear_mpic_setnext(&next_mpic);
-		if (ear_mpif_setnext != NULL) ear_mpif_setnext(&next_mpif);
+	if (!lang_c && !lang_f) {
+		return 0;
 	}
+	
+	if (ear_mpic_setnext != NULL) ear_mpic_setnext(&next_mpic);
+	if (ear_mpif_setnext != NULL) ear_mpif_setnext(&next_mpif);
+	func_con = dlsym(libear, "ear_constructor");
+	func_des = dlsym(libear, "ear_destructor");
+	verbose(3, "LOADER: function constructor %p", func_con);
+	verbose(3, "LOADER: function destructor %p", func_des);
+	
+	return 1;
 }
 
 static int module_mpi_is()
@@ -192,37 +218,49 @@ static int module_mpi_is()
 	return !(dlsym(RTLD_DEFAULT, "MPI_Get_library_version") == NULL);
 }
 
-static void module_mpi_init()
-{
-	char *verb;
-	
-	if ((verb = getenv("SLURM_LOADER_VERBOSE")) != NULL)
-	{
-		VERB_SET_EN(1);
-		VERB_SET_LV(atoi(verb));
-	}
-}
-
-void module_mpi()
+int module_mpi(char *path_lib_so,char *libhack)
 {
 	static char path_so[4096];
 	int lang_c;
 	int lang_f;
+	int is_mpi = 1;
 
-	module_mpi_init();
-	
-	verbose(3, "LOADER: function module_mpi in '%s'", program_invocation_name);
+	verbose(3, "LOADER: loading module MPI");
 
 	if (!module_mpi_is()) {
 		verbose(3, "LOADER: no MPI detected");
-		return;
+		return 0;
 	}
 
-	if (_loaded_default) {
-		module_mpi_dlsym_next();
-		return;
+	//
+	module_mpi_get_libear(path_lib_so,libhack,path_so, sizeof(path_so), &lang_c, &lang_f);
+	//
+	if (!module_mpi_dlsym(path_so, lang_c, lang_f)){
+		return is_mpi;
 	}
+	ear_mpi_enabled();
+	/* Once EARl is loaded we can  check if the application uses CUDA and then mark as a CUDA app */
+	#if USE_GPUS
+	if (module_cuda_is()) ear_cuda_enabled();
+	#endif
+	if (atexit(module_mpi_destructor) != 0) {
+    verbose(2, "LOADER: cannot set exit function");
+  }
+  if (func_con != NULL) {
+    func_con();
+  }
+
+	return is_mpi;
 	
-	module_mpi_get_libear(path_so, &lang_c, &lang_f);
-	module_mpi_dlsym(path_so, lang_c, lang_f);
 }
+
+void module_mpi_destructor()
+{
+  verbose(3, "LOADER: loading module mpi (destructor)");
+	if (is_mpi_enabled()){
+  	if (func_des != NULL) {
+  	  func_des();
+  	}
+	}
+}
+

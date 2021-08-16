@@ -20,32 +20,36 @@
 
 #include <common/types.h>
 #include <common/states.h>
+#include <common/plugins.h>
 #include <common/hardware/topology.h>
 
-typedef struct freq_cpu_s {
-	void *data;
-} freq_cpu_t;
+typedef ctx_t cpufreq_t;
 
-state_t freq_cpu_init(topology_t *tp);
+state_t cpufreq_load(topology_t *tp);
 
-state_t freq_cpu_dispose();
+state_t cpufreq_init();
 
-state_t freq_cpu_read(freq_cpu_t *ef);
+state_t cpufreq_dispose();
 
-state_t freq_cpu_read_diff(freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average);
+// Privileged function.
+state_t cpufreq_read(cpufreq_t *ef);
 
-state_t freq_cpu_read_copy(freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average);
+// Privileged function.
+state_t cpufreq_read_diff(cpufreq_t *ef2, cpufreq_t *ef1, ulong *freqs, ulong *average);
 
-state_t freq_cpu_data_alloc(freq_cpu_t *ef, ulong **freqs, ulong *freqs_count);
+// Privileged function.
+state_t cpufreq_read_copy(cpufreq_t *ef2, cpufreq_t *ef1, ulong *freqs, ulong *average);
 
-state_t freq_cpu_data_count(uint *count);
+state_t cpufreq_data_alloc(cpufreq_t *ef, ulong *freqs[]);
 
-state_t freq_cpu_data_copy(freq_cpu_t *ef_dst, freq_cpu_t *ef_src);
+state_t cpufreq_data_count(uint *cpufreq_size, uint *freqs_count);
 
-state_t freq_cpu_data_free(freq_cpu_t *ef, ulong **freqs);
+state_t cpufreq_data_copy(cpufreq_t *ef_dst, cpufreq_t *ef_src);
 
-state_t freq_cpu_data_diff(freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average);
+state_t cpufreq_data_free(cpufreq_t *ef, ulong **freqs);
 
-state_t freq_cpu_data_print(ulong *freqs, ulong *average);
+state_t cpufreq_data_diff(cpufreq_t *ef2, cpufreq_t *ef1, ulong *freqs, ulong *average);
+
+state_t cpufreq_data_print(ulong *freqs, ulong *average);
 
 #endif //EAR_PRIVATE_CACHE_H

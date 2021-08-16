@@ -3,7 +3,7 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 ######## FILES
 
 ener_BINS = \
-    energy_cpu.o \
+    cpu.o \
     energy_node.o \
     energy_node_lib.o
 ener_DEPS = \

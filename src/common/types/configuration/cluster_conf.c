@@ -24,7 +24,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <common/config.h>
-//#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
 #include <common/sizes.h>
 #include <common/types/configuration/cluster_conf.h>
@@ -59,14 +58,16 @@ int get_ip(char *nodename, cluster_conf_t *conf)
     strcat(buff, NW_EXT);
     #endif*/
 
-	if (strlen(conf->net_ext) > 0) {
+    if (conf != NULL) {
+    	if (strlen(conf->net_ext) > 0) {
         	strcat(buff, conf->net_ext);
-	}
+	    }
+    }
 
    	s = getaddrinfo(buff, NULL, &hints, &result);
 
 	if (s != 0) {
-		verbose(0, "getaddrinfo fails for port %s (%s)", buff, strerror(errno));
+		debug("getaddrinfo fails for node %s (%s)", buff, strerror(errno));
 		return EAR_ERROR;
 	}
 
@@ -82,9 +83,49 @@ int get_ip(char *nodename, cluster_conf_t *conf)
     return ip1;
 }
 
+void get_ip_nodelist(cluster_conf_t *conf, char **nodes, int num_nodes, int **ips)
+{
+    int i;
+    int *aux_ips = calloc(num_nodes, sizeof(int));
+    for (i = 0; i < num_nodes; i++)
+    {
+        aux_ips[i] = get_ip(nodes[i], conf);
+    }
+
+    *ips = aux_ips;
+}
+
+int get_num_nodes(cluster_conf_t *my_conf)
+{
+    int i, j;
+    int total_nodes = 0;
+    
+    if (my_conf->num_islands < 1)
+    {
+        error("No island ranges found.");
+        return EAR_ERROR;
+    }
+
+    for (i = 0; i < my_conf->num_islands; i++)
+    {
+        for (j = 0; j < my_conf->islands[i].num_ranges; j++)
+        {
+            node_range_t range = my_conf->islands[i].ranges[j];
+            if (range.end == -1)
+                total_nodes++;
+            else if (range.end == range.start)
+                total_nodes++;
+            else
+                total_nodes += (range.end - range.start) + 1; //end - start does not count the starting node
+        }
+    }
+    
+    return total_nodes;
+        
+}
+
 int get_ip_ranges(cluster_conf_t *my_conf, int **num_ips, int ***ips)
 {
-    
     int i, j, k;
     int **aux_ips;
     int *sec_aux_ips;
@@ -241,19 +282,24 @@ int get_default_tag_id(cluster_conf_t *conf)
     return id;
 }
 
-my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf,char *nodename)
+
+my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
 {
 	int i=0, j=0, range_found=0;
+    int range_id = -1;
+    int tag_id = -1, def_tag_id = -1;
 
 	if (my_conf->num_islands == 0) return NULL;
 
-	my_node_conf_t *n=calloc(1, sizeof(my_node_conf_t));
-    n->num_policies = my_conf->num_policies;
-    n->policies=malloc(sizeof(policy_conf_t)*n->num_policies);
-    int num_spec_nodes = 0;
-    int range_id = -1;
-    //char tag[GENERIC_NAME] = "";
-    int tag_id = -1;
+    def_tag_id = get_default_tag_id(my_conf);
+
+	my_node_conf_t *n = calloc(1, sizeof(my_node_conf_t));
+
+    n->num_policies = get_default_policies(my_conf, &n->policies, def_tag_id);
+    //n->num_policies = my_conf->num_policies;
+    //n->policies = malloc(sizeof(policy_conf_t)*n->num_policies);
+
+    n->max_pstate=my_conf->eard.max_pstate;
 
     while(i<my_conf->num_nodes)
     {
@@ -281,13 +327,6 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf,char *nodename)
 			}
 			n->use_log=my_conf->eard.use_log;
 
-            /* This section will be removed once island configuration for this variables gets deprecated. */
-            n->max_sig_power=my_conf->islands[i].max_sig_power;
-            n->min_sig_power=my_conf->islands[i].min_sig_power;
-            n->max_error_power=my_conf->islands[i].max_error_power;
-            n->max_temp=my_conf->islands[i].max_temp;
-            n->max_power_cap=my_conf->islands[i].max_power_cap;
-            /* End of the deletable section */
 
             j = 0;
             if (my_conf->islands[i].ranges[range_id].num_tags > 0)
@@ -313,10 +352,10 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf,char *nodename)
         return NULL;
     }
 
-    n->energy_plugin = my_conf->install.obj_ener;
-    n->energy_model = my_conf->install.obj_power_model;
+        n->energy_plugin = my_conf->install.obj_ener;
+        n->energy_model = my_conf->install.obj_power_model;
 
-    if (tag_id < 0) tag_id = get_default_tag_id(my_conf);
+    if (tag_id < 0) tag_id = def_tag_id; // if no tag found, we apply the default tag
     if (tag_id >= 0)
     {
         debug("Found my_node_conf with tag: %s\n", my_conf->tags[tag_id].id);
@@ -324,11 +363,13 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf,char *nodename)
         n->min_sig_power = (double)my_conf->tags[tag_id].min_power;
         n->max_error_power = (double)my_conf->tags[tag_id].error_power;
         n->max_temp = my_conf->tags[tag_id].max_temp;
-        n->max_power_cap = (double)my_conf->tags[tag_id].powercap;
+        n->powercap = (double)my_conf->tags[tag_id].powercap;
+        n->max_powercap = (double)my_conf->tags[tag_id].max_powercap;
         n->max_avx512_freq = my_conf->tags[tag_id].max_avx512_freq;
         n->max_avx2_freq = my_conf->tags[tag_id].max_avx2_freq;
 
         n->powercap_type = my_conf->tags[tag_id].powercap_type;
+        n->gpu_def_freq = my_conf->tags[tag_id].gpu_def_freq;
 
         if (my_conf->tags[tag_id].energy_plugin != NULL && strlen(my_conf->tags[tag_id].energy_plugin) > 0)
             n->energy_plugin = my_conf->tags[tag_id].energy_plugin;
@@ -342,11 +383,50 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf,char *nodename)
     }
     else warning("No tag found for current node in ear.conf\n");
 
+    //POLICY management
+    char found;
+    if (tag_id >= 0 && tag_id != def_tag_id) // policies with the default tag have already been added
+    {
+        for (i = 0; i < my_conf->num_policies; i++)
+        {
+            found = 0;
+            debug("comparing current tag (%s) with policy tag (%s)\n", my_conf->tags[tag_id].id, my_conf->power_policies[i].tag);
+            if (!strcmp(my_conf->tags[tag_id].id, my_conf->power_policies[i].tag)) //we only need the policies for our current tag
+            {
+                debug("match found!\n");
+                for (j = 0; j < n->num_policies; j++)
+                {
+                    if (!strcmp(my_conf->power_policies[i].name, n->policies[j].name)) //two policies are the same if they are have the same name, so we replace them
+                    {
+                        memcpy(&n->policies[j], &my_conf->power_policies[i], sizeof(policy_conf_t));
+                        found = 1;
+                        break;
+                    }
+                }
+                if (!found) // if the policy didn't exist as a default one, we add it for this node
+                {
+                    debug("new policy found for this tag, adding it to my_node_conf's list\n");
+                    n->policies = realloc(n->policies, sizeof(policy_conf_t)*(n->num_policies + 1));
+                    memcpy(&n->policies[n->num_policies], &my_conf->power_policies[i], sizeof(policy_conf_t));
+                    n->num_policies ++;
+                }
+            }
 
-    //pending checks for policies
-    memcpy(n->policies,my_conf->power_policies,sizeof(policy_conf_t)*my_conf->num_policies);
-    n->max_pstate=my_conf->eard.max_pstate;
 
+        }
+    }
+    /* Automatic computation of powercap */
+		#if POWERCAP
+		/* If node powercap is -1, and there is a global powercap, power is equally distributed */
+    if (n->powercap == DEF_POWER_CAP){
+      if (my_conf->eargm.power > 0){
+        n->powercap = my_conf->eargm.power / my_conf->cluster_num_nodes;
+      }else{
+				/* 0 means no limit */
+        n->powercap = 0;
+      }
+    }
+		#endif
 
 
 	return n;
@@ -534,6 +614,7 @@ void set_default_tag_values(tag_t *tag)
 	tag->powercap       = DEF_POWER_CAP;
 	tag->min_power      = MIN_SIG_POWER;
 	tag->max_temp       = MAX_TEMP;
+	tag->gpu_def_freq   = 0;
     
     strcpy(tag->coeffs, "coeffs.default");
     strcpy(tag->energy_model, "");
@@ -562,8 +643,8 @@ void set_default_island_conf(node_island_t *isl_conf, uint id)
 
 void set_default_conf_install(conf_install_t *inst)
 {
-	sprintf(inst->obj_ener, "energy_nm.so");
-	sprintf(inst->obj_power_model, "avx512_model.so");
+	sprintf(inst->obj_ener, "default");
+	sprintf(inst->obj_power_model, "default");
 }
 
 /*
@@ -673,6 +754,11 @@ void get_short_policy(char *buf, char *policy, cluster_conf_t *conf)
         strcpy(buf, "MO");
         return;
     }
+		else if (!strncmp(policy, "load_balance",strlen("load_balance")))
+		{
+			strcpy(buf, "LB");
+			return;
+		}
     else if (pol == EAR_ERROR)
     {
         strcpy(buf, "NP");
@@ -686,6 +772,7 @@ void get_short_policy(char *buf, char *policy, cluster_conf_t *conf)
 int policy_name_to_id(char *my_policy, cluster_conf_t *conf)
 {
     int i;
+		if (conf == NULL) return EAR_ERROR;
     for (i = 0; i < conf->num_policies; i++)
     {
         if (strcmp(my_policy, conf->power_policies[i].name) == 0) return i;

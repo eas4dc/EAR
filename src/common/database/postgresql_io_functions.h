@@ -41,11 +41,8 @@
 #define LOOP_ARGS                   8
 #define JOB_ARGS                    16
 
-#if DEMO
-#define PERIODIC_METRIC_ARGS        8
-#else
-#define PERIODIC_METRIC_ARGS        6
-#endif
+#define PERIODIC_METRIC_ARGS        10
+
 #if !DB_SIMPLE
 #define SIGNATURE_ARGS              21
 #define AVG_SIGNATURE_ARGS          24
@@ -54,6 +51,9 @@
 #define AVG_SIGNATURE_ARGS          14
 #endif
 
+#if USE_GPUS
+#define GPU_SIGNATURE_ARGS 5
+#endif
 
 
 /** Sets the database layer to operate with full signatures or simplified one. */
@@ -189,7 +189,6 @@ int postgresql_insert_ear_event(PGconn *connection, ear_event_t *ear_ev);
 *   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
 int postgresql_batch_insert_ear_events(PGconn *connection, ear_event_t *ear_ev, int num_evs);
 
-
 /** Given a PGconn connection and an global manager warning, inserts said 
 *   warning into the database. Returns EAR_SUCCESS on success, and either 
 *   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
@@ -201,8 +200,13 @@ int postgresql_insert_gm_warning(PGconn *connection, gm_warning_t *warning);
 *   or EAR_MYSQL_STMT_ERROR on error.*/
 int postgresql_batch_insert_avg_signatures(PGconn *connection, application_t *app, int num_sigs);
 
-/** PENDING */
+/** Given a PGconn connection and a valid PSQL query, stores in pow_sigs the 
+*   power signatures found in the database corresponding to the query. Returns the 
+*   number of power signatures found on success, and either EAR_MYSQL_ERROR or
+*   EAR_MYSQL_STMT_ERROR on error. */
 int postgresql_retrieve_power_signatures(PGconn *connection, char *query, power_signature_t **pow_sigs);
 
+/** Sets signature to simple or full mode */
+void set_signature_simple(char full_sig);
 
 #endif

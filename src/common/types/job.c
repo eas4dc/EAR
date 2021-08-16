@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <common/types/job.h>
 #include <common/output/verbose.h>
+#include <common/system/time.h>
 
 void init_job(job_t *job, ulong def_f, char *policy, double th, ulong procs)
 {
@@ -33,8 +34,7 @@ void init_job(job_t *job, ulong def_f, char *policy, double th, ulong procs)
 }
 void start_job(job_t *job)
 {
-   
-    time(&job->start_time);
+	time(&job->start_time);
 }
 
 void end_job(job_t *job)
@@ -44,12 +44,16 @@ void end_job(job_t *job)
 
 void start_mpi(job_t *job)
 {
-    time(&job->start_mpi_time);
+		time_t j_time;
+    j_time=time(NULL);
+		job->start_mpi_time=j_time;
 }
 
 void end_mpi(job_t *job)
 {
-    time(&job->end_mpi_time);
+		time_t j_time;
+    j_time=time(NULL);
+		job->end_mpi_time=j_time;
 }
 
 void copy_job(job_t *destiny, job_t *source)

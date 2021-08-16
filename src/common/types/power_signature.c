@@ -17,6 +17,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include <common/types/power_signature.h>
 #include <common/math_operations.h>
 #include <common/config.h>
@@ -48,4 +49,17 @@ void print_power_signature_fd(int fd, power_signature_t *sig)
 	dprintf(fd, "%lu;%lu;", sig->avg_f, sig->def_f);
 	dprintf(fd, "%lf;", sig->time);
 	dprintf(fd, "%lf;%lf;%lf;", sig->DC_power, sig->DRAM_power, sig->PCK_power);
+}
+
+void clean_db_power_signature(power_signature_t *ps, double limit)
+{
+		if (!isnormal(ps->DC_power))		ps->DC_power = 0;
+		if (!isnormal(ps->DRAM_power))  ps->DRAM_power = 0;
+		if (!isnormal(ps->PCK_power)) 	ps->PCK_power = 0;
+		if (!isnormal(ps->EDP))					ps->EDP = 0;
+		if (!isnormal(ps->max_DC_power)) ps->max_DC_power = 0;
+		if (!isnormal(ps->min_DC_power)) ps->min_DC_power = 0;
+		if (ps->DC_power > limit)				ps->DC_power = limit;
+		if (ps->DRAM_power > limit)			ps->DRAM_power = 0;
+		if (ps->PCK_power > limit)			ps->PCK_power = 0;
 }

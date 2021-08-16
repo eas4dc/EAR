@@ -1,24 +1,20 @@
 ######## FILES
 
-COMPONENTS = common 
+COMPONENTS = \
+    common \
+    report \
+    metrics \
+    management\
+    daemon \
+    library \
+    commands \
+    tools \
+    global_manager \
+    slurm_plugin
+
 ifdef DB_BASE
-	COMPONENTS += database_cache
+COMPONENTS += database_cache 
 endif
-ifdef PAPI_BASE
-	COMPONENTS += \
-                  metrics \
-                  daemon \
-                  commands \
-                  tests \
-                  library
-endif
-ifdef GSL_BASE
-	COMPONENTS += tools
-endif
-ifdef DB_BASE
-	COMPONENTS += global_manager
-endif
-COMPONENTS += slurm_plugin
 
 ######## RULES
 

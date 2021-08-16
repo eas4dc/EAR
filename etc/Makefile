@@ -12,6 +12,7 @@ gen_FOLDERS = $(DESTDIR)/bin \
               $(DESTDIR)/lib/plugins/policies \
               $(DESTDIR)/lib/plugins/eard_policies \
               $(DESTDIR)/lib/plugins/tracer \
+              $(DESTDIR)/lib/plugins/reports \
               $(DESTDIR)/sbin
 
 etc_FOLDERS = $(ETCDIR) \

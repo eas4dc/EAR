@@ -60,7 +60,6 @@ typedef struct traces_symbols {
 
 static trace_sym_t trace_syms_fun;
 static int trace_plugin=0;
-static void    *trace_syms_obj = NULL;
 const int       trace_syms_n = 19;
 const char     *trace_syms_nam[] = {
   "traces_init",
@@ -93,12 +92,11 @@ const char     *trace_syms_nam[] = {
  *
  */
 
-static int traces_plugin_loaded=0;
 
 
 void traces_init(settings_conf_t *conf,char *app,int global_rank, int local_rank, int nodes, int mpis, int ppn)
 {
-  int found=0,ret;
+  int ret;
 	char *traces_plugin;
 	traces_plugin=getenv(SCHED_EAR_TRACE_PLUGIN);
 	if (traces_plugin==NULL) trace_plugin=0;

@@ -15,7 +15,6 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-
 #ifndef _EARD_CHECKPOINT_H_
 #define _EARD_CHECKPOINT_H_
 

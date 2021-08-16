@@ -1,0 +1,69 @@
+.\" Manpage for econtrol.
+.TH man 1 "July 2021" "4.0" "econtrol man page"
+.SH NAME
+econtrol \- Modify all daemons' parameters or see the state of the cluster's nodes.
+.SH SYNOPSIS
+econtrol [options]
+
+.SH DESCRIPTION
+
+econtrol is the EAR administration tools for cluster management. This app requires EAR privileged access to execute.
+
+.SH OPTIONS
+
+ --status                                ->requests the current status for all nodes. The ones responding show the current
+                                            power, IP address and policy configuration. A list with the ones not
+                                            responding is provided with their hostnames and IP address.
+                                            --status=node_name retrieves the status of that node individually.
+ --type          [status_type]           ->specifies what type of status will be requested: hardware,
+                                            policy, full (hardware+policy), app_node, app_master, eardbd or power. [default:hardware]
+ --set-freq      [newfreq]               ->sets the frequency of all nodes to the requested one
+ --set-def-freq  [newfreq]  [pol_name]   ->sets the default frequency for the selected policy
+ --set-max-freq  [newfreq]               ->sets the maximum frequency
+ --set-powercap  [new_cap]               ->sets the powercap of all nodes to the given value. A node can be specified
+                                                after the value to only target said node.
+ --restore-conf                          ->restores the configuration for all nodes
+ --active-only                           ->supresses inactive nodes from the output in hardware status.
+ --health-check                          ->checks all EARDs and EARDBDs for errors and prints all that are unresponsive.
+ --mail [address]                        ->sends the output of the program to address.
+ --ping                                  ->pings all nodes to check whether the nodes are up or not. Additionally,
+                                                --ping=node_name pings that node individually.
+ --version                               ->displays current EAR version.
+ --help                                  ->displays this message.
+
+
+.SH EXAMPLES
+
+econtrol's status is a useful tool to monitor the nodes in a cluster. The most basic usage is the hardware status
+(default type) which shows basic information of all the nodes. 
+
+[user@login]$ econtrol --status
+hostname      power   temp    freq    job_id  stepid
+   node2        278    66C    2.59      6878       0
+   node3        274    57C    2.59      6878       0
+   node4         52    31C    1.69         0       0
+
+
+INACTIVE NODES
+node1   192.0.0.1
+
+
+The application status type can be used to retrieve all currently running jobs in the cluster. app_master gives 
+a summary of all the running applications while app_node gives detailed information of each node currently 
+running a job.
+
+[user@login]$ econtrol --status --type=app_master
+Job-Step    Nodes   DC power      CPI      GBS   Gflops     Time Avg Freq
+  6878-0        2     280.13     0.37    24.39   137.57    54.00     2.59
+
+[user@login]$ econtrol --status --type=app_node
+Node id     Job-Step   M-Rank   DC power      CPI      GBS   Gflops     Time Avg Freq
+  node2       6878-0        0     280.13     0.37    24.39   137.57    56.00     2.59
+  node3       6878-0        1     245.44     0.37    24.29   136.40    56.00     2.59
+
+
+.SH BUGS
+- No currently known bugs.
+
+.SH AUTHOR
+EAR suport team (ear-support@bsc.es)

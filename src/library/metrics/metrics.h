@@ -18,7 +18,9 @@
 #ifndef EAR_EAR_METRICS_H
 #define EAR_EAR_METRICS_H
 
+#include <common/hardware/topology.h>
 #include <common/types/application.h>
+#include <metrics/io/io.h>
 
 /** Returns the current time in usecs */
 long long metrics_time();
@@ -27,7 +29,7 @@ long long metrics_time();
 long long metrics_usecs_diff(long long end, long long init);
 
 /** Initializes local metrics as well as daemon's metrics */
-int metrics_init();
+int metrics_init(topology_t *topo);
 
 /** Stops metrics collection and computes the accumulated data*/
 void metrics_dispose(signature_t *metrics, ulong procs);
@@ -41,6 +43,17 @@ int metrics_compute_signature_finish(signature_t *metrics, uint iterations, ulon
 /** Estimates whether the current time running the loops is enough to compute the signature */
 int time_ready_signature(ulong min_time_us);
 
+/* Returns the totall IO for this process till now */
+void metrics_get_total_io(io_data_t *rdwr);
+
 /** Copute the number of vector instructions since signature reports FP ops, metrics is valid signature*/
 unsigned long long metrics_vec_inst(signature_t *metrics);
+
+/* Computes the node signature including data from other processes */
+void metrics_node_signature(signature_t *master,signature_t *ns);
+
+/* Computes metrics per-iteration, very lightweight */
+state_t metrics_new_iteration(signature_t *sig);
+
+
 #endif //EAR_EAR_METRICS_H

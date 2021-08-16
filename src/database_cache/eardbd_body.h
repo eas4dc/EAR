@@ -24,32 +24,21 @@
 #define col1 "\x1b[35m"
 #define col2 "\x1b[0m"
 
-#define verbose_line() \
+#define print_line() \
 		verb(0, col1 line col2);
 
-// Meaning:
-//  - m: master
-//  - a: argument
-//  - s: separator
-//	- l: new line
-// 	- w: who
-//	- x: nothing
-
-#define verbose_xxxxw(format) \
+#define verb_who_noarg(format) \
 	verb(0, "%s, %s", str_who[mirror_iam], format);
 
-#define verbose_xaxxw(format, ...) \
+#define verb_who(format, ...) \
 	verb(0, "%s, " format, str_who[mirror_iam], __VA_ARGS__);
 
-#define verbose_xaxxx(...) \
-		verb(0, __VA_ARGS__);
-
-#define verbose_maxxx(...) \
+#define verb_master(...) \
     if (!forked || master_iam) { \
 		verb(0, __VA_ARGS__); \
     }
 
-#define verbose_maslx(...) \
+#define verb_master_line(...) \
     if (!forked || master_iam) { \
         dprintf(verb_channel, col1 line "\n" __VA_ARGS__); \
         dprintf(verb_channel, col2 "\n"); \

@@ -15,7 +15,6 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>

@@ -50,5 +50,4 @@ void get_weigth_fops_instructions(int *weigth_vector);
 *   higher. */
 void print_gflops(long long total_inst, ulong total_time, uint total_cores);
 
-#else
 #endif

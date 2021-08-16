@@ -22,20 +22,27 @@
 #include <common/types/loop.h>
 #include <common/types/projection.h>
 #include <daemon/shared_configuration.h>
+#include <library/policies/policy_ctx.h>
+#include <library/api/mpi_support.h>
 
 state_t init_power_policy(settings_conf_t *app_settings,resched_t *res);
 state_t policy_init();
-state_t policy_apply(signature_t *my_sig,ulong *freq_set, int *ready);
-state_t policy_get_default_freq(ulong *freq_set);
-state_t policy_set_default_freq();
+state_t policy_node_apply(signature_t *my_sig,ulong *freq_set, int *ready);
+state_t policy_app_apply(ulong *freq_set, int *ready);
+state_t policy_get_default_freq(node_freqs_t *freq_set);
+state_t policy_get_current_freq(node_freqs_t *freq_set);
+state_t policy_set_default_freq(signature_t *sig);
 state_t policy_ok(signature_t *c_sig,signature_t *l_sig,int *ok);
 state_t policy_max_tries(int *intents);
 state_t policy_end();
 state_t policy_loop_init(loop_id_t *loop_id);
 state_t policy_loop_end(loop_id_t *loop_id);
-state_t policy_new_iteration(loop_id_t *loop_id);
-state_t policy_mpi_init();
-state_t policy_mpi_end();
+state_t policy_new_iteration(signature_t *sig);
+state_t policy_mpi_init(mpi_call call_type);
+state_t policy_mpi_end(mpi_call call_type);
+
+state_t policy_domain_detail(int status, char *buff);
+state_t policy_show_domain(node_freq_domain_t *dom);
 
 state_t policy_force_global_frequency(ulong new_f);
 

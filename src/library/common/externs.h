@@ -19,11 +19,13 @@
 #define _EAR_GLOBAL_H
 
 #include <linux/limits.h>
-#include <common/types/application.h>
 #include <common/types/loop.h>
-#include <daemon/shared_configuration.h>
-#include <library/common/library_shared_data.h>
+#include <common/system/time.h>
+#include <common/hardware/architecture.h>
+#include <common/types/application.h>
 #include <library/common/global_comm.h>
+#include <library/common/library_shared_data.h>
+#include <daemon/shared_configuration.h>
 
 extern loop_t loop;
 extern application_t loop_signature;
@@ -43,6 +45,7 @@ extern char ear_app_name[PATH_MAX];
 extern unsigned long ear_frequency;
 extern unsigned long EAR_default_frequency;
 extern unsigned int EAR_default_pstate;
+extern timestamp_t ear_application_time_init;
 
 extern int ear_use_turbo;
 extern int ear_whole_app;
@@ -61,12 +64,25 @@ extern ulong last_loop_size;
 extern ulong last_loop_level;
 extern uint dynais_enabled;
 extern uint check_periodic_mode;
+extern uint EAR_STATE;
 
 // Shared regions for processes in same node
 extern lib_shared_data_t *lib_shared_region;
 extern shsignature_t *sig_shared_region;
 extern int my_node_id;
 extern masters_info_t masters_info;
+extern cpu_set_t ear_process_mask;
+extern int ear_affinity_is_set;
+extern architecture_t arch_desc;
 
+
+extern uint sh_sig_per_node;
+extern uint sh_sig_per_proces;
+extern uint show_signatures;
+extern uint report_node_sig;
+extern uint report_all_sig;
+extern uint earl_phase_classification;
+extern topology_t mtopo;
+extern ulong *cpufreq_data_per_core;
 
 #endif

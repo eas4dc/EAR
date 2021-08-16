@@ -76,7 +76,6 @@ void print_islands_conf(node_island_t *conf)
 
 void print_cluster_conf(cluster_conf_t *conf)
 {
-	char buffer[664];
 	verbosen(VCCONF, "\nDIRECTORIES\n--->DB_pathname: %s\n--->TMP_dir: %s\n--->ETC_dir: %s\n",
 			conf->DB_pathname, conf->install.dir_temp, conf->install.dir_conf);
 	verbosen(VCCONF, "\nPlugins_path: %s\n",conf->install.dir_plug);

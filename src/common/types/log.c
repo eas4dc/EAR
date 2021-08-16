@@ -40,7 +40,7 @@ typedef struct ear_event{
 #include <common/types/log.h>
 //#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
-#include <daemon/eard_api.h>
+#include <daemon/local_api/eard_api.h>
 
 
 

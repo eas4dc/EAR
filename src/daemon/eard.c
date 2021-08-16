@@ -20,32 +20,40 @@
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <linux/limits.h>
+#include <strings.h>
+#include <string.h>
+
 //#define SHOW_DEBUGS 1
 #include <common/includes.h>
 #include <common/environment.h>
 #include <common/types/log_eard.h>
-#include <common/hardware/frequency.h>
-#include <metrics/frequency/cpu.h>
-#include <metrics/energy/energy_cpu.h>
+#include <common/types/pc_app_info.h>
+#include <management/cpufreq/frequency.h>
+#include <management/imcfreq/imcfreq.h>
+#include <common/hardware/hardware_info.h>
+#include <common/system/monitor.h>
+#include <metrics/common/msr.h>
+#include <metrics/gpu/gpu.h>
+#include <metrics/energy/cpu.h>
 #include <metrics/energy/energy_node.h>
 #include <metrics/bandwidth/bandwidth.h>
-#include <metrics/gpu/gpu.h>
-#include <common/hardware/hardware_info.h>
-#include <daemon/eard_conf_api.h>
+#include <metrics/frequency/cpu.h>
+#include <metrics/imcfreq/imcfreq.h>
+#include <daemon/local_api/eard_conf_api.h>
+#include <daemon/remote_api/dynamic_configuration.h>
 #include <daemon/power_monitor.h>
-#if POWERCAP
-#include <daemon/powercap.h>
-#include <common/types/pc_app_info.h>
-#endif
+#include <daemon/powercap/powercap.h>
 #include <daemon/eard_checkpoint.h>
 #include <daemon/shared_configuration.h>
-#include <daemon/dynamic_configuration.h>
 #if USE_DB
 #include <database_cache/eardbd_api.h>
 #include <common/database/db_helper.h>
 #endif
 #include <daemon/eard.h>
 #include <daemon/app_api/app_server_api.h>
+#if USE_GPUS
+#include <daemon/gpu/gpu_mgt.h>
+#endif
 
 
 #define MIN_INTERVAL_RT_ERROR 3600
@@ -56,8 +64,10 @@ pthread_t app_eard_api_th;
 #endif
 
 static ehandler_t eard_handler_energy,handler_energy;
+#if USE_GPUS
 static ctx_t eard_main_gpu_ctx;
 static uint eard_gpu_initialized=0;
+#endif
 static ulong node_energy_datasize;
 static edata_t node_energy_data;
 unsigned int power_mon_freq = POWERMON_FREQ;
@@ -66,6 +76,7 @@ static int num_packs=0;
 static unsigned long long *values_rapl;
 pthread_t power_mon_th; // It is pending to see whether it works with threads
 pthread_t dyn_conf_th;
+int num_nodes_cluster=0;
 cluster_conf_t my_cluster_conf;
 my_node_conf_t *my_node_conf;
 my_node_conf_t my_original_node_conf;
@@ -82,6 +93,13 @@ app_mgt_t *app_mgt_info;
 pc_app_info_t *pc_app_info_data;
 #endif
 /* END Shared memory regions */
+
+#if USE_GPUS
+gpu_t *eard_read_gpu;
+uint eard_num_gpus;
+uint eard_gpu_model;
+char gpu_str[256];
+#endif
 
 coefficient_t *my_coefficients;
 coefficient_t *my_coefficients_default;
@@ -134,13 +152,17 @@ struct daemon_req req;
 
 int RAPL_counting = 0;
 int eard_must_exit = 0;
-static freq_cpu_t freq_global2;
-static freq_cpu_t freq_global1;
-static freq_cpu_t freq_local2;
-static freq_cpu_t freq_local1;
-freq_cpu_t freq_job2;
-freq_cpu_t freq_job1;
+static cpufreq_t freq_global2,freq_app_req;
+static cpufreq_t freq_global1;
+static cpufreq_t freq_local2;
+static cpufreq_t freq_local1;
+cpufreq_t freq_job2;
+cpufreq_t freq_job1;
+static uint size_cpufreqs,count_cpufreqs;
 topology_t node_desc;
+static imcfreq_t *unc_data;
+static uint unc_count;
+static ctx_t imc_eard_ctx;
 
 /* EARD init errors control */
 static uint error_uncore=0;
@@ -149,6 +171,47 @@ static uint error_energy=0;
 static uint error_connector=0;
 
 
+void check_policy(policy_conf_t *p)
+{
+	unsigned long f;
+    /* We are using pstates */
+    if (p->def_freq==(float)0){
+        if (p->p_state>=frequency_get_num_pstates()) p->p_state=frequency_get_nominal_pstate();
+    }
+    else
+    {
+        /* We are using frequencies */
+        f = (unsigned long) (p->def_freq * 100.0f);
+		f = f*10000;
+        if (!frequency_is_valid_frequency(f))
+        {
+            error("Default frequency %lu for policy %s is not valid",f,p->name);
+            p->def_freq=(float)frequency_closest_frequency(f)/(float)1000000;
+            error("New def_freq %f",p->def_freq);
+        }
+    }
+}
+
+void check_policy_values(policy_conf_t *p,int nump)
+{
+	int i=0;
+	for (i=0;i<nump;i++){
+		check_policy(&p[i]);
+	}
+}
+
+void compute_policy_def_freq(policy_conf_t *p)
+{
+	if (p->def_freq==(float)0){
+		float tmp;
+		tmp = truncf((float)frequency_pstate_to_freq(p->p_state)/1000.0);
+		tmp = tmp/1000.0;
+		verbose(1, "Def freq is %f",tmp);
+		p->def_freq= tmp;
+	}else{
+		p->p_state=frequency_closest_pstate((unsigned long)(p->def_freq*1000000));
+	}
+}
 
 void compute_default_pstates_per_policy(uint num_policies, policy_conf_t *plist)
 {
@@ -159,7 +222,8 @@ void compute_default_pstates_per_policy(uint num_policies, policy_conf_t *plist)
 	}
 }
 
-void init_frequency_list() {
+void init_frequency_list()
+{
 	int ps, i;
 	ps = frequency_get_num_pstates();
 	int size = ps * sizeof(ulong);
@@ -436,7 +500,7 @@ void eard_exit(uint restart)
 	}
 
 	// CPU Frequency
-	state_assert(s, freq_cpu_dispose(), );
+	state_assert(s, cpufreq_dispose(), );
 	// RAM Bandwidth
 	dispose_uncores();
 
@@ -446,9 +510,7 @@ void eard_exit(uint restart)
 	coeffs_shared_area_dispose(coeffs_path);
 	coeffs_default_shared_area_dispose(coeffs_default_path);
 	services_conf_shared_area_dispose(services_conf_path);
-	#if POWERCAP
 	app_mgt_shared_area_dispose(app_mgt_path);
-	#endif
 	/* end releasing shared memory */
 	if (restart) {
 		verbose(VCONF, "Restarting EARD\n");
@@ -571,11 +633,10 @@ int eard_system(int must_read) {
 			if (!my_cluster_conf.eard.use_eardbd) {
 				ret1 = db_insert_ear_event(&req.req_data.event);
 			} else {
-				edb_state_t state = eardbd_send_event(&req.req_data.event);
-
-				if (edb_state_fail(state)) {
-					error("Error sending event to eardb");
-					eardbd_reconnect(&my_cluster_conf, my_node_conf, state);
+				state_t state = eardbd_send_event(&req.req_data.event);
+				if (state_fail(state)) {
+					error("Error sending event to EARDBD: %s", state_msg);
+					eardbd_reconnect(&my_cluster_conf, my_node_conf);
 					ret1 = EAR_ERROR;
 				}
 			}
@@ -599,11 +660,10 @@ int eard_system(int must_read) {
 					if (!my_cluster_conf.eard.use_eardbd){
 						ret1 = db_insert_loop (&req.req_data.loop);
 					} else {
-						edb_state_t state = eardbd_send_loop(&req.req_data.loop);
-
-						if (edb_state_fail(state)){
-							error("Error sending loop to eardb");
-							eardbd_reconnect(&my_cluster_conf, my_node_conf, state);
+						state_t state = eardbd_send_loop(&req.req_data.loop);
+						if (state_fail(state)){
+							error("Error sending loop to EARDBD: %s", state_msg);
+							eardbd_reconnect(&my_cluster_conf, my_node_conf);
 							ret1 = EAR_ERROR;
 						}
 					}
@@ -640,8 +700,14 @@ void eard_set_freq(unsigned long new_freq, unsigned long max_freq) {
 
 int eard_freq(int must_read)
 {
+	char buffer[4096];
+	size_t size;
 	ulong ack;
 	state_t s;
+	uint *min;
+	uint *max;
+	uint *aux;
+	ulong *f;
 
 	if (must_read) {
 		if (read(ear_fd_req[freq_req], &req, sizeof(req)) != sizeof(req))
@@ -656,15 +722,33 @@ int eard_freq(int must_read)
 		case SET_FREQ:
 			eard_set_freq(req.req_data.req_value, min(eard_max_freq, max_dyn_freq()));
 			break;
+		case SET_FREQ_WITH_MASK:
+			ack=frequency_set_with_mask(&req.req_data.f_mask.mask,req.req_data.f_mask.f);
+			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
+			break;
+		case SET_NODE_FREQ_WITH_LIST:
+			ack=frequency_set_with_list(req.req_data.cpu_freq.num_cpus,req.req_data.cpu_freq.cpu_freqs);
+			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
+			break;
+		case GET_CPUFREQ:
+			ack = frequency_get_cpu_freq(req.req_data.req_value);
+			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
+			break;
+		case GET_CPUFREQ_LIST:
+			f=calloc(sizeof(ulong),node_desc.cpu_count);
+			ack = frequency_get_cpufreq_list(req.req_data.req_value,f);
+			write(ear_fd_ack[freq_req], f,sizeof(ulong)*req.req_data.req_value);
+			free(f);
+			break;
 		case START_GET_FREQ:
 			ack = EAR_COM_OK;
-			if (xtate_fail(s, freq_cpu_read(&freq_local1))) {
+			if (xtate_fail(s, cpufreq_read(&freq_local1))) {
 				error("when reading CPU local frequency (%d, %s)", s, state_msg);
 			}
 			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
 			break;
 		case END_GET_FREQ:
-			if (xtate_fail(s, freq_cpu_read_diff(&freq_local2, &freq_local1, NULL, &ack))) {
+			if (xtate_fail(s, cpufreq_read_diff(&freq_local2, &freq_local1, NULL, &ack))) {
 				error("when reading CPU local frequency (%d, %s)", s, state_msg);
 			}
 			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
@@ -683,21 +767,83 @@ int eard_freq(int must_read)
 			break;
 		case START_APP_COMP_FREQ:
 			ack = EAR_COM_OK;
-			if (xtate_fail(s, freq_cpu_read(&freq_global1))) {
+			if (xtate_fail(s, cpufreq_read(&freq_global1))) {
 				error("when reading CPU global frequency (%d, %s)", s, state_msg);
 			}
 			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
 			break;
 		case END_APP_COMP_FREQ:
-			if (xtate_fail(s, freq_cpu_read_diff(&freq_global2, &freq_global1, NULL, &ack))) {
+			if (xtate_fail(s, cpufreq_read_diff(&freq_global2, &freq_global1, NULL, &ack))) {
 				error("when reading CPU global frequency (%d, %s)", s, state_msg);
 			}
 			write(ear_fd_ack[freq_req], &ack, sizeof(unsigned long));
 			break;
+		case READ_CPUFREQ:
+			if (xtate_fail(s, cpufreq_read(&freq_app_req))) {
+				error("when reading CPU global frequency requeste by app (%d, %s)", s, state_msg);
+			}
+			write(ear_fd_ack[freq_req],freq_app_req.context,size_cpufreqs);
+			break;
+    /* These functions are new for UNC freq management */
+		case UNC_SIZE:
+			aux = (uint *) buffer;
+			aux[1] = unc_count;
+			imcfreq_get_api(aux);
+			write(ear_fd_ack[freq_req], aux, sizeof(uint)*2);
+			break;
+		case UNC_READ:
+			memset(unc_data, 0, unc_count);
+			if (state_fail(s = imcfreq_read(no_ctx, unc_data))){
+					error("WHen reading unc frequency requested by app (%d, %s)", s, state_msg);
+			}
+			write(ear_fd_ack[freq_req], unc_data, unc_count * sizeof(imcfreq_t));
+			break;
+		case UNC_INIT_DATA:
+			memset(&buffer[0], 0, 4096);
+			char *p;
+			/* This code sends in a single request the API, the num of pstates and the list of pstates */
+			/* It's a kind of serialization */
+			mgt_imcfreq_get_api((uint *) &buffer[0]);
+			mgt_imcfreq_get_available_list(&imc_eard_ctx, (const pstate_t **) &p, (uint *) &buffer[sizeof(uint)]);
+			memcpy(&buffer[sizeof(uint)*2], p, ((uint) buffer[sizeof(uint)])*sizeof(pstate_t));
+			write(ear_fd_ack[freq_req], buffer, 4096);
+		break;
+		case UNC_GET_LIMITS:
+			memset(&buffer[0], 0, 4096);
+			if (state_fail(s = mgt_imcfreq_get_current_list(&imc_eard_ctx, (pstate_t *) &buffer[0]))){
+				error("When reading IMC current frequency (%d, %s)", s, state_msg);
+			}
+			write(ear_fd_ack[freq_req], buffer, node_desc.socket_count*sizeof(pstate_t));
+		break;
+		case UNC_SET_LIMITS:
+			ack = EAR_SUCCESS;
+			if (state_fail(s = mgt_imcfreq_set_current_list(&imc_eard_ctx, req.req_data.unc_freq.index_list))){
+				error("When setting imc limits req by app (%d, %s)", s, state_msg);
+				ack = (ulong) s;
+			}
+			write(ear_fd_ack[freq_req], &ack, sizeof(ulong));
+		break;
+		case UNC_GET_LIMITS_MIN:
+			size = node_desc.socket_count * sizeof(pstate_t);
+			memset(&buffer[0], 0, size*2);
+			if (state_fail(s = mgt_imcfreq_get_current_ranged_list(&imc_eard_ctx, (pstate_t *) &buffer[0], (pstate_t *) &buffer[size]))){
+				error("When reading IMC current frequency (%d, %s)", s, state_msg);
+			}
+			write(ear_fd_ack[freq_req], buffer, size*2);
+		break;
+		case UNC_SET_LIMITS_MIN:
+			ack = EAR_SUCCESS;
+			max = &req.req_data.unc_freq.index_list[0];
+			min = &req.req_data.unc_freq.index_list[node_desc.socket_count];
+			if (state_fail(s = mgt_imcfreq_set_current_ranged_list(&imc_eard_ctx, max, min))){
+				error("When setting imc limits req by app (%d, %s)", s, state_msg);
+				ack = (ulong) s;
+			}
+			write(ear_fd_ack[freq_req], &ack, sizeof(ulong));
+		break;
 
 		default:
 			return 0;
-
 	}
 	return 1;
 }
@@ -795,39 +941,67 @@ int eard_rapl(int must_read) {
 /***************** GPU SERVICES ****************/
 int eard_gpu(int must_read) 
 {
-  unsigned long comm_req = gpu_req;
-  unsigned long ack = 0;
-	unsigned int model=0;
-	unsigned int dev_count=0;
-	gpu_t my_gpu;
-	state_t ret;
-  if (must_read) {
-    if (read(ear_fd_req[comm_req], &req, sizeof(req)) != sizeof(req))
-      error("error when reading info at eard_gpu\n");
-  }
-  switch (req.req_service) {
-    case GPU_MODEL:
-			//if (eard_gpu_initialized) ret=gpu_model(&eard_main_gpu_ctx,&model);
-			if (eard_gpu_initialized) model=MODEL_NVML;
-			else model=MODEL_UNDEFINED;
-			write(ear_fd_ack[comm_req],&model,sizeof(model));	
-      break;
-    case GPU_DEV_COUNT:
-			if (eard_gpu_initialized) gpu_count(&eard_main_gpu_ctx,&dev_count);
-			write(ear_fd_ack[comm_req],&dev_count,sizeof(dev_count));	
+	unsigned long comm_req = gpu_req;
+	unsigned long ack = 0;
+	#if USE_GPUS
+	gpu_info_t *info;
+	gpu_info_t fake;
+
+	if (must_read) {
+		if (read(ear_fd_req[comm_req], &req, sizeof(req)) != sizeof(req))
+			error("error when reading info at eard_gpu\n");
+	}
+
+	switch (req.req_service) {
+		case GPU_MODEL:
+			debug("GPU_MODEL %d",eard_gpu_model);
+			write(ear_fd_ack[comm_req],&eard_gpu_model,sizeof(eard_gpu_model));	
+		break;
+		case GPU_DEV_COUNT:
+			debug("GPU_DEV_COUNT %d",eard_num_gpus);
+			write(ear_fd_ack[comm_req],&eard_num_gpus,sizeof(eard_num_gpus));	
+			break;
+		case GPU_GET_INFO:
+			debug("GPU_GET_INFO %d", eard_num_gpus);
+			if (eard_gpu_initialized) {
+				gpu_get_info(&eard_main_gpu_ctx, (const gpu_info_t **) &info, NULL);
+			} else {
+				memset(&fake, 0, sizeof(gpu_info_t));
+				*info = fake;
+			}
+			write(ear_fd_ack[comm_req], info, sizeof(gpu_info_t)*eard_num_gpus);	
 			break;
 		case GPU_DATA_READ:
 			if (eard_gpu_initialized){
-				gpu_read(&eard_main_gpu_ctx,&my_gpu);
+				gpu_read(&eard_main_gpu_ctx,eard_read_gpu);
 			}else{
-				memset(&my_gpu,0,sizeof(gpu_t));
+				memset(eard_read_gpu,0,sizeof(gpu_t));
 			}
-			write(ear_fd_ack[comm_req],&my_gpu,sizeof(my_gpu));
+			debug("Sending %lu bytes en gpu_data_read",sizeof(gpu_t)*eard_num_gpus);
+			gpu_data_tostr(eard_read_gpu,gpu_str,sizeof(gpu_str));
+			debug("gpu_data_read info: %s",gpu_str);
+			write(ear_fd_ack[comm_req],eard_read_gpu,sizeof(gpu_t)*eard_num_gpus);
+			break;
+		case GPU_SET_FREQ:
+			if (eard_gpu_initialized){
+				debug("Setting the GPU freq");
+				gpu_mgr_set_freq(req.req_data.gpu_freq.num_dev,req.req_data.gpu_freq.gpu_freqs);
+			}else{
+				error("GPU not initialized and GPU_SET_FREQ requested");
+			}
+			ack=EAR_SUCCESS;
+			write(ear_fd_ack[comm_req],&ack,sizeof(ack));
 			break;
 	  default:
 			error("Invalid GPU command");
       return 0;
   }
+	#else
+	ack=EAR_ERROR;
+	write(ear_fd_ack[comm_req],&ack,sizeof(ack));
+	error("GPUS not supported");
+	return 0;
+	#endif
   return 1;
 }
 
@@ -860,6 +1034,18 @@ void select_service(int fd) {
 	eard_close_comm();
 }
 
+void reopen_log()
+{
+  close(fd_my_log);
+  fd_my_log=create_log(my_cluster_conf.install.dir_temp,"eard");
+  if (fd_my_log<0) fd_my_log=2;
+  VERB_SET_FD(fd_my_log);
+  ERROR_SET_FD(fd_my_log);
+  WARN_SET_FD(fd_my_log);
+  DEBUG_SET_FD(fd_my_log);
+
+}
+
 //
 // MAIN eard: eard default_freq [path for communication files]
 //
@@ -879,6 +1065,10 @@ void signal_handler(int sig) {
 	if (sig == SIGHUP) {
 		verbose(VCONF, "signal SIGHUP received. Reloading EAR conf");
 		signal_sighup = 1;
+	}
+	if (sig == SIGUSR2){
+		reopen_log();
+		return;
 	}
 
 	// The PIPE was closed, so the daemon connection ends
@@ -906,7 +1096,8 @@ void signal_handler(int sig) {
 			error(" Error reading cluster configuration\n");
 		} else {
 			verbose(VCONF, "Loading EAR configuration");
-		    compute_default_pstates_per_policy(my_cluster_conf.num_policies, my_cluster_conf.power_policies);
+			verbose(VCONF, "There are %d Nodes in the cluster",my_cluster_conf.num_nodes);
+		  compute_default_pstates_per_policy(my_cluster_conf.num_policies, my_cluster_conf.power_policies);
 			print_cluster_conf(&my_cluster_conf);
 			free(my_node_conf);
 			my_node_conf = get_my_node_conf(&my_cluster_conf, nodename);
@@ -935,9 +1126,8 @@ void signal_handler(int sig) {
 				if (my_cluster_conf.eard.use_eardbd)
 				{
 					eardbd_disconnect();
-					edb_state_t state = eardbd_connect(&my_cluster_conf, my_node_conf);
-
-					if (edb_state_fail(state)) {
+					state_t state = eardbd_connect(&my_cluster_conf, my_node_conf);
+					if (state_fail(state)) {
 						error("Error connecting with EARDB");
 					} else {
 						verbose(VCONF,"Connecting with EARDBD\n");
@@ -974,6 +1164,7 @@ void signal_catcher() {
 	sigdelset(&eard_mask, SIGTERM);
 	sigdelset(&eard_mask, SIGINT);
 	sigdelset(&eard_mask, SIGHUP);
+	sigdelset(&eard_mask, SIGUSR2);
 	//sigprocmask(SIG_SETMASK,&eard_mask,NULL);
 	pthread_sigmask(SIG_SETMASK, &eard_mask, NULL);
 
@@ -998,6 +1189,10 @@ void signal_catcher() {
 	}
 
 	signal = SIGHUP;
+	if (sigaction(signal, &action, NULL) < 0) {
+		error("sigaction error on signal s=%d (%s)", signal, strerror(errno));
+	}
+	signal = SIGUSR2;
 	if (sigaction(signal, &action, NULL) < 0) {
 		error("sigaction error on signal s=%d (%s)", signal, strerror(errno));
 	}
@@ -1031,7 +1226,7 @@ void configure_new_values(settings_conf_t *dyn, resched_t *resched, cluster_conf
     memcpy(dyn->settings, my_policy->settings, sizeof(double)*MAX_POLICY_SETTINGS);
 	dyn->min_sig_power=node->min_sig_power;
 	dyn->max_sig_power=node->max_sig_power;
-	dyn->max_power_cap=node->max_power_cap;
+	dyn->max_power_cap=node->powercap;
 	dyn->report_loops=cluster->database.report_loops;
 	memcpy(&dyn->installation,&cluster->install,sizeof(conf_install_t));
 	resched->force_rescheduling=1;
@@ -1041,6 +1236,7 @@ void configure_new_values(settings_conf_t *dyn, resched_t *resched, cluster_conf
 	copy_eargmd_conf(&my_services_conf->eargmd,&my_cluster_conf.eargm);
 	copy_eardb_conf(&my_services_conf->db,&my_cluster_conf.database);
 	copy_eardbd_conf(&my_services_conf->eardbd,&my_cluster_conf.db_manager);
+	strcpy(my_services_conf->net_ext,my_cluster_conf.net_ext);
 	save_eard_conf(&eard_dyn_conf);
 }
 
@@ -1074,7 +1270,7 @@ void configure_default_values(settings_conf_t *dyn, resched_t *resched, cluster_
     memcpy(dyn->settings, my_policy->settings, sizeof(double)*MAX_POLICY_SETTINGS);
 	dyn->min_sig_power=node->min_sig_power;
 	dyn->max_sig_power=node->max_sig_power;
-	dyn->max_power_cap=node->max_power_cap;
+	dyn->max_power_cap=node->powercap;
 	dyn->report_loops=cluster->database.report_loops;
 	dyn->max_avx512_freq=my_node_conf->max_avx512_freq;
 	dyn->max_avx2_freq=my_node_conf->max_avx2_freq;
@@ -1088,6 +1284,7 @@ void configure_default_values(settings_conf_t *dyn, resched_t *resched, cluster_
     copy_eargmd_conf(&my_services_conf->eargmd,&my_cluster_conf.eargm);
     copy_eardb_conf(&my_services_conf->db,&my_cluster_conf.database);
 	copy_eardbd_conf(&my_services_conf->eardbd,&my_cluster_conf.db_manager);
+	strcpy(my_services_conf->net_ext,my_cluster_conf.net_ext);
 	save_eard_conf(&eard_dyn_conf);
 }
 
@@ -1120,7 +1317,8 @@ int coeffs_per_island_default_exist(char *filename) {
 	return file_size;
 }
 
-int read_coefficients_default() {
+int read_coefficients_default()
+{
 	char my_coefficients_file[GENERIC_NAME];
 	int file_size = 0;
 	file_size = coeffs_per_node_default_exist(my_coefficients_file);
@@ -1191,7 +1389,22 @@ void     update_global_configuration_with_local_ssettings(cluster_conf_t *my_clu
 	strcpy(my_cluster_conf->install.obj_ener,my_node_conf->energy_plugin);
 	strcpy(my_cluster_conf->install.obj_power_model,my_node_conf->energy_model);
 }
-
+int get_exec_name(char *name,int name_size)
+{
+	char path[1024]={0};
+	int ret = readlink("/proc/self/exe",path,sizeof(path)-1);
+	if(ret == -1)
+	{
+		printf("---- get exec name fail!!\n");
+		return -1;
+	}
+	path[ret]= '\0';
+ 
+	char *ptr = strrchr(path,'/');
+	memset(name,0, name_size); //Clear the buffer area
+	strncpy(name,ptr+1,name_size-1);
+	return 0;
+}
 
 
 /*
@@ -1205,6 +1418,7 @@ void     update_global_configuration_with_local_ssettings(cluster_conf_t *my_clu
 int main(int argc, char *argv[]) {
 	struct timeval *my_to;
 	struct timeval tv;
+	char my_name[1024];
 
 	char ear_commreq[MAX_PATH_SIZE * 2];
 
@@ -1225,13 +1439,21 @@ int main(int argc, char *argv[]) {
 	if (argc > 2) {
 		Usage(argv[0]);
 	}
+	fd_my_log = create_log("/tmp", "eard_journal");
+	VERB_SET_FD(fd_my_log);
+  ERROR_SET_FD(fd_my_log);
+  WARN_SET_FD(fd_my_log);
+  DEBUG_SET_FD(fd_my_log);
+
 	// We get nodename to create per_node files
 	if (gethostname(nodename, sizeof(nodename)) < 0) {
 		error("Error getting node name (%s)", strerror(errno));
 		_exit(1);
 	}
 	strtok(nodename, ".");
-	verbose(0,"Executed in node name %s", nodename);
+	verbose(0,"Executed %s in node name %s", argv[0],nodename);
+	get_exec_name(my_name,sizeof(my_name));
+	verbose(0,"My name is %s",my_name);
 
 	/** CONFIGURATION **/
 	int node_size;
@@ -1253,6 +1475,11 @@ int main(int argc, char *argv[]) {
 
 	verbose(0,"Topology detected: sockets %d, cores %d, threads %d",
 			node_desc.socket_count, node_desc.core_count, node_desc.cpu_count);
+
+	if (msr_test(&node_desc) != EAR_SUCCESS){
+		error("msr files are not available, please check the msr kernel module is loaded (modprobe msr)");
+		_exit(1);
+	}
 
 	//
 	verbose(0,"Initializing frequency list");
@@ -1285,6 +1512,7 @@ int main(int argc, char *argv[]) {
 		error(" Error reading cluster configuration\n");
 		_exit(1);
 	} else {
+		verbose(0,"%d Nodes detected in ear.conf configuration",my_cluster_conf.cluster_num_nodes);
 		compute_default_pstates_per_policy(my_cluster_conf.num_policies, my_cluster_conf.power_policies);
 		print_cluster_conf(&my_cluster_conf);
 		my_node_conf = get_my_node_conf(&my_cluster_conf, nodename);
@@ -1309,7 +1537,7 @@ int main(int argc, char *argv[]) {
 		verbose(0,"Creating log file");
 		fd_my_log = create_log(my_cluster_conf.install.dir_temp, "eard");
 		if (fd_my_log < 0) fd_my_log = 2;
-	}
+	}else fd_my_log = 2;
 	set_verbose_variables();
 
 	verbose(0,"Creating frequency list in shared memory");
@@ -1415,6 +1643,7 @@ int main(int argc, char *argv[]) {
 	// We catch signals
 	signal_catcher();
 
+  	state_assert(s, monitor_init(), _exit(0));
 
 	if (eard_max_pstate < 0) Usage(argv[0]);
 	if (eard_max_pstate >= frequency_get_num_pstates()) Usage(argv[0]);
@@ -1422,15 +1651,30 @@ int main(int argc, char *argv[]) {
 	ear_node_freq = frequency_pstate_to_freq(eard_max_pstate);
 	eard_max_freq = ear_node_freq;
 	verbose(VCONF, "Default max frequency defined to %lu", eard_max_freq);
-
 	// CPU Frequency
-	state_assert(s, freq_cpu_init(&node_desc), _exit(0));
-	state_assert(s, freq_cpu_data_alloc(&freq_global2, NULL, NULL), _exit(0));
-	state_assert(s, freq_cpu_data_alloc(&freq_global1, NULL, NULL), _exit(0));
-	state_assert(s, freq_cpu_data_alloc(&freq_local2, NULL, NULL), _exit(0));
-	state_assert(s, freq_cpu_data_alloc(&freq_local1, NULL, NULL), _exit(0));
-	state_assert(s, freq_cpu_data_alloc(&freq_job2, NULL, NULL), _exit(0));
-	state_assert(s, freq_cpu_data_alloc(&freq_job1, NULL, NULL), _exit(0));
+	verbose(VCONF, "Initializing CPUfreq API ");
+	state_assert(s, cpufreq_load(&node_desc), _exit(0));
+	state_assert(s, cpufreq_init(),           _exit(0));
+	state_assert(s, cpufreq_data_alloc(&freq_global2, NULL), _exit(0));
+	state_assert(s, cpufreq_data_alloc(&freq_global1, NULL), _exit(0));
+	state_assert(s, cpufreq_data_alloc(&freq_local2,  NULL), _exit(0));
+	state_assert(s, cpufreq_data_alloc(&freq_local1,  NULL), _exit(0));
+	state_assert(s, cpufreq_data_alloc(&freq_job2,    NULL), _exit(0));
+	state_assert(s, cpufreq_data_alloc(&freq_job1,    NULL), _exit(0));
+	state_assert(s, cpufreq_data_alloc(&freq_app_req,    NULL), _exit(0));
+	state_assert(s, cpufreq_data_count(&size_cpufreqs,&count_cpufreqs), _exit(0));
+	// IMC frequency
+	verbose(VCONF, "Initializing IMCfreq metrics API ");
+	imcfreq_load(&node_desc, NO_EARD);
+	state_assert(s, imcfreq_init(no_ctx), _exit(0));
+  	state_assert(s, imcfreq_count_devices(no_ctx, &unc_count), _exit(0));
+  	state_assert(s, imcfreq_data_alloc(&unc_data, NULL),       _exit(0));
+	// IMC Management
+	verbose(VCONF, "Initializing IMCfreq mgt API:Load ");
+	state_assert(s, mgt_imcfreq_load(&node_desc, NO_EARD), _exit(0));
+	verbose(VCONF, "Initializing IMCfreq mgt API:Init ");
+	state_assert(s, mgt_imcfreq_init(&imc_eard_ctx), _exit(0));
+	verbose(VCONF, "IMC metrics and management initialized ");
 
 #if EARD_LOCK
 	eard_lock(ear_tmp);
@@ -1468,20 +1712,22 @@ int main(int argc, char *argv[]) {
 	verbose(0,"Initialzing energy plugin");
 	// We initilize energy_node
 	debug("Initializing energy in main EARD thread");
+
 	if (state_fail(energy_init(&my_cluster_conf, &eard_handler_energy))) {
-		error("energy_init cannot be initialized,DC node emergy metrics will not be provided\n");
+		error("While initializing energy plugin: %s\n", state_msg);
 		error_energy=1;
 	}
-  if (init_power_ponitoring(&handler_energy) != EAR_SUCCESS) {
-    error("Error initializing pm_energy in %s thread", "EARD main");
+	if (state_fail(s = init_power_ponitoring(&handler_energy))) {
+		error("While initializing power monitor: %s\n", state_msg);
 		_exit(0);	
-  }
+	}
+
 	energy_datasize(&handler_energy,&node_energy_datasize);
 	debug("EARD main thread: node_energy_datasize %lu",node_energy_datasize);
 	node_energy_data=(edata_t)malloc(node_energy_datasize);
 
 	// Energy accuracy
-  energy_frequency(&handler_energy, &energy_freq);
+  	energy_frequency(&handler_energy, &energy_freq);
 
 	verbose(VCONF, "energy: power performance accuracy %lu usec", energy_freq);
 
@@ -1514,11 +1760,9 @@ int main(int argc, char *argv[]) {
 	{
 		if (my_cluster_conf.eard.use_eardbd)
 		{
-			edb_state_t state = eardbd_connect(&my_cluster_conf, my_node_conf);
-
-			if (edb_state_fail(state)) {
-				error("Error connecting with EARDB errnum:%d errmsg:%s\n",
-					intern_error_num,intern_error_str);
+			state_t state = eardbd_connect(&my_cluster_conf, my_node_conf);
+			if (state_fail(state)) {
+				error("Error connecting with EARDB: %s", state_msg);
 			} else {
 				verbose(VCONF,"Connected with EARDBD");
 				eardbd_connected=1;
@@ -1564,6 +1808,7 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
+	#if USE_GPUS
 	/* GPU Initialization for app requests */
 	ret=gpu_init(&eard_main_gpu_ctx);
 	if (ret!=EAR_SUCCESS){
@@ -1572,8 +1817,14 @@ int main(int argc, char *argv[]) {
 	}else{
 		eard_gpu_initialized=1;
 	}
+	gpu_data_alloc(&eard_read_gpu);
+	gpu_count(&eard_main_gpu_ctx,&eard_num_gpus);
+	debug("gpu_count %u",eard_num_gpus);
+	eard_gpu_model=gpu_model();
+	debug("gpu_model %u",eard_gpu_model);
+	#endif
 
-	verbose(VCONF + 1, "Communicator for %s ON", nodename);
+	verbose(VCONF, "Communicator for %s ON", nodename);
 	// we wait until EAR daemon receives a request
 	// We support requests realted to frequency and to uncore counters
 	// rapl support is pending to be supported

@@ -75,6 +75,8 @@ int main(int argc,char *argv[])
 	if (get_ear_conf_path(buffer) == EAR_ERROR) {
 		printf("ERROR while getting ear.conf path\n");
 		exit(0);
+	}else{
+		printf("Reading from %s\n",buffer);
 	}
 
 	//
@@ -88,13 +90,14 @@ int main(int argc,char *argv[])
 
 	//
 	if (!opt_c) {
-		tprintf_init(fdout, STR_MODE_COL, "17 17 10 10 8 8 8 8");
+		tprintf_init(fdout, STR_MODE_COL, "17 7 17 10 10 8 8 8 8");
 
-		tprintf("Node name||App name||Def. F.||Avg. F.||Seconds||Watts||GBS||CPI");
-		tprintf("---------||--------||-------||-------||-------||-----||---||---");
+		tprintf("Node name||JID||App name||Def. F.||Avg. F.||Seconds||Watts||GBS||CPI");
+		tprintf("---------||---||--------||-------||-------||-------||-----||---||---");
 	} else {
-		verbose(0, "Node name;App name;Def. F.;Avg. F.;Seconds;Watts;GBS;CPI");
+		verbose(0, "Node name;JID;App name;Def. F.;Avg. F.;Seconds;Watts;GBS;CPI");
 	}
+
 
 	while (num_apps > 0)
     {
@@ -111,16 +114,17 @@ int main(int argc,char *argv[])
 			}
 
 			if (opt_c) {
-				verbose(0, "%s;%s;%lu;%lu;%0.2lf;%0.2lf;%0.2lf;%0.2lf",
-                    apps[i].node_id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
+				verbose(0, "%s;%lu;%s;%lu;%lu;%0.2lf;%0.2lf;%0.2lf;%0.2lf",
+                    apps[i].node_id, apps[i].job.id,apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
                     apps[i].signature.time, apps[i].signature.DC_power,
                     apps[i].signature.GBS, apps[i].signature.CPI);
 			} else {
-				tprintf("%s%s||%s||%lu||%lu||%0.2lf||%0.2lf||%0.2lf||%0.2lf", paint[opt_p],
-					apps[i].node_id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
+				tprintf("%s%s||%lu||%s||%lu||%lu||%0.2lf||%0.2lf||%0.2lf||%0.2lf", paint[opt_p],
+					apps[i].node_id,apps[i].job.id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
 					apps[i].signature.time, apps[i].signature.DC_power,
 					apps[i].signature.GBS, apps[i].signature.CPI);
 			}
+
 	    }
 
         free(apps);

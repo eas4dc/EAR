@@ -62,6 +62,15 @@
                                 "GlobEnergyConsumedT2, GlobEnergyLimit, GlobEnergyPeriodT1, GlobEnergyPeriodT2, GlobEnergyPolicy) "\
                                 "VALUES "
 
+#if USE_GPUS
+#define LEARNING_SIGNATURE_QUERY_SIMPLE "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"\
+                                        "GBS, TPI, CPI, Gflops, time, avg_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES"
+
+#define LEARNING_SIGNATURE_QUERY_FULL   "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"\
+                                        "GBS, TPI, CPI, Gflops, time, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
+                                        "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
+                                        "instructions, cycles, avg_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "
+#else
 #define LEARNING_SIGNATURE_QUERY_SIMPLE "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"\
                                         "GBS, TPI, CPI, Gflops, time, avg_f, def_f) VALUES"
 
@@ -69,11 +78,14 @@
                                         "GBS, TPI, CPI, Gflops, time, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
                                         "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
                                         "instructions, cycles, avg_f, def_f) VALUES "
+#endif
 
 #define POWER_SIGNATURE_PSQL_QUERY   "INSERT INTO Power_signatures (DC_power, DRAM_power, PCK_power, EDP, max_DC_power, min_DC_power, "\
                                 "time, avg_f, def_f) VALUES "
 
 #if USE_GPUS
+#define GPU_SIGNATURE_PSQL_QUERY    "INSERT INTO GPU_signatures (GPU_power, GPU_freq, GPU_mem_freq, GPU_util, GPU_mem_util) VALUES "
+
 #define PERIODIC_METRIC_QUERY_DETAIL    "INSERT INTO Periodic_metrics (start_time, end_time, DC_energy, node_id, job_id, step_id, avg_f, temp, DRAM_energy, "\
                                         "PCK_energy, GPU_energy) VALUES " 
 #else
@@ -88,6 +100,15 @@
 
 #define PERIODIC_AGGREGATION_PSQL_QUERY "INSERT INTO Periodic_aggregations (DC_energy, start_time, end_time, eardbd_host) VALUES "
 
+#if USE_GPUS
+#define SIGNATURE_QUERY_SIMPLE  "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
+                                        "GBS, TPI, CPI, Gflops, time, avg_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES"
+
+#define SIGNATURE_QUERY_FULL    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
+                                "GBS, TPI, CPI, Gflops, time, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
+                                "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
+                                "instructions, cycles, avg_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "
+#else
 #define SIGNATURE_QUERY_SIMPLE  "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
                                         "GBS, TPI, CPI, Gflops, time, avg_f, def_f) VALUES"
 
@@ -95,13 +116,13 @@
                                 "GBS, TPI, CPI, Gflops, time, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
                                 "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
                                 "instructions, cycles, avg_f, def_f) VALUES "
+#endif
 
 
 #define DB_SIMPLE 1
-#define DEMO 0
 
 static char full_signature = !DB_SIMPLE;
-static char node_detail = DEMO;
+static char node_detail = 1;
 
 #if DB_SIMPLE
 char *LEARNING_SIGNATURE_PSQL_QUERY = LEARNING_SIGNATURE_QUERY_SIMPLE;
@@ -111,12 +132,7 @@ char *LEARNING_SIGNATURE_PSQL_QUERY = LEARNING_SIGNATURE_QUERY_FULL;
 char *SIGNATURE_PSQL_QUERY = SIGNATURE_QUERY_FULL;
 #endif
 
-#if DEMO
 char *PERIODIC_METRIC_PSQL_QUERY = PERIODIC_METRIC_QUERY_DETAIL;
-#else
-char *PERIODIC_METRIC_PSQL_QUERY = PERIODIC_METRIC_QUERY_SIMPLE;
-#endif
-
 
 int per_met_args = PERIODIC_METRIC_ARGS;
 int sig_args = SIGNATURE_ARGS;
@@ -152,6 +168,10 @@ void set_signature_simple(char full_sig)
         SIGNATURE_PSQL_QUERY = SIGNATURE_QUERY_SIMPLE;    
         sig_args = 11;
     }
+
+#if USE_GPUS
+    sig_args += 2; //with gpus, signatures will contain min_gpu_sig_id and max_gpu_sig_id
+#endif
 
 }
 
@@ -269,6 +289,11 @@ void reverse_periodic_metric_bytes(periodic_metric_t *per_mets, int num_mets)
         per_mets[i].end_time = htonl(per_mets[i].end_time);
         per_mets[i].avg_f = htonl(per_mets[i].avg_f);
         per_mets[i].temp = htonl(per_mets[i].temp);
+        per_mets[i].PCK_energy = htonl(per_mets[i].PCK_energy);
+        per_mets[i].DRAM_energy = htonl(per_mets[i].DRAM_energy);
+#if USE_GPUS
+        per_mets[i].GPU_energy = htonl(per_mets[i].GPU_energy);
+#endif
     }
 }
 
@@ -315,6 +340,30 @@ void reverse_signature_bytes(signature_t *sigs, int num_sigs)
         sigs[i].avg_f = htonl(sigs[i].avg_f);
         sigs[i].def_f = htonl(sigs[i].def_f);
     }
+}
+
+int reverse_gpu_signature_bytes(signature_t *sigs, int num_sigs)
+{
+    int i, j, num_gpu_sigs = 0;
+    gpu_app_t *gpu_data;
+
+    for (i = 0; i < num_sigs; i++)
+    {
+
+        for (j = 0; j < sigs[i].gpu_sig.num_gpus; j++)
+        {
+            num_gpu_sigs++;
+            gpu_data = &sigs[i].gpu_sig.gpu_data[j];
+            gpu_data->GPU_power    = double_swap(gpu_data->GPU_power); 
+            gpu_data->GPU_freq     = htonl(gpu_data->GPU_freq); 
+            gpu_data->GPU_mem_freq = htonl(gpu_data->GPU_mem_freq); 
+            gpu_data->GPU_util     = htonl(gpu_data->GPU_util);
+            gpu_data->GPU_mem_util = htonl(gpu_data->GPU_mem_util); 
+        }
+    }
+
+    return num_gpu_sigs;
+
 }
 
 void reverse_job_bytes(application_t *apps, int num_jobs)
@@ -434,10 +483,60 @@ int postgresql_retrieve_power_signatures(PGconn *connection, char *query, power_
     return num_rows;
 }
 
+#if USE_GPUS
+int postgresql_retrieve_gpu_signatures(PGconn *connection, char *query, gpu_signature_t *gpu_sig)
+{
+    int i, num_rows;
+    gpu_app_t base_data;
+
+    PGresult *res = PQexecParams(connection, query, 0, NULL, NULL, NULL, NULL, 1); //0 indicates text mode, 1 is binary
+
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) 
+    {
+        verbose(VMYSQL, "ERROR while reading gpu signature id: %s\n", PQresultErrorMessage(res));
+        PQclear(res);
+        return EAR_ERROR;
+    }
+
+    //for every row, we read the data and query the job, power_signature and signature, the latter only if the job has one
+
+    num_rows = PQntuples(res);
+    if (num_rows < 1 || num_rows > MAX_GPUS_SUPPORTED)
+    {
+        verbose(VMYSQL, "Query returned %d rows (minimum 1, maximum %d)\n", num_rows, MAX_GPUS_SUPPORTED);
+        PQclear(res);
+        return EAR_ERROR;
+    }
+
+    gpu_sig->num_gpus = num_rows; 
+
+    for (i = 0; i < num_rows; i++)
+    {
+        //we don't actually need to read the id in postgresql
+        //id = htonl( *((ulong *)PQgetvalue(res, i, 1))); 
+
+        base_data.GPU_power    = double_swap( *((double *)PQgetvalue(res, i, 2)));
+        base_data.GPU_freq     = htonl( *((ulong *)PQgetvalue(res, i, 3)));
+        base_data.GPU_mem_freq = htonl( *((ulong *)PQgetvalue(res, i, 4)));
+        base_data.GPU_util     = htonl( *((ulong *)PQgetvalue(res, i, 5)));
+        base_data.GPU_mem_util = htonl( *((ulong *)PQgetvalue(res, i, 6)));
+
+        memcpy(&gpu_sig->gpu_data[i], &base_data, sizeof(gpu_app_t));
+    }
+   
+    return num_rows;
+}
+#endif
+
 int postgresql_retrieve_signatures(PGconn *connection, char *query, signature_t **sigs)
 {
     int i, num_rows;
     signature_t *sig_aux;
+#if USE_GPUS
+    char gpu_sig_query[256];
+    long int min_gpu_sig_id = -1, max_gpu_sig_id = -1;
+    int num_gpus;
+#endif
 
     PGresult *res = PQexecParams(connection, query, 0, NULL, NULL, NULL, NULL, 1); //0 indicates text mode, 1 is binary
 
@@ -484,9 +583,27 @@ int postgresql_retrieve_signatures(PGconn *connection, char *query, signature_t 
             sig_aux[i].instructions = htonl( *((ulong *)PQgetvalue(res, i, 18)));
             sig_aux[i].avg_f = htonl( *((ulong *)PQgetvalue(res, i, 19)));
             sig_aux[i].def_f = htonl( *((ulong *)PQgetvalue(res, i, 20)));
+#if USE_GPUS
+            min_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 21)));
+            max_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 22)));
+#endif
         }
         sig_aux[i].avg_f = htonl( *((ulong *)PQgetvalue(res, i, 10)));
         sig_aux[i].def_f = htonl( *((ulong *)PQgetvalue(res, i, 11)));
+#if USE_GPUS
+        min_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 12)));
+        max_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 13)));
+#endif
+        if (min_gpu_sig_id >= 0 && max_gpu_sig_id >= 0)
+        {
+            sprintf(gpu_sig_query, "SELECT * FROM GPU_signatures WHERE id <= %ld AND id >= %ld", max_gpu_sig_id, min_gpu_sig_id);
+            num_gpus = postgresql_retrieve_gpu_signatures(connection, gpu_sig_query, &sig_aux[i].gpu_sig);
+            if (num_gpus < 1)
+                sig_aux[i].gpu_sig.num_gpus = 0;
+        }
+
+        min_gpu_sig_id = -1;
+        max_gpu_sig_id = -1;
 
     }
    
@@ -1164,6 +1281,100 @@ int postgresql_insert_power_signature(PGconn *connection, power_signature_t *pow
     return result;
 }
 
+#if USE_GPUS
+int postgresql_batch_insert_gpu_signatures(PGconn *connection, signature_t *sigs, int num_sigs)
+{
+    if (num_sigs < 0 || sigs == NULL)
+        return EAR_ERROR;
+
+    char **param_values;
+    int i, j, k, offset, num_gpu_sigs, *param_lengths, *param_formats;
+    char *query;
+    char arg_number[16];
+    
+    num_gpu_sigs = reverse_gpu_signature_bytes(sigs, num_sigs);
+    
+    if (num_gpu_sigs < 1) return EAR_ERROR;
+
+    /* Memory allocation */
+    param_values = calloc(GPU_SIGNATURE_ARGS*num_sigs, sizeof(char *));
+    param_lengths = calloc(GPU_SIGNATURE_ARGS*num_sigs, sizeof(int));
+    param_formats = calloc(GPU_SIGNATURE_ARGS*num_sigs, sizeof(int));
+    query = calloc((strlen(GPU_SIGNATURE_PSQL_QUERY)+(num_gpu_sigs*GPU_SIGNATURE_ARGS * 10)), sizeof(char));
+
+    strcpy(query, GPU_SIGNATURE_PSQL_QUERY);
+    
+    offset = 0;
+    for (i = 0; i < num_sigs; i++)
+    {
+        for (j = 0; j < sigs[i].gpu_sig.num_gpus; j++)
+        {
+            /* Query argument preparation */
+            if (i > 0)
+                strcat(query, ", (");
+            else
+                strcat(query, " (");
+
+            sprintf(arg_number, "$%d", offset+1);
+            strcat(query, arg_number);
+            for (k = offset + 2; k < offset + GPU_SIGNATURE_ARGS + 1 ; k++)
+            {
+                sprintf(arg_number, ", $%d", k);
+                strcat(query, arg_number);
+            }
+            strcat(query, ")");
+
+            /* Parameter binding */
+            param_values[0  + offset] = (char *) &sigs[i].gpu_sig.gpu_data[j].GPU_power;
+            param_values[1  + offset] = (char *) &sigs[i].gpu_sig.gpu_data[j].GPU_freq;
+            param_values[2  + offset] = (char *) &sigs[i].gpu_sig.gpu_data[j].GPU_mem_freq;
+            param_values[3  + offset] = (char *) &sigs[i].gpu_sig.gpu_data[j].GPU_util;
+            param_values[4  + offset] = (char *) &sigs[i].gpu_sig.gpu_data[j].GPU_mem_util;
+
+            /* Parameter sizes */
+            param_lengths[0  + offset] = sizeof(sigs[i].gpu_sig.gpu_data[j].GPU_power);
+            param_lengths[1  + offset] = sizeof(sigs[i].gpu_sig.gpu_data[j].GPU_freq);
+            param_lengths[2  + offset] = sizeof(sigs[i].gpu_sig.gpu_data[j].GPU_mem_freq);
+            param_lengths[3  + offset] = sizeof(sigs[i].gpu_sig.gpu_data[j].GPU_util);
+            param_lengths[4  + offset] = sizeof(sigs[i].gpu_sig.gpu_data[j].GPU_mem_util);
+
+
+            /* Parameter formats, 1 is binary 0 is string */
+            for (k = 0; k < GPU_SIGNATURE_ARGS; k++)
+                param_formats[k + offset] = 1;
+
+            offset += GPU_SIGNATURE_ARGS;
+        }
+    }
+
+
+    PGresult *res = PQexecParams(connection, query, GPU_SIGNATURE_ARGS * num_sigs, NULL, (const char * const *)param_values, param_lengths, param_formats, 1); //0 indicates text mode, 1 is binary
+
+    free(param_values);
+    free(param_lengths);
+    free(param_formats);
+    free(query);
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) //-> command sense lectura
+    {
+        verbose(VMYSQL, "ERROR while inserting gpu_signatures: %s\n", PQresultErrorMessage(res));
+        PQclear(res);
+        return EAR_ERROR;
+    }
+    PQclear(res);
+    return EAR_SUCCESS;
+                   
+}
+
+int postgresql_insert_gpu_signature(PGconn *connection, signature_t *sig)
+{
+    int result;
+    result = postgresql_batch_insert_gpu_signatures(connection, sig, 1);
+    reverse_gpu_signature_bytes(sig, 1);
+    return result;
+}
+#endif
+
 
 int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, char is_learning,  int num_sigs)
 {
@@ -1182,6 +1393,34 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
     param_lengths = calloc(sig_args*num_sigs, sizeof(int));
     param_formats = calloc(sig_args*num_sigs, sizeof(int));
     query = calloc((strlen(SIGNATURE_QUERY_FULL)+(num_sigs*sig_args*10)+strlen("ON CONFLICT DO NOTHING")), sizeof(char));
+#if USE_GPUS
+
+    int starter_gpu_sig_id, num_gpu_sigs = 0, *gpu_sig_ids, current_gpu_sig_id = 0;
+    /* Insert gpu signatures */
+    starter_gpu_sig_id = postgresql_batch_insert_gpu_signatures(connection, sigs, num_sigs);
+    if (starter_gpu_sig_id != EAR_SUCCESS)
+    {
+        verbose(VMYSQL, "Error while inserting gpu signatures\n");
+    }
+    else
+    {
+        /* Get last id */
+        if ((starter_gpu_sig_id = postgresql_get_current_autoincrement_val(connection, "signatures")) < 1)
+        {
+            verbose(VMYSQL, "Unknown error while retrieving signature id\n");
+        }
+        else
+        {
+            for (i = 0; i < num_sigs; i++)
+                if (sigs[i].gpu_sig.num_gpus > 0) num_gpu_sigs += sigs[i].gpu_sig.num_gpus;
+            
+            gpu_sig_ids = calloc(num_gpu_sigs, sizeof(int));
+            for (i = 0; i < num_gpu_sigs; i++)
+                gpu_sig_ids[num_gpu_sigs - 1 - i] = htonl(starter_gpu_sig_id - i);
+
+        }
+    }
+#endif
 
     if (is_learning)
         strcpy(query, LEARNING_SIGNATURE_PSQL_QUERY);
@@ -1211,13 +1450,6 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
         param_values[0  + offset] = (char *) &sigs[i].DC_power;
         param_values[1  + offset] = (char *) &sigs[i].DRAM_power;
         param_values[2  + offset] = (char *) &sigs[i].PCK_power;
-#if 0
-#if USE_GPUS
-        param_values[3  + offset] = (char *) &sigs[i].GPU_power;
-#else
-        param_values[3  + offset] = (char *) NULL;
-#endif
-#endif
         param_values[3  + offset] = (char *) &sigs[i].EDP;
         param_values[4  + offset] = (char *) &sigs[i].GBS;
         param_values[5  + offset] = (char *) &sigs[i].TPI;
@@ -1226,7 +1458,7 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
         param_values[8  + offset] = (char *) &sigs[i].time;
         if (full_signature)
         {
-            param_values[9+ offset] = (char *) &sigs[i].FLOPS[0];
+            param_values[9  + offset] = (char *) &sigs[i].FLOPS[0];
             param_values[10 + offset] = (char *) &sigs[i].FLOPS[1];
             param_values[11 + offset] = (char *) &sigs[i].FLOPS[2];
             param_values[12 + offset] = (char *) &sigs[i].FLOPS[3];
@@ -1238,24 +1470,43 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
             param_values[18 + offset] = (char *) &sigs[i].cycles;
             param_values[19 + offset] = (char *) &sigs[i].avg_f;
             param_values[20 + offset] = (char *) &sigs[i].def_f;
+#if USE_GPUS
+            if (sigs[i].gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0)
+            {
+                param_values[21 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                current_gpu_sig_id += sigs[i].gpu_sig.num_gpus - 1;
+                param_values[22 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+            }
+            else
+            {
+                param_values[21 + offset] = NULL;
+                param_values[22 + offset] = NULL;
+            }
+#endif
         }
         else 
         {
             param_values[9 + offset] = (char *) &sigs[i].avg_f;
             param_values[10 + offset] = (char *) &sigs[i].def_f;
+#if USE_GPUS
+            if (sigs[i].gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0)
+            {
+                param_values[11 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                current_gpu_sig_id += sigs[i].gpu_sig.num_gpus - 1;
+                param_values[12 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+            }
+            else
+            {
+                param_values[11 + offset] = NULL;
+                param_values[12 + offset] = NULL;
+            }
+#endif
         }
 
         /* Parameter sizes */
         param_lengths[0  + offset] = sizeof(sigs[i].DC_power);
         param_lengths[1  + offset] = sizeof(sigs[i].DRAM_power);
         param_lengths[2  + offset] = sizeof(sigs[i].PCK_power);
-#if 0
-#if USE_GPUS
-        param_lengths[3  + offset] = sizeof(sigs[i].GPU_power);
-#else
-        param_lengths[3  + offset] = sizeof(NULL);
-#endif
-#endif
         param_lengths[3  + offset] = sizeof(sigs[i].EDP);
         param_lengths[4  + offset] = sizeof(sigs[i].GBS);
         param_lengths[5  + offset] = sizeof(sigs[i].TPI);
@@ -1276,13 +1527,22 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
             param_lengths[18 + offset] = sizeof(sigs[i].cycles);
             param_lengths[19 + offset] = sizeof(int);
             param_lengths[20 + offset] = sizeof(int);
+#if USE_GPUS
+            param_lengths[21 + offset] = sizeof(ulong);
+            param_lengths[22 + offset] = sizeof(ulong);
+#endif
         }
         else 
         {
             param_lengths[9 + offset] = sizeof(int);
             param_lengths[10 + offset] = sizeof(int);
+#if USE_GPUS
+            param_lengths[11 + offset] = sizeof(ulong);
+            param_lengths[12 + offset] = sizeof(ulong);
+#endif
 
         }
+
 
         /* Parameter formats, 1 is binary 0 is string */
         for (j = 0; j < sig_args; j++)
@@ -1293,6 +1553,9 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
 
     PGresult *res = PQexecParams(connection, query, sig_args * num_sigs, NULL, (const char * const *)param_values, param_lengths, param_formats, 1); //0 indicates text mode, 1 is binary
 
+#if USE_GPUS
+    free(gpu_sig_ids);
+#endif
     free(param_values);
     free(param_lengths);
     free(param_formats);
@@ -1300,7 +1563,7 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
 
     if (PQresultStatus(res) != PGRES_COMMAND_OK) //-> command sense lectura
     {
-       verbose(VMYSQL, "ERROR while inserting signatures: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while inserting signatures: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
@@ -1327,8 +1590,8 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
     param_values = calloc(JOB_ARGS*num_jobs, sizeof(char *));
     param_lengths = calloc(JOB_ARGS*num_jobs, sizeof(int));
     param_formats = calloc(JOB_ARGS*num_jobs, sizeof(int));
-    lock_query = calloc(strlen(LOCK_LEARNING_JOBS_PSQL_QUERY), sizeof(char));
-    insert_query = calloc(strlen(INSERT_NEW_LEARNING_JOBS), sizeof(char));
+    lock_query = calloc(strlen(LOCK_LEARNING_JOBS_PSQL_QUERY)+1, sizeof(char));
+    insert_query = calloc(strlen(INSERT_NEW_LEARNING_JOBS)+1, sizeof(char));
     query = calloc((strlen(JOB_PSQL_QUERY)+(num_jobs*JOB_ARGS*10)+strlen("ON CONFLICT DO NOTHING")), sizeof(char));
 
     strcpy(query, JOB_PSQL_QUERY);
@@ -1425,25 +1688,26 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
 
     /* Query execution */
     res = PQexecParams(connection, "BEGIN", 0, NULL, NULL, NULL, NULL, 1); //BEGIN transaction block
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)verbose(VMYSQL, "ERROR while creating transaction block: %s\n", PQresultErrorMessage(res));
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) verbose(VMYSQL, "ERROR while creating transaction block: %s\n", PQresultErrorMessage(res));
     PQclear(res); //This free may not be correct, if it sigsegv's in this function all but the last PQclear should be suspects
 
     res = PQexecParams(connection, CREATE_TEMP_JOBS, 0, NULL, NULL, NULL, NULL, 1); //CREATE temp table to store all jobs
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)verbose(VMYSQL, "ERROR while creating temp table: %s\n", PQresultErrorMessage(res));
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) verbose(VMYSQL, "ERROR while creating temp table: %s\n", PQresultErrorMessage(res));
     PQclear(res);
 
     res = PQexecParams(connection, lock_query, 0, NULL, NULL, NULL, NULL, 1); //LOCK main table
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)verbose(VMYSQL, "ERROR while creating locking main table: %s\n", PQresultErrorMessage(res));
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) verbose(VMYSQL, "ERROR while creating locking main table: %s\n", PQresultErrorMessage(res));
     PQclear(res);
 
     res = PQexecParams(connection, query, num_jobs*JOB_ARGS, NULL, (const char * const *)param_values, param_lengths, param_formats, 1); //INSERT all jobs into temp table
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)verbose(VMYSQL, "ERROR while inserting to temp table: %s\n", PQresultErrorMessage(res));
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) verbose(VMYSQL, "ERROR while inserting to temp table: %s\n", PQresultErrorMessage(res));
     PQclear(res);
 
     res = PQexecParams(connection, insert_query, 0, NULL, NULL, NULL, NULL, 1); //INSERT new jobs into Jobs, ignore the rest
-    if (PQresultStatus(res) != PGRES_COMMAND_OK)verbose(VMYSQL, "ERROR while merging with main table: %s\n", PQresultErrorMessage(res));
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) verbose(VMYSQL, "ERROR while merging with main table: %s\n", PQresultErrorMessage(res));
     PQclear(res);
 
+    fprintf(stderr, "running query %s\n", "COMMIT");
     res = PQexecParams(connection, "COMMIT", 0, NULL, NULL, NULL, NULL, 1); //COMMIT and end transaction block, dropping the table
 
     //reverse_job_bytes(jobs, num_jobs);

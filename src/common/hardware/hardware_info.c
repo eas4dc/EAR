@@ -26,26 +26,32 @@
 #include <common/hardware/topology.h>
 #include <common/hardware/hardware_info.h>
 
+#define INTEL_VENDOR_NAME       "GenuineIntel"
+
 void print_affinity_mask(topology_t *topo) 
 {
     cpu_set_t mask;
 		int i;
+		CPU_ZERO(&mask);
     if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1) return;
-    fprintf(stdout,"sched_getaffinity = ");
+    fprintf(stderr,"sched_getaffinity = ");
     for (i = 0; i < topo->cpu_count; i++) {
-        fprintf(stdout,"%d=%d ", i,CPU_ISSET(i, &mask));
+        fprintf(stderr,"CPU[%d]=%d ", i,CPU_ISSET(i, &mask));
     }
-    printf("\n");
+    fprintf(stderr,"\n");
 }
 
-state_t is_affinity_set(topology_t *topo,int pid,int *is_set)
+state_t is_affinity_set(topology_t *topo,int pid,int *is_set,cpu_set_t *my_mask)
 {
 	cpu_set_t mask;
 	*is_set=0;
+	CPU_ZERO(&mask);
+	CPU_ZERO(my_mask);
 	if (sched_getaffinity(pid,sizeof(cpu_set_t), &mask) == -1) return EAR_ERROR;
+	memcpy(my_mask,&mask,sizeof(cpu_set_t));
 	int i;
 	for (i = 0; i < topo->cpu_count; i++) {
-		if (!CPU_ISSET(i, &mask)) {
+		if (CPU_ISSET(i, &mask)) {
 			*is_set=1;
 			return EAR_SUCCESS;	
 		}
@@ -53,11 +59,20 @@ state_t is_affinity_set(topology_t *topo,int pid,int *is_set)
 	return EAR_SUCCESS;
 }
 
+state_t set_affinity(int pid,cpu_set_t *mask)
+{
+	int ret;
+	ret=sched_setaffinity(pid,sizeof(cpu_set_t),mask);
+	if (ret <0 ) return EAR_ERROR;
+	else return EAR_SUCCESS;
+}
 
+#if 0
 static int file_is_accessible(const char *path)
 {
 	return (access(path, F_OK) == 0);
 }
+#endif
 
 static topology_t topo1;
 static topology_t topo2;
@@ -69,7 +84,6 @@ int detect_packages(int **mypackage_map)
 	int *package_map;
 	int i;
 
-	// TODO: spaguettis
 	if (!init)
 	{
 		topology_init(&topo1);
@@ -97,72 +111,6 @@ int detect_packages(int **mypackage_map)
 	return num_packages;
 }
 
-
-static state_t hardware_sibling_read(const char *path, int *result)
-{
-	char cbuf[2];
-	ssize_t r;
-	long n;
-	int fd;
-
-	if ((fd = open(path, F_RD)) < 0) {
-		state_return_msg(EAR_OPEN_ERROR, errno, strerror(errno));
-	}
-
-	while((r = read(fd, cbuf, 1)) > 0)
-	{
-		cbuf[1] = '\0';
-
-		if (isxdigit(cbuf[0])) {
-			for (n = strtol(cbuf, NULL, 16); n > 0; n /= 2) {
-				if (n % 2) *result = *result + 1;
-			}
-		}
-	}
-
-	close(fd);
-
-	if (r < 0) {
-		state_return_msg(EAR_READ_ERROR, errno, strerror(errno));
-	}
-
-	state_return(EAR_SUCCESS);
-}
-
-int is_cpu_examinable()
-{
-    char vendor_id[16];
-
-    get_vendor_id(vendor_id);
-
-    if(strcmp(INTEL_VENDOR_NAME, vendor_id) != 0) {
-        return EAR_ERROR;
-	}
-	if (!cpuid_isleaf(11)) {
-		return EAR_WARNING;
-	}
-    return EAR_SUCCESS;
-}
-
-int get_vendor_id(char *vendor_id)
-{
-    cpuid_regs_t r;
-	int *pointer = (int *) vendor_id;
-
-	CPUID(r,0,0);
-	pointer[0] = r.ebx;
-	pointer[1] = r.edx;
-	pointer[2] = r.ecx;
-	return 1;
-}
-
-int get_family()
-{
-    cpuid_regs_t r;
-	CPUID(r,1,0);
-	return cpuid_getbits(r.eax, 11, 8);
-}
-
 int get_model()
 {
     cpuid_regs_t r;
@@ -187,50 +135,13 @@ int is_aperf_compatible()
     return r.ecx & 0x01;
 }
 
-int get_cache_line_size()
-{
-    unsigned int max_level = 0;
-    unsigned int line_size = 0;
-	unsigned int level = 0;
-	cpuid_regs_t r;
-	int index = 0;
-
-	while (1)
-	{
-		CPUID(r,4,index);
-
-		if (!(r.eax & 0x0F)) return line_size;
-        level = cpuid_getbits(r.eax, 7, 5);
-
-        if (level >= max_level) {
-            max_level = level;
-            line_size = cpuid_getbits(r.ebx, 11, 0) + 1;
-		}
-
-		index = index + 1;
-	}
-}
-
-int is_cpu_hyperthreading_capable()
-{
-    cpuid_regs_t r;
-    //
-    CPUID(r,1,0);
-    //
-    return cpuid_getbits(r.edx, 28, 28);
-}
-
-// References:
-// 	- Intel System Programming Guide
-//    Vol. 2A, Software Developer Manual
-//	  3-193, INSTRUCTION SET REFERENCE, A-L
-// 	  Thermal and Power Management Leaf
 int is_cpu_boost_enabled()
 {
 	cpuid_regs_t r;
 	//
 	CPUID(r,6,0);
 	//
+
 	return cpuid_getbits(r.eax, 1, 1);
 }
 

@@ -26,31 +26,19 @@
 
 #include <linux/version.h>
 
-#ifndef EAR_CPUPOWER
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
-#include <cpupower.h>
-#else
-#include <cpufreq.h>
-#endif
-#else
-#include <common/hardware/cpupower.h>
-#endif
 
 #include <common/types/application.h>
+#include <common/messaging/msg_conf.h>
 #include <metrics/energy/energy_node.h>
 #include <metrics/accumulators/power_metrics.h>
+#include <management/cpufreq/frequency.h>
 #include <daemon/node_metrics.h>
-#include <daemon/eard_conf_rapi.h>
 
 typedef struct powermon_app{
     application_t app;
     uint job_created;
     energy_data_t energy_init;
-	#ifndef EAR_CPUPOWER
-	struct cpufreq_policy governor;
-	#else
 	governor_t governor;
-	#endif
 	ulong current_freq;
 }powermon_app_t;
 
@@ -123,6 +111,7 @@ void print_powermon_app(powermon_app_t *app);
 powermon_app_t *get_powermon_app();
 
 void powermon_get_status(status_t *my_status);
+void powermon_get_app_status(app_status_t *my_status);
 
 uint node_energy_lock(uint *tries);
 void node_energy_unlock();
@@ -130,5 +119,8 @@ void node_energy_unlock();
 uint powermon_is_idle();
 uint powermon_current_power();
 uint powermon_get_powercap_def();
+uint powermon_get_max_powercap_def();
+
+void powermon_report_event(uint event_type, ulong value);
 
 #endif

@@ -27,10 +27,14 @@
 #include <database_cache/eardbd.h>
 #include <database_cache/eardbd_api.h>
 
+static int server_enabled;
+static int mirror_enabled;
 static socket_t server_sock;
 static socket_t mirror_sock;
-static int enabled_server;
-static int enabled_mirror;
+static state_t server_s;
+static state_t mirror_s;
+static char *server_err;
+static char *mirror_err;
 
 /*
  *
@@ -39,76 +43,78 @@ static int enabled_mirror;
  */
 int eardbd_is_initialized()
 {
-	return enabled_server || enabled_mirror;
+	return server_enabled || mirror_enabled;
 }
 
-static edb_state_t _send(uint content_type, char *content, ssize_t content_size)
+static state_t state_global()
 {
-	packet_header_t header;
-	edb_state_t state;
-
-	// If not initialized
-	if (!eardbd_is_initialized()) {
-		edb_state_return_msg(state, EAR_NOT_INITIALIZED, "server and mirror are not enabled");
+	if (state_fail(server_s)) {
+		return_msg(server_s, server_err);
 	}
-
-	//
-	sockets_header_clean(&header);
-	sockets_header_update(&header);
-	header.content_type = content_type;
-	header.content_size = content_size;
-	edb_state_init(state, EAR_SUCCESS);
-
-	if (enabled_server) {
-		state.server = sockets_send(&server_sock, &header, content);
-
-		debug("server '%s:%d', enabled %d, state %d, fd %d", server_sock.host,
-			server_sock.port, enabled_server, state.server, server_sock.fd);
+	if (state_fail(mirror_s)) {
+		return_msg(mirror_s, mirror_err);
 	}
-	if (enabled_mirror) {
-		state.mirror = sockets_send(&mirror_sock, &header, content);
-
-		debug("mirror '%s:%d', enabled %d, state %d, fd %d", mirror_sock.host,
-			mirror_sock.port, enabled_mirror, state.mirror, mirror_sock.fd);
-	}
-
-	return state;
-}
-
-static state_t _connect(socket_t *socket, char *host, uint port, uint protocol)
-{
-	state_t s;
-
-	//
-	s = sockets_init(socket, host, port, protocol);
-
-	if (state_fail(s)) {
-		return s;
-	}
-
-	//
-	s = sockets_socket(socket);
-
-	if (state_fail(s)) {
-		return s;
-	}
-
-	//
-	if (protocol == TCP)
-	{
-		s = sockets_connect(socket);
-
-		if (state_fail(s)) {
-			return s;
-		}
-	}
-
 	return EAR_SUCCESS;
 }
 
-static void _disconnect(socket_t *socket)
+static state_t static_send(uint type, char *content, ssize_t size)
+{
+	packet_header_t header;
+
+	// If not initialized
+	if (!eardbd_is_initialized()) {
+		return_msg(EAR_ERROR, "server and mirror are not enabled/initialized");
+	}
+	// Preparing the states
+	server_s = EAR_SUCCESS;
+	mirror_s = EAR_SUCCESS;
+	// Cleaning headers
+	sockets_header_clean(&header);
+	sockets_header_update(&header);
+	// Set the content
+	header.content_type = type;
+	header.content_size = size;
+	// Debugging 
+	debug("server %s:%d, enabled %d, fd %d", server_sock.host, server_sock.port, server_enabled, server_sock.fd);
+	debug("mirror %s:%d, enabled %d, fd %d", mirror_sock.host, mirror_sock.port, mirror_enabled, mirror_sock.fd);
+	// Sending the data through sockets
+	if (server_enabled) {
+		if (state_fail (server_s = __sockets_send(&server_sock, &header, content))) {
+			server_err = state_msg;
+		}
+		debug("server send returned '%d'", server_s);
+	}
+	if (mirror_enabled) {
+		if (state_fail(mirror_s = __sockets_send(&mirror_sock, &header, content))) {
+			mirror_err = state_msg;
+		}
+		debug("mirror send returned '%d'", mirror_s);
+	}
+	return state_global();
+}
+
+static state_t static_connect(socket_t *socket, char *host, uint port, uint protocol)
+{
+	state_t s;
+	//
+	if (state_fail(s = sockets_init(socket, host, port, protocol))) {
+		return s;
+	}
+	if (state_fail(s = sockets_socket(socket))) {
+		return s;
+	}
+	if (protocol == TCP) {
+		if (state_fail(s = sockets_connect(socket))) {
+			return s;
+		}
+	}
+	return EAR_SUCCESS;
+}
+
+static state_t static_disconnect(socket_t *socket, state_t s)
 {
     sockets_dispose(socket);
+    return s;
 }
 
 /*
@@ -117,45 +123,36 @@ static void _disconnect(socket_t *socket)
  *
  */
 
-edb_state_t eardbd_send_application(application_t *app)
+state_t eardbd_send_application(application_t *app)
 {
-	return _send(CONTENT_TYPE_APM, (char *) app, sizeof(application_t));
+	return static_send(EDB_TYPE_APP_MPI, (char *) app, sizeof(application_t));
 }
 
-edb_state_t eardbd_send_periodic_metric(periodic_metric_t *met)
+state_t eardbd_send_periodic_metric(periodic_metric_t *metric)
 {
-	return _send(CONTENT_TYPE_PER, (char *) met, sizeof(periodic_metric_t));
+	return static_send(EDB_TYPE_ENERGY_REP, (char *) metric, sizeof(periodic_metric_t));
 }
 
-edb_state_t eardbd_send_event(ear_event_t *eve)
+state_t eardbd_send_event(ear_event_t *event)
 {
-	return _send(CONTENT_TYPE_EVE, (char *) eve, sizeof(ear_event_t));
+	return static_send(EDB_TYPE_EVENT, (char *) event, sizeof(ear_event_t));
 }
 
-edb_state_t eardbd_send_loop(loop_t *loop)
+state_t eardbd_send_loop(loop_t *loop)
 {
-	return _send(CONTENT_TYPE_LOO, (char *) loop, sizeof(loop_t));
+	return static_send(EDB_TYPE_LOOP, (char *) loop, sizeof(loop_t));
 }
 
-edb_state_t eardbd_send_ping()
+state_t eardbd_connect(cluster_conf_t *conf, my_node_conf_t *node)
 {
-	char ping[] = "ping";
-	return _send(CONTENT_TYPE_PIN, (char *) ping, sizeof(ping));
-}
-
-edb_state_t eardbd_connect(cluster_conf_t *conf, my_node_conf_t *node)
-{
-	edb_state_t state;
 	char *server_host = NULL;
 	char *mirror_host = NULL;
 	uint server_port = 0;
 	uint mirror_port = 0;
-
-	//
+	
 	if (eardbd_is_initialized()) {
-		edb_state_return_msg(state, EAR_INITIALIZED, "it's already initialized");
+		return_msg(EAR_ERROR, "It's already initialized");
 	}
-
 #if 1
 	// Configuring hosts and ports
 	server_host = node->db_ip;
@@ -168,98 +165,116 @@ edb_state_t eardbd_connect(cluster_conf_t *conf, my_node_conf_t *node)
 	server_host = "E7450";
 	mirror_host = "E7450";
 #endif
-
-	enabled_server = (server_host != NULL) && (strlen(server_host) > 0) && (server_port > 0);
-	enabled_mirror = (mirror_host != NULL) && (strlen(mirror_host) > 0) && (mirror_port > 0);
-
+	server_enabled = (server_host != NULL) && (strlen(server_host) > 0) && (server_port > 0);
+	mirror_enabled = (mirror_host != NULL) && (strlen(mirror_host) > 0) && (mirror_port > 0);
+	// Preparing the states (because we are connecting by reconnect)
+	server_s = EAR_ERROR;
+	mirror_s = EAR_ERROR;
 	//
-	debug("server '%s:%d', enabled %d", server_host, server_port, enabled_server);
-	debug("mirror '%s:%d', enabled %d", mirror_host, mirror_port, enabled_mirror);
-
-	// Maybe it's not enabled, but it's ok.
-	edb_state_init(state, EAR_NOT_INITIALIZED);
-
-	// Reconnect is connect
-	state = eardbd_reconnect(conf, node, state);
-
-	return state;
+	debug("server %s:%d, enabled %d", server_host, server_port, server_enabled);
+	debug("mirror %s:%d, enabled %d", mirror_host, mirror_port, mirror_enabled);
+	// Reconnect is connect in reality
+	return eardbd_reconnect(conf, node);
 }
 
-edb_state_t eardbd_reconnect(cluster_conf_t *conf, my_node_conf_t *node, edb_state_t state)
+state_t eardbd_reconnect(cluster_conf_t *conf, my_node_conf_t *node)
 {
 	static ullong time_rec = -1;
 	static ullong time_now =  0;
-	edb_state_t state_con;
 	char *server_host;
 	char *mirror_host;
 	uint server_port;
 	uint mirror_port;
 
 	if (!eardbd_is_initialized()) {
-		edb_state_return_msg(state_con, EAR_NOT_INITIALIZED, "server and mirror are not enabled");
+		return_msg(EAR_ERROR, "Server and mirror are not enabled");
 	}
-
-	//
+	// Getting the current time to test if enough time has passed
 	time_now = timestamp_getconvert(TIME_SECS);
-
-	if((time_now - time_rec) < EARDBD_API_RETRY_SECS) {
-		edb_state_return_msg(state_con, EAR_NOT_READY, "to many reconnections, wait a little longer");
+	if((time_now - time_rec) < 5) {
+		return_msg(EAR_NOT_READY, "To many reconnections, wait a little longer");
 	}
-
 	// Configuring again the hosts and ports
 	server_host = node->db_ip;
 	mirror_host = node->db_sec_ip;
 	server_port = conf->db_manager.tcp_port;
 	mirror_port = conf->db_manager.sec_tcp_port;
-
-	//
-	edb_state_init(state_con, EAR_SUCCESS);
-
-	if (enabled_server && state_fail(state.server))
-	{
-		sockets_close(&server_sock);
-		state_con.server = _connect(&server_sock, server_host, server_port, TCP);
-
-		//
-		debug("server %s:%d, en %d, st %d, fd %d", server_sock.host, server_sock.port,
-			  enabled_server, state_con.server, server_sock.fd);
-
-		if (state_fail(state_con.server)) {
-			_disconnect(&server_sock);
+	// Debugging 
+	debug("server %s:%d, enabled %d", server_host, server_port, server_enabled);
+	debug("mirror %s:%d, enabled %d", mirror_host, mirror_port, mirror_enabled);
+	// Using previous state error to reconnect server
+	if (server_enabled && state_fail(server_s)) {
+		// Cleaning connection
+		sockets_dispose(&server_sock);
+		// Connecting again
+		if (state_fail(server_s = static_connect(&server_sock, server_host, server_port, TCP))) {
+			debug("static_connect returned %d: %s", server_s, state_msg);
+			server_err = state_msg;
+			sockets_dispose(&server_sock);
 		}
 	}
-	if (enabled_mirror && state_fail(state.mirror))
-	{
-		sockets_close(&mirror_sock);
-		state_con.mirror = _connect(&mirror_sock, mirror_host, mirror_port, TCP);
-
-		//
-		debug("mirror %s:%d, en %d, st %d, fd %d", mirror_sock.host, mirror_sock.port,
-			  enabled_mirror, state_con.mirror, mirror_sock.fd);
-
-		if (state_fail(state_con.mirror)) {
-			_disconnect(&mirror_sock);
+	// Using previous state error to reconnect mirror
+	if (mirror_enabled && state_fail(mirror_s)) {
+		// Cleaning connection
+		sockets_dispose(&mirror_sock);
+		// Connecting again
+		if (state_fail(mirror_s = static_connect(&mirror_sock, mirror_host, mirror_port, TCP))) {
+			debug("static_connect returned %d: %s", mirror_s, state_msg);
+			mirror_err = state_msg;
+			sockets_dispose(&mirror_sock);
 		}
 	}
-
-	//
+	// Debugging 
+	debug("server %s:%d, enabled %d, fd %d", server_sock.host, server_sock.port, server_enabled, server_sock.fd);
+	debug("mirror %s:%d, enabled %d, fd %d", mirror_sock.host, mirror_sock.port, mirror_enabled, mirror_sock.fd);
+	// Saving the last time it tried to reconnect
 	time_rec = timestamp_getconvert(TIME_SECS);
 
-	return state_con;
+	return state_global();
 }
 
-edb_state_t eardbd_disconnect()
+state_t eardbd_disconnect()
 {
-	edb_state_t state;
+	sockets_dispose(&server_sock);
+	sockets_dispose(&mirror_sock);
+	server_enabled = 0;
+	mirror_enabled = 0;
+	return EAR_SUCCESS;
+}
 
-	if (!eardbd_is_initialized()) {
-		edb_state_return(state, EAR_SUCCESS);
+state_t eardbd_fakefail(int who)
+{
+	if (who == 1) {
+		server_s = EAR_ERROR;		
+	} else {
+		mirror_s = EAR_ERROR;
 	}
+	return EAR_SUCCESS;
+}
 
-	_disconnect(&server_sock);
-	_disconnect(&mirror_sock);
-	enabled_server = 0;
-	enabled_mirror = 0;
+state_t eardbd_status(char *host, uint port, eardbd_status_t *status)
+{
+	socket_t socket;
+	size_t size;
+	uint type;
+	state_t s;
 
-	edb_state_return(state, EAR_SUCCESS);
+	// Connect
+	if (state_fail(s = static_connect(&socket, host, port, TCP))) {
+		return static_disconnect(&socket, s);
+	}
+	if (state_fail(s = sockets_send(socket.fd, EDB_TYPE_STATUS, NULL, 0, 0))) {
+		return static_disconnect(&socket, s);
+	}
+	// Receiving (in blocking mode, but with 5 seconds of timeout)
+	if (state_fail(s = sockets_timeout_set(socket.fd, 5))) {
+		return static_disconnect(&socket, s);
+	}
+	if (state_fail(s = sockets_recv_header(socket.fd, &type, &size, NULL, 0))) {
+		return static_disconnect(&socket, s);
+	}
+	if (state_fail(s = sockets_recv(socket.fd, (char *) status, size, 0))) {
+		return static_disconnect(&socket, s);
+	}
+	return static_disconnect(&socket, EAR_SUCCESS);
 }

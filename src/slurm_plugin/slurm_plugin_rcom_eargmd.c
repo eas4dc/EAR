@@ -25,9 +25,9 @@ int plug_rcom_eargmd_job_start(spank_t sp, plug_serialization_t *sd)
 	plug_verbose(sp, 2, "function plug_rcom_eargmd_job_start");
 
 	// Limit
-	if (sd->job.node_n < sd->pack.eargmd.min) {
+	if (sd->job.nodes_count < sd->pack.eargmd.min) {
 		plug_verbose(sp, 2, "EARGMD is not connected because not enough nodes (%d < %d)",
-			sd->job.node_n, sd->pack.eargmd.min);
+			sd->job.nodes_count, sd->pack.eargmd.min);
 		return ESPANK_SUCCESS;
 	}
 	// Pack deserialization
@@ -41,19 +41,19 @@ int plug_rcom_eargmd_job_start(spank_t sp, plug_serialization_t *sd)
 		return ESPANK_ERROR;
 	}
 	//
-	if (sd->job.node_n == 0) {
-		plug_error(sp, "while getting the node number '%u'", sd->job.node_n);
+	if (sd->job.nodes_count == 0) {
+		plug_error(sp, "while getting the node number '%u'", sd->job.nodes_count);
 		return ESPANK_ERROR;
 	}
 	// Verbosity
 	plug_verbose(sp, 2, "connecting EARGMD with host '%s', port '%u', and nnodes '%u'",
-		sd->pack.eargmd.host, sd->pack.eargmd.port, sd->job.node_n);
+		sd->pack.eargmd.host, sd->pack.eargmd.port, sd->job.nodes_count);
 	// Connection
 	if (eargm_connect(sd->pack.eargmd.host, sd->pack.eargmd.port) < 0) {
 		plug_error(sp, "while connecting with EAR global manager daemon");
 		return ESPANK_ERROR;
 	}
-	if (!eargm_new_job(sd->job.node_n)) {
+	if (!eargm_new_job(sd->job.nodes_count)) {
 		plug_error(sp, "while speaking with EAR global manager daemon");
 	}
 	eargm_disconnect();
@@ -75,13 +75,13 @@ int plug_rcom_eargmd_job_finish(spank_t sp, plug_serialization_t *sd)
 	}
 
 	plug_verbose(sp, 2, "trying to disconnect EARGMD with host '%s', port '%u', and nnodes '%u'",
-                sd->pack.eargmd.host, sd->pack.eargmd.port, sd->job.node_n);
+                sd->pack.eargmd.host, sd->pack.eargmd.port, sd->job.nodes_count);
 
 	if (eargm_connect(sd->pack.eargmd.host, sd->pack.eargmd.port) < 0) {
 		plug_error(sp, "while connecting with EAR global manager daemon");
 		return ESPANK_ERROR;
 	}
-	if (!eargm_end_job(sd->job.node_n)) {
+	if (!eargm_end_job(sd->job.nodes_count)) {
 		plug_error(sp, "while speaking with EAR global manager daemon");
 		return ESPANK_ERROR;
 	}

@@ -22,8 +22,6 @@
 #include <common/states.h>
 #include <common/hardware/topology.h>
 
-
-
 typedef struct architecture{
 	unsigned long max_freq_avx512;
 	unsigned long max_freq_avx2;

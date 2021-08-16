@@ -1,13 +1,25 @@
+# Features
+# Compiles the MPI EAR library version or non-MPI.
+FEAT_MPI_API  = 1
+# This is automatically generated based on the CPU version detected.
+FEAT_AVX512   = @FEAT_AVX512@
+# Extend the set of files installed.
+FEAT_RESEARCH = 0
+# Enables the installation of GPU optimization policies. If 0, only monitoring is supported.
+FEAT_GPU_OPT  = 1
+# Disables the utilization of virtual PSTATES in AMD and selects OS CPUFreq.
+FEAT_AMD_OSCPUFREQ = 0
+
+# Compilers
 CC           = @CC@
 CC_FLAGS     = @CC_FLAGS@
 MPICC        = @MPICC@
 MPICC_FLAGS  = @MPICC_FLAGS@
+
+# Includes
 MPI_BASE     = @MPI_DIR@
 MPI_CFLAGS   = @MPI_CPPFLAGS@
 MPI_VERSION  = @MPI_VERSION@
-PAPI_BASE    = @PAPI_DIR@
-PAPI_CFLAGS  = @PAPI_CPPFLAGS@
-PAPI_LDFLAGS = @PAPI_LDFLAGS@ @PAPI_LIBS@
 GSL_BASE     = @GSL_DIR@
 GSL_CFLAGS   = @GSL_CPPFLAGS@
 GSL_LDFLAGS  = @GSL_LDFLAGS@ @GSL_LIBS@
@@ -18,6 +30,7 @@ DB_CFLAGS    = @DB_CPPFLAGS@
 DB_LDFLAGS   = @DB_LDFLAGS@ @DB_LIBS@
 CUDA_BASE    = @CUDA_DIR@
 
+# Directories
 ROOTDIR      = $(shell pwd)
 SRCDIR       = $(ROOTDIR)/src
 DESTDIR      = @prefix@
@@ -25,9 +38,10 @@ ETCDIR       = @sysconfdir@
 TMPDIR       = @localstatedir@
 DOCDIR       = @docdir@
 
-FEAT_AVX512  = @FEAT_AVX512@
+# Installation
 CHOWN_USR    = @USER@
 CHOWN_GRP    = @GROUP@
+#CONSTANTS   = -DSEC_KEY=10001 -DSYN_TEST # Define SYN_TEST for external synthetic tests compilation
 CONSTANTS    = -DSEC_KEY=10001
 REPLACE      =
 
@@ -54,7 +68,7 @@ install:
 clean:
 	@ $(MAKE) -C 'src' clean || exit
 
-########
+######## ADDITIONAL RULES
 
 devel.install: install;
 	@ $(MAKE) -C 'etc' devel.install || exit

@@ -15,43 +15,25 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+#include <netdb.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
+
 #include <common/states.h>
 #include <common/output/verbose.h>
+#include <common/messaging/msg_internals.h>
+
 #include <global_manager/eargm_rapi.h>
-#include <global_manager/eargm_conf_api.h>
 
 // Verbosity
 static int eargm_sfd;
 static uint eargm_remote_connected=0;
-
-static int send_command(eargm_request_t *command)
-{
-	ulong ack;
-	int ret;
-	verbose(2,"Sending command %u\n",command->req);
-	if (!eargm_remote_connected) return 0;
-	if ((ret=write(eargm_sfd,command,sizeof(eargm_request_t)))!=sizeof(eargm_request_t)){
-		if (ret<0){ 
-			verbose(0,"Error sending command %s\n",strerror(errno));
-		}else{ 
-			verbose(0,"Error sending command \n");
-		}
-	}
-	ret=read(eargm_sfd,&ack,sizeof(ulong));
-	if (ret<0){
-		verbose(0,"Error receiving ack %d\n",ret);
-	}
-	return (ret==sizeof(ulong)); // Should we return ack ?
-}
 
 // based on getaddrinfo  man page
 int eargm_connect(char *nodename,uint use_port)
@@ -105,19 +87,21 @@ int eargm_connect(char *nodename,uint use_port)
 
 int eargm_new_job(uint num_nodes)
 {
-	eargm_request_t command;
+	request_t command;
+    memset(&command, 0, sizeof(request_t));
 	command.req=EARGM_NEW_JOB;
-	command.num_nodes=num_nodes;
-	verbose(2,"command %u num_nodes %u\n",command.req,command.num_nodes);
+	command.my_req.eargm_data.num_nodes=num_nodes;
+	verbose(2,"command %u num_nodes %u\n",command.req,command.my_req.eargm_data.num_nodes);
 	return send_command(&command);
 }
 
 int eargm_end_job(uint num_nodes)
 {
-    eargm_request_t command;
+    request_t command;
+    memset(&command, 0, sizeof(request_t));
     command.req=EARGM_END_JOB;
-	command.num_nodes=num_nodes;
-	verbose(2,"command %u num_nodes %u\n",command.req,command.num_nodes);
+	command.my_req.eargm_data.num_nodes=num_nodes;
+	verbose(2,"command %u num_nodes %u\n",command.req,command.my_req.eargm_data.num_nodes);
 	return send_command(&command);
 }
 

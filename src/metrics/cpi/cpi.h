@@ -18,6 +18,20 @@
 #ifndef EAR_CPI_H
 #define EAR_CPI_H
 
-#include <metrics/cpi/cpu/papi.h>
+#include <common/states.h>
+#include <common/plugins.h>
+#include <common/hardware/topology.h>
+
+int init_basic_metrics();
+
+void reset_basic_metrics();
+
+void start_basic_metrics();
+
+void stop_basic_metrics(llong *cycles, llong *instructions);
+
+void read_basic_metrics(llong *cycles, llong *instructions);
+
+void get_basic_metrics(llong *total_cycles, llong *instructions);
 
 #endif //EAR_PRIVATE_CACHE_H

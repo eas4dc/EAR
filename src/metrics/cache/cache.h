@@ -15,9 +15,30 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#ifndef EAR_PRIVATE_CACHE_H
-#define EAR_PRIVATE_CACHE_H
+#ifndef METRICS_CACHE_H
+#define METRICS_CACHE_H
 
-#include <metrics/cache/cpu/papi.h>
+#include <common/states.h>
+#include <common/plugins.h>
+#include <common/hardware/topology.h>
 
-#endif //EAR_PRIVATE_CACHE_H
+state_t cache_load(topology_t *tp);
+
+state_t cache_init();
+
+state_t cache_dispose();
+
+state_t cache_reset();
+
+state_t cache_start();
+
+state_t cache_stop(llong *L1_misses, llong *LL_misses);
+
+state_t cache_read(llong *L1_misses, llong *LL_misses);
+
+state_t cache_data_print(llong L1_misses, llong LL_misses);
+
+/* This is an obsolete function to make metrics.c compatible. */
+void get_cache_metrics(llong *L1_misses, llong *LL_misses);
+
+#endif //METRICS_CACHE_H

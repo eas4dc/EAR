@@ -22,11 +22,13 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <assert.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
 #include <common/config.h>
+#include <common/system/time.h>
 #include <common/types/loop.h>
 #include <common/states.h>
 
@@ -65,8 +67,16 @@ int loop_init(loop_t *loop, job_t *job,ulong event, ulong size, ulong level)
   loop->jid = job->id;
 	loop->step_id=job->step_id;
 	gethostname(loop->node_id,sizeof(loop->node_id));
-	strtok(loop->node_id, ".");
+	strtok(loop->node_id,".");
 	return EAR_SUCCESS;
+}
+
+void clean_db_loop(loop_t *loop, double limit)
+{
+	if (loop->id.event > INT_MAX) loop->id.event = INT_MAX;
+	if (loop->id.size > INT_MAX) loop->id.size = INT_MAX; 
+	if (loop->id.level > INT_MAX) loop->id.level = INT_MAX;
+	clean_db_signature(&loop->signature, limit);
 }
 
 int set_null_loop(loop_t *loop)
@@ -100,12 +110,12 @@ void copy_loop(loop_t *destiny, loop_t *source)
 
 void print_loop_id_fd(int fd, loop_id_t *loop_id)
 {
-    dprintf(fd, "%lu;%lu;%lu;", loop_id->event, loop_id->level, loop_id->size);
+    dprintf(fd, ";%lu;%lu;%lu;", loop_id->event, loop_id->level, loop_id->size);
 }
 
 void print_loop_fd(int fd, loop_t *loop)
 {
-	dprintf(fd,"id %lu step id %lu\n", loop->jid, loop->step_id);
+	dprintf(fd,"%lu;%lu;", loop->jid, loop->step_id);
     print_loop_id_fd(fd, &loop->id);
     signature_print_fd(fd, &loop->signature, 1);
 	dprintf(fd, "%lu\n", loop->total_iterations);
@@ -119,9 +129,9 @@ int append_loop_text_file(char *path, loop_t *loop,job_t *job)
         return EAR_ERROR;
     }
 
-    char *HEADER = "NODENAME;USERNAME;JOB_ID;APPNAME;POLICY;POLICY_TH;AVG.FREQ;DEF.FREQ;" \
-        "TIME;CPI;TPI;GBS;DC-NODE-POWER;DRAM-POWER;PCK-POWER;CYCLES;INSTRUCTIONS;L1_MISSES;" \
-        "L2_MISSES;L3_MISSES;GFLOPS;SP_SINGLE;SP_128;SP_256;SP_512;DP_SINGLE;DP_128;DP_256;" \
+    char *HEADER = "NODENAME;USERNAME;JOB_ID;APPNAME;POLICY;POLICY_TH;AVG.CPUFREQ;AVG.IMC.FREQ;DEF.FREQ;" \
+        "TIME;CPI;TPI;GBS;IO_MBS;P.MPI;DC-NODE-POWER;DRAM-POWER;PCK-POWER;CYCLES;INSTRUCTIONS;GFLOPS;L1_MISSES;" \
+        "L2_MISSES;L3_MISSES;SP_SINGLE;SP_128;SP_256;SP_512;DP_SINGLE;DP_128;DP_256;" \
         "DP_512;FIRST_EVENT;LEVEL;SIZE;ITERATIONS";
 	
     int fd, ret;
@@ -160,3 +170,86 @@ int append_loop_text_file(char *path, loop_t *loop,job_t *job)
 	return EAR_SUCCESS;
 }
 
+static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts,ullong currtime);
+int append_loop_text_file_no_job(char *path, loop_t *loop)
+{
+	return append_loop_text_file_no_job_int(path,loop,0,0);
+}
+
+int append_loop_text_file_no_job_with_ts(char *path, loop_t *loop, ullong currtime)
+{
+	return append_loop_text_file_no_job_int(path,loop,1, currtime);
+}
+static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts, ullong currtime)
+{
+		char gpu_header[128];
+    if (path == NULL) {
+        return EAR_ERROR;
+    }
+
+
+    char *HEADER_NOTS = "JID;STEPID;NODENAME;AVG.CPUFREQ;AVG.IMCFREQ;DEF.FREQ;" \
+        "TIME;CPI;TPI;GBS;IO_MBS;P.MPI;DC-NODE-POWER;DRAM-POWER;PCK-POWER;CYCLES;INSTRUCTIONS;GFLOPS;L1_MISSES;" \
+        "L2_MISSES;L3_MISSES;SP_SINGLE;SP_128;SP_256;SP_512;DP_SINGLE;DP_128;DP_256;" \
+        "DP_512";
+
+#if USE_GPUS
+		char *HEADER_GPU_SIG = ";GPOWER%d;GFREQ%d;GMEMFREQ%d;GUTIL%d;GMEMUTIL%d";
+#endif
+		
+		char *HEADER_LOOP = ";FIRST_EVENT;LEVEL;SIZE;ITERATIONS";
+		char HEADER[1024];
+
+		strncpy(HEADER,HEADER_NOTS,sizeof(HEADER));
+#if USE_GPUS
+    for (uint j = 0; j < loop->signature.gpu_sig.num_gpus; ++j) {
+			sprintf(gpu_header,HEADER_GPU_SIG,j,j,j,j,j);
+			strncat(HEADER,gpu_header,strlen(gpu_header));
+		}
+#endif
+		strncat(HEADER,HEADER_LOOP,sizeof(HEADER));
+		if (ts){ 
+			xstrncat(HEADER,";TIMESTAMP",sizeof(HEADER));
+		}
+
+	
+    int fd, ret;
+
+    fd = open(path, O_WRONLY | O_APPEND);
+
+    if (fd < 0) 
+    {
+		if (errno == ENOENT)
+		{
+			fd = open(path, OPTIONS, PERMISSION);
+
+			// Write header
+			if (fd >= 0) {
+				ret = dprintf(fd, "%s\n", HEADER);
+			}
+		}
+	}
+
+	if (fd < 0) {
+        error("Couldn't open loop file\n");
+		return EAR_ERROR;
+	}
+	assert(loop!=NULL);
+	assert(loop->node_id!=NULL);
+		dprintf(fd,"%lu;%lu;",loop->jid,loop->step_id);
+    dprintf(fd, "%s;", loop->node_id);
+    signature_print_fd(fd, &loop->signature,1);
+    print_loop_id_fd(fd, &loop->id);
+		if (ts){
+    	dprintf(fd, "%lu;%llu", loop->total_iterations, currtime);
+		}else{
+    	dprintf(fd, "%lu", loop->total_iterations);
+		}
+	dprintf(fd,"\n");
+
+	close(fd);
+
+	if (ret < 0) return EAR_ERROR;
+	
+	return EAR_SUCCESS;
+}

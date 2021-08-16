@@ -17,19 +17,43 @@
 
 #include <slurm_plugin/slurm_plugin_rcom.h>
 
+static int plug_rcom_eard_sbatch(spank_t sp, plug_serialization_t *sd, int new_job)
+{
+	plug_verbose(sp, 2, "function plug_rcom_eard_sbatch");
+
+	char *net_ext = sd->pack.eard.servs.net_ext;
+	int port = sd->pack.eard.servs.eard.port;
+	int i = 0;
+
+	if (sd->job.nodes_count == 0) {
+		plug_error(sp, "nodes counter is 0");
+		return ESPANK_ERROR;
+	}
+	while (i < sd->job.nodes_count) {
+		plug_verbose(sp, 2, "connecting to EARD %d/%d: '%s:%d' (by SBATCH/SALLOC)",
+			i, sd->job.nodes_count-1, sd->job.nodes_list[i], port);
+		++i;
+	}
+	if (new_job) {
+		eards_new_job_nodelist(&sd->job.app, port, net_ext,
+			sd->job.nodes_list, sd->job.nodes_count);
+	} else {
+		eards_end_job_nodelist(sd->job.app.job.id, sd->job.app.job.step_id, port, net_ext,
+			sd->job.nodes_list, sd->job.nodes_count);
+	}
+	return ESPANK_SUCCESS;
+}
+
 static int plug_rcom_eard(spank_t sp, plug_serialization_t *sd, int new_job)
 {
-	int port   = sd->pack.eard.servs.eard.port;
+	int port = sd->pack.eard.servs.eard.port;
 	char *node = sd->subject.host;
 
 	// Hostlist get
 	sd->pack.eard.connected = 1;
-
 	//
-	plug_verbose(sp, 2, "connecting to EARD: '%s:%d'", node, port);
-
 	if (eards_remote_connect(node, port) < 0) {
-		plug_error(sp, "while connecting with EAR daemon");
+		plug_verbose(sp, 2, "connecting to EARD: '%s:%d': FAILED (by SRUN)", node, port);
 		sd->pack.eard.connected = 0;
 		return ESPANK_ERROR;
 	}
@@ -39,20 +63,28 @@ static int plug_rcom_eard(spank_t sp, plug_serialization_t *sd, int new_job)
 	} else {
 		eards_end_job(sd->job.app.job.id, sd->job.app.job.step_id);
 	}
+	plug_verbose(sp, 2, "connecting to EARD: '%s:%d': OK (by SRUN)", node, port);
 	eards_remote_disconnect();
 
 	return ESPANK_SUCCESS;
 }
 
-
 int plug_rcom_eard_job_start(spank_t sp, plug_serialization_t *sd)
 {
 	plug_verbose(sp, 2, "function plug_rcom_eard_job_start");
-	return plug_rcom_eard(sp, sd, 1);
+	if (plug_context_was(sd, Context.srun)) {
+		return plug_rcom_eard(sp, sd, 1);
+	} else {
+		return plug_rcom_eard_sbatch(sp, sd, 1);
+	}
 }
 
 int plug_rcom_eard_job_finish(spank_t sp, plug_serialization_t *sd)
 {
 	plug_verbose(sp, 2, "function plug_rcom_eard_job_finish");
-	return plug_rcom_eard(sp, sd, 0);
+	if (plug_context_was(sd, Context.srun)) {
+		return plug_rcom_eard(sp, sd, 0);
+	} else {
+		return plug_rcom_eard_sbatch(sp, sd, 0);
+	}
 }

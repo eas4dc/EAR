@@ -18,4 +18,7 @@
 #ifndef LIBRARY_LOADER_H
 #define LIBRARY_LOADER_H
 
+#include <common/output/verbose.h>
+#include <common/config/config_env.h>
+
 #endif //LIBRARY_LOADER_H

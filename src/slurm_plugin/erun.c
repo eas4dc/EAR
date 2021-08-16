@@ -15,6 +15,7 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+#include <sys/wait.h>
 #include <slurm_plugin/slurm_plugin.h>
 #include <slurm_plugin/slurm_plugin_environment.h>
 #include <slurm_plugin/slurm_plugin_serialization.h>
@@ -22,7 +23,6 @@
 
 //
 extern plug_serialization_t sd;
-
 // Buffers
 char plug_tmp[SZ_NAME_LARGE];
 char plug_etc[SZ_NAME_LARGE];
@@ -32,26 +32,17 @@ char path_app[SZ_PATH];
 char path_tmp[SZ_PATH];
 char path_sys[SZ_PATH];
 char buffer[SZ_PATH];
-
+//
+static int _inactive;
+static int _error;
+static int _clean;
+static int _help;
+//
+static int _at;
+int _sp;
 //
 char **_argv;
 int    _argc;
-
-//
-char *_errstr;
-
-//
-int _inactive;
-int _error;
-int _clean;
-int _help;
-
-//
-int _master;
-int _step;
-int _job;
-int _sp;
-int _at;
 
 int plug_is_action(int _ac, int action)
 {
@@ -65,8 +56,8 @@ int help(int argc, char *argv[])
 	printf("\t--job-id=<arg>\t\tSet the JOB_ID.\n");
 	printf("\t--nodes=<arg>\t\tSets the number of nodes.\n");
 	printf("\t--program=<arg>\t\tSets the program to run.\n");
-	printf("\t--plugstack [ARGS]\tSet the SLURM's plugstack arguments. I.e:\n");
-	printf("\t\t\t\t--plugstack prefix=/hpc/opt/ear default=on...\n");
+//	printf("\t--plugstack [ARGS]\tSet the SLURM's plugstack arguments. I.e:\n");
+//	printf("\t\t\t\t--plugstack prefix=/hpc/opt/ear default=on...\n");
 	printf("\t--clean\t\t\tRemoves the internal files.\n");
 	printf("SLURM options:\n");
 
@@ -77,37 +68,11 @@ int clean(int argc, char *argv[])
 {
 	plug_verbose(_sp, 0, "cleaning temporal folder");
 	//
-	sprintf(path_sys, "rm %s/erun.*.lock &> /dev/null", path_tmp);
+	xsprintf(path_sys, "rm %s/erun.*.lock &> /dev/null", path_tmp);
 	//
 	system(path_sys);
 	
 	return 0;
-}
-
-int fake_slurm_spank_user_init(spank_t sp, int ac, char **av)
-{
-	int plug_shared_readsetts(spank_t sp, plug_serialization_t *sd);
-	plug_verbose(sp, 2, "function fake_slurm_spank_user_init");
-
-	//
-	plug_deserialize_remote(sp, &sd);
-	
-	if (!plug_component_isenabled(sp, Component.plugin)) {
-		return ESPANK_SUCCESS;
-	}
-
-	//
-	if (sd.subject.context_local == Context.srun)
-	{
-		if (plug_component_isenabled(sp, Component.library))
-		{
-			plug_shared_readsetts(sp, &sd);
-
-			plug_serialize_task(sp, &sd);
-		}
-	}
-	
-	return ESPANK_SUCCESS;
 }
 
 int pipeline(int argc, char *argv[], int sp, int at)
@@ -115,35 +80,23 @@ int pipeline(int argc, char *argv[], int sp, int at)
 	_sp = sp;
 	_at = at;
 
-	if (plug_is_action(_at, Action.init))
-	{
+	if (plug_is_action(_at, Action.init)) {
 		slurm_spank_init(_sp, argc, argv);
 
-		if (plug_context_is(_sp, Context.srun))
-		{
+		if (plug_context_is(_sp, Context.srun))	{
 			slurm_spank_init_post_opt(_sp, argc, argv);
 		}
-		else if (plug_context_is(_sp, Context.remote))
-		{
-			if (_master) {
-				slurm_spank_user_init(_sp, argc, argv);
-			} else {
-				fake_slurm_spank_user_init(_sp, argc, argv);
-			}
-
+		else if (plug_context_is(_sp, Context.remote)) {
+			slurm_spank_user_init(_sp, argc, argv);
 		}
 	}
-	else if(plug_is_action(_at, Action.exit))
-	{
-		if (plug_context_is(_sp, Context.remote))
-		{
+	else if(plug_is_action(_at, Action.exit)) {
+		if (plug_context_is(_sp, Context.remote)) {
 			slurm_spank_task_exit(_sp, argc, argv);
-
-			if (_master) {
+			if (sd.erun.is_master) {
 				slurm_spank_exit(_sp, argc, argv);
 			}
-		}
-			
+		}	
 		if (plug_context_is(_sp, Context.srun)) {
 			slurm_spank_exit(_sp, argc, argv);
 		}
@@ -175,6 +128,11 @@ int job(int argc, char *argv[])
 	int err_def = 1;
 	char *p = NULL;
 	int i = 0;
+
+	// Its ERUN
+	sd.erun.is_erun = 1;
+	// Enabling plugin and erun components
+	setenv(Var.comp_plug.cmp, "1", 1);
 
 	// Clean
 	for (i = 0; i < argc; ++i) {
@@ -246,16 +204,13 @@ int job(int argc, char *argv[])
 	}
 
 	// Getting the number of nodes
+	char *nnodes;
 	for (i = 0; i < argc; ++i) {
 		if ((strlen(argv[i]) > 7) && (strncmp("--nodes=", argv[i], 8) == 0)) {
 			setenv("SLURM_NNODES", &argv[i][8], 1);
 		}
 	}
-
-	char *nnodes = getenv("SLURM_NNODES");
-	
-	if (nnodes == NULL)
-	{
+	if ((nnodes = getenv("SLURM_NNODES")) == NULL) {
 		char *size_world = getenv("OMPI_COMM_WORLD_SIZE");
 		char *size_local = getenv("OMPI_COMM_WORLD_LOCAL_SIZE");
 		char nnodes_b[8];
@@ -267,22 +222,20 @@ int job(int argc, char *argv[])
 			nnodes = nnodes_b;
 		}
 	}
-	
 	if (nnodes != NULL) {
 		setenv("SLURM_STEP_NUM_NODES", nnodes, 1);
 	}
 
-	// Getting the job id (it cant be created,
-	// depends on the queue manager:
+	// Getting the job id (it cant be created, depends on the queue manager:
 	if ((p = getenv("SLURM_JOB_ID")) == NULL) {
 		setenv("SLURM_JOB_ID", "0", 1);
 	} else {
-		_job = atoi(p);
+		sd.erun.job_id = atoi(p);
 	}
 	if ((p = getenv("SLURM_STEP_ID")) == NULL) {
 		setenv("SLURM_STEP_ID", "0", 1);
 	} else {
-		_step = atoi(p);
+		sd.erun.step_id = atoi(p);
 	}
 
 	// Input parameters final
@@ -312,9 +265,63 @@ int step(int argc, char *argv[], int job_id, int step_id)
 	return 0;
 }
 
-int execute(int argc, char *argv[])
+static void execute_parse(char *program, char *args[])
 {
-	system(path_app);
+	int len = strlen(program);
+	int i;
+	int j;
+	
+	args[0] = program;
+	for (i = 0, j = 1; i < len; ++i) {
+		if (program[i] == ' ') {
+			program[i] = '\0';
+			if (program[i+1] != '\0' && program[i+1] != ' ') {
+				args[j] = &program[i+1];
+				++j;
+			}
+		}
+		if (program[i] == '\0') {
+			i = len; 
+		}
+	}
+	args[j] = NULL;
+	
+	plug_verbose(_sp, 4, "ERUN --program decomposition:");
+	for (i = 0; args[i] != NULL; ++i) {
+		plug_verbose(_sp, 4, "%d: %s", i, args[i]);
+	}
+}
+
+static int execute(int argc, char *argv[])
+{
+	char *args[128];
+	pid_t fpid;
+
+	//
+	execute_parse(path_app, args);
+	//
+	fpid = fork();
+
+	if (fpid == 0)
+	{
+		// Setting SLURMs task pid
+		sprintf(buffer, "%d", getpid());
+		setenv(Var.task_pid.rem, buffer, 1);
+
+		// Executting
+		if (execvp(args[0], args) == -1) {
+			plug_verbose(_sp, 0, "failed to run the program (exec)");
+			exit(0);
+		}
+		// No return
+	} else if (fpid == -1) {
+		plug_verbose(_sp, 0, "failed to run the program (fork)");
+	} else {
+		waitpid(fpid, &sd.subject.exit_status, 0);
+		plug_verbose(_sp, 2, "program returned with status %d",
+			sd.subject.exit_status);
+	}	
+
 	return 0;
 }
 
@@ -341,61 +348,58 @@ int main(int argc, char *argv[])
 	
 	if (_error)
 	{
-		if (_error == 1)
-		{
-			if ((_master = lock_master(path_tmp)))
-			{
+		if (_error == 1) {
+			if ((sd.erun.is_master = lock_master(path_tmp))) {
 				plug_verbose(_sp, 0, "missing environment vars, is the EAR module loaded?");
 				//
 				sleep(2);
 				//
-				lock_clean(path_tmp);
+				lock_clean(path_tmp, 0);
 			}
 			return 0;	
 		}
 		if (_error == 2) {
-			if ((_master = lock_master(path_tmp))) {
+			if ((sd.erun.is_master = lock_master(path_tmp))) {
 				plug_verbose(_sp, 0, "detected SRUN, going inactive");	
 			}
-		
+			//	
 			execute(_argc, _argv);
-		
-			if (_master) {	
-				lock_clean(path_tmp);
+			//
+			if (sd.erun.is_master) {	
+				lock_clean(path_tmp, 0);
 			}
 			return 0;	
 		}
 	}
 
-	// Simulating the single pipeline
-	if ((_master = lock_master(path_tmp)))
-	{
+	// Simulating the single pipeline, take the lock.master
+	if ((sd.erun.is_master = lock_master(path_tmp))) {
 		plug_verbose(_sp, 2, "got the lock file");
-
-		_step = lock_step(path_tmp, _job, _step);
+		// Take the lock.job and read its old step id
+		sd.erun.step_id = lock_job(path_tmp, sd.erun.job_id, sd.erun.step_id);
 	} else {
 		plug_verbose(_sp, 4, "missed the lock file, spinlock");
 		plug_verbosity_silence(_sp);
-
-		//
-		_step = spinlock_step(path_tmp, _step);
+		// Spinlock over lock.step
+		sd.erun.step_id = spinlock_step(path_tmp, sd.erun.step_id);
 	}
 
 	// Creating step
-	step(_argc, _argv, _job, _step);
+	step(_argc, _argv, sd.erun.job_id, sd.erun.step_id);
 
 	// Local context initialization
 	pipeline(_argc, _argv, Context.srun, Action.init);
 	// Remote context initialization
 	pipeline(_argc, _argv, Context.remote, Action.init);
 
-	if (_master) {
-		unlock_step(path_tmp, _step);
+	if (sd.erun.is_master) {
+		// Free lock.step
+		unlock_step(path_tmp, sd.erun.step_id);
 	}
 
 	execute(_argc, _argv);
 
-	if (_master) {
+	if (sd.erun.is_master) {
 		sleep(1);
 	}
 
@@ -404,8 +408,8 @@ int main(int argc, char *argv[])
 	// Local context finalization
 	pipeline(_argc, _argv, Context.srun, Action.exit);
 
-	if (_master) {
-		lock_clean(path_tmp);
+	if (sd.erun.is_master) {
+		lock_clean(path_tmp, sd.erun.step_id);
 	}
 
 	return 0;

@@ -89,10 +89,10 @@ int init_flops_metrics()
 
 		cpu_model = get_model();
 		switch(cpu_model){
-			case CPU_HASWELL_X:
-			case CPU_BROADWELL_X:
+			case MODEL_HASWELL_X:
+			case MODEL_BROADWELL_X:
 				break;
-			case CPU_SKYLAKE_X:
+			case MODEL_SKYLAKE_X:
 				flops_supported=1;
 
 				switch (sets)
@@ -171,7 +171,7 @@ void stop_flops_metrics(long long *flops, long long *f_operations)
 
 	for (sets=0;sets<FLOPS_SETS;sets++)
 	{
-		if ((retval=PAPI_stop(event_sets[sets],(long long *)&values[sets]))!=PAPI_OK)
+		if ((retval=PAPI_read(event_sets[sets],(long long *)&values[sets]))!=PAPI_OK)
 		{
 			error("FP_METRICS: StopFlopsMetrics.%s",PAPI_strerror(retval));
 		} else

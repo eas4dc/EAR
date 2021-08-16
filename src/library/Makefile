@@ -1,13 +1,21 @@
-MPI_API = 1
-export MPI_API
-ifdef MPI_API 
-CFLAGS  = -fPIC -O3 -I$(SRCDIR) $(CONSTANTS) $(PAPI_CFLAGS) -pthread -DMPI=1
+CFLAGS  = -fPIC -O2 -I$(SRCDIR)  -Wall
+LDFLAGS = -shared -ldl -lm -lpthread -rdynamic
+
+ifeq ($(FEAT_MPI_API), 0)
+LIBCC       = $(CC)
+LIBCC_FLAGS = $(CC_FLAGS)
+LIB_CFLAGS  = -DMPI=0
+MPI_VERSION = gen
 else
-CFLAGS  = -fPIC -O3 -I$(SRCDIR) $(CONSTANTS) $(PAPI_CFLAGS) -pthread -DMPI=0
-MPI_VERSION = seq
+LIBCC       = $(MPICC)
+LIBCC_FLAGS = $(MPICC_FLAGS)
+LIB_CFLAGS  = $(MPI_CFLAGS) -DMPI=1 -DNODE_LB=1
 endif
+
+export LIBCC
+export LIBCC_FLAGS
+export LIB_CFLAGS
 export CFLAGS
-LDFLAGS = -shared $(PAPI_LDFLAGS) -ldl -lm
 
 ########
 
@@ -17,51 +25,57 @@ else
 ext = so
 endif
 
-ifdef MPI_CFLAGS
-libs_BINS += libear.$(ext)
+libs_BINS  = libear.$(ext)
 libs_PATH  = $(DESTDIR)/lib
 libs_OBJS  = libear.so
 libs_PERM  = 0755
-endif
 
 ######## FILES
 
 comm_OBJS = \
-    $(SRCDIR)/daemon/eard_api.o \
+    $(SRCDIR)/daemon/local_api/eard_api.o \
     $(SRCDIR)/daemon/shared_configuration.o \
+    $(SRCDIR)/daemon/powercap/powercap_status.o \
+    $(SRCDIR)/report/report.o \
+    $(SRCDIR)/management/libmgt.a \
     $(SRCDIR)/metrics/libmetrics.a \
     $(SRCDIR)/common/libcommon.a
 
-api_OBJS=api/ear.o
-
-mpix_OBJS = \
-    api/ear_mpi.o \
-    api/ear_default.o \
-    api/mpic.o \
-    api/mpif.o \
-		common/global_comm.o
-
 core_OBJS = \
+    api/ear.o \
+    api/clasify.o \
+    api/mpi_support.o \
+    api/cupti.o \
+    common/library_shared_data.o \
     metrics/metrics.o \
     models/models.o \
     policies/policy.o \
+    policies/common/pc_support.o \
+    policies/common/gpu_support.o \
+    policies/common/cpu_support.o \
+    policies/common/mpi_stats_support.o \
+    policies/common/imc_policy_support.o \
+	  policies/common/generic.o \
+    states/states_comm.o \
     states/states.o \
-    states/states_periodic.o \
     tracer/tracer.o \
     dynais/dynais.a \
-		common/library_shared_data.o 
+    metrics/gpu.o 
+
+ifeq ($(FEAT_MPI_API), 1)
+mpix_OBJS = \
+    api/ear_mpi.o \
+    api/mpic.o \
+    api/mpif.o \
+    common/global_comm.o
+endif
 
 ######## RULES
 
 all: all.components $(libs_OBJS)
 
-ifdef MPI_API
-%.so: $(api_OBJS)  $(mpix_OBJS) $(core_OBJS) $(comm_OBJS)
-	$(MPICC) $(MPICC_FLAGS) -o $*.$(ext) $(api_OBJS) $(mpix_OBJS) $(core_OBJS) $(comm_OBJS) $(LDFLAGS)
-else
-%.so:  $(api_OBJS)  $(core_OBJS) $(comm_OBJS)
-	$(CC) $(CC_FLAGS) -o $*.$(ext) $(api_OBJS) $(core_OBJS) $(comm_OBJS) $(LDFLAGS)
-endif
+%.so: $(mpix_OBJS) $(core_OBJS) $(comm_OBJS)
+	$(LIBCC)  $(LIBCC_FLAGS) -o $*.$(ext) $^ $(LDFLAGS)
 
 ######## OPTIONS
 
@@ -75,14 +89,14 @@ clean: clean.components rclean;
 
 %.components:
 	@ $(MAKE) -C 'api'        $* || exit
+	@ $(MAKE) -C 'common'     $* || exit
 	@ $(MAKE) -C 'dynais'     $* || exit
-	@ $(MAKE) -C 'loader'     $* || exit
 	@ $(MAKE) -C 'metrics'    $* || exit
 	@ $(MAKE) -C 'models'     $* || exit
 	@ $(MAKE) -C 'policies'   $* || exit
 	@ $(MAKE) -C 'states'     $* || exit
 	@ $(MAKE) -C 'tracer'     $* || exit
-	@ $(MAKE) -C 'common'     $* || exit
+	@ $(MAKE) -C 'loader'     $* || exit
 
 ######## DEPENDENCIES
 

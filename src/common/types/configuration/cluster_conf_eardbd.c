@@ -107,23 +107,15 @@ void copy_eardbd_conf(eardb_conf_t *dest,eardb_conf_t *src)
 
 void set_default_eardbd_conf(eardb_conf_t *eardbdc)
 {
-  eardbdc->aggr_time    = DEF_DBD_AGGREGATION_TIME;
-  eardbdc->insr_time    = DEF_DBD_INSERTION_TIME;
-  eardbdc->tcp_port   = DEF_DBD_SERVER_PORT;
-  eardbdc->sec_tcp_port = DEF_DBD_MIRROR_PORT;
+  eardbdc->aggr_time      = DEF_DBD_AGGREGATION_TIME;
+  eardbdc->insr_time      = DEF_DBD_INSERTION_TIME;
+  eardbdc->tcp_port       = DEF_DBD_SERVER_PORT;
+  eardbdc->sec_tcp_port   = DEF_DBD_MIRROR_PORT;
   eardbdc->sync_tcp_port  = DEF_DBD_SYNCHR_PORT;
-  eardbdc->mem_size   = DEF_DBD_ALLOC_MBS;
-  eardbdc->use_log    = DEF_DBD_FILE_LOG;
-  eardbdc->mem_size_types[0] = 60;
-  eardbdc->mem_size_types[1] = 22;
-  eardbdc->mem_size_types[2] = 5;
-  eardbdc->mem_size_types[3] = 0;
-  eardbdc->mem_size_types[4] = 7;
-  eardbdc->mem_size_types[5] = 5;
-  eardbdc->mem_size_types[6] = 1;
-
-
+  eardbdc->mem_size       = DEF_DBD_ALLOC_MBS;
+  eardbdc->use_log        = DEF_DBD_FILE_LOG;
 }
+
 void print_db_manager(eardb_conf_t *conf)
 {
 	verbosen(VCCONF,"--> EARDBD configuration\n");

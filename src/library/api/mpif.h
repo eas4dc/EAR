@@ -18,8 +18,8 @@
 #ifndef LIBRARY_API_MPIF_H
 #define LIBRARY_API_MPIF_H
 
+#include <common/plugins.h>
 #include <library/api/mpi.h>
-#include <common/attributes.h>
 
 #define MPIF_N 93
 

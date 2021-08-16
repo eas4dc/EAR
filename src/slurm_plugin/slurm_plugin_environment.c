@@ -281,7 +281,8 @@ void printenv_agnostic(spank_t sp, char *var)
 int plug_component_setenabled(spank_t sp, plug_component_t comp, int enabled)
 {
 	sprintf(buffer, "%d", enabled);
-	return setenv_agnostic(sp, comp, buffer, 1);
+	setenv_agnostic(sp, comp, buffer, 1);
+	return ESPANK_SUCCESS;
 }
 
 int plug_component_isenabled(spank_t sp, plug_component_t comp)
@@ -316,7 +317,7 @@ char *plug_context_str(spank_t sp)
         } else if (plug_context_is(sp, Context.remote)) {
                 return "remote";
         } else {
-                return "unknown";
+                return "erun";
         }
 }
 

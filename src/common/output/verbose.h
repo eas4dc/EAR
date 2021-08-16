@@ -43,8 +43,8 @@ int warn_channel	__attribute__((weak)) = 2;
 	if (verb_enabled && v <= verb_level) \
 	{ \
 		timestamp(verb_channel); \
-        dprintf(verb_channel, __VA_ARGS__); \
-        dprintf(verb_channel, "\n"); \
+		dprintf(verb_channel, __VA_ARGS__); \
+		dprintf(verb_channel, "\n"); \
 	}
 
 // No new line version
@@ -59,8 +59,9 @@ int warn_channel	__attribute__((weak)) = 2;
 #if SHOW_WARNINGS
 #define warning(...) \
 	{ \
-    	timestamp(warn_channel); \
-	 	dprintf(warn_channel, __VA_ARGS__);\
+		timestamp(warn_channel); \
+		dprintf(warn_channel, COL_YLW "WARNING" COL_CLR ", " __VA_ARGS__); \
+		dprintf(warn_channel, "\n"); \
 	}
 #else
 #define warning(...)

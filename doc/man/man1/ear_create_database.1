@@ -1,0 +1,32 @@
+.\" Manpage for ear_create_database.
+.TH man 8 "June 2021" "3.4" "ear_create_database man page"
+.SH NAME
+ear_create_database \- Creates EAR's databases.
+.SH SYNOPSIS
+ear_create_database 
+.SH DESCRIPTION
+ear_create_database creates the base database, tables and users necessary for EAR's database functionality to work properly. In the current version, ear_create_database must be executed from somewhere where the "root" user of the MySQL server the given IP points to has access, if not a permission error will be thrown.
+
+Currently, ear_create_database generates the database "Report" and the user "ear_daemon", which the EAR daemon will use to insert metrics into "Report". 
+The database contains the following tables:
+    -Applications:  Contains basic information about where the application was executed (node_id) and the id's of the executed job and the final computated application signature.
+    -Jobs:  Contains the information about a job execution [user_id, app_id, start_time, end_time], as well as the EAR parameters defined at executon (policy, threshold) and node information (procs, def_f). 
+    -Signatures:    Contains the information of an MPI application signature computed and used by EAR.
+    -Loops:    Contains the information of an application loop, its identifying characteristics (type of event, size, level and total <iterations), the job it belongs to and the computed signature of the loop.
+    -Power_signatures: Contains power metrics of an application.
+    -Events: Contains events registered by EAR, such as a change of frequency.
+
+    -Periodic_metrics: Contains information about a node's energy consumption with the purpose of monitoring it.
+    -Learning_[]: The databases that begin with the "Learning_" prefix contain the same as their counterparts without prefix, but are used exclusively for the learning phase of the EAR library.
+
+By default, the user "ear_daemon" created by the command will only have INSERT and SELECT permissions and only in the default tables of "Report".
+
+.SH OPTIONS
+The only supported option is:
+    -p      A password prompt will appear for the admin to introduce root's MySQL password.
+.SH SEE ALSO
+ereport, eenergy_over_time, estore_database
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+EAR suport team (ear-support@bsc.es)

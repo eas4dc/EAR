@@ -63,11 +63,6 @@ void print_policy_conf(policy_conf_t *p);
 /** Sets all pointers to NULL and all values to their default*/
 void init_policy_conf(policy_conf_t *p);
 
-void check_policy_values(policy_conf_t *p,int nump);
-void check_policy(policy_conf_t *p);
-void compute_policy_def_freq(policy_conf_t *p);
-
 state_t POLICY_token(unsigned int *num_policiesp, policy_conf_t **power_policiesl,char *line);
-
 
 #endif

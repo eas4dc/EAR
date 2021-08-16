@@ -18,38 +18,51 @@
 #ifndef METRICS_BANDWIDTH_CPU
 #define METRICS_BANDWIDTH_CPU
 
-#include <metrics/bandwidth/cpu/intel_haswell.h>
+#include <common/states.h>
+#include <common/plugins.h>
+#include <common/hardware/topology.h>
 
-// All these functions returns the specific funcion errror.
-// pmons.init for init_uncores etc.
+#define BW_KB 1024.0
+#define BW_MB 1048576.0
+#define BW_GB 1073741824.0
 
-/** Init the uncore counters for an specific cpu model number. */
-int init_uncores(int cpu_model);
+int init_uncores(int nothing);
 
-/** Get the number of performance monitor counters.
-*   init_uncore_reading() have to be called before to scan the buses. */
+int dispose_uncores();
+
 int count_uncores();
 
-/** Checks the state of the system uncore functions.
-*   Returns EAR_SUCCESS, EAR_ERROR or EAR_WARNING. */
 int check_uncores();
 
-/** Freezes and resets all performance monitor (PMON) uncore counters. */
-int reset_uncores();
-
-/** Unfreezes all PMON uncore counters. */
 int start_uncores();
 
-/** Freezes all PMON uncore counters and gets it's values. The array
-*   has to be greater or equal than the number of PMON uncore counters
-*   returned by count_uncores() function. The returned values are the
-*   read and write bandwith values in index [i] and [i+1] respectively. */
-int stop_uncores(unsigned long long *values);
+int reset_uncores();
 
-/** Gets the PMON uncore counters values. */
-int read_uncores(unsigned long long *values);
+int stop_uncores(ullong *cas);
 
-/** Closes file descriptors and frees memory. */
-int dispose_uncores();
+int read_uncores(ullong *cas);
+
+int compute_uncores(ullong *cas2, ullong *cas1, double *bytes, double units);
+
+int alloc_array_uncores(ullong **array);
+
+
+int uncore_are_frozen(ullong *dest, int n);
+
+/* All these functions are unprivileged */
+
+
+/* Given two uncore counter readings and a period of time computes the memory bandwith in GS/s. T is supposed to be in secs. N is the number of uncore counters */
+int compute_mem_bw(ullong *cas2, ullong *cas1, double *bps, double t,int N);
+int compute_tpi(ullong *cas2, ullong *cas1, double *tpi, ullong inst,int N);
+
+void copy_uncores(ullong *dest, ullong *src, int n);
+ullong uncore_ullong_diff_overflow(ullong begin, ullong end);
+void diff_uncores(ullong * diff,ullong *end,ullong  *begin,int N);
+void print_uncores(unsigned long long * DEST,int N);
+void uncores_to_str(unsigned long long * DEST,int N,char *txt,int len);
+int alloc_uncores(ullong **array,int N);
+
+
 
 #endif

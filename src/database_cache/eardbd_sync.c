@@ -23,8 +23,8 @@
 
 // Buffers
 extern packet_header_t input_header;
-extern char input_buffer[SZ_BUFF_BIG];
-extern char extra_buffer[SZ_BUFF_BIG];
+extern char input_buffer[SZ_BUFFER];
+extern char extra_buffer[SZ_BUFFER];
 
 //
 extern int master_iam; // Master is who speaks
@@ -32,28 +32,26 @@ extern int server_iam;
 extern int mirror_iam;
 
 // Sockets
-extern socket_t *smets_srv;
-extern socket_t *smets_mir;
-extern socket_t *ssync_srv;
-extern socket_t *ssync_mir;
+extern socket_t *socket_server;
+extern socket_t *socket_mirror;
+extern socket_t *socket_sync01;
+extern socket_t *socket_sync02;
 
 // Synchronization
-extern packet_header_t sync_ans_header;
-extern packet_header_t sync_qst_header;
-extern sync_qst_t sync_qst_content;
-extern sync_ans_t sync_ans_content;
+extern packet_header_t header_answer;
+extern packet_header_t header_question;
+extern sync_question_t data_question;
+extern sync_answer_t data_answer;
 
 // Descriptors
-extern struct sockaddr_storage addr_cli;
+extern struct sockaddr_storage addr_new;
 extern fd_set fds_incoming;
 extern fd_set fds_active;
-extern int fd_cli;
+extern int fd_new;
 extern int fd_min;
 extern int fd_max;
-
 // Descriptors storage
 extern long fd_hosts[FD_SETSIZE];
-
 //
 extern struct timeval timeout_insr;
 extern struct timeval timeout_aggr;
@@ -61,23 +59,22 @@ extern struct timeval timeout_slct;
 extern time_t time_insr;
 extern time_t time_aggr;
 extern time_t time_slct;
-
 //
-extern time_t glb_time1[MAX_TYPES];
-extern time_t glb_time2[MAX_TYPES];
-extern time_t ins_time1[MAX_TYPES];
-extern time_t ins_time2[MAX_TYPES];
-extern size_t typ_sizof[MAX_TYPES];
-extern uint   sam_index[MAX_TYPES];
-extern char  *sam_iname[MAX_TYPES];
-extern ulong  sam_inmax[MAX_TYPES];
-extern uint   sam_recvd[MAX_TYPES];
-extern uint   soc_accpt;
-extern uint   soc_activ;
-extern uint   soc_discn;
-extern uint   soc_unkwn;
-extern uint   soc_tmout;
-
+extern time_t time_recv1[EDB_NTYPES];
+extern time_t time_recv2[EDB_NTYPES];
+extern time_t time_insert1[EDB_NTYPES];
+extern time_t time_insert2[EDB_NTYPES];
+extern size_t type_sizeof[EDB_NTYPES];
+extern uint   samples_index[EDB_NTYPES];
+extern char  *type_name[EDB_NTYPES];
+extern ulong  type_alloc_len[EDB_NTYPES];
+extern uint   samples_count[EDB_NTYPES];
+//
+extern uint   sockets_accepted;
+extern uint   sockets_online;
+extern uint   sockets_disconnected;
+extern uint   sockets_unrecognized;
+extern uint   sockets_timeout;
 // Strings
 extern char *str_who[2];
 extern int verbosity;
@@ -130,16 +127,14 @@ void time_reset_timeout_slct()
 int sync_fd_is_new(int fd)
 {
 	int nc;
-
-	nc  = !mirror_iam && (fd == smets_srv->fd || fd == ssync_srv->fd);
-	nc |=  mirror_iam && (fd == smets_mir->fd);
-
+	nc  = !mirror_iam && (fd == socket_server->fd || fd == socket_sync01->fd);
+	nc |=  mirror_iam && (fd == socket_mirror->fd);
 	return nc;
 }
 
 int sync_fd_is_mirror(int fd_lst)
 {
-	return !mirror_iam && (fd_lst == ssync_srv->fd);
+	return !mirror_iam && (fd_lst == socket_sync01->fd);
 }
 
 int sync_fd_exists(long ip, int *fd_old)
@@ -149,11 +144,8 @@ int sync_fd_exists(long ip, int *fd_old)
 	if (ip == 0) {
 		return 0;
 	}
-
-	for (i = 0; i < (fd_max + 1); ++i)
-	{
-		if (FD_ISSET(i, &fds_active) && fd_hosts[i] == ip)
-		{
+	for (i = 0; i < (fd_max + 1); ++i) {
+		if (FD_ISSET(i, &fds_active) && fd_hosts[i] == ip) {
 			*fd_old = i;
 			return 1;
 		}
@@ -164,20 +156,25 @@ int sync_fd_exists(long ip, int *fd_old)
 
 void sync_fd_add(int fd, long ip)
 {
+	if (ip == 0) {
+		verb_who("Warning, the IP of the new connection is %ld", ip);
+		// Fake IP (255.0.0.0)
+		ip =  4278190080;
+	}
+	// Saving IP
 	fd_hosts[fd] = ip;
-
+	// Enabling FD in select
 	FD_SET(fd, &fds_active);
-
+	
 	if (fd > fd_max) {
 		fd_max = fd;
 	}
 	if (fd < fd_min) {
 		fd_min = fd;
 	}
-
 	// Metrics
-	soc_accpt += 1;
-	soc_activ += 1;
+	sockets_accepted += 1;
+	sockets_online   += 1;
 }
 
 void sync_fd_get_ip(int fd, long *ip)
@@ -187,14 +184,14 @@ void sync_fd_get_ip(int fd, long *ip)
 
 void sync_fd_disconnect(int fd)
 {
-	fd_hosts[fd] = 0;
-
 	sockets_close_fd(fd);
-
+	// Disabling FD in select
 	FD_CLR(fd, &fds_active);
-
-	// Metrics
-	soc_activ -= 1;
+	// If is 0 maybe was cleaned already
+	if (fd_hosts[fd] > 0) {
+		sockets_online -= 1;
+		fd_hosts[fd] = 0;
+	}
 }
 
 /*
@@ -203,66 +200,55 @@ void sync_fd_disconnect(int fd)
  *
  */
 
-int sync_question(uint sync_option, int veteran, sync_ans_t *answer)
+int sync_question(uint sync_option, int veteran, sync_answer_t *answer)
 {
 	time_t timeout_old;
 	state_t s;
 
-	verbose_xaxxw("synchronization started: asking the question to %s (%d)",
-			ssync_mir->host_dst, sync_option);
-
-	sync_qst_content.sync_option = sync_option;
-	sync_qst_content.veteran = veteran;
+	verb_who("synchronization started: asking the question to %s (%d)",
+			socket_sync02->host_dst, sync_option);
+	//
+	data_question.sync_option = sync_option;
+	data_question.veteran     = veteran;
 
 	// Preparing packet
-	sockets_header_update(&sync_qst_header);
-
+	sockets_header_update(&header_question);
+	
 	// Synchronization pipeline
-	s = sockets_socket(ssync_mir);
-
-	if (state_fail(s)) {
-		verbose_xaxxw("failed to create client socket (%d, %s)", s, intern_error_str);
+	if (state_fail(s = sockets_socket(socket_sync02))) {
+		verb_who("failed to create client socket (%d, %s)", s, state_msg);
 		return EAR_ERROR;
 	}
-
-	s = sockets_connect(ssync_mir);
-
-	if (state_fail(s)) {
-		verbose_xaxxw("failed to connect (%d, %s)", s, intern_error_str);
+	if (state_fail(s = sockets_connect(socket_sync02))) {
+		verb_who("failed to connect (%d, %s)", s, state_msg);
 		return EAR_ERROR;
 	}
-
-	s = sockets_send(ssync_mir, &sync_qst_header, (char *) &sync_qst_content);
-
-	if (state_fail(s)) {
-		verbose_xaxxw("failed to send (%d, %s)", s, intern_error_str);
+	if (state_fail(s = __sockets_send(socket_sync02, &header_question, (char *) &data_question))) {
+		verb_who("failed to send (%d, %s)", s, state_msg);
 		return EAR_ERROR;
 	}
 
 	// Setting new timeout
-	sockets_timeout_get(ssync_mir->fd, &timeout_old);
-	s = sockets_timeout_set(ssync_mir->fd, 10);
-
+	sockets_timeout_get(socket_sync02->fd, &timeout_old);
+	s = sockets_timeout_set(socket_sync02->fd, 10);
 	// Waiting
-	s = sockets_receive(ssync_mir->fd, &sync_ans_header,
-		(char *) &sync_ans_content, sizeof(sync_ans_t), 1);
-
+	s = __sockets_recv(socket_sync02->fd, &header_answer,
+		(char *) &data_answer, sizeof(sync_answer_t), 1);
 	// Recovering old timeout
-	sockets_timeout_set(ssync_mir->fd, timeout_old);
+	sockets_timeout_set(socket_sync02->fd, timeout_old);
 
 	if (state_fail(s)) {
-		verbose_xaxxw("failed to receive (%d, %s)", s, intern_error_str);
+		verb_who("failed to receive (%d, %s)", s, state_msg);
 		return EAR_ERROR;
 	}
-
-	s = sockets_close(ssync_mir);
+	//
+	s = sockets_close(socket_sync02);
 
 	if (verbosity) {
-		verbose_xxxxw("synchronization completed correctly");
+		verb_who_noarg("synchronization completed correctly");
 	}
-
 	if (answer != NULL) {
-		memcpy (answer, &sync_ans_content, sizeof(sync_ans_t));
+		memcpy (answer, &data_answer, sizeof(sync_answer_t));
 	}
 
 	return EAR_SUCCESS;
@@ -274,27 +260,23 @@ int sync_answer(int fd, int veteran)
 	state_t s;
 
 	if (verbosity) {
-		verbose_xxxxw("synchronization started: answering the question");
+		verb_who_noarg("synchronization started: answering the question");
 	}
-
 	// Socket
 	sockets_clean(&sync_ans_socket);
 	sync_ans_socket.protocol = TCP;
-	sync_ans_socket.fd = fd;
+	sync_ans_socket.fd       = fd;
 
 	// Header
-	sockets_header_update(&sync_ans_header);
-	sync_ans_content.veteran = veteran;
+	sockets_header_update(&header_answer);
+	data_answer.veteran = veteran;
 
-	s = sockets_send(&sync_ans_socket, &sync_ans_header, (char *) &sync_ans_content);
-
-	if (state_fail(s)) {
-		verbose_xaxxw("Failed to send to MIRROR (%d, %s)", s, intern_error_str);
+	if (state_fail(s = __sockets_send(&sync_ans_socket, &header_answer, (char *) &data_answer))) {
+		verb_who("Failed to send to MIRROR (%d, %s)", s, state_msg);
 		return EAR_IGNORE;
 	}
-
 	if (verbosity) {
-		verbose_xxxxw("synchronization completed correctly");
+		verb_who_noarg("synchronization completed correctly");
 	}
 
 	return EAR_SUCCESS;

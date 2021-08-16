@@ -65,7 +65,7 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
         if (key == NULL || value == NULL || !strlen(key) || !strlen(value))
         {
             token = strtok_r(NULL, " ", &buffer_ptr);
-            debug("Error while parsing tags, continuing to next line\n");
+            //verbose(0, "Error while parsing tags, continuing to next line\n");
             continue;
         }
 
@@ -124,7 +124,14 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
         {
             tags[idx].powercap = atol(value);
         }
-
+        else if (!strcmp(key, "MAX_POWERCAP"))
+        {
+            tags[idx].max_powercap = atol(value);
+        }
+				else if (!strcmp(key, "GPU_DEF_FREQ"))
+				{
+						tags[idx].gpu_def_freq = atol(value);
+				}
         //MODELS
         else if (!strcmp(key, "ENERGY_MODEL"))
         {
@@ -179,8 +186,16 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
 void print_tags_conf(tag_t *tag)
 {
     verbosen(VCCONF, "--> Tag: %s\ttype: %d\tdefault: %d\tpowercap_type: %d\n", tag->id, tag->type, tag->is_default, tag->powercap_type);
-    verbosen(VCCONF, "\t\tavx512_freq: %lu\tavx2_freq: %lu\tmax_power: %lu\tmin_power: %lu\terror_power: %lu\tpowercap: %lu\n", 
-                     tag->max_avx512_freq, tag->max_avx2_freq, tag->max_power, tag->min_power, tag->error_power, tag->powercap);
-    verbosen(VCCONF, "\t\tenergy_model: %s\tenergy_plugin: %s\tpowercap_plugin: %s\n", tag->energy_model, tag->energy_plugin, tag->powercap_plugin);
+    verbosen(VCCONF, "\t\tavx512_freq: %lu\tavx2_freq: %lu\tmax_power: %lu\tmin_power: %lu\terror_power: %lu\t max_powercap: %lu\n", 
+                     tag->max_avx512_freq, tag->max_avx2_freq, tag->max_power, tag->min_power, tag->error_power, tag->max_powercap);
+	verbosen(VCCONF, "\t\tgpu_def_freq %lu\n",tag->gpu_def_freq);
+    verbosen(VCCONF, "\t\tenergy_model: %s\tenergy_plugin: %s\tpowercap_plugin: %s", tag->energy_model, tag->energy_plugin, tag->powercap_plugin);
+		if (tag->powercap == DEF_POWER_CAP){
+			verbosen(VCCONF,"\t\t powercap set_def\n");
+		}else if (tag->powercap == 0){
+			verbosen(VCCONF,"\t\t powercap disabled\n");
+		}else {
+			verbosen(VCCONF,"\t\t powercap %ld\n",tag->powercap);
+		}
 }
 

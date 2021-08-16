@@ -19,7 +19,7 @@
 #define LIBRARY_API_MPI_H
 
 #include <mpi.h>
-
+#include <library/api/mpi_support.h>
 #ifndef MPI3_CONST
 #  if MPI_VERSION >= 3
 #    define MPI3_CONST const
@@ -27,7 +27,7 @@
 #    define MPI3_CONST
 #  endif
 #endif
-
+#if 0
 #define p2i unsigned long
 
 enum type_mpi_call {
@@ -150,5 +150,5 @@ typedef enum
 	Win_wait = _Unknown,
 	Not_implemented
 } mpi_call;
-
+#endif
 #endif //LIBRARY_API_MPI_H

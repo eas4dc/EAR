@@ -21,10 +21,10 @@ erun_SRCS = \
         erun_lock.c
 
 plug_OBJS = \
-        $(SRCDIR)/daemon/eard_rapi.o \
+        $(SRCDIR)/daemon/remote_api/eard_rapi.o \
         $(SRCDIR)/daemon/shared_configuration.o \
         $(SRCDIR)/global_manager/eargm_rapi.o \
-        $(SRCDIR)/common/libcommon.a
+        $(SRCDIR)/common/libcommon.a 
 
 plug_SRCS = \
         slurm_plugin.c \
@@ -33,16 +33,14 @@ plug_SRCS = \
         slurm_plugin_rcom_eard.c \
         slurm_plugin_rcom_eargmd.c \
         slurm_plugin_rcom_shared.c \
-        slurm_plugin_serialization.c \
-        slurm_plugin_test.c
+        slurm_plugin_serialization.c
 
 plug_HDRS = \
         slurm_plugin.h \
         slurm_plugin_environment.h \
         slurm_plugin_options.h \
         slurm_plugin_rcom.h \
-        slurm_plugin_serialization.h \
-        slurm_plugin_test.h
+        slurm_plugin_serialization.h
 
 ######## RULES
 

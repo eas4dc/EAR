@@ -49,7 +49,8 @@ int execute(char *cmd)
   if (WIFSIGNALED(ret)){
         error("Command %s terminates with signal %d",cmd,WTERMSIG(ret));
 				return EAR_ERROR;
-  }else if (WIFEXITED(ret) && WEXITSTATUS(ret)){
+  }
+	else if (WIFEXITED(ret) && WEXITSTATUS(ret)){
         error("Command %s terminates with exit status  %d",cmd,WEXITSTATUS(ret));
 				return EAR_ERROR;
   }

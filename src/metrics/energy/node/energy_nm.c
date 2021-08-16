@@ -74,7 +74,6 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	};
 	static struct ipmi_rs rsp;
 	uint8_t *data = NULL;
-	int data_len = 0;
 	static int curr_seq = 0;
 	fd_set rset;
 
@@ -195,11 +194,14 @@ state_t nm_arg(struct ipmi_intf *intf, struct ipmi_data *out)
 				debug("Error rsp null\n");
         return EAR_ERROR;
   };
-  if (rsp->ccode > 0) {
-        out->mode=-1;
-				debug("error code>0\n");
-        return EAR_ERROR;
-        };
+
+#if 1
+	if (rsp->ccode > 0) {
+		out->mode=-1;
+		debug("error code greater than zero (%d)", rsp->ccode);
+		return EAR_ERROR;
+	}
+#endif
 
   out->data_len=rsp->data_len;
   int i;
@@ -217,12 +219,12 @@ state_t nm_ene(struct ipmi_intf *intf, struct ipmi_data *out)
 	struct ipmi_rq req;
 	uint8_t msg_data[8];
 	int i;
-	int s;
 
 	if (pthread_mutex_trylock(&ompi_lock)) {
     return EAR_BUSY;
   }
 
+// ipmitool raw 0x2E 0x81 0x66 0x4A 0x00 0x20 0x01 0x82 0x00 0x08
 //// bytes_rq[3]=(uint8_t)0x66;
 //// bytes_rq[4]=(uint8_t)0x4A;
 //// bytes_rq[5]=(uint8_t)0x00;
@@ -389,21 +391,21 @@ state_t energy_frequency(ulong *freq_us) {
 
 state_t energy_dc_read(void *c, edata_t energy_mj) {
 	struct ipmi_data out;
-	unsigned long aux_emj = 0, *energyp;
 	uint8_t *bytes_rs;
 	int FIRST_BYTE_EMJ;
 	state_t st;
-	ulong *penergy_mj=(ulong *)energy_mj;
+	ulong * energyp;
+	ulong *penergy_mj = (ulong *)energy_mj;
 	
 	debug("energy_dc_read\n");
 
-	*penergy_mj=0;
-	st=nm_ene((struct ipmi_intf *)c,&out);
-	if (st!=EAR_SUCCESS) return st;
-	FIRST_BYTE_EMJ=out.data_len-8;
-	bytes_rs=out.data;
-	energyp=(unsigned long *)&bytes_rs[FIRST_BYTE_EMJ];
-	*penergy_mj=(unsigned long)be64toh(*energyp);
+	*penergy_mj = 0;
+	st = nm_ene((struct ipmi_intf *)c,&out);
+	if (st != EAR_SUCCESS) return st;
+	FIRST_BYTE_EMJ = out.data_len-8;
+	bytes_rs = out.data;
+	energyp = (unsigned long *)&bytes_rs[FIRST_BYTE_EMJ];
+	*penergy_mj = (unsigned long)be64toh(*energyp);
 	return EAR_SUCCESS;
 }
 
@@ -411,14 +413,14 @@ state_t energy_power_limit(void *c, unsigned long limit,unsigned long target) {
   state_t st;
 
   debug("energy_power_limit limit=%luW target=%lu\n",limit,target);
-  st=nm_power_limit((struct ipmi_intf *)c,limit,(uint8_t)target);
+  st = nm_power_limit((struct ipmi_intf *)c,limit,(uint8_t)target);
   return st;
 }
 
 
 state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms) {
 	struct ipmi_data out;
-	unsigned long aux_emj = 0, *energy, *energyp;
+	unsigned long  *energyp;
 	int FIRST_BYTE_EMJ;
 	uint8_t *bytes_rs;
 	state_t st;
@@ -460,7 +462,6 @@ state_t energy_units(uint *units) {
 }
 
 state_t energy_accumulated(unsigned long *e, edata_t init, edata_t end) {
-	int i;
 	ulong *pinit = (ulong *) init, *pend = (ulong *) end;
 
 	unsigned long total = diff_node_energy(*pinit, *pend);
@@ -479,3 +480,10 @@ state_t power_limit(ulong limit)
 	verbose(1,"Energy Intel Node Manager setting limit to %lu",limit);
 	return EAR_SUCCESS;
 }
+uint energy_data_is_null(edata_t e)  
+{
+  ulong *pe=(ulong *)e;
+  return (*pe == 0);
+
+}
+

@@ -22,34 +22,11 @@
 #include <common/sizes.h>
 #include <common/states.h>
 #include <common/system/file.h>
+#include <common/output/debug.h>
 #include <common/hardware/cpuid.h>
 #include <common/hardware/topology.h>
-#include <common/hardware/topology_frequency.h>
 
-// TODO: clean, just for fix spaguettis
 static topology_t topo_static;
-
-static int file_is_accessible(const char *path)
-{
-	return (access(path, F_OK) == 0);
-}
-
-static int is_online(const char *path)
-{
-	char c = '0';
-	if (access(path, F_OK) != 0) {
-		return 0;
-	}
-	if (state_fail(file_read(path, &c, sizeof(char)))) {
-		return 0;
-	}
-	if (c != '1') {
-		return 0;
-	}
-	return 1;
-}
-
-
 
 state_t topology_select(topology_t *t, topology_t *s, int component, int group, int val)
 {
@@ -96,12 +73,14 @@ state_t topology_select(topology_t *t, topology_t *s, int component, int group, 
 			memcpy(&s->cpus[c], &t->cpus[i], sizeof(core_t));
 			c++;
 		}
-
-		s->cpus[i].freq_base = t->cpus[i].freq_base;
 	}
 
 	s->socket_count = t->socket_count;
 	s->cpu_count = c;
+
+	if (s->cpu_count <= 0) {
+		return_msg(EAR_ERROR, "invalid topology");
+	}
 	
 	return EAR_SUCCESS;
 }
@@ -190,46 +169,133 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
 	return EAR_SUCCESS;
 }
 
-static void topology_copy(topology_t *dst, topology_t *src)
+state_t topology_copy(topology_t *dst, topology_t *src)
 {
 	void *p;
 	p = memcpy(dst, src, sizeof(topology_t));
 	p = malloc(sizeof(core_t) * src->cpu_count);
 	p = memcpy(p, src->cpus, sizeof(core_t) * src->cpu_count);
-	src->cpus = (core_t *) p;
+	dst->cpus = (core_t *) p;
+	return EAR_SUCCESS;
+}
+
+static void topology_extras(topology_t *topo)
+{
+	char path[SZ_NAME_LARGE];
+	char c[2];
+	int fd;
+	
+	// NMI Watchdog
+	sprintf(path, "/proc/sys/kernel/nmi_watchdog");
+
+	if ((fd = open(path, F_RD)) >= 0) {
+		if (read(fd, c, sizeof(char)) > 0) {
+			c[1] = '\0';
+			topo->nmi_watchdog = atoi(c);
+		}
+		close(fd);
+	}
 }
 
 static void topology_cpuid(topology_t *topo)
 {
-	int buffer[4];
 	cpuid_regs_t r;
+	int buffer[4];
 
 	/* Vendor */
 	CPUID(r,0,0);
 	buffer[0] = r.ebx;
 	buffer[1] = r.edx;
 	buffer[2] = r.ecx;
-	topo->vendor = !(buffer[0] == 1970169159);
+	topo->vendor = !(buffer[0] == 1970169159); // Intel
 	
 	/* Family */
 	CPUID(r,1,0);
 	buffer[0] = cpuid_getbits(r.eax, 11,  8);
-	buffer[1] = cpuid_getbits(r.eax, 27, 20);
-	topo->family = (buffer[1] << 4) | buffer[0];
+	buffer[1] = cpuid_getbits(r.eax, 27, 20); // extended
+	buffer[2] = buffer[0]; // auxiliar
+	
+	if (buffer[0] == 0x0F) {
+		topo->family = buffer[1] + buffer[0];
+	} else {
+		topo->family = buffer[0];
+	}
 
 	/* Model */
 	CPUID(r,1,0);
 	buffer[0] = cpuid_getbits(r.eax,  7,  4);
-	buffer[1] = cpuid_getbits(r.eax, 19, 16);
-	topo->model = (buffer[1] << 4) | buffer[0];
+	buffer[1] = cpuid_getbits(r.eax, 19, 16); // extended
+	
+	if (buffer[2] == 0x0F || (buffer[2] == 0x06 && topo->vendor == VENDOR_INTEL)) {
+		topo->model = (buffer[1] << 4) | buffer[0];
+	} else {
+		topo->model = buffer[0];
+	}
+
+	/* Cache line size */
+	uint max_level = 0;
+	uint cur_level = 0;
+	int index      = 0;
+
+	if (topo->vendor == VENDOR_INTEL)
+	{
+		while (1)
+		{
+			CPUID(r,4,index);
+
+			if (!(r.eax & 0x0F)) break;
+			cur_level = cpuid_getbits(r.eax, 7, 5);
+
+			if (cur_level >= max_level) {
+				topo->cache_line_size = cpuid_getbits(r.ebx, 11, 0) + 1;
+				max_level = cur_level;
+			}
+
+			index = index + 1;
+		}
+	} else {
+		CPUID(r,0x80000005,0);
+		topo->cache_line_size = r.edx & 0xFF;
+	}
+
+	/* General-purpose/fixed registers */
+    CPUID(r, 0x0a, 0);
+
+	if (topo->vendor == VENDOR_INTEL) {
+		//  Intel Vol. 2A
+		// 	bits   7,0: version of architectural performance monitoring
+		// 	bits  15,8: number of GPR counters per logical processor
+		//	bits 23,16: bit width of GPR counters
+		topo->gpr_count = cpuid_getbits(r.eax, 15,  8);
+		topo->gpr_bits  = cpuid_getbits(r.eax, 23, 16);
+	} else {
+		if (topo->family >= FAMILY_ZEN) {
+			topo->gpr_count = 6;
+			topo->gpr_bits  = 48;
+		}
+	}
+}
+
+static int is_online(const char *path)
+{
+	char c = '0';
+	if (access(path, F_OK) != 0) {
+		return 0;
+	}
+	if (state_fail(file_read(path, &c, sizeof(char)))) {
+		return 0;
+	}
+	if (c != '1') {
+		return 0;
+	}
+	return 1;
 }
 
 state_t topology_init(topology_t *topo)
 {
 	char path[SZ_NAME_LARGE];
-	int i;
+	int i, j;
 
-	// TODO: spaguettis
 	if (topo_static.cpu_count != 0) {
 		topology_copy(topo, &topo_static);
 	}
@@ -238,6 +304,7 @@ state_t topology_init(topology_t *topo)
 	topo->core_count = 0;
 	topo->socket_count = 0;
 	topo->threads_per_core = 1;
+	topo->cache_line_size = 0;
 	topo->smt_enabled = 0;
 	topo->l3_count = 0;
 
@@ -266,15 +333,20 @@ state_t topology_init(topology_t *topo)
 			topo->threads_per_core = 2;
 			topo->smt_enabled = 1;
 		}
-		if (topo->cpus[i].l3_id > (topo->l3_count-1)) {
-			topo->l3_count = topo->cpus[i].l3_id + 1;
+		// 0 1 2 3
+		for (j = 0; j < i; ++j) {
+			if (topo->cpus[j].l3_id == topo->cpus[i].l3_id) {
+				break;
+			}
 		}
-	
-		// Base frequency	
-		topology_freq_getbase(i, &topo->cpus[i].freq_base);
+		topo->l3_count += (j == i);
+		//if (topo->cpus[i].l3_id > (topo->l3_count-1)) {
+		//	topo->l3_count = topo->cpus[i].l3_id + 1;
+		//}
 	}
 
-	// TODO: spaguettis
+	topology_extras(topo);
+
 	topology_copy(&topo_static, topo);
 
 	return EAR_SUCCESS;
@@ -282,7 +354,6 @@ state_t topology_init(topology_t *topo)
 
 state_t topology_close(topology_t *topo)
 {
-	// TODO: spaguettis
 	return EAR_SUCCESS;
 
 	if (topo == NULL) {
@@ -291,6 +362,89 @@ state_t topology_close(topology_t *topo)
 	
 	free(topo->cpus);
 	memset(topo, 0, sizeof(topology_t));
+	return EAR_SUCCESS;
+}
+
+#define f_print(f, ...) \
+	f (__VA_ARGS__, \
+		"cpu_count        : %d\n" \
+    	"socket_count     : %d\n" \
+		"threads_per_core : %d\n" \
+		"smt_enabled      : %d\n" \
+    	"l3_count         : %d\n" \
+		"vendor           : %d\n" \
+		"family           : %d\n" \
+		"gpr_count        : %d\n" \
+		"gpr_bits         : %d\n" \
+		"nmi_watchdog     : %d\n" \
+	, \
+		topo->cpu_count, \
+		topo->socket_count, \
+		topo->threads_per_core, \
+		topo->smt_enabled, \
+		topo->l3_count, \
+		topo->vendor, \
+		topo->family, \
+		topo->gpr_count, \
+		topo->gpr_bits, \
+		topo->nmi_watchdog);
+
+state_t topology_print(topology_t *topo, int fd)
+{
+	f_print(dprintf, fd);
+
+	return EAR_SUCCESS;
+}
+
+state_t topology_tostr(topology_t *topo, char *buffer, size_t n)
+{
+	f_print(snprintf, buffer, n);
+
+	return EAR_SUCCESS;
+}
+
+static ulong read_freq(int fd)
+{
+	char freqc[8];
+	ulong freq;
+	int i = 0;
+	char c;
+
+	while((read(fd, &c, sizeof(char)) > 0) && ((c >= '0') && (c <= '9')))
+	{
+		freqc[i] = c;
+    	i++;
+	}
+
+	freqc[i] = '\0';
+	freq = atoi(freqc);
+	return freq;
+}
+
+state_t topology_freq_getbase(uint cpu, ulong *freq_base)
+{
+	char path[1024];
+	int fd;
+
+	sprintf(path,"/sys/devices/system/cpu/cpu%d/cpufreq/scaling_available_frequencies", cpu);
+	if ((fd = open(path, O_RDONLY)) < 0)
+	{
+		*freq_base = 1000000LU;
+    	return EAR_ERROR;
+	}
+
+	ulong f0 = read_freq(fd);
+	ulong f1 = read_freq(fd);
+	ulong fx = f0 - f1;
+
+	if (fx == 1000) {
+		*freq_base = f1;
+	} else {
+		*freq_base = f0;
+	}
+
+	close(fd);
+
 	return EAR_SUCCESS;
 }
 

@@ -18,21 +18,9 @@
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
+#include <common/config/config_install.h>
 #include <common/config/config_def.h>
 #include <common/config/config_dev.h>
 #include <common/config/config_env.h>
-#include <common/config/config_install.h>
-
-/* These two options go together. USE_EXT defines if a automatic network
- * extension must be added for inter-nodes communications. Targeted to
- * architectures where hostname returned is not valid to communicate across
- * nodes. In that case, NW_EXT specified the extension to concatenate to
- * hostname */
-#define USE_EXT								0
-#define NW_EXT								"-opa"
-/* When defined, activates dynamic traces on EARL */
-#define EAR_GUI 1
-
-#define USE_DB  DB_MYSQL || DB_PSQL
 
 #endif

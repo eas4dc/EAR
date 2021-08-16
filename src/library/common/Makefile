@@ -1,19 +1,21 @@
-CFLAGS = $(CC_FLAGS) $(MPI_CFLAGS) -I$(SRCDIR) -O2 -fPIC
+########
 
-OBJS = \
-    global_comm.o\
-		library_shared_data.o
+OBJS = library_shared_data.o
 
+ifeq ($(FEAT_MPI_API), 1)
+OBJS += \
+    global_comm.o
+endif
 
 ######## RULES
 
 all: $(OBJS)
 
 %.o: %.c %.h
-	$(MPICC) $(CC_FLAGS) $(CFLAGS) -c $<
+	$(CC) $(CC_FLAGS) $(LIB_CFLAGS) $(CFLAGS) -c $<
 
-library_shared_data.o:library_shared_data.c 
-	$(MPICC) $(MPICC_FLAGS) $(CFLAGS) -c $< 	
+global_comm.o: global_comm.c global_comm.h 
+	$(CC) $(CC_FLAGS) $(LIB_CFLAGS) $(CFLAGS) -c $<
 
 ######## OPTIONS 
 

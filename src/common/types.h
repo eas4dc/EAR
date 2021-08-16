@@ -1,3 +1,4 @@
+
 /*
 *
 * This program is part of the EAR software.
@@ -14,8 +15,6 @@
 * use and EPL-1.0 license for commercial use. Full text of both licenses can be
 * found in COPYING.BSD and COPYING.EPL files.
 */
-
-
 
 #ifndef COMMON_TYPES_H
 #define COMMON_TYPES_H

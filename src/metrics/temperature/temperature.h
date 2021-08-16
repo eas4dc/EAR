@@ -18,9 +18,47 @@
 #ifndef METRICS_TEMPERATURE_H
 #define METRICS_TEMPERATURE_H
 
-#define RAPL_TEMP_EVS 1
-int init_temp_msr(int *fd);
-int read_temp_msr(int *fd,unsigned long long *_values);
-int read_temp_limit_msr(int *fds, unsigned long long *_values);
-int reset_temp_limit_msr(int *fds);
-#endif //METRICS_TEMPERATURE_H
+#include <common/states.h>
+#include <common/plugins.h>
+#include <common/hardware/topology.h>
+
+// The API
+//
+// This API returns a temperature in Celsius degrees per socket.
+//
+// Props:
+//	- Thread safe: yes.
+//	- User mode: just in amd17.
+//	- Type: direct value.
+//
+// Folders:
+//  - archs: different node architectures, such as AMD and Intel.
+//  - tests: examples.
+//
+// Future work:
+//
+// Use example:
+//  - You can find an example in cpufreq/tests folder.
+
+state_t temp_load(topology_t *tp);
+
+state_t temp_init(ctx_t *c);
+
+state_t temp_dispose(ctx_t *c);
+
+/** It returns the number of sockets. */
+state_t temp_count_devices(ctx_t *c, uint *count);
+
+// Data
+state_t temp_data_alloc(ctx_t *c, llong **temp_list, uint *temp_count);
+
+/* Copies temp1 in temp2. */
+state_t temp_data_copy(ctx_t *c, llong *temp_list2, llong *temp_list1);
+
+state_t temp_data_free(ctx_t *c, llong **temp_list);
+
+// Getter
+/** Requires a llong array of a length of total node sockets. */
+state_t temp_read(ctx_t *c, llong *temp_list, llong *average);
+
+#endif

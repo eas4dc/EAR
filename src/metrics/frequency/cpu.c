@@ -15,98 +15,112 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+#include <stdlib.h>
+//#define SHOW_DEBUGS 1
+#include <common/output/debug.h>
 #include <metrics/frequency/cpu.h>
 #include <metrics/frequency/cpu/intel63.h>
-
-#define opreturn(call, ...) \
-	if (call == NULL) { \
-		return_msg(EAR_UNDEFINED, Generr.api_undefined); \
-	} \
-	return call (__VA_ARGS__);
-
+#include <metrics/frequency/cpu/intel_dummy.h>
 static struct cpu_freq_ops
 {
-	state_t (*init) (topology_t *tp);
-	state_t (*dispose) ();
-	state_t (*read) (freq_cpu_t *ef);
-	state_t (*read_diff) (freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average);
-	state_t (*read_copy) (freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average);
-	state_t (*data_alloc) (freq_cpu_t *ef, ulong *freqs[], ulong *freqs_count);
-	state_t (*data_count) (uint *count);
-	state_t (*data_copy) (freq_cpu_t *ef_dst, freq_cpu_t *ef_src);
-	state_t (*data_free) (freq_cpu_t *ef, ulong *freqs[]);
-	state_t (*data_diff) (freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average);
+	state_t (*init)       ();
+	state_t (*dispose)    ();
+	state_t (*read)       (cpufreq_t *ef);
+	state_t (*read_diff)  (cpufreq_t *ef2, cpufreq_t *ef1, ulong *freqs, ulong *average);
+	state_t (*read_copy)  (cpufreq_t *ef2, cpufreq_t *ef1, ulong *freqs, ulong *average);
+	state_t (*data_alloc) (cpufreq_t *ef, ulong *freqs[]);
+	state_t (*data_count) (uint *cpufreq_size, uint *freqs_count);
+	state_t (*data_copy)  (cpufreq_t *ef_dst, cpufreq_t *ef_src);
+	state_t (*data_free)  (cpufreq_t *ef, ulong *freqs[]);
+	state_t (*data_diff)  (cpufreq_t *ef2, cpufreq_t *ef1, ulong *freqs, ulong *average);
 	state_t (*data_print) (ulong *freqs, ulong *average);
 } ops;
 
-state_t freq_cpu_init(topology_t *tp)
+state_t cpufreq_load(topology_t *tp)
 {
-	if (tp->vendor == VENDOR_INTEL &&
-		tp->model  >= MODEL_HASWELL_X)
+	debug("Testing CPU freq API");
+	if (state_ok(cpufreq_intel63_status(tp)))
 	{
-		ops.init		= freq_intel63_init;
-		ops.dispose		= freq_intel63_dispose;
-		ops.read		= freq_intel63_read;
-		ops.read_diff	= freq_intel63_read_diff;
-		ops.read_copy	= freq_intel63_read_copy;
-		ops.data_alloc	= freq_intel63_data_alloc;
-		ops.data_count  = freq_intel63_data_count;
-		ops.data_copy	= freq_intel63_data_copy;
-		ops.data_free   = freq_intel63_data_free;
-		ops.data_diff   = freq_intel63_data_diff;
-		ops.data_print  = freq_intel63_data_print;
-		return ops.init(tp);
+		ops.init		= cpufreq_intel63_init;
+		ops.dispose		= cpufreq_intel63_dispose;
+		ops.read		= cpufreq_intel63_read;
+		ops.read_diff	= cpufreq_intel63_read_diff;
+		ops.read_copy	= cpufreq_intel63_read_copy;
+		ops.data_alloc	= cpufreq_intel63_data_alloc;
+		ops.data_count  = cpufreq_intel63_data_count;
+		ops.data_copy	= cpufreq_intel63_data_copy;
+		ops.data_free   = cpufreq_intel63_data_free;
+		ops.data_diff   = cpufreq_intel63_data_diff;
+		ops.data_print  = cpufreq_intel63_data_print;
 	} else {
-		return_msg(EAR_INCOMPATIBLE, Generr.api_incompatible);
+		debug("CPUfreq dummy loaded ");
+		ops.init                = cpufreq_intel_dummy_init;
+                ops.dispose             = cpufreq_intel_dummy_dispose;
+                ops.read                = cpufreq_intel_dummy_read;
+                ops.read_diff   = cpufreq_intel_dummy_read_diff;
+                ops.read_copy   = cpufreq_intel_dummy_read_copy;
+                ops.data_alloc  = cpufreq_intel_dummy_data_alloc;
+                ops.data_count  = cpufreq_intel_dummy_data_count;
+                ops.data_copy   = cpufreq_intel_dummy_data_copy;
+                ops.data_free   = cpufreq_intel_dummy_data_free;
+                ops.data_diff   = cpufreq_intel_dummy_data_diff;
+                ops.data_print  = cpufreq_intel_dummy_data_print;
+
 	}
+	return EAR_SUCCESS;
 }
 
-state_t freq_cpu_dispose()
+state_t cpufreq_init()
 {
-	opreturn(ops.dispose,);
+	preturn(ops.init,);
 }
 
-state_t freq_cpu_read(freq_cpu_t *ef)
+state_t cpufreq_dispose()
 {
-	opreturn(ops.read, ef);
+	preturn(ops.dispose,);
 }
 
-state_t freq_cpu_read_diff(freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average)
+state_t cpufreq_read(cpufreq_t *ef)
 {
-	opreturn(ops.read_diff, ef2, ef1, freqs, average);
+	preturn(ops.read, ef);
 }
 
-state_t freq_cpu_read_copy(freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average)
+state_t cpufreq_read_diff(cpufreq_t *ef2, cpufreq_t *ef1, ulong *freqs, ulong *average)
 {
-	opreturn(ops.read_copy, ef2, ef1, freqs, average);
+	preturn(ops.read_diff, ef2, ef1, freqs, average);
 }
 
-state_t freq_cpu_data_alloc(freq_cpu_t *ef, ulong **freqs, ulong *freqs_count)
+state_t cpufreq_read_copy(cpufreq_t *ef2, cpufreq_t *ef1, ulong *freqs, ulong *average)
 {
-	opreturn(ops.data_alloc, ef, freqs, freqs_count);
+	preturn(ops.read_copy, ef2, ef1, freqs, average);
 }
 
-state_t freq_cpu_data_count(uint *count)
+state_t cpufreq_data_alloc(cpufreq_t *ef, ulong **freqs)
 {
-	opreturn(ops.data_count, count);
+	preturn(ops.data_alloc, ef, freqs);
 }
 
-state_t freq_cpu_data_copy(freq_cpu_t *ef_dst, freq_cpu_t *ef_src)
+state_t cpufreq_data_count(uint *cpufreq_size, uint *freqs_count)
 {
-	opreturn(ops.data_copy, ef_dst, ef_src);
+	preturn(ops.data_count, cpufreq_size, freqs_count);
 }
 
-state_t freq_cpu_data_free(freq_cpu_t *ef, ulong **freqs)
+state_t cpufreq_data_copy(cpufreq_t *ef_dst, cpufreq_t *ef_src)
 {
-	opreturn(ops.data_free, ef, freqs);
+	preturn(ops.data_copy, ef_dst, ef_src);
 }
 
-state_t freq_cpu_data_diff(freq_cpu_t *ef2, freq_cpu_t *ef1, ulong *freqs, ulong *average)
+state_t cpufreq_data_free(cpufreq_t *ef, ulong **freqs)
 {
-	opreturn(ops.data_diff,  ef2, ef1, freqs, average);
+	preturn(ops.data_free, ef, freqs);
 }
 
-state_t freq_cpu_data_print(ulong *freqs, ulong *average)
+state_t cpufreq_data_diff(cpufreq_t *ef2, cpufreq_t *ef1, ulong *freqs, ulong *average)
 {
-    opreturn(ops.data_print, freqs, average);
+	preturn(ops.data_diff,  ef2, ef1, freqs, average);
+}
+
+state_t cpufreq_data_print(ulong *freqs, ulong *average)
+{
+    preturn(ops.data_print, freqs, average);
 }

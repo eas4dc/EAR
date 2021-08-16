@@ -1,0 +1,24 @@
+EAR library versions
+--------------------
+
+The EAR library default version targets MPI applications. However, depending on the MPI version different EAR library versions are automatically loaded by the EAR loader (EAR_INSTALL_PATH/lib/libearld.so). The default EAR library name is libear.so, extensions are automatically selected. names for extensions are defined in src/common/config/config_def.h. Given these extensions are used automatically, the names defined at compile time must be coherent with these names.
+
+MPI versions
+------------
+The EAR loader differentiates between Intel and OpenMPI but not specific versions. Names are set by the admin at compile time setting the MPI_VERSION options when doing the configure and the EAR loader will assume the following extensions.
+
+- Intel MPI assumes no extension
+- OpnMPI    assumes ompi extension
+
+Not MPI versions
+----------------
+The EAR loader automatically loads not mpi applications when three types of symbols are detected: OpenMP, MKL or CUDA. Only shared symbols are detected, so it can happen some application using static linking is not automatically loaded with EAR.
+
+To compile a not MPI version, a manual configuration must be done before recompiling:
+-  FEAT_MPI_API = 0 (Makefile in the root SRC EAR directory)
+-  define FEAT_ONLY_MASTER to 1 in src/common/config/config_install.h
+
+After recompiling, execute make earl.install to reinstall only the library
+
+
+

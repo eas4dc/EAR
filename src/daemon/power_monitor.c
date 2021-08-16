@@ -17,6 +17,7 @@
 
 #define _GNU_SOURCE
 
+//#define SHOW_DEBUGS 1
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,7 +35,6 @@
 #include <common/config.h>
 #include <common/system/sockets.h>
 
-//#define SHOW_DEBUGS 1
 
 #include <common/output/verbose.h>
 #include <common/types/generic.h>
@@ -44,14 +44,15 @@
 #include <common/types/configuration/cluster_conf.h>
 #include <metrics/frequency/cpu.h>
 #include <common/hardware/hardware_info.h>
-#include <common/hardware/frequency.h>
+#include <management/cpufreq/frequency.h>
 #include <daemon/power_monitor.h>
-#if POWERCAP
-#include <daemon/powercap.h>
-#endif
+#include <daemon/powercap/powercap.h>
 #include <daemon/node_metrics.h>
 #include <daemon/eard_checkpoint.h>
 #include <daemon/shared_configuration.h>
+#if USE_GPUS
+#include <daemon/gpu/gpu_mgt.h>
+#endif
 
 #if SYSLOG_MSG
 #include <syslog.h>
@@ -71,8 +72,8 @@ nm_t my_nm_id;
 nm_data_t nm_init, nm_end, nm_diff, last_nm;
 
 extern topology_t node_desc;
-extern freq_cpu_t freq_job2;
-extern freq_cpu_t freq_job1;
+extern cpufreq_t freq_job2;
+extern cpufreq_t freq_job1;
 
 extern int eard_must_exit;
 extern char ear_tmp[MAX_PATH_SIZE];
@@ -89,6 +90,7 @@ extern  loop_t current_loop_data;
 extern uint f_monitoring;
 extern ulong current_node_freq;
 int idleNode = 1;
+static state_t eardbd_connection_status = EAR_SUCCESS;
 
 
 extern char nodename[MAX_PATH_SIZE];
@@ -386,7 +388,6 @@ void form_database_paths()
 *	BASIC FUNCTIONS 
 *
 */
-
 void job_init_powermon_app(ehandler_t *ceh, application_t *new_app, uint from_mpi) {
 	state_t s;
 	verbose(1,"job_init_powermon_app init");
@@ -408,7 +409,7 @@ void job_init_powermon_app(ehandler_t *ceh, application_t *new_app, uint from_mp
 	read_enegy_data(ceh, &c_energy);
 	copy_energy_data(&current_ear_app[ccontext]->energy_init, &c_energy);
 	// CPU Frequency
-	state_assert(s, freq_cpu_read(&freq_job1), );
+	state_assert(s, cpufreq_read(&freq_job1), );
 	verbose(1,"job_init_powermon_app end");
 }
 
@@ -440,7 +441,7 @@ void job_end_powermon_app(ehandler_t *ceh)
 	current_ear_app[ccontext]->app.power_sig.time = difftime(app_power.end, app_power.begin);
 
 	// CPU Frequency
-	state_assert(s, freq_cpu_read_diff(&freq_job2, &freq_job1, NULL, &current_ear_app[ccontext]->app.power_sig.avg_f), );
+	state_assert(s, cpufreq_read_diff(&freq_job2, &freq_job1, NULL, &current_ear_app[ccontext]->app.power_sig.avg_f), );
 
 	// nominal is still pending
 
@@ -465,17 +466,18 @@ void report_powermon_app(powermon_app_t *app) {
 #if USE_DB
 	if (my_cluster_conf.eard.use_mysql)
 	{
+		clean_db_power_signature(&app->app.power_sig, my_node_conf->max_sig_power);
 		if (!my_cluster_conf.eard.use_eardbd) {
 			if (!db_insert_application(&app->app)){
 				debug( "Application signature correctly written");
 			}
 		}
 		else {
-			edb_state_t state = eardbd_send_application(&app->app);
-
-			if (edb_state_fail(state)) {
+			state_t state = eardbd_send_application(&app->app);
+			eardbd_connection_status = state;
+			if (state_fail(state)) {
 				error("Error when sending application to eardb");
-				eardbd_reconnect(&my_cluster_conf, my_node_conf, state);
+				eardbd_reconnect(&my_cluster_conf, my_node_conf);
 			}
 		}
 	}
@@ -492,12 +494,12 @@ policy_conf_t *configure_context(uint user_type, energy_tag_t *my_tag, applicati
 		my_policy = &default_policy_context;
 		return my_policy;
 	}
-	debug("configuring policy for user %u policy %s freq %lu th %lf is_learning %u is_mpi %d force_freq %d",user_type,appID->job.policy,appID->job.def_f,appID->job.th,appID->is_learning,appID->is_mpi,my_cluster_conf.eard.force_frequencies);
+	verbose(VJOBPMON,"configuring policy for user %u policy %s freq %lu th %lf is_learning %u is_mpi %d force_freq %d",user_type,appID->job.policy,appID->job.def_f,appID->job.th,appID->is_learning,appID->is_mpi,my_cluster_conf.eard.force_frequencies);
 	switch (user_type){
 	case NORMAL:
 		appID->is_learning=0;
 		debug("Policy requested %s",appID->job.policy);
-    p_id=policy_name_to_id(appID->job.policy, &my_cluster_conf);
+    p_id=policy_name_to_nodeid(appID->job.policy, my_node_conf);
 		debug("Policy %s is ID %d",appID->job.policy,p_id);
     /* Use cluster conf function */
     if (p_id!=EAR_ERROR){
@@ -514,7 +516,7 @@ policy_conf_t *configure_context(uint user_type, energy_tag_t *my_tag, applicati
 		if (my_policy==NULL){
 			error("Error Default policy configuration returns NULL,invalid policy, check ear.conf (setting MONITORING)");
 		    authorized_context.p_state=1;
-            int mo_pid = policy_name_to_id("monitoring", &my_cluster_conf);
+            int mo_pid = policy_name_to_nodeid("monitoring", my_node_conf);
             if (mo_pid != EAR_ERROR)
                 authorized_context.policy = mo_pid;
             else
@@ -533,7 +535,7 @@ policy_conf_t *configure_context(uint user_type, energy_tag_t *my_tag, applicati
 
 	case AUTHORIZED:
 		if (appID->is_learning){
-            int mo_pid = policy_name_to_id("MONITORING_ONLY", &my_cluster_conf);
+            int mo_pid = policy_name_to_nodeid("monitoring", my_node_conf);
             if (mo_pid != EAR_ERROR)
                 authorized_context.policy = mo_pid;
             else
@@ -546,7 +548,7 @@ policy_conf_t *configure_context(uint user_type, energy_tag_t *my_tag, applicati
 			authorized_context.settings[0]=0;
 			my_policy=&authorized_context;
 		}else{
-			p_id=policy_name_to_id(appID->job.policy, &my_cluster_conf);
+			p_id=policy_name_to_nodeid(appID->job.policy, my_node_conf);
 			if (p_id!=EAR_ERROR){
       	        my_policy=get_my_policy_conf(my_node_conf,p_id);
 				authorized_context.policy=p_id;
@@ -568,7 +570,7 @@ policy_conf_t *configure_context(uint user_type, energy_tag_t *my_tag, applicati
 				if (my_policy==NULL){
 					error("Error Default policy configuration returns NULL,invalid policy, check ear.conf (setting MONITORING)");
 					authorized_context.p_state=1;
-                    int mo_pid = policy_name_to_id("MONITORING_ONLY", &my_cluster_conf);
+                    int mo_pid = policy_name_to_nodeid("monitoring", my_node_conf);
                     if (mo_pid != EAR_ERROR)
                         authorized_context.policy = mo_pid;
                     else
@@ -584,7 +586,7 @@ policy_conf_t *configure_context(uint user_type, energy_tag_t *my_tag, applicati
 		break;
 	case ENERGY_TAG:
 		appID->is_learning=0;
-        int mo_pid = policy_name_to_id("monitoring", &my_cluster_conf);
+        int mo_pid = policy_name_to_nodeid("monitoring", my_node_conf);
         if (mo_pid != EAR_ERROR)
             authorized_context.policy = mo_pid;
         else
@@ -605,6 +607,11 @@ policy_conf_t *configure_context(uint user_type, energy_tag_t *my_tag, applicati
 		frequency_set_userspace_governor_all_cpus();
 		f = frequency_pstate_to_freq(my_policy->p_state);
 		frequency_set_all_cpus(f);
+		#if USE_GPUS
+		if (my_node_conf->gpu_def_freq>0){
+			gpu_mgr_set_freq_all_gpus(my_node_conf->gpu_def_freq);
+		}
+		#endif
 	}
 	appID->is_mpi = 0;
 	debug("context configured");
@@ -663,8 +670,8 @@ void powermon_mpi_finalize(ehandler_t *eh) {
 
 /* This functiono is called by dynamic_configuration thread when a new_job command arrives */
 
-
 void powermon_new_job(ehandler_t *eh, application_t *appID, uint from_mpi) {
+    int i;
 	// New application connected
 	if (appID == NULL) {
 		error("powermon_new_job: NULL appID");
@@ -675,10 +682,12 @@ void powermon_new_job(ehandler_t *eh, application_t *appID, uint from_mpi) {
 	policy_conf_t *my_policy;
 	ulong f;
 	uint user_type;
+	verbose(VJOBPMON , "*******************");
 	verbose(VJOBPMON, "%spowermon_new_job (%lu,%lu)%s", COL_BLU,appID->job.id, appID->job.step_id,COL_CLR);
 #if POWERCAP
 	if (powermon_is_idle()) powercap_idle_to_run();
   set_powercapstatus_mode(AUTO_CONFIG);
+	powercap_new_job();
 #endif
 	if (new_context(appID->job.id, appID->job.step_id) != EAR_SUCCESS) {
 		error("Maximum number of contexts reached, no more concurrent jobs supported");
@@ -695,6 +704,7 @@ void powermon_new_job(ehandler_t *eh, application_t *appID, uint from_mpi) {
 	verbose(VJOBPMON + 1, "New job USER type is %u", user_type);
 	if (my_tag != NULL) print_energy_tag(my_tag);
 	/* Given a user type, application, and energy_tag, my_policy is the cofiguration for this user and application */
+	/* This function sets CPU frequency and GPu frequency */
 	my_policy=configure_context(user_type, my_tag, appID);
 	debug("Node configuration for policy %u p_state %d th %lf",my_policy->policy,my_policy->p_state,my_policy->settings[0]);
 	/* Updating info in shared memory region */
@@ -703,7 +713,14 @@ void powermon_new_job(ehandler_t *eh, application_t *appID, uint from_mpi) {
 	#if POWERCAP
 	app_mgt_new_job(app_mgt_info);
 	pcapp_info_new_job(pc_app_info_data);
-	powercap_set_app_req_freq(f);
+    for (i = 0; i < MAX_CPUS_SUPPORTED; i++) 
+	    pc_app_info_data->req_f[i] = f;
+	#if USEG_GPUS
+    pc_app_info_data->num_gpus = gpu_mgt_num_gpus();
+	for (gpuid=0; gpuid < pc_app_inf-data->num_gpus;gpuid++) pc_app_info_data->req_gpu_f[gpuid] = my_node_conf->gpu_def_freq;
+	#endif
+	powercap_set_app_req_freq(pc_app_info_data);
+	dyn_conf->pc_opt.current_pc = powercat_get_value();
 	#endif
 	dyn_conf->id=new_app_id;
 	dyn_conf->user_type=user_type;
@@ -747,6 +764,7 @@ void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid) {
 	pcontext = ccontext;
 	/*check_context("powermon_end_job: and not current context");*/
 	/* jid,sid can finish in a different order than expected */
+	verbose(VJOBPMON , "*******************");
 	debug("powermon_end_job %lu %lu", jid, sid);
 	cc = find_context_for_job(jid, sid);
 	if (cc < 0) {
@@ -799,13 +817,25 @@ void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid) {
 #if POWERCAP
 	app_mgt_end_job(app_mgt_info);
 	pcapp_info_end_job(pc_app_info_data);
-  if (powermon_is_idle()){ 
-		powercap_set_app_req_freq(powermon_freq_list[powermon_num_pstates-1]);
+	powercap_end_job();
+    int i;
+    if (powermon_is_idle()){ 
+        memset(pc_app_info_data->req_f, 0, sizeof(ulong)*MAX_CPUS_SUPPORTED);
+		powercap_set_app_req_freq(pc_app_info_data);
 		powercap_run_to_idle();
 	}else{ 
-		powercap_set_app_req_freq(current_ear_app[ccontext]->current_freq);
+        for (i = 0; i < MAX_CPUS_SUPPORTED; i++)
+		    pc_app_info_data->req_f[i] = current_ear_app[ccontext]->current_freq;
+		powercap_set_app_req_freq(pc_app_info_data);
 	}
 #endif
+  #if USE_GPUS
+  if (my_node_conf->gpu_def_freq>0){
+      gpu_mgr_set_freq_all_gpus(my_node_conf->gpu_def_freq);
+  }
+  #endif
+
+	verbose(VJOBPMON , "*******************");
 
 }
 
@@ -866,7 +896,7 @@ void powermon_new_def_freq(uint p_id, ulong def) {
 	uint cpolicy;
 	ps = frequency_closest_pstate(def);
 	if ((ccontext >= 0) && (current_ear_app[ccontext]->app.is_mpi == 0)) {
-		cpolicy = policy_name_to_id(current_ear_app[ccontext]->app.job.policy, &my_cluster_conf);
+		cpolicy = policy_name_to_nodeid(current_ear_app[ccontext]->app.job.policy, my_node_conf);
 		if (cpolicy == p_id) { /* If the process runs at selected policy */
 			if (def < current_node_freq) {
 				verbose(VJOBPMON, "DefFreq: Application is not mpi, automatically changing freq from %lu to %lu",
@@ -947,7 +977,7 @@ void update_historic_info(power_data_t *my_current_power, nm_data_t *nm) {
 	ulong jid, mpi,sid;
 	ulong time_consumed;
 	uint usedb,useeardbd;
-	double maxpower, minpower, RAPL, corrected_power,pckp,dramp,gpup;
+	double maxpower, minpower, RAPL, corrected_power,pckp,dramp;
 	usedb=my_cluster_conf.eard.use_mysql;
 	useeardbd=my_cluster_conf.eard.use_eardbd;
 	if (ccontext >= 0) {
@@ -966,16 +996,17 @@ void update_historic_info(power_data_t *my_current_power, nm_data_t *nm) {
   print_app_mgt_data(app_mgt_info);
   #endif
 	verbose(VNODEPMON,"%s",COL_BLU);
-	dramp=accum_dram_power(my_current_power);
-	pckp=accum_cpu_power(my_current_power);
-	#if USE_GPUS
-	gpup=accum_gpu_power(my_current_power);
-	verbose(VNODEPMON, "ID %lu EARL=%lu  Power [Node=%.1lf PCK=%.1lf DRAM=%.1lf GPU=%.1lf] max %.1lf min %.1lf ",
-			jid, mpi, my_current_power->avg_dc,pckp,dramp,gpup, maxpower, minpower);
-	#else
-	verbose(VNODEPMON, "ID %lu EARL=%lu  Power [Node=%.1lf PCK=%.1lf DRAM=%.1lf] max %.1lf min %.1lf ",
-			jid, mpi, my_current_power->avg_dc, pckp,dramp,maxpower, minpower);
-	#endif
+  dramp=accum_dram_power(my_current_power);
+  pckp=accum_cpu_power(my_current_power);
+  #if USE_GPUS
+  double gpup;
+  gpup=accum_gpu_power(my_current_power);
+  verbose(VNODEPMON, "ID %lu EARL=%lu  Power [Node=%.1lf PCK=%.1lf DRAM=%.1lf GPU=%.1lf] max %.1lf min %.1lf ",
+      jid, mpi, my_current_power->avg_dc,pckp,dramp,gpup, maxpower, minpower);
+  #else
+  verbose(VNODEPMON, "ID %lu EARL=%lu  Power [Node=%.1lf PCK=%.1lf DRAM=%.1lf] max %.1lf min %.1lf ",
+      jid, mpi, my_current_power->avg_dc, pckp,dramp,maxpower, minpower);
+  #endif
 	verbose_node_metrics(&my_nm_id, nm);
 	verbose(VNODEPMON,"%s",COL_CLR);
 
@@ -1027,11 +1058,13 @@ void update_historic_info(power_data_t *my_current_power, nm_data_t *nm) {
 	pdomain.cpu=accum_cpu_power(my_current_power);
 	pdomain.dram=accum_dram_power(my_current_power);
 	pdomain.gpu=accum_gpu_power(my_current_power);
-	periodic_metric_info(&pdomain,mpi,current_sample.avg_f);
+	powercap_set_power_per_domain(&pdomain,mpi,current_sample.avg_f);
 #endif
 
 #if SYSLOG_MSG
-	if ((my_current_power->avg_dc==0) || (my_current_power->avg_dc< my_node_conf->min_sig_power) || (my_current_power->avg_dc>my_node_conf->max_sig_power)){
+	if ((my_current_power->avg_dc==0) || (my_current_power->avg_dc< my_node_conf->min_sig_power) 
+                || (my_current_power->avg_dc>my_node_conf->max_sig_power) || (my_current_power->avg_dc > my_node_conf->max_error_power))
+    {
 		syslog(LOG_DAEMON|LOG_ERR,"Node %s reports %.2lf as avg power in last period\n",nodename,my_current_power->avg_dc);
 		log_report_eard_rt_error(usedb,useeardbd,jid,sid,DC_POWER_ERROR,my_current_power->avg_dc);
 	}
@@ -1059,6 +1092,9 @@ void update_historic_info(power_data_t *my_current_power, nm_data_t *nm) {
 	}
 
 #if USE_DB
+	if ((my_current_power->avg_dc < my_node_conf->max_error_power) || (my_current_power->avg_dc < 0)){
+		my_current_power->avg_dc = my_node_conf->max_sig_power;
+	}
 	if ((my_current_power->avg_dc>=0) && (my_current_power->avg_dc<my_node_conf->max_error_power)){
 	if (my_cluster_conf.eard.use_mysql)
 	{
@@ -1068,19 +1104,13 @@ void update_historic_info(power_data_t *my_current_power, nm_data_t *nm) {
 			if (!db_insert_periodic_metric(&current_sample))
 				debug( "Periodic power monitoring sample correctly written");
 		} else {
-			edb_state_t state = eardbd_send_periodic_metric(&current_sample);
-
-			if (edb_state_fail(state)) {
-				if (state_fail(state.server)){
-					error("Error when sending periodic power metric to eardb main server");
-				}else{
-					error("Error when sending periodic power metric to eardb mirror server");
-				}
-				state = eardbd_reconnect(&my_cluster_conf, my_node_conf, state);
-
-				if (edb_state_fail(state)) {
-					error("Error re-connecting with EARDB errnum:%d errmsg:%s",
-						intern_error_num, intern_error_str);
+			state_t state = eardbd_send_periodic_metric(&current_sample);
+			eardbd_connection_status = state;
+			if (state_fail(state)) {
+				error("Error when sending periodic power metric to EARDBD: %s", state_msg);
+				state = eardbd_reconnect(&my_cluster_conf, my_node_conf);
+				if (state_fail(state)) {
+					error("Error re-connecting with EARDBD: %s", state_msg );
 				}
 			}
 		}
@@ -1223,7 +1253,10 @@ void *eard_power_monitoring(void *noinfo)
 #if POWERCAP
 	powercap_init();
 	set_powercapstatus_mode(AUTO_CONFIG);
-	pc_app_info_data->mode=powercap_get_strategy();
+	pc_app_info_data->cpu_mode=powercap_get_cpu_strategy();
+#if USE_GPUS
+	pc_app_info_data->gpu_mode=powercap_get_gpu_strategy();
+#endif
 #endif
 	create_powermon_out();
 
@@ -1245,6 +1278,12 @@ void *eard_power_monitoring(void *noinfo)
 
 	powermon_freq_list=frequency_get_freq_rank_list();
 	powermon_num_pstates=frequency_get_num_pstates();
+
+	#if USE_GPUS
+	if (gpu_mgr_init() != EAR_SUCCESS){
+		error("Error initializing GPU management");
+	}
+	#endif
 
 	/*
 	*	MAIN LOOP
@@ -1289,7 +1328,7 @@ void *eard_power_monitoring(void *noinfo)
 		error("dispose_node_metrics ");
 	}
 #if POWERCAP
-  powercap_end();
+    powercap_end();
 #endif
 	pthread_exit(0);
 	//exit(0);
@@ -1305,6 +1344,7 @@ void powermon_get_status(status_t *my_status) {
 	for (i=0;i<max_p;i++){
 		my_status->policy_conf[i].freq=frequency_pstate_to_freq(my_node_conf->policies[i].p_state);
 		my_status->policy_conf[i].th=(uint)(my_node_conf->policies[i].settings[0]*100.0);
+		my_status->policy_conf[i].id=(uint)my_node_conf->policies[i].policy;
 	}
 	/* Current app info */
 	if (ccontext >= 0) {
@@ -1319,12 +1359,53 @@ void powermon_get_status(status_t *my_status) {
 	my_status->node.temp = (ulong) get_nm_temp(&my_nm_id, &last_nm);
 	my_status->node.power = (ulong) last_power_reported;
 	my_status->node.max_freq = (ulong) frequency_pstate_to_freq(my_node_conf->max_pstate);
+	my_status->eardbd_connected = (eardbd_connection_status == EAR_SUCCESS);
 }
 
+void powermon_get_app_status(app_status_t *my_status)
+{
+	time_t consumed_time;
+	/* Current app info */
+	if (ccontext >= 0) {
+		my_status->job_id = current_ear_app[ccontext]->app.job.id;
+		my_status->step_id = current_ear_app[ccontext]->app.job.step_id;
+	} else {
+		/* No job running. 0 is a valid job_id, therefore we set it to -1 */
+		my_status->job_id = -1;
+	}
+  if (!(is_null(&current_loop_data)==1)){
+		signature_copy(&my_status->signature,&current_loop_data.signature);
+  }else{
+		signature_init(&my_status->signature);	
+		my_status->signature.DC_power = (ulong) last_power_reported;
+    my_status->signature.avg_f = (ulong)(last_nm.avg_cpu_freq);
+	}
+	if (ccontext >= 0){
+		time(&consumed_time);
+		my_status->signature.time=difftime(consumed_time,current_ear_app[ccontext]->app.job.start_time);
+	}
+    my_status->nodes = app_mgt_info->nodes;
+    my_status->master_rank = app_mgt_info->master_rank;
+}
 
-void print_powermon_app(powermon_app_t *app) {
+void print_powermon_app(powermon_app_t *app) 
+{
 	print_application(&app->app);
 	print_energy_data(&app->energy_init);
+}
+
+void powermon_report_event(uint event_type, ulong value) 
+{
+    int jid, sid;
+	if (ccontext >= 0) {
+		jid = current_ear_app[ccontext]->app.job.id;
+		sid = current_ear_app[ccontext]->app.job.step_id; 
+    } else {
+        jid = 0;
+        sid = 0;
+    }
+    debug("powermon_report_event: sending event %u with value %lu", event_type, value);
+    log_report_eard_powercap_event(my_cluster_conf.eard.use_mysql,my_cluster_conf.eard.use_eardbd,jid,sid,event_type, value);
 }
 
 uint powermon_is_idle()
@@ -1338,7 +1419,15 @@ uint powermon_current_power()
 }
 uint powermon_get_powercap_def()
 {
-	return (uint) my_node_conf->max_power_cap;
+	return (uint) my_node_conf->powercap;
 }
+
+uint powermon_get_max_powercap_def()
+{
+  return (uint) my_node_conf->max_powercap;
+}
+
+
+
 
 

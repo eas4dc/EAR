@@ -38,8 +38,8 @@
 //#define SHOW_DEBUGS 0
 #include <common/output/verbose.h>
 #include <common/types/generic.h>
-#include <global_manager/eargm_server_api.h>
-#include <daemon/eard_rapi.h>
+#include <common/messaging/msg_internals.h>
+#include <daemon/remote_api/eard_rapi.h>
 
 
 extern uint total_nodes;
@@ -52,24 +52,24 @@ extern uint my_port;
 *	THREAD attending external commands. 
 *
 */
-
 void process_remote_requests(int clientfd)
 {
-    eargm_request_t command;
+    request_t command;
+    memset(&command, 0, sizeof(request_t));
     uint req;
-    ulong ack=EAR_SUCCESS;
+    long ack=EAR_SUCCESS;
     debug("connection received");
     req=read_command(clientfd,&command);
     switch (req){
         case EARGM_NEW_JOB:
 			// Computes the total number of nodes in use
             debug("new_job command received %d num_nodes %u",command.req,command.num_nodes);
-			total_nodes+=command.num_nodes;
+			total_nodes+=command.my_req.eargm_data.num_nodes;
             break;
         case EARGM_END_JOB:
 			// Computes the total number of nodes in use
             debug("end_job command received %d num_nodes %u",command.req,command.num_nodes);
-			total_nodes-=command.num_nodes;
+			total_nodes-=command.my_req.eargm_data.num_nodes;
             break;
         default:
             error("Invalid remote command");
