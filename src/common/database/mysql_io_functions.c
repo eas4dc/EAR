@@ -171,12 +171,14 @@ char *PERIODIC_METRIC_MYSQL_QUERY = PERIODIC_METRIC_QUERY_DETAIL;
 
 long autoincrement_offset = 0;
 
-void *xmalloc(size_t size) 
+#define xmalloc(size) _xmalloc(size, __FUNCTION__)
+
+void *_xmalloc(size_t size, const char *caller_function) 
 {
     void *ptr = malloc(size);
     if (ptr == NULL)
     {
-        error("Error allocationg memory (malloc fails), exiting");
+        error("%s: Error allocationg memory (malloc fails when trying to alloc %lu), exiting", caller_function, size);
         exit(1);
     }
     return ptr;

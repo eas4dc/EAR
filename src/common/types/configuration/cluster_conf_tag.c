@@ -145,6 +145,10 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
         {
             strcpy(tags[idx].powercap_plugin, value);
         }
+        else if (!strcmp(key, "GPU_POWERCAP_PLUGIN"))
+        {
+            strcpy(tags[idx].powercap_gpu_plugin, value);
+        }
         else if (!strcmp(key, "COEFFS"))
         {
             strcpy(tags[idx].coeffs, value);

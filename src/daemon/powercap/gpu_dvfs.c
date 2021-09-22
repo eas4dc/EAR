@@ -1,19 +1,19 @@
 /*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
-*/
+ *
+ * This program is part of the EAR software.
+ *
+ * EAR provides a dynamic, transparent and ligth-weigth solution for
+ * Energy management. It has been developed in the context of the
+ * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+ *
+ * Copyright © 2017-present BSC-Lenovo
+ * BSC Contact   mailto:ear-support@bsc.es
+ * Lenovo contact  mailto:hpchelp@lenovo.com
+ *
+ * This file is licensed under both the BSD-3 license for individual/non-commercial
+ * use and EPL-1.0 license for commercial use. Full text of both licenses can be
+ * found in COPYING.BSD and COPYING.EPL files.
+ */
 
 #define _GNU_SOURCE
 #include <errno.h>
@@ -85,12 +85,12 @@ static char gpu_dvfs_greedy = 0;
 
 static int gpu_freq_to_pstate(int gpuid,ulong f)
 {
-	int i = 0;
-	while(i < gpu_num_freqs[gpuid]-1){
-		if (gpu_freq_list[gpuid][i] == f) return i;
-		i++;
-	}	
-	return gpu_num_freqs[gpuid]-1;
+    int i = 0;
+    while(i < gpu_num_freqs[gpuid]-1){
+        if (gpu_freq_list[gpuid][i] == f) return i;
+        i++;
+    }	
+    return gpu_num_freqs[gpuid]-1;
 }
 ulong select_lower_gpu_freq(uint i, ulong f, uint pstate_steps)
 {
@@ -120,35 +120,35 @@ ulong select_lower_gpu_freq(uint i, ulong f, uint pstate_steps)
 
 ulong select_higher_gpu_freq(uint i, ulong f, int extra_steps)
 {
-  int j=0,found=0;
+    int j=0,found=0;
     // debug("Looking for higher freq for %lu",f);
     /* If we are the maximum*/
     if (f == gpu_freq_list[i][0]) return f;
     /* Otherwise, look for f*/
-  do{
-    if (gpu_freq_list[i][j] == f) found = 1;
-    else j++;
-  }while((found==0) && (j!=gpu_num_freqs[i]));
-  if (!found){
-     debug("Frequency %lu not found in GPU %u",f,i);
-    return gpu_freq_list[i][0];
-  }else{
-     debug("Frequency %lu found in position %d returning %d",f,j, ear_max(j-extra_steps, 0));
-  }
-  return gpu_freq_list[i][ear_max(j-extra_steps, 0)];
+    do{
+        if (gpu_freq_list[i][j] == f) found = 1;
+        else j++;
+    }while((found==0) && (j!=gpu_num_freqs[i]));
+    if (!found){
+        debug("Frequency %lu not found in GPU %u",f,i);
+        return gpu_freq_list[i][0];
+    }else{
+        debug("Frequency %lu found in position %d returning %d",f,j, ear_max(j-extra_steps, 0));
+    }
+    return gpu_freq_list[i][ear_max(j-extra_steps, 0)];
 }
 
 /*
-static void printf_gpu_freq_list(const ulong **f, const uint *num_f)
-{
-    int i,j;
+   static void printf_gpu_freq_list(const ulong **f, const uint *num_f)
+   {
+   int i,j;
 #if SHOW_DEBUGS
-    for (i=0;i<gpu_pc_num_gpus;i++){
-        debug("GPU[%d]------------- limit %u",i,num_f[i]);
-        for (j=0;j<num_f[i];j++){
-            debug("Freq[%d]=%lu",j,f[i][j]);
-        }
-    }
+for (i=0;i<gpu_pc_num_gpus;i++){
+debug("GPU[%d]------------- limit %u",i,num_f[i]);
+for (j=0;j<num_f[i];j++){
+debug("Freq[%d]=%lu",j,f[i][j]);
+}
+}
 #endif
 }*/
 
@@ -158,7 +158,7 @@ state_t gpu_dvfs_pc_thread_init(void *p)
     if (gpu_load(&ops_met,0,NULL)!=EAR_SUCCESS){
         debug("Error at gpu load");
         gpu_dvfs_pc_enabled = 0;
-    return EAR_ERROR;
+        return EAR_ERROR;
     }
     if (gpu_init(&gpu_metric_ctx) != EAR_SUCCESS){
         debug("Error at gpu initialization");
@@ -170,8 +170,8 @@ state_t gpu_dvfs_pc_thread_init(void *p)
     gpu_data_alloc(&values_gpu_diff);
     mgt_gpu_freq_list(&gpu_pc_ctx, &gpu_freq_list, &gpu_num_freqs);
     // printf_gpu_freq_list(gpu_freq_list,gpu_num_freqs);
-  gpu_dvfs_pc_enabled=1;
-  debug("Power measurement initialized in gpu_dvfs_pc thread initialization");
+    gpu_dvfs_pc_enabled=1;
+    debug("Power measurement initialized in gpu_dvfs_pc thread initialization");
     if (gpu_read(&gpu_metric_ctx,values_gpu_init)!= EAR_SUCCESS){
         debug("Error in gpu_read in gpu_dvfs_pc");
         gpu_dvfs_pc_enabled=0;
@@ -460,9 +460,9 @@ static state_t int_set_powercap_value(ulong limit,ulong *gpu_util)
             gpu_pc_curr_power[i] = ualloc;
         }
     }
-  for (i=0;i<gpu_pc_num_gpus;i++) {
-    //debug("GPU: util_gpu[%d]=%lu power_alloc=%lu",i,gpu_util[i],gpu_pc_curr_power[i]);
-  }
+    for (i=0;i<gpu_pc_num_gpus;i++) {
+        //debug("GPU: util_gpu[%d]=%lu power_alloc=%lu",i,gpu_util[i],gpu_pc_curr_power[i]);
+    }
     memcpy(gpu_pc_util,gpu_util,sizeof(ulong)*gpu_pc_num_gpus);
     //debug("%s",COL_CLR);
     return EAR_SUCCESS;
@@ -516,9 +516,9 @@ void set_pc_mode(uint mode)
 
 void set_verb_channel(int fd)
 {
-  WARN_SET_FD(fd);
-  VERB_SET_FD(fd);
-  DEBUG_SET_FD(fd);
+    WARN_SET_FD(fd);
+    VERB_SET_FD(fd);
+    DEBUG_SET_FD(fd);
 }
 
 void set_new_utilization(ulong *util)
@@ -535,7 +535,7 @@ void set_app_req_freq(ulong *f)
 {
     int i;
     for (i=0;i<gpu_pc_num_gpus;i++) {
-      //debug("GPU_DVFS:GPU %d Requested application freq set to %lu",i,f[i]); 
+        //debug("GPU_DVFS:GPU %d Requested application freq set to %lu",i,f[i]); 
         t_freq[i]=f[i];
     }
 }
@@ -557,7 +557,7 @@ uint get_powercap_status(domain_status_t *status)
 
     status->ok = PC_STATUS_OK;
     status->exceed = 0;
-		status->requested = 0;
+    status->requested = 0;
     status->stress = 0;
     status->current_pc = current_gpu_pc;
 
@@ -574,8 +574,8 @@ uint get_powercap_status(domain_status_t *status)
     }
 
     /*for (i=0;i<gpu_pc_num_gpus;i++){
-        debug("total util is 0, GPU %d util %lu", i, gpu_pc_util[i]);
-    }*/
+      debug("total util is 0, GPU %d util %lu", i, gpu_pc_util[i]);
+      }*/
     /* If we are not using th GPU we can release all the power */
     for (i=0;i<gpu_pc_num_gpus;i++){
         used += (gpu_pc_util[i]>0);
@@ -605,16 +605,16 @@ uint get_powercap_status(domain_status_t *status)
             debug("We cannot release power from GPU %d",i);
             status->ok = PC_STATUS_GREEDY;
             status->exceed = 0;
-						/* For NVIDIA GPUS we have estimated one extra Watt per gpu p_state */
-						status->requested += gpu_freq_to_pstate(i,t_freq[i]) - gpu_freq_to_pstate(i,c_freq[i]);
+            /* For NVIDIA GPUS we have estimated one extra Watt per gpu p_state */
+            status->requested += gpu_freq_to_pstate(i,t_freq[i]) - gpu_freq_to_pstate(i,c_freq[i]);
             debug("GPU_DVFS status GREEDY");
             return 0;
         }else if ((c_freq[i] >= t_freq[i]) && (gpu_pc_util[i]>0)){
             if (values_gpu_diff[i].power_w > gpu_pc_curr_power[i]) // if we are at req_f but we are using more power than we should
             {
                 status->ok = PC_STATUS_GREEDY;
-								/* FOr NVIDIA GPUS we have estimated one extra Watt per gpu p_state */
-								status->requested += gpu_freq_to_pstate(i,t_freq[i]) - gpu_freq_to_pstate(i,c_freq[i]);
+                /* FOr NVIDIA GPUS we have estimated one extra Watt per gpu p_state */
+                status->requested += gpu_freq_to_pstate(i,t_freq[i]) - gpu_freq_to_pstate(i,c_freq[i]);
                 status->exceed = 0;
                 debug("GPU_DVFS status greedy because we need more power to maintain current speed");
                 return 0;

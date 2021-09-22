@@ -70,6 +70,7 @@ typedef struct my_node_conf
     char *energy_plugin;
     char *energy_model;
     char *powercap_plugin;
+    char *powercap_gpu_plugin;
     uint num_policies;
     policy_conf_t *policies;
     double  min_sig_power;

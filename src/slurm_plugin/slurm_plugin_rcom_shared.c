@@ -91,12 +91,16 @@ int plug_shared_readsetts(spank_t sp, plug_serialization_t *sd)
 		plug_error(sp, "while reading the shared configuration memory in node '%s'", "hostxxx");
 		return ESPANK_ERROR;
 	}
-
+	// It is OK, you can save the returned settings.
 	memcpy(&sd->pack.eard.setts, setts, sizeof(settings_conf_t));
-
 	// Closing shared memory
 	dettach_settings_conf_shared_area();
 
+	// If returned !lib_enabled, disable library component
+	if (!setts->lib_enabled) {
+		return plug_component_setenabled(sp, Component.library, 0);
+	}
+	// Finally print
 	plug_print_settings(sp, sd);
 
 	return ESPANK_SUCCESS;

@@ -1,6 +1,7 @@
 # EAR Configuration File
+
 #---------------------------------------------------------------------------------------------------
-# DB confguration:This configuration conrrespondons with the DB server installation
+# DB confguration: This configuration conrrespondons with the DB server installation.
 #---------------------------------------------------------------------------------------------------
 DBIp=127.0.0.1
 DBUser=ear_daemon
@@ -15,47 +16,53 @@ DBMaxConnections=20
 DBReportNodeDetail=1
 # Extended signature information saves also the hardware counters.
 DBreportSIGDetail=1
-# Report loop signatures
+# Report loop signatures.
 DBReportLoops=1
+
 #---------------------------------------------------------------------------------------------------
-# EAR Daemon (EARD): Update that section to change EARD configuration
+# EAR Daemon (EARD): Update this section to change EARD configuration.
 #---------------------------------------------------------------------------------------------------
-#Port is used for connections with the EAR plugin and commands
+# Port is used for connections with the EAR plugin and commands.
 NodeDaemonPort=50001
-# Frequency at wich the periodic metrics are reported: In seconds
+# Frequency at wich the periodic metrics are reported, in seconds.
 NodeDaemonPowermonFreq=60
 # Max frequency used by eard. It's max frequency but min pstate.
 NodeDaemonMaxPstate=1
 NodeDaemonTurbo=0
-# Dedines if EARD used the DB or not
+# Defines whether EARD uses the DB.
 NodeUseDB=1
-# Defines if EARD connects with EARDBD to report data or directly with the DB server. Only for testing
+# Defines if EARD connects with EARDBD to report data or directly with the DB server. Only for testing.
 NodeUseEARDBD=1
-# Whe set to 1, this flag means EARD must set frequencies before job starts, if not, frequency is only changed in case job runs with EARL
+# When set to 1, this flag means EARD must set frequencies before job starts. If not, frequency is only changed in case job runs with EARL.
 NodeDaemonForceFrequencies=1
-# Verbosity
+# Verbosity.
 NodeDaemonVerbose=1
 # When set to 1, the output is saved in 'TmpDir'/eard.log (common configuration) as a log file.
 NodeUseLog=1
+
 #---------------------------------------------------------------------------------------------------
-# EAR Database Manager (EARDBD): Update that section to change EARDBD configuration
+# EAR Database Manager (EARDBD): Update this section to change EARDBD configuration.
 #---------------------------------------------------------------------------------------------------
 DBDaemonPortTCP=50002
 DBDaemonPortSecTCP=50003
 DBDaemonSyncPort=50004
-# Aggregation time id frequency at which power metrics are aggregated in aggregated metrics: In seconds
+# Aggregation time id frequency at which power metrics are aggregated in aggregated metrics, in seconds.
 DBDaemonAggregationTime=60
-# Frequency at which buffered data is sent to DB server
+# Frequency at which buffered data is sent to DB server.
 DBDaemonInsertionTime=30
 # Memory size expressed in MB per process (server and/or mirror) to cache the values.
 DBDaemonMemorySize=120
-# The percentage of the memory buffer used by the previous field, by each type. These types are: mpi, non-mpi and learning applications, loops, energy metrics and aggregations and events, in that order. If a type gets 0% of space, this metric is discarded and not saved into the database.
+#
+# The percentage of the memory buffer used by the previous field, by each type.
+# These types are: mpi, non-mpi and learning applications, loops, energy metrics and aggregations and events, in that order. If a type gets 0% of space, this metric is discarded and not saved into the database.
+#
 #DBDaemonMemorySizePerType=40,20,5,24,5,1,5
 
 # When set to 1, the output is saved in 'TmpDir'/eardbd.log (common configuration) as a log file.
 DBDaemonUseLog=1
+
 #---------------------------------------------------------------------------------------------------
-# EAR Library (EARL): These options modify internal EARL behaviour. Do not modify except you are an expert
+# EAR Library (EARL): These options modify internal EARL behaviour. Do not modify except you are an expert.
 #---------------------------------------------------------------------------------------------------
 CoefficientsDir=@sysconfdir@/ear/coeffs
 # Default power policy values
@@ -63,23 +70,26 @@ MinTimePerformanceAccuracy=10000000
 # DynAIS configuration
 DynAISLevels=10
 DynAISWindowSize=200
-# Maximum time (in seconds) EAR will wait until a signature is computed. After 'DynaisTimeout
-# seconds', if no signature is computed, EAR will go to periodic mode.
+#
+# Maximum time (in seconds) EAR will wait until a signature is computed.
+# After 'DynaisTimeout' seconds, if no signature is computed, EAR will go to periodic mode.
+#
 DynaisTimeout=15
-# When EAR goes to periodic mode, it will compute the app. signature every 'LibraryPeriod' seconds.
+# When EAR goes to periodic mode, it will compute the application signature every 'LibraryPeriod' seconds.
 LibraryPeriod=10
 # EAR will check every N mpi calls whether it must go to periodic mode or not.
 CheckEARModeEvery=1000
 
-
 #---------------------------------------------------------------------------------------------------
-# EAR Global Manager (EARGMD): Update that section to use EARGM
+# EAR Global Manager (EARGMD): Update that section to use EARGM.
 #---------------------------------------------------------------------------------------------------
 EARGMHost=node1001
-# Use aggregated periodic metrics or periodic power metrics. Aggregated metrics are only available
-# when EARDBD is running
+#
+# Use aggregated periodic metrics or periodic power metrics.
+# Aggregated metrics are only available when EARDBD is running.
+#
 EARGMUseAggregated=1
-# Period T1 and T2 are specified in seconds T1 (ex. must be less than T2, ex. 10min and 1 month)
+# Period T1 and T2 are specified in seconds (ex. T1 must be less than T2, ex. 10min and 1 month).
 EARGMPeriodT1=90
 EARGMPeriodT2=259200
 # '-' are Joules, 'K' KiloJoules and 'M' MegaJoules.
@@ -88,7 +98,7 @@ EARGMEnergyLimit=550000
 EARGMPort=50000
 # Two modes are supported '0=manual' and '1=automatic'.
 EARGMMode=0
-# Email address to report the warning level (and the action taken in automatic mode)
+# Email address to report the warning level (and the action taken in automatic mode).
 EARGMMail=nomail
 # Percentage of accumulated energy to start the warning DEFCON level L4, L3 and L2.
 EARGMWarningsPerc=85,90,95
@@ -98,23 +108,28 @@ EARGMGracePeriods=3
 EARGMVerbose=1
 # When set to 1, the output is saved in 'TmpDir'/eargmd.log (common configuration) as a log file.
 EARGMUseLog=1
+#
 # Format for action is: command_name energy_T1 energy_T2  energy_limit T2 T1  units "
-# This action is automatically executed at each warning level (only once per grace periods)
+# This action is automatically executed at each warning level (only once per grace periods).
+#
 EARGMEnergyAction=no_action
 
-#### POWERCAP definition for EARGM: Powercap is still under development. Do not activate
+#### POWERCAP definition for EARGM: Powercap is still under development. Do not activate.
 # 0 means no powercap
 EARGMPowerLimit=0
-# Period at which the powercap thread is activated
+# Period at which the powercap thread is activated.
 EARGMPowerPeriod=120
-# 1 means automatic, 0 is only monitoring
+# 1 means automatic, 0 is only monitoring.
 EARGMPowerCapMode=1
 # Admins can specify to automatically execute a command in EARGMPowerCapSuspendAction when total_power >= EARGMPowerLimit*EARGMPowerCapResumeLimit/100
 EARGMPowerCapSuspendLimit=90
 # Format for action is: command_name current_power current_limit total_idle_nodes total_idle_power 
 EARGMPowerCapSuspendAction=no_action
+#
 # Admins can specify to automatically execute a command in EARGMPowerCapResumeAction to undo EARGMPowerCapSuspendAction
-# when total_power >= EARGMPowerLimit*EARGMPowerCapResumeLimit/100. Note that this will only be executed if a suspend action was executed previously.
+# when total_power >= EARGMPowerLimit*EARGMPowerCapResumeLimit/100.
+# Note that this will only be executed if a suspend action was executed previously.
+#
 EARGMPowerCapResumeLimit=40
 # Format for action is: command_name current_power current_limit total_idle_nodes total_idle_power 
 EARGMPowerCapResumeAction=no_action
@@ -126,12 +141,14 @@ TmpDir=@localstatedir@
 EtcDir=@sysconfdir@
 InstDir=@prefix@
 Verbose=0
-# Network extension (using another network instead of the local one). If compute nodes must be accessed from login nodes with a network different than default, and can be accesed using a expension, uncommmet next line and define 'netext' accordingly. 
-# NetworkExtension=netext
+# Network extension (using another network instead of the local one).
+# If compute nodes must be accessed from login nodes with a network different than default,
+# and can be accesed using a expension, uncommmet next line and define 'netext' accordingly. 
+#NetworkExtension=netext
 
 #---------------------------------------------------------------------------------------------------
 # Plugin configuration. These values are used for the whole cluster except a specific configuration is
-# explicitly applied to one tag. They are mandatory since they are used by default 
+# explicitly applied to one tag. They are mandatory since they are used by default.
 #---------------------------------------------------------------------------------------------------
 ## Energy readings sources: List of plugins available at $EAR_INSTALL_PATH/lib/plugins/energy
 energy_plugin=energy_nm.so
@@ -143,8 +160,10 @@ powercap_plugin=dvfs.so
 #---------------------------------------------------------------------------------------------------
 # Authorized Users
 #---------------------------------------------------------------------------------------------------
-# Authorized users,accounts and groups are allowed to change policies, thresholds, frequencies etc,
-# they are supposed to be admins, all special name is supported
+#
+# Authorized users,accounts and groups are allowed to change policies, thresholds, frequencies, etc.
+# They are supposed to be admins, all special name is supported.
+#
 AuthorizedUsers=usr1,usr2
 AuthorizedAccounts=acc1,acc2,acc3
 AuthorizedGroups=grp1,grp2
@@ -166,19 +185,19 @@ Tag=6126 max_avx512=2.3 max_avx2=2.9 ceffs=coeffs.6126.default max_power=600 err
 ## Power policies
 ## ---------------------------------------------------------------------------------------------------
 #
-## policy names must be exactly file names for policies installeled in the system
+## Policy names must be exactly file names for policies installeled in the system.
 DefaultPowerPolicy=min_time
 Policy=monitoring Settings=0 DefaultFreq=2.4 Privileged=0
 Policy=min_time Settings=0.7 DefaultFreq=2.0 Privileged=0
 Policy=min_energy Settings=0.05 DefaultFreq=2.4 Privileged=1
-
-# For homogeneous systems, default frequencies can be easily specified using freqs, for heterogeneous systems it is preferred to use pstates or use tags 
-
-# Example with pstates (lower pstates corresponds with higher frequencies). Pstate=1 is nominal and 0 is turbo
+#
+# For homogeneous systems, default frequencies can be easily specified using freqs.
+# For heterogeneous systems it is preferred to use pstates or use tags 
+#
+# Example with pstates (lower pstates corresponds with higher frequencies). Pstate=1 is nominal and 0 is turbo.
 #Policy=monitoring Settings=0 DefaultPstate=1 Privileged=0
 #Policy=min_time Settings=0.7 DefaultPstate=4 Privileged=0
 #Policy=min_energy Settings=0.05 DefaultPstate=1 Privileged=1
-
 
 #Example with tags
 #Policy=monitoring Settings=0 DefaultFreq=2.6 Privileged=0 tag=6126
@@ -191,11 +210,12 @@ Policy=min_energy Settings=0.05 DefaultFreq=2.4 Privileged=1
 #---------------------------------------------------------------------------------------------------
 # Energy Tags
 #---------------------------------------------------------------------------------------------------
-# Privileged users,accounts and groups are allowed to use EnergyTags. The "allowed" TAGs are defined
-# by row together with the priviledged user/group/account.
+#
+# Privileged users, accounts and groups are allowed to use EnergyTags.
+# The "allowed" TAGs are defined by row together with the priviledged user/group/account.
+#
 EnergyTag=cpu-intensive pstate=1
 EnergyTag=memory-intensive pstate=4 users=usr1,usr2 groups=grp1,grp2 accounts=acc1,acc2
-
 
 #---------------------------------------------------------------------------------------------------
 # Node Isles
@@ -204,17 +224,19 @@ EnergyTag=memory-intensive pstate=4 users=usr1,usr2 groups=grp1,grp2 accounts=ac
 # per island must be supported to hold nodes with different names or for pointing to different
 # EARDBDs through its IPs or hostnames.
 #
+
+#
 # In the following example the nodes are clustered in two different islands, but the Island 1 have
 # two types of EARDBDs configurations. 
 #
 
 Island=0 Nodes=node10[01-80] DBIP=node1081 DBSECIP=node1082
 
-# These nodes are in island0 using different DB connections and with a different architecture
+# These nodes are in island0 using different DB connections and with a different architecture.
 Island=0 Nodes=node11[01-80] DBIP=node1084 DBSECIP=node1085 tag=6126
-# These nodes are is island0 and will use default values for DB connection (line 0 for island0) and default tag
+# These nodes are is island0 and will use default values for DB connection (line 0 for island0) and default tag.
 Island=0 Nodes=node12[01-80]
 
 
-# Will use default tag 
+# Will use default tag. 
 Island=1 Nodes=node11[01-80] DBIP=node1181 DBSECIP=node1182 

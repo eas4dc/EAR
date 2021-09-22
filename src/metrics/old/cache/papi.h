@@ -15,25 +15,29 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#ifndef RISK_LEVEL_H
-#define RISK_LEVEL_H
+#ifndef _CACHE_METRICS_H_
+#define _CACHE_METRICS_H_
 
-#include <common/states.h>
-#define WARNING1    0x01
-#define WARNING2    0x02
-#define PANIC       0x04
+#include <metrics/common/papi.h>
 
-#define ENERGY  0x01
-#define POWER   0x02
+#define CACHE_SETS 3
+#define CACHE_EVS 2
 
-typedef unsigned int risk_t;
-state_t set_risk(risk_t *r,risk_t new_r);
-int is_risk_set(risk_t r,risk_t value);
-state_t add_risk(risk_t *r,risk_t value);
-state_t del_risk(risk_t *r,risk_t value);
 
-risk_t get_risk(char *risk);
-unsigned int get_target(char *target);
+/** Initializes the event metrics for each cache level. */
+int init_cache_metrics();
 
+/** Resets the metrics for all cache levels. */
+void reset_cache_metrics();
+
+/** Starts tracking cache metrics. */
+void start_cache_metrics();
+
+/** Stops cache metrics and accumulates registered events in the variables corresponding
+* 	to each cache level recieved by parameter. */
+void stop_cache_metrics(long long *l1);
+
+
+void print_cache_metrics(long long *L);
+#else
 #endif
-

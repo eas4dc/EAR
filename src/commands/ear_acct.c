@@ -688,6 +688,7 @@ void print_short_apps(application_t *apps, int num_apps, int fd)
                 gpu_power /= current_apps;
                 gpu_freq  /= current_apps;
                 gpu_util  /= current_apps;
+                gpu_mem_util /= current_apps;
             }
 #endif
 

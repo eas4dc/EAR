@@ -50,6 +50,7 @@ extern settings_conf_t *dyn_conf;
 extern pc_app_info_t *pc_app_info_data;
 extern cluster_conf_t my_cluster_conf;
 extern node_powercap_opt_t my_pc_opt;
+extern my_node_conf_t *my_node_conf;
 #else
 cluster_conf_t my_cluster_conf;
 #endif
@@ -366,10 +367,15 @@ state_t pmgt_init()
     debug("Static NODE utilization set to 100");
     if (!domains_loaded[DOMAIN_NODE]){
         /* DOMAIN_CPU */
-        obj_path = getenv("EAR_POWERCAP_POLICY_CPU");
-        if (obj_path==NULL){
+        obj_path = getenv("EAR_POWERCAP_POLICY_CPU"); //environment variable takes priority
+        if (obj_path == NULL){ //if envar is not defined, we try with the ear.conf var
+            obj_path = my_node_conf->powercap_plugin;
+            if (obj_path != NULL && strlen(obj_path) > 1) {
+                sprintf(basic_path,"%s/powercap/%s",my_cluster_conf.install.dir_plug,obj_path);
+                obj_path=basic_path;
+            }
             /* Plugin per domain node defined */
-            if (strcmp(DEFAULT_PC_PLUGIN_NAME_CPU,"noplugin")){
+            else if (strcmp(DEFAULT_PC_PLUGIN_NAME_CPU,"noplugin")){
                 sprintf(basic_path,"%s/powercap/%s.so",my_cluster_conf.install.dir_plug,DEFAULT_PC_PLUGIN_NAME_CPU);
                 obj_path=basic_path;
             }
@@ -421,8 +427,13 @@ state_t pmgt_init()
     /* DOMAIN_GPU */
     obj_path = getenv("EAR_POWERCAP_POLICY_GPU");
     if (obj_path==NULL){
+        obj_path = my_node_conf->powercap_gpu_plugin;
+        if (obj_path != NULL && strlen(obj_path) > 1) {
+            sprintf(basic_path,"%s/powercap/%s",my_cluster_conf.install.dir_plug,obj_path);
+            obj_path=basic_path;
+        }
         /* Plugin per domain node defined */
-        if (strcmp(DEFAULT_PC_PLUGIN_NAME_GPU,"noplugin")){
+        else if (strcmp(DEFAULT_PC_PLUGIN_NAME_GPU,"noplugin")){
             sprintf(basic_path,"%s/powercap/%s.so",my_cluster_conf.install.dir_plug,DEFAULT_PC_PLUGIN_NAME_GPU);
             obj_path=basic_path;
         }

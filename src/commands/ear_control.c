@@ -111,6 +111,8 @@ void fill_ip(char *buff, ip_table_t *table)
    	s = getaddrinfo(buff, NULL, &hints, &result);
     if (s != 0) {
 		debug("getaddrinfo fails for node %s (%s)\n", buff, strerror(errno));
+        table->ip_int = 0;
+        strcpy(table->ip, "invalid node");
 		return;
     }
 
@@ -283,9 +285,12 @@ void usage(char *app)
             "\n\t\t\t\t\t\t\t after the increase value to only target said node."\
             "\n\t--red-powercap\t[reduction]\t\t->Reduces the powercap of all nodes. A node can be specified"\
             "\n\t\t\t\t\t\t\t after the reduction value to only target said node."\
-            "\n\t--inc-th \t[new_th]   [pol_name]\t->increases the threshold for all nodes"\
-            "\n\t--set-th \t[new_th]   [pol_name]\t->sets the threshold for all nodes"\
-            "\n\t--red-def-freq \t[n_pstates]\t\t->reduces the default and max frequency by n pstates");
+            "\n\t--inc-th \t[new_th] [pol_name]\t->increases the threshold for all nodes"\
+            "\n\t--set-th \t[new_th] [pol_name]\t->sets the threshold for all nodes"\
+            "\n\t--red-def-freq \t[n_pstates]\t\t->reduces the default and max frequency by n pstates"\
+            "\n\t--set-risk \t[level] [target] [node]\t->sends a warning to all nodes or the a specific node (optional)"\
+            "\n\t\t\t\t\t\t\t->levels: WARNING1/WARNING2/PANIC \ttarget: ENERGY/POWER");
+
 #endif
     printf("\n\nThis app requires privileged access to execute.\n");
 	exit(0);
@@ -790,21 +795,24 @@ int main(int argc, char *argv[])
                     printf("Warning: specified type is invalid (%s)\n", optarg);
                 break;
             case 'r':
-                if (optarg)
+                arg = get_risk(optarg);
+                if (optind + 1 > argc)
                 {
-                    arg = atoi(optarg);
-                    if (optind+1 > argc)
-                    {
-                        printf("Sending risk level %d to all nodes\n", arg);
+                    printf("Error: --set-risk requires at least two arguments (level and target)\n");
+                    break;
+                }
+                else {
+                    arg2 = get_target(argv[optind]);
+                    if (optind + 2 > argc) {
                         set_risk_all_nodes(arg, arg2, &my_cluster_conf);
                         break;
                     }
-                    int rc = eards_remote_connect(argv[optind], my_cluster_conf.eard.port);
-                    if (rc < 0){
-                        printf("Error connecting with node %s\n", argv[optind]);
-                    }else{
-                        printf("Sending risk level %d to %s\n", arg, argv[optind]);
-                        eards_set_risk(arg, 0);
+                    int rc = eards_remote_connect(argv[optind+1], my_cluster_conf.eard.port);
+                    if (rc < 0) {
+                        printf("Error connecting with node %s\n", argv[optind+1]);
+                    } else {
+                        printf("Sending risk level %d to %s\n", arg, argv[optind+1]);
+                        eards_set_risk(arg, arg2);
                         eards_remote_disconnect();
                     }
                 }

@@ -15,25 +15,15 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#ifndef RISK_LEVEL_H
-#define RISK_LEVEL_H
+#include <library/common/utils.h>
+#include <common/types/configuration/cluster_conf.h>
 
-#include <common/states.h>
-#define WARNING1    0x01
-#define WARNING2    0x02
-#define PANIC       0x04
-
-#define ENERGY  0x01
-#define POWER   0x02
-
-typedef unsigned int risk_t;
-state_t set_risk(risk_t *r,risk_t new_r);
-int is_risk_set(risk_t r,risk_t value);
-state_t add_risk(risk_t *r,risk_t value);
-state_t del_risk(risk_t *r,risk_t value);
-
-risk_t get_risk(char *risk);
-unsigned int get_target(char *target);
-
-#endif
-
+state_t utils_create_report_plugin_path(char *result_path, char *install_path, char *custom_path, int authorized_user){
+    if (custom_path != NULL && authorized_user == AUTHORIZED){
+       sprintf(result_path, "%s/plugins", custom_path);
+    }else{
+        if (install_path == NULL) return EAR_ERROR;
+        sprintf(result_path, "%s", install_path);
+    }
+    return EAR_SUCCESS;
+}

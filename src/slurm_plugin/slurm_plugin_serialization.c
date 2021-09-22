@@ -495,6 +495,11 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 	unsetenv_agnostic(sp, Var.user.rem);
 	unsetenv_agnostic(sp, Var.group.rem);
 
+	// Last minute hack, if energy tag is present, disable library
+	if (exenv_agnostic(sp, Var.tag.loc)) {
+		plug_component_setenabled(sp, Component.library, 0);
+	}
+
 	return ESPANK_SUCCESS;
 }
 

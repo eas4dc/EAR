@@ -77,6 +77,7 @@ void log_report_eard_min_interval(uint secs)
 
 void log_report_eard_powercap_event(uint usedb,uint useeardbd,job_id job,job_id sid,uint eventid,ulong value)
 {
+#if REPORT_POWERCAP
     ear_event_t event;
 
     event.timestamp=time(NULL);
@@ -92,6 +93,7 @@ void log_report_eard_powercap_event(uint usedb,uint useeardbd,job_id job,job_id 
     }else{
         debug("jid %lu sid %lu event type %u value %lu",job,sid,eventid,value);
     }
+#endif
 }
 
 void log_report_eard_rt_error(uint usedb,uint useeardbd,job_id job,job_id sid,uint eventid,ulong value)

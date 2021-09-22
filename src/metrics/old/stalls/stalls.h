@@ -15,25 +15,17 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#ifndef RISK_LEVEL_H
-#define RISK_LEVEL_H
+#ifndef METRICS_STALLS_H
+#define METRICS_STALLS_H
 
-#include <common/states.h>
-#define WARNING1    0x01
-#define WARNING2    0x02
-#define PANIC       0x04
+int init_stall_metrics();
 
-#define ENERGY  0x01
-#define POWER   0x02
+void reset_stall_metrics();
 
-typedef unsigned int risk_t;
-state_t set_risk(risk_t *r,risk_t new_r);
-int is_risk_set(risk_t r,risk_t value);
-state_t add_risk(risk_t *r,risk_t value);
-state_t del_risk(risk_t *r,risk_t value);
+void start_stall_metrics();
 
-risk_t get_risk(char *risk);
-unsigned int get_target(char *target);
+void stop_stall_metrics(long long *stall_cycles);
 
-#endif
+void get_stall_metrics(long long *total_stall_cycles);
 
+#endif //METRICS_STALLS_H

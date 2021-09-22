@@ -1,6 +1,6 @@
 ########
 
-OBJS = library_shared_data.o
+OBJS = library_shared_data.o utils.o
 
 ifeq ($(FEAT_MPI_API), 1)
 OBJS += \

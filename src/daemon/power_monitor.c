@@ -715,10 +715,10 @@ void powermon_new_job(ehandler_t *eh, application_t *appID, uint from_mpi) {
 	pcapp_info_new_job(pc_app_info_data);
     for (i = 0; i < MAX_CPUS_SUPPORTED; i++) 
 	    pc_app_info_data->req_f[i] = f;
-    #if USE_GPUS
-    pc_app_info_data->num_gpus_used = gpu_mgr_num_gpus();
-    for (uint gpuid=0; gpuid < pc_app_info_data->num_gpus_used;gpuid++) pc_app_info_data->req_gpu_f[gpuid] = my_node_conf->gpu_def_freq;
-    #endif
+	#if USE_GPUS
+  pc_app_info_data->num_gpus_used = gpu_mgr_num_gpus();
+	for (uint gpuid=0; gpuid < pc_app_info_data->num_gpus_used;gpuid++) pc_app_info_data->req_gpu_f[gpuid] = my_node_conf->gpu_def_freq;
+	#endif
 	powercap_set_app_req_freq(pc_app_info_data);
 	dyn_conf->pc_opt.current_pc = powercat_get_value();
 	#endif

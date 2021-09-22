@@ -18,15 +18,20 @@
 #include <common/config.h>
 #include <common/states.h>
 #include <common/types/risk.h>
+
+
+
 state_t set_risk(risk_t *r,risk_t new_r)
 {
 	*r=new_r;
 	return EAR_SUCCESS;
 }
+
 int is_risk_set(risk_t r,risk_t value)
 {
 	return  (r&value);
 }
+
 state_t add_risk(risk_t *r,risk_t value)
 {
 	risk_t new_r;
@@ -34,6 +39,7 @@ state_t add_risk(risk_t *r,risk_t value)
 	*r=new_r|value;
 	return EAR_SUCCESS;
 }
+
 state_t del_risk(risk_t *r,risk_t value)
 {
 	risk_t new_r;
@@ -42,3 +48,18 @@ state_t del_risk(risk_t *r,risk_t value)
 	return EAR_SUCCESS;
 }
 
+risk_t get_risk(char *risk)
+{
+    if (!strcasecmp(risk, "WARNING1")) return WARNING1;
+    if (!strcasecmp(risk, "WARNING2")) return WARNING2;
+    if (!strcasecmp(risk, "PANIC")) return PANIC;
+    return 0;
+}
+
+unsigned int get_target(char *target)
+{
+    if (!strcasecmp(target, "ENERGY")) return ENERGY;
+    if (!strcasecmp(target, "POWER")) return POWER;
+    return 0;
+
+}

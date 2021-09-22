@@ -6,12 +6,14 @@ ener_OBJS = \
     energy_nm.o \
     energy_rapl.o \
     energy_dcmi.o \
-    energy_sd650.o 
+    energy_sd650.o \
+		energy_inm_power.o
 ener_BINS = \
     energy_nm.so \
     energy_rapl.so \
     energy_dcmi.so \
-    energy_sd650.so 
+    energy_sd650.so \
+		energy_inm_power.so
 
 ener_PATH = $(DESTDIR)/lib/plugins/energy
 ener_PERM = 0775

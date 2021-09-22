@@ -47,6 +47,7 @@ core_OBJS = \
     api/mpi_support.o \
     api/cupti.o \
     common/library_shared_data.o \
+    common/utils.o \
     metrics/metrics.o \
     models/models.o \
     policies/policy.o \

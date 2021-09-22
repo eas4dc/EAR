@@ -48,6 +48,7 @@
 #include <library/common/externs.h>
 #include <library/common/global_comm.h>
 #include <library/common/library_shared_data.h>
+#include <library/common/utils.h>
 #include <library/api/clasify.h>
 #include <library/api/mpi_support.h>
 
@@ -1083,13 +1084,16 @@ void ear_init()
     summary_pathname = get_ear_user_db_pathname();
 		if (masters_info.my_master_rank >= 0){
 		// Report API
+    char my_plug_path[512];
+    utils_create_report_plugin_path(my_plug_path, system_conf->installation.dir_plug, getenv(SCHED_EARL_INSTALL_PATH), system_conf->user_type);
+
 			if (summary_pathname == NULL){
-				if (report_load(system_conf->installation.dir_plug,"eard.so") != EAR_SUCCESS){
+				if (report_load(my_plug_path,"eard.so") != EAR_SUCCESS){
 					verbose_master(0,"Error in reports API load ");
 				}
 			}else{
 				setenv("EAR_USER_DB_PATHNAME",summary_pathname,1);
-				if (report_load(system_conf->installation.dir_plug,"eard.so:csv_ts.so") != EAR_SUCCESS){
+				if (report_load(my_plug_path,"eard.so:csv_ts.so") != EAR_SUCCESS){
 					verbose_master(0,"Error in reports API load ");
 				}
 			}

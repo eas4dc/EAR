@@ -35,11 +35,11 @@
 #include <common/system/shared_areas.h>
 
 typedef struct mpi_summary{
-	float max;
-	float min;
-	float sd;
-	float mean;
-	float mag;
+    float max;
+    float min;
+    float sd;
+    float mean;
+    float mag;
 }mpi_summary_t;
 /* Time is stored in USECS */
 typedef struct mpi_information{
@@ -52,29 +52,29 @@ typedef struct mpi_information{
 
 
 typedef struct mpi_calls_types{
-  ulong time_mpi;
-  ulong time_period;
-  ulong mpi;
-  ulong sync;
-  ulong collec;
-  ulong blocking;
-  ulong time_sync;
-  ulong time_collec;
-  ulong time_blocking;
-	ulong sync_block;
-	ulong time_sync_block;
-	ulong max_sync_block;
+    ulong time_mpi;
+    ulong time_period;
+    ulong mpi;
+    ulong sync;
+    ulong collec;
+    ulong blocking;
+    ulong time_sync;
+    ulong time_collec;
+    ulong time_blocking;
+    ulong sync_block;
+    ulong time_sync_block;
+    ulong max_sync_block;
 }mpi_calls_types_t;
 
 
 typedef struct lib_shared_data{
-		uint 						earl_on;
+    uint 						earl_on;
     int             num_processes;
     unsigned int    num_signatures;
     double 			cas_counters;
     signature_t 	master_signature;
     int				master_rank;
-		uint			master_ready;
+    uint			master_ready;
 }lib_shared_data_t;
 
 
@@ -82,17 +82,17 @@ typedef struct shsignature{
     uint 							master;
     pid_t 						pid;
     uint 							ready;
-		uint 							iterations;
+    uint 							iterations;
     mpi_information_t mpi_info;
-		mpi_calls_types_t mpi_types_info;		
+    mpi_calls_types_t mpi_types_info;		
     /* sig was originally a signature_t */
     ssig_t 					sig;
     int 				  	app_state;
     unsigned long 	new_freq;
     cpu_set_t 			cpu_mask;
     int 						affinity;
-		uint 						unbalanced;
-		ulong 					policy_freq;
+    uint 						unbalanced;
+    ulong 					policy_freq;
 }shsignature_t;
 
 
