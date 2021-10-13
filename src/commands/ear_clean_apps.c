@@ -30,16 +30,28 @@ int query_filters = 0;
 
 //#warning "check this query"
 
+#if USE_GPUS
 #define NUM_APP_Q   5
+#define NUM_LOOP_Q  3
+#else
+#define NUM_APP_Q   4
 #define NUM_LOOP_Q  2
+#endif
 #define NUM_QUERIES NUM_APP_Q+NUM_LOOP_Q
 
-#define CLEAN_GPU_APPS "DELETE Applications,Jobs,Signatures,Power_signatures,GPU_signatures FROM Applications inner join Jobs on id = job_id AND "\
+#if USE_GPUS
+#define CLEAN_GPU_APPS  "DELETE Applications,Jobs,Signatures,Power_signatures,GPU_signatures FROM Applications inner join Jobs on id = job_id AND "\
                         "Applications.step_id = Jobs.step_id inner join Signatures on Signatures.id = signature_id inner join Power_signatures on "\
                         "Power_signatures.id = power_signature_id INNER JOIN GPU_signatures ON GPU_signatures.id >= min_GPU_sig_id AND "\
                         "GPU_signatures.id <= max_GPU_sig_id "
 
-#define CLEAN_MPI_APPS "DELETE Applications,Jobs,Signatures,Power_signatures from Applications inner join Jobs on id = job_id and Applications.step_id = Jobs.step_id "\
+#define CLEAN_GPU_LOOPS "DELETE Loops,Signatures,GPU_signatures FROM Loops inner join Jobs on id = job_id AND "\
+                        "Loops.step_id = Jobs.step_id inner join Signatures on Signatures.id = signature_id "\
+                        "INNER JOIN GPU_signatures ON GPU_signatures.id >= min_GPU_sig_id AND "\
+                        "GPU_signatures.id <= max_GPU_sig_id "
+#endif
+
+#define CLEAN_MPI_APPS  "DELETE Applications,Jobs,Signatures,Power_signatures from Applications inner join Jobs on id = job_id and Applications.step_id = Jobs.step_id "\
                         "inner join Signatures on Signatures.id = signature_id inner join Power_signatures on Power_signatures.id = power_signature_id "
 
 #define CLEAN_NMPI_APPS "DELETE Applications,Jobs,Power_signatures from Applications inner join Jobs on id = job_id and Applications.step_id = Jobs.step_id "\
@@ -216,26 +228,39 @@ int main(int argc,char *argv[])
         free_cluster_conf(&my_cluster);
         exit(0);
     }
+#if USE_GPUS
+    uint idx = 1;
+#else
+    uint idx = 0;
+#endif
 
     int queries_id = 0;
     //loops come first or we won't be able to find them
     if (rm_loops) {
         if (num_days > 0) {
-            strcpy(query[queries_id  ], CLEAN_LOOPS_JOBS);
-            strcpy(query[queries_id+1], CLEANUP_LOOPS_JOBS);
+#if USE_GPUS
+            strcpy(query[queries_id      ], CLEAN_GPU_LOOPS);
+#endif
+            strcpy(query[queries_id+idx  ], CLEAN_LOOPS_JOBS);
+            strcpy(query[queries_id+idx+1], CLEANUP_LOOPS_JOBS);
         }
         else {
-            strcpy(query[queries_id  ], CLEAN_LOOPS);
-            strcpy(query[queries_id+1], CLEANUP_LOOPS);
+#if USE_GPUS
+            strcpy(query[queries_id      ], CLEAN_GPU_LOOPS);
+#endif
+            strcpy(query[queries_id+idx  ], CLEAN_LOOPS);
+            strcpy(query[queries_id+idx+1], CLEANUP_LOOPS);
         }
         queries_id += NUM_LOOP_Q;
     }
     if (rm_apps) {
-        strcpy(query[queries_id  ], CLEAN_GPU_APPS);
-        strcpy(query[queries_id+1], CLEAN_MPI_APPS);
-        strcpy(query[queries_id+2], CLEAN_NMPI_APPS);
-        strcpy(query[queries_id+3], CLEANUP_APPS);
-        strcpy(query[queries_id+4], CLEANUP_JOBS);
+#if USE_GPUS
+        strcpy(query[queries_id      ], CLEAN_GPU_APPS);
+#endif
+        strcpy(query[queries_id+idx  ], CLEAN_MPI_APPS);
+        strcpy(query[queries_id+idx+1], CLEAN_NMPI_APPS);
+        strcpy(query[queries_id+idx+2], CLEANUP_APPS);
+        strcpy(query[queries_id+idx+3], CLEANUP_JOBS);
         queries_id += NUM_APP_Q;
     }
 

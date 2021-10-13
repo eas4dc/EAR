@@ -24,6 +24,8 @@
 #include <common/output/verbose.h>
 #include <common/types/configuration/cluster_conf.h>
 
+#define htonll(x) ((uint64_t)htonl((x) & 0xFFFFFFFF) << 32) | htonl((x) >> 32)
+
 #if DB_PSQL
 #include <common/database/postgresql_io_functions.h>
 
@@ -102,24 +104,22 @@
 
 #if USE_GPUS
 #define SIGNATURE_QUERY_SIMPLE  "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
-                                        "GBS, TPI, CPI, Gflops, time, avg_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES"
+                                        "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES"
 
 #define SIGNATURE_QUERY_FULL    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
-                                "GBS, TPI, CPI, Gflops, time, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
+                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
                                 "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
-                                "instructions, cycles, avg_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "
+                                "instructions, cycles, avg_f, avg_imc_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "
 #else
 #define SIGNATURE_QUERY_SIMPLE  "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
-                                        "GBS, TPI, CPI, Gflops, time, avg_f, def_f) VALUES"
+                                        "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f) VALUES"
 
 #define SIGNATURE_QUERY_FULL    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
-                                "GBS, TPI, CPI, Gflops, time, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
+                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
                                 "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
-                                "instructions, cycles, avg_f, def_f) VALUES "
+                                "instructions, cycles, avg_f, avg_imc_f, def_f) VALUES "
 #endif
 
-
-#define DB_SIMPLE 1
 
 static char full_signature = !DB_SIMPLE;
 static char node_detail = 1;
@@ -160,13 +160,13 @@ void set_signature_simple(char full_sig)
     {
         LEARNING_SIGNATURE_PSQL_QUERY = LEARNING_SIGNATURE_QUERY_FULL;
         SIGNATURE_PSQL_QUERY = SIGNATURE_QUERY_FULL;    
-        sig_args = 21;
+        sig_args = 24;
     }
     else
     {
         LEARNING_SIGNATURE_PSQL_QUERY = LEARNING_SIGNATURE_QUERY_SIMPLE;
         SIGNATURE_PSQL_QUERY = SIGNATURE_QUERY_SIMPLE;    
-        sig_args = 11;
+        sig_args = 14;
     }
 
 #if USE_GPUS
@@ -326,22 +326,26 @@ void reverse_signature_bytes(signature_t *sigs, int num_sigs)
         sigs[i].PCK_power = double_swap(sigs[i].PCK_power);
         sigs[i].EDP = double_swap(sigs[i].EDP);
         sigs[i].GBS = double_swap(sigs[i].GBS);
+        sigs[i].IO_MBS = double_swap(sigs[i].IO_MBS);
         sigs[i].TPI = double_swap(sigs[i].TPI);
         sigs[i].CPI = double_swap(sigs[i].CPI);
         sigs[i].Gflops = double_swap(sigs[i].Gflops);
         sigs[i].time = double_swap(sigs[i].time);
+        sigs[i].perc_MPI = double_swap(sigs[i].perc_MPI);
         for (j = 0; j < FLOPS_EVENTS; j++)
-            sigs[i].FLOPS[j] = htonl(sigs[i].FLOPS[j]);
-        sigs[i].L1_misses = htonl(sigs[i].L1_misses);
-        sigs[i].L2_misses = htonl(sigs[i].L2_misses);
-        sigs[i].L3_misses = htonl(sigs[i].L3_misses);
-        sigs[i].instructions = htonl(sigs[i].instructions);
-        sigs[i].cycles = htonl(sigs[i].cycles);
+            sigs[i].FLOPS[j] = htonll(sigs[i].FLOPS[j]);
+        sigs[i].L1_misses = htonll(sigs[i].L1_misses);
+        sigs[i].L2_misses = htonll(sigs[i].L2_misses);
+        sigs[i].L3_misses = htonll(sigs[i].L3_misses);
+        sigs[i].instructions = htonll(sigs[i].instructions);
+        sigs[i].cycles = htonll(sigs[i].cycles);
         sigs[i].avg_f = htonl(sigs[i].avg_f);
+        sigs[i].avg_imc_f = htonl(sigs[i].avg_imc_f);
         sigs[i].def_f = htonl(sigs[i].def_f);
     }
 }
 
+#if USE_GPUS
 int reverse_gpu_signature_bytes(signature_t *sigs, int num_sigs)
 {
     int i, j, num_gpu_sigs = 0;
@@ -363,8 +367,8 @@ int reverse_gpu_signature_bytes(signature_t *sigs, int num_sigs)
     }
 
     return num_gpu_sigs;
-
 }
+#endif
 
 void reverse_job_bytes(application_t *apps, int num_jobs)
 {
@@ -566,34 +570,43 @@ int postgresql_retrieve_signatures(PGconn *connection, char *query, signature_t 
         sig_aux[i].PCK_power = double_swap( *((double *)PQgetvalue(res, i, 3)));
         sig_aux[i].EDP = double_swap( *((double *)PQgetvalue(res, i, 4)));
         sig_aux[i].GBS = double_swap( *((double *)PQgetvalue(res, i, 5)));
-        sig_aux[i].TPI = double_swap( *((double *)PQgetvalue(res, i, 6)));
-        sig_aux[i].CPI = double_swap( *((double *)PQgetvalue(res, i, 7)));
-        sig_aux[i].Gflops = double_swap( *((double *)PQgetvalue(res, i, 8)));
-        sig_aux[i].time = double_swap( *((double *)PQgetvalue(res, i, 9)));
+        sig_aux[i].IO_MBS = double_swap( *((double *)PQgetvalue(res, i, 6)));
+        sig_aux[i].TPI = double_swap( *((double *)PQgetvalue(res, i, 7)));
+        sig_aux[i].CPI = double_swap( *((double *)PQgetvalue(res, i, 8)));
+        sig_aux[i].Gflops = double_swap( *((double *)PQgetvalue(res, i, 9)));
+        sig_aux[i].time = double_swap( *((double *)PQgetvalue(res, i, 10)));
+        sig_aux[i].perc_MPI = double_swap( *((double *)PQgetvalue(res, i, 11)));
         if (full_signature)
         {
-            sig_aux[i].FLOPS[0] = htonl( *((ulong *)PQgetvalue(res, i, 10)));
-            sig_aux[i].FLOPS[1] = htonl( *((ulong *)PQgetvalue(res, i, 11)));
-            sig_aux[i].FLOPS[2] = htonl( *((ulong *)PQgetvalue(res, i, 12)));
-            sig_aux[i].FLOPS[3] = htonl( *((ulong *)PQgetvalue(res, i, 13)));
-            sig_aux[i].FLOPS[4] = htonl( *((ulong *)PQgetvalue(res, i, 14)));
-            sig_aux[i].FLOPS[5] = htonl( *((ulong *)PQgetvalue(res, i, 15)));
-            sig_aux[i].FLOPS[6] = htonl( *((ulong *)PQgetvalue(res, i, 16)));
-            sig_aux[i].FLOPS[7] = htonl( *((ulong *)PQgetvalue(res, i, 17)));
-            sig_aux[i].instructions = htonl( *((ulong *)PQgetvalue(res, i, 18)));
-            sig_aux[i].avg_f = htonl( *((ulong *)PQgetvalue(res, i, 19)));
-            sig_aux[i].def_f = htonl( *((ulong *)PQgetvalue(res, i, 20)));
+            sig_aux[i].FLOPS[0] = htonll( *((ulong *)PQgetvalue(res, i, 12)));
+            sig_aux[i].FLOPS[1] = htonll( *((ulong *)PQgetvalue(res, i, 13)));
+            sig_aux[i].FLOPS[2] = htonll( *((ulong *)PQgetvalue(res, i, 14)));
+            sig_aux[i].FLOPS[3] = htonll( *((ulong *)PQgetvalue(res, i, 15)));
+            sig_aux[i].FLOPS[4] = htonll( *((ulong *)PQgetvalue(res, i, 16)));
+            sig_aux[i].FLOPS[5] = htonll( *((ulong *)PQgetvalue(res, i, 17)));
+            sig_aux[i].FLOPS[6] = htonll( *((ulong *)PQgetvalue(res, i, 18)));
+            sig_aux[i].FLOPS[7] = htonll( *((ulong *)PQgetvalue(res, i, 19)));
+            sig_aux[i].instructions = htonll( *((ulong *)PQgetvalue(res, i, 20)));
+            sig_aux[i].cycles = htonll( *((ulong *)PQgetvalue(res, i, 21)));
+            sig_aux[i].avg_f = htonl( *((ulong *)PQgetvalue(res, i, 22)));
+            sig_aux[i].avg_imc_f = htonl( *((ulong *)PQgetvalue(res, i, 23)));
+            sig_aux[i].def_f = htonl( *((ulong *)PQgetvalue(res, i, 24)));
 #if USE_GPUS
-            min_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 21)));
-            max_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 22)));
+            min_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 25)));
+            max_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 26)));
 #endif
         }
-        sig_aux[i].avg_f = htonl( *((ulong *)PQgetvalue(res, i, 10)));
-        sig_aux[i].def_f = htonl( *((ulong *)PQgetvalue(res, i, 11)));
+        else
+        {
+            sig_aux[i].avg_f = htonl( *((ulong *)PQgetvalue(res, i, 12)));
+            sig_aux[i].avg_imc_f = htonl( *((ulong *)PQgetvalue(res, i, 13)));
+            sig_aux[i].def_f = htonl( *((ulong *)PQgetvalue(res, i, 14)));
 #if USE_GPUS
-        min_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 12)));
-        max_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 13)));
+            min_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 15)));
+            max_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 16)));
 #endif
+        }
+#if USE_GPUS
         if (min_gpu_sig_id >= 0 && max_gpu_sig_id >= 0)
         {
             sprintf(gpu_sig_query, "SELECT * FROM GPU_signatures WHERE id <= %ld AND id >= %ld", max_gpu_sig_id, min_gpu_sig_id);
@@ -605,8 +618,9 @@ int postgresql_retrieve_signatures(PGconn *connection, char *query, signature_t 
         min_gpu_sig_id = -1;
         max_gpu_sig_id = -1;
 
+#endif
     }
-   
+
     *sigs = sig_aux;
 
     return num_rows;
@@ -627,7 +641,7 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) 
     {
-       verbose(VMYSQL, "ERROR while reading signature id: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while reading signature id: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
@@ -637,7 +651,7 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
     num_rows = PQntuples(res);
     if (num_rows < 1)
     {
-       verbose(VMYSQL, "Query returned 0 rows\n");
+        verbose(VMYSQL, "Query returned 0 rows\n");
         PQclear(res);
         return EAR_ERROR;
     }
@@ -660,27 +674,27 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
 
         if (postgresql_retrieve_jobs(connection, job_query, &job_aux) < 1)
         {
-           verbose(VMYSQL, "ERROR retrieving jobs\n");
+            verbose(VMYSQL, "ERROR retrieving jobs\n");
         }
         else
         {
             memcpy(&apps_aux[i].job, job_aux, sizeof(job_t));
             free(job_aux);
         }
-        
+
         /* POWER SIGNATURE RETRIEVAL */
         sprintf(pow_sig_query, "SELECT * FROM Power_signatures WHERE id = %d", pow_sig_id);
 
         if (postgresql_retrieve_power_signatures(connection, pow_sig_query, &pow_sig_aux) < 1)
         {
-           verbose(VMYSQL, "ERROR retrieving power signatures\n");
+            verbose(VMYSQL, "ERROR retrieving power signatures\n");
         }
         else
         {
             memcpy(&apps_aux[i].power_sig, pow_sig_aux, sizeof(power_signature_t));
             free(pow_sig_aux);
         }
-        
+
         /* JOB RETRIEVAL */
         if (sig_id > 0)
         {
@@ -692,7 +706,7 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
 
             if (postgresql_retrieve_signatures(connection, sig_query, &sig_aux) < 1)
             {
-               verbose(VMYSQL, "ERROR retrieving signatures\n");
+                verbose(VMYSQL, "ERROR retrieving signatures\n");
             }
             else
             {
@@ -701,9 +715,9 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
                 free(sig_aux);
             }
         }
-        
+
     }
-   
+
     *apps = apps_aux;
     PQclear(res);
     return num_rows;
@@ -723,7 +737,7 @@ int postgresql_retrieve_loops(PGconn *connection, char *query, loop_t **loops)
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) 
     {
-       verbose(VMYSQL, "ERROR while reading signature id: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while reading signature id: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
@@ -733,7 +747,7 @@ int postgresql_retrieve_loops(PGconn *connection, char *query, loop_t **loops)
     num_rows = PQntuples(res);
     if (num_rows < 1)
     {
-       verbose(VMYSQL, "Query returned 0 rows\n");
+        verbose(VMYSQL, "Query returned 0 rows\n");
         PQclear(res);
         return EAR_ERROR;
     }
@@ -742,14 +756,14 @@ int postgresql_retrieve_loops(PGconn *connection, char *query, loop_t **loops)
 
     for (i = 0; i < PQntuples(res); i++)
     {
-        loops_aux[i].id.event   = htonl( *((int *)PQgetvalue(res, i, 0)));
-        loops_aux[i].id.size    = htonl( *((int *)PQgetvalue(res, i, 1)));
-        loops_aux[i].id.level   = htonl( *((int *)PQgetvalue(res, i, 2)));
-        loops_aux[i].jid        = htonl( *((int *)PQgetvalue(res, i, 3)));
-        loops_aux[i].step_id    = htonl( *((int *)PQgetvalue(res, i, 4)));
-        loops_aux[i].total_iterations = htonl( *((int *)PQgetvalue(res, i, 5)));
-        strcpy(loops_aux[i].node_id, PQgetvalue(res, i, 6));
-        sig_id                  = htonl( *((int *)PQgetvalue(res, i, 7)));
+        loops_aux[i].id.event           = htonl( *((int *)PQgetvalue(res, i, 0)));
+        loops_aux[i].id.size            = htonl( *((int *)PQgetvalue(res, i, 1)));
+        loops_aux[i].id.level           = htonl( *((int *)PQgetvalue(res, i, 2)));
+        loops_aux[i].jid                = htonl( *((int *)PQgetvalue(res, i, 3)));
+        loops_aux[i].step_id            = htonl( *((int *)PQgetvalue(res, i, 4)));
+        loops_aux[i].total_iterations   = htonl( *((int *)PQgetvalue(res, i, 6)));
+        sig_id                          = htonl( *((int *)PQgetvalue(res, i, 7)));
+        strcpy(loops_aux[i].node_id, PQgetvalue(res, i, 5));
 
         /* SIGNATURE RETRIEVAL */
         if (sig_id > 0)
@@ -758,7 +772,7 @@ int postgresql_retrieve_loops(PGconn *connection, char *query, loop_t **loops)
 
             if (postgresql_retrieve_signatures(connection, sig_query, &sig_aux) < 1)
             {
-               verbose(VMYSQL, "ERROR retrieving signatures\n");
+                verbose(VMYSQL, "ERROR retrieving signatures\n");
             }
             else
             {
@@ -766,9 +780,9 @@ int postgresql_retrieve_loops(PGconn *connection, char *query, loop_t **loops)
                 free(sig_aux);
             }
         }
-        
+
     }
-   
+
     *loops = loops_aux;
     PQclear(res);
     return num_rows;
@@ -787,13 +801,13 @@ int postgresql_get_current_autoincrement_val(PGconn *connection, char *table_nam
 
     if (PQresultStatus(res) != PGRES_TUPLES_OK) //-> if it returned data
     {
-       verbose(VMYSQL, "ERROR while reading signature id: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while reading signature id: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
-   
+
     char *data = PQgetvalue(res, 0, 0);
-//warning This might actually be a long int and that is why the first bytes are all zeroes. 
+    //warning This might actually be a long int and that is why the first bytes are all zeroes. 
     int *value = ((int *) data);
     PQclear(res);
     return htonl(value[1]);
@@ -809,7 +823,7 @@ int postgresql_batch_insert_ear_events(PGconn *connection, ear_event_t *events, 
     int i, j, offset, *param_lengths, *param_formats;
     char *query;
     char arg_number[16];
-    
+
     reverse_ear_event_bytes(events, num_events);
 
     /* Memory allocation */
@@ -819,7 +833,7 @@ int postgresql_batch_insert_ear_events(PGconn *connection, ear_event_t *events, 
     query = calloc((strlen(EAR_EVENT_PSQL_QUERY)+(num_events*EAR_EVENTS_ARGS * 10)), sizeof(char));
 
     strcpy(query, EAR_EVENT_PSQL_QUERY);
-    
+
     offset = 0;
     for (i = 0; i < num_events; i++)
     {
@@ -873,13 +887,13 @@ int postgresql_batch_insert_ear_events(PGconn *connection, ear_event_t *events, 
 
     if (PQresultStatus(res) != PGRES_COMMAND_OK) //-> command sense lectura
     {
-       verbose(VMYSQL, "ERROR while inserting ear_events: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while inserting ear_events: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
     PQclear(res);
     return EAR_SUCCESS;
-                   
+
 }
 
 int postgresql_insert_ear_event(PGconn *connection, ear_event_t *event)
@@ -899,7 +913,7 @@ int postgresql_batch_insert_gm_warnings(PGconn *connection, gm_warning_t *warns,
     int i, j, offset, *param_lengths, *param_formats;
     char *query;
     char arg_number[16];
-    
+
     reverse_gm_warning_bytes(warns, num_warns);
 
     /* Memory allocation */
@@ -909,7 +923,7 @@ int postgresql_batch_insert_gm_warnings(PGconn *connection, gm_warning_t *warns,
     query = calloc((strlen(EAR_WARNING_PSQL_QUERY)+(num_warns*10 * 10)), sizeof(char));
 
     strcpy(query, EAR_WARNING_PSQL_QUERY);
-    
+
     offset = 0;
     for (i = 0; i < num_warns; i++)
     {
@@ -971,13 +985,13 @@ int postgresql_batch_insert_gm_warnings(PGconn *connection, gm_warning_t *warns,
 
     if (PQresultStatus(res) != PGRES_COMMAND_OK) //-> command sense lectura
     {
-       verbose(VMYSQL, "ERROR while inserting gm_warnings: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while inserting gm_warnings: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
     PQclear(res);
     return EAR_SUCCESS;
-                   
+
 }
 
 int postgresql_insert_gm_warning(PGconn *connection, gm_warning_t *warn)
@@ -997,7 +1011,7 @@ int postgresql_batch_insert_periodic_aggregations(PGconn *connection, periodic_a
     int i, j, offset, *param_lengths, *param_formats;
     char *query;
     char arg_number[16];
-    
+
     reverse_periodic_aggregation_bytes(per_aggs, num_aggs);
 
     /* Memory allocation */
@@ -1007,7 +1021,7 @@ int postgresql_batch_insert_periodic_aggregations(PGconn *connection, periodic_a
     query = calloc((strlen(PERIODIC_AGGREGATION_PSQL_QUERY)+(num_aggs*PERIODIC_AGGREGATION_ARGS * 10)), sizeof(char));
 
     strcpy(query, PERIODIC_AGGREGATION_PSQL_QUERY);
-    
+
     offset = 0;
     for (i = 0; i < num_aggs; i++)
     {
@@ -1057,13 +1071,13 @@ int postgresql_batch_insert_periodic_aggregations(PGconn *connection, periodic_a
 
     if (PQresultStatus(res) != PGRES_COMMAND_OK) //-> command sense lectura
     {
-       verbose(VMYSQL, "ERROR while inserting periodic_aggregations: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while inserting periodic_aggregations: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
     PQclear(res);
     return EAR_SUCCESS;
-                   
+
 }
 
 int postgresql_insert_periodic_aggregation(PGconn *connection, periodic_aggregation_t *per_agg)
@@ -1083,7 +1097,7 @@ int postgresql_batch_insert_periodic_metrics(PGconn *connection, periodic_metric
     int i, j, offset, *param_lengths, *param_formats;
     char *query;
     char arg_number[16];
-    
+
     reverse_periodic_metric_bytes(per_mets, num_mets);
 
     /* Memory allocation */
@@ -1093,7 +1107,7 @@ int postgresql_batch_insert_periodic_metrics(PGconn *connection, periodic_metric
     query = calloc((strlen(PERIODIC_METRIC_PSQL_QUERY)+(num_mets*per_met_args* 10)), sizeof(char));
 
     strcpy(query, PERIODIC_METRIC_PSQL_QUERY);
-    
+
     offset = 0;
     for (i = 0; i < num_mets; i++)
     {
@@ -1168,13 +1182,13 @@ int postgresql_batch_insert_periodic_metrics(PGconn *connection, periodic_metric
 
     if (PQresultStatus(res) != PGRES_COMMAND_OK) //-> command sense lectura
     {
-       verbose(VMYSQL, "ERROR while inserting periodic_metrics: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while inserting periodic_metrics: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
     PQclear(res);
     return EAR_SUCCESS;
-                   
+
 }
 
 int postgresql_insert_periodic_metric(PGconn *connection, periodic_metric_t *per_met)
@@ -1194,7 +1208,7 @@ int postgresql_batch_insert_power_signatures(PGconn *connection, power_signature
     int i, j, offset, *param_lengths, *param_formats;
     char *query;
     char arg_number[16];
-    
+
     reverse_power_signature_bytes(sigs, num_sigs);
 
     /* Memory allocation */
@@ -1204,7 +1218,7 @@ int postgresql_batch_insert_power_signatures(PGconn *connection, power_signature
     query = calloc((strlen(POWER_SIGNATURE_PSQL_QUERY)+(num_sigs*POWER_SIGNATURE_ARGS * 10)), sizeof(char));
 
     strcpy(query, POWER_SIGNATURE_PSQL_QUERY);
-    
+
     offset = 0;
     for (i = 0; i < num_sigs; i++)
     {
@@ -1264,13 +1278,13 @@ int postgresql_batch_insert_power_signatures(PGconn *connection, power_signature
 
     if (PQresultStatus(res) != PGRES_COMMAND_OK) //-> command sense lectura
     {
-       verbose(VMYSQL, "ERROR while inserting power_signatures: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while inserting power_signatures: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
     PQclear(res);
     return EAR_SUCCESS;
-                   
+
 }
 
 int postgresql_insert_power_signature(PGconn *connection, power_signature_t *pow_sig)
@@ -1291,9 +1305,9 @@ int postgresql_batch_insert_gpu_signatures(PGconn *connection, signature_t *sigs
     int i, j, k, offset, num_gpu_sigs, *param_lengths, *param_formats;
     char *query;
     char arg_number[16];
-    
+
     num_gpu_sigs = reverse_gpu_signature_bytes(sigs, num_sigs);
-    
+
     if (num_gpu_sigs < 1) return EAR_ERROR;
 
     /* Memory allocation */
@@ -1303,7 +1317,7 @@ int postgresql_batch_insert_gpu_signatures(PGconn *connection, signature_t *sigs
     query = calloc((strlen(GPU_SIGNATURE_PSQL_QUERY)+(num_gpu_sigs*GPU_SIGNATURE_ARGS * 10)), sizeof(char));
 
     strcpy(query, GPU_SIGNATURE_PSQL_QUERY);
-    
+
     offset = 0;
     for (i = 0; i < num_sigs; i++)
     {
@@ -1363,7 +1377,7 @@ int postgresql_batch_insert_gpu_signatures(PGconn *connection, signature_t *sigs
     }
     PQclear(res);
     return EAR_SUCCESS;
-                   
+
 }
 
 int postgresql_insert_gpu_signature(PGconn *connection, signature_t *sig)
@@ -1385,7 +1399,7 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
     int i, j, offset, *param_lengths, *param_formats;
     char *query;
     char arg_number[16];
-    
+
     reverse_signature_bytes(sigs, num_sigs);
 
     /* Memory allocation */
@@ -1413,7 +1427,7 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
         {
             for (i = 0; i < num_sigs; i++)
                 if (sigs[i].gpu_sig.num_gpus > 0) num_gpu_sigs += sigs[i].gpu_sig.num_gpus;
-            
+
             gpu_sig_ids = calloc(num_gpu_sigs, sizeof(int));
             for (i = 0; i < num_gpu_sigs; i++)
                 gpu_sig_ids[num_gpu_sigs - 1 - i] = htonl(starter_gpu_sig_id - i);
@@ -1426,7 +1440,7 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
         strcpy(query, LEARNING_SIGNATURE_PSQL_QUERY);
     else
         strcpy(query, SIGNATURE_PSQL_QUERY);
-    
+
     offset = 0;
     for (i = 0; i < num_sigs; i++)
     {
@@ -1452,53 +1466,57 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
         param_values[2  + offset] = (char *) &sigs[i].PCK_power;
         param_values[3  + offset] = (char *) &sigs[i].EDP;
         param_values[4  + offset] = (char *) &sigs[i].GBS;
-        param_values[5  + offset] = (char *) &sigs[i].TPI;
-        param_values[6  + offset] = (char *) &sigs[i].CPI;
-        param_values[7  + offset] = (char *) &sigs[i].Gflops;
-        param_values[8  + offset] = (char *) &sigs[i].time;
+        param_values[5  + offset] = (char *) &sigs[i].IO_MBS;
+        param_values[6  + offset] = (char *) &sigs[i].TPI;
+        param_values[7  + offset] = (char *) &sigs[i].CPI;
+        param_values[8  + offset] = (char *) &sigs[i].Gflops;
+        param_values[9  + offset] = (char *) &sigs[i].time;
+        param_values[10 + offset] = (char *) &sigs[i].perc_MPI;
         if (full_signature)
         {
-            param_values[9  + offset] = (char *) &sigs[i].FLOPS[0];
-            param_values[10 + offset] = (char *) &sigs[i].FLOPS[1];
-            param_values[11 + offset] = (char *) &sigs[i].FLOPS[2];
-            param_values[12 + offset] = (char *) &sigs[i].FLOPS[3];
-            param_values[13 + offset] = (char *) &sigs[i].FLOPS[4];
-            param_values[14 + offset] = (char *) &sigs[i].FLOPS[5];
-            param_values[15 + offset] = (char *) &sigs[i].FLOPS[6];
-            param_values[16 + offset] = (char *) &sigs[i].FLOPS[7];
-            param_values[17 + offset] = (char *) &sigs[i].instructions;
-            param_values[18 + offset] = (char *) &sigs[i].cycles;
-            param_values[19 + offset] = (char *) &sigs[i].avg_f;
-            param_values[20 + offset] = (char *) &sigs[i].def_f;
+            param_values[11 + offset] = (char *) &sigs[i].FLOPS[0];
+            param_values[12 + offset] = (char *) &sigs[i].FLOPS[1];
+            param_values[13 + offset] = (char *) &sigs[i].FLOPS[2];
+            param_values[14 + offset] = (char *) &sigs[i].FLOPS[3];
+            param_values[15 + offset] = (char *) &sigs[i].FLOPS[4];
+            param_values[16 + offset] = (char *) &sigs[i].FLOPS[5];
+            param_values[17 + offset] = (char *) &sigs[i].FLOPS[6];
+            param_values[18 + offset] = (char *) &sigs[i].FLOPS[7];
+            param_values[19 + offset] = (char *) &sigs[i].instructions;
+            param_values[20 + offset] = (char *) &sigs[i].cycles;
+            param_values[21 + offset] = (char *) &sigs[i].avg_f;
+            param_values[22 + offset] = (char *) &sigs[i].avg_imc_f;
+            param_values[23 + offset] = (char *) &sigs[i].def_f;
 #if USE_GPUS
             if (sigs[i].gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0)
             {
-                param_values[21 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                param_values[24 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
                 current_gpu_sig_id += sigs[i].gpu_sig.num_gpus - 1;
-                param_values[22 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                param_values[25 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
             }
             else
             {
-                param_values[21 + offset] = NULL;
-                param_values[22 + offset] = NULL;
+                param_values[24 + offset] = NULL;
+                param_values[25 + offset] = NULL;
             }
 #endif
         }
         else 
         {
-            param_values[9 + offset] = (char *) &sigs[i].avg_f;
-            param_values[10 + offset] = (char *) &sigs[i].def_f;
+            param_values[11 + offset] = (char *) &sigs[i].avg_f;
+            param_values[12 + offset] = (char *) &sigs[i].avg_imc_f;
+            param_values[13 + offset] = (char *) &sigs[i].def_f;
 #if USE_GPUS
             if (sigs[i].gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0)
             {
-                param_values[11 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                param_values[14 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
                 current_gpu_sig_id += sigs[i].gpu_sig.num_gpus - 1;
-                param_values[12 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                param_values[15 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
             }
             else
             {
-                param_values[11 + offset] = NULL;
-                param_values[12 + offset] = NULL;
+                param_values[14 + offset] = NULL;
+                param_values[15 + offset] = NULL;
             }
 #endif
         }
@@ -1509,36 +1527,40 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
         param_lengths[2  + offset] = sizeof(sigs[i].PCK_power);
         param_lengths[3  + offset] = sizeof(sigs[i].EDP);
         param_lengths[4  + offset] = sizeof(sigs[i].GBS);
-        param_lengths[5  + offset] = sizeof(sigs[i].TPI);
-        param_lengths[6  + offset] = sizeof(sigs[i].CPI);
-        param_lengths[7  + offset] = sizeof(sigs[i].Gflops);
-        param_lengths[8  + offset] = sizeof(sigs[i].time);
+        param_lengths[5  + offset] = sizeof(sigs[i].IO_MBS);
+        param_lengths[6  + offset] = sizeof(sigs[i].TPI);
+        param_lengths[7  + offset] = sizeof(sigs[i].CPI);
+        param_lengths[8  + offset] = sizeof(sigs[i].Gflops);
+        param_lengths[9  + offset] = sizeof(sigs[i].time);
+        param_lengths[10 + offset] = sizeof(sigs[i].perc_MPI);
         if (full_signature)
         {
-            param_lengths[9 + offset] = sizeof(sigs[i].FLOPS[0]);
-            param_lengths[10 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[11 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[12 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[13 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[14 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[15 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[16 + offset] = sizeof(sigs[i].FLOPS[0]);
-            param_lengths[17 + offset] = sizeof(sigs[i].instructions);
-            param_lengths[18 + offset] = sizeof(sigs[i].cycles);
-            param_lengths[19 + offset] = sizeof(int);
-            param_lengths[20 + offset] = sizeof(int);
+            param_lengths[17 + offset] = sizeof(sigs[i].FLOPS[0]);
+            param_lengths[18 + offset] = sizeof(sigs[i].FLOPS[0]);
+            param_lengths[19 + offset] = sizeof(sigs[i].instructions);
+            param_lengths[20 + offset] = sizeof(sigs[i].cycles);
+            param_lengths[21 + offset] = sizeof(int);
+            param_lengths[22 + offset] = sizeof(int);
+            param_lengths[23 + offset] = sizeof(int);
 #if USE_GPUS
-            param_lengths[21 + offset] = sizeof(ulong);
-            param_lengths[22 + offset] = sizeof(ulong);
+            param_lengths[24 + offset] = sizeof(ulong);
+            param_lengths[25 + offset] = sizeof(ulong);
 #endif
         }
         else 
         {
-            param_lengths[9 + offset] = sizeof(int);
-            param_lengths[10 + offset] = sizeof(int);
+            param_lengths[11 + offset] = sizeof(int);
+            param_lengths[12 + offset] = sizeof(int);
+            param_lengths[13 + offset] = sizeof(int);
 #if USE_GPUS
-            param_lengths[11 + offset] = sizeof(ulong);
-            param_lengths[12 + offset] = sizeof(ulong);
+            param_lengths[14 + offset] = sizeof(ulong);
+            param_lengths[15 + offset] = sizeof(ulong);
 #endif
 
         }
@@ -1567,10 +1589,10 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
         PQclear(res);
         return EAR_ERROR;
     }
-    
+
     PQclear(res);
     return EAR_SUCCESS;
-                   
+
 }
 
 int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int num_jobs)
@@ -1583,7 +1605,7 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
     int i, j, offset, *param_lengths, *param_formats;
     char *query, *lock_query, *insert_query;
     char arg_number[16];
-    
+
     reverse_job_bytes(apps, num_jobs);
 
     /* Memory allocation */
@@ -1605,7 +1627,7 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
         strcpy(lock_query, LOCK_JOBS_PSQL_QUERY);
         strcpy(insert_query, INSERT_NEW_JOBS);
     }
-    
+
     offset = 0;
     for (i = 0; i < num_jobs; i++)
     {
@@ -1720,15 +1742,15 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
 
     if (PQresultStatus(res) != PGRES_COMMAND_OK)
     {
-       verbose(VMYSQL, "ERROR while inserting jobs: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while inserting jobs: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
-    
+
     PQclear(res);
 
     return EAR_SUCCESS;
-    
+
 }
 
 int postgresql_batch_insert_loops(PGconn *connection, loop_t *loops, int num_loops)
@@ -1741,7 +1763,7 @@ int postgresql_batch_insert_loops(PGconn *connection, loop_t *loops, int num_loo
     int i, j, offset, sig_id, *param_lengths, *param_formats, *sig_ids;
     signature_t *sigs;
     char *query, arg_number[16];
-    
+
     reverse_loop_bytes(loops, num_loops);
 
     /* Memory allocation */
@@ -1753,7 +1775,7 @@ int postgresql_batch_insert_loops(PGconn *connection, loop_t *loops, int num_loo
     query = calloc((strlen(LOOP_PSQL_QUERY)+(num_loops*LOOP_ARGS*10)+strlen("ON CONFLICT DO NOTHING")), sizeof(char));
 
     strcpy(query, LOOP_PSQL_QUERY);
-    
+
     /* Previous inserts */
     for (i = 0; i < num_loops; i++)
         memcpy(&sigs[i], &loops[i].signature, sizeof(signature_t)); 
@@ -1761,7 +1783,7 @@ int postgresql_batch_insert_loops(PGconn *connection, loop_t *loops, int num_loo
     postgresql_batch_insert_signatures(connection, sigs, 0, num_loops);
 
     if ((sig_id = postgresql_get_current_autoincrement_val(connection, "signatures")) < 1)
-       verbose(VMYSQL, "Unknown error while retrieving signature id\n");
+        verbose(VMYSQL, "Unknown error while retrieving signature id\n");
 
     for (i = 0; i < num_loops; i++)
         sig_ids[num_loops - 1 - i] = htonl(sig_id - i);
@@ -1825,11 +1847,11 @@ int postgresql_batch_insert_loops(PGconn *connection, loop_t *loops, int num_loo
 
     if (PQresultStatus(res) != PGRES_COMMAND_OK) //-> command sense lectura
     {
-       verbose(VMYSQL, "ERROR while inserting loops: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while inserting loops: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
-    
+
     PQclear(res);
     return EAR_SUCCESS;
 }
@@ -1855,7 +1877,8 @@ int postgresql_batch_insert_applications(PGconn *connection, application_t *apps
     power_signature_t *pow_sigs;
     char *query, arg_number[16];
     char is_learning = apps[0].is_learning; 
-    
+    char is_mpi      = apps[0].is_mpi; 
+
     /* Memory allocation */
     sigs = calloc(num_apps, sizeof(signature_t));
     pow_sigs = calloc(num_apps, sizeof(power_signature_t));
@@ -1870,36 +1893,43 @@ int postgresql_batch_insert_applications(PGconn *connection, application_t *apps
         strcpy(query, LEARNING_APPLICATION_PSQL_QUERY);
     else
         strcpy(query, APPLICATION_PSQL_QUERY);
-    
+
     /* Previous inserts */
     for (i = 0; i < num_apps; i++)
     {
         memcpy(&pow_sigs[i], &apps[i].power_sig, sizeof(power_signature_t)); 
-        memcpy(&sigs[i], &apps[i].signature, sizeof(signature_t)); 
+        if (is_mpi)
+            memcpy(&sigs[i], &apps[i].signature, sizeof(signature_t)); 
     }
 
-    postgresql_batch_insert_signatures(connection, sigs, is_learning, num_apps);
+    if (is_mpi) {
+        postgresql_batch_insert_signatures(connection, sigs, is_learning, num_apps);
+    }
     postgresql_batch_insert_power_signatures(connection, pow_sigs, num_apps);
     postgresql_batch_insert_jobs(connection, apps, num_apps); //all job data will be reversed and remain that way
 
 
-    if (is_learning)
+    if (is_mpi) 
     {
-        if ((sig_id = postgresql_get_current_autoincrement_val(connection, "learning_signatures")) < 1)
-           verbose(VMYSQL, "Unknown error while retrieving signature id\n");
-    }
-    else
-    {
-        if ((sig_id = postgresql_get_current_autoincrement_val(connection, "signatures")) < 1)
-           verbose(VMYSQL, "Unknown error while retrieving signature id\n");
+        if (is_learning)
+        {
+            if ((sig_id = postgresql_get_current_autoincrement_val(connection, "learning_signatures")) < 1)
+                verbose(VMYSQL, "Unknown error while retrieving signature id\n");
+        }
+        else
+        {
+            if ((sig_id = postgresql_get_current_autoincrement_val(connection, "signatures")) < 1)
+                verbose(VMYSQL, "Unknown error while retrieving signature id\n");
+        }
     }
     if ((pow_sig_id = postgresql_get_current_autoincrement_val(connection, "power_signatures")) < 1)
-       verbose(VMYSQL, "Unknown error while retrieving power signature id (%d)\n", pow_sig_id);
+        verbose(VMYSQL, "Unknown error while retrieving power signature id (%d)\n", pow_sig_id);
 
     for (i = 0; i < num_apps; i++)
     {
         pow_sig_ids[num_apps - 1 - i] = htonl(pow_sig_id - i);
-        sig_ids[num_apps - 1 - i] = htonl(sig_id - i);
+        if (is_mpi)
+            sig_ids[num_apps - 1 - i] = htonl(sig_id - i);
     }
 
     offset = 0;
@@ -1925,7 +1955,11 @@ int postgresql_batch_insert_applications(PGconn *connection, application_t *apps
         param_values[0  + offset] = (char *) &apps[i].job.id;
         param_values[1  + offset] = (char *) &apps[i].job.step_id;
         param_values[2  + offset] = (char *) &apps[i].node_id;
-        param_values[3  + offset] = (char *) &sig_ids[i];
+        if (is_mpi)
+            param_values[3  + offset] = (char *) &sig_ids[i];
+        else
+            param_values[3  + offset] = (char *) NULL;
+
         param_values[4  + offset] = (char *) &pow_sig_ids[i];
 
         /* Parameter sizes */
@@ -1959,12 +1993,12 @@ int postgresql_batch_insert_applications(PGconn *connection, application_t *apps
 
     if (PQresultStatus(res) != PGRES_COMMAND_OK) //-> command sense lectura
     {
-       verbose(VMYSQL, "ERROR while inserting applications: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while inserting applications: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
-    
-    
+
+
     PQclear(res);
     return EAR_SUCCESS;
 }
@@ -1981,7 +2015,7 @@ int postgresql_batch_insert_applications_no_mpi(PGconn *connection, application_
     power_signature_t *pow_sigs;
     char *query, arg_number[16];
     char is_learning = apps[0].is_learning; 
-    
+
     /* Memory allocation */
     pow_sigs = calloc(num_apps, sizeof(power_signature_t));
     pow_sig_ids = calloc(num_apps, sizeof(int));
@@ -1994,7 +2028,7 @@ int postgresql_batch_insert_applications_no_mpi(PGconn *connection, application_
         strcpy(query, LEARNING_APPLICATION_PSQL_QUERY);
     else
         strcpy(query, APPLICATION_PSQL_QUERY);
-    
+
     /* Previous inserts */
     for (i = 0; i < num_apps; i++)
         memcpy(&pow_sigs[i], &apps[i].power_sig, sizeof(power_signature_t)); 
@@ -2004,7 +2038,7 @@ int postgresql_batch_insert_applications_no_mpi(PGconn *connection, application_
 
 
     if ((pow_sig_id = postgresql_get_current_autoincrement_val(connection, "power_signatures")) < 1)
-       verbose(VMYSQL, "Unknown error while retrieving power signature id (%d)\n", pow_sig_id);
+        verbose(VMYSQL, "Unknown error while retrieving power signature id (%d)\n", pow_sig_id);
 
     for (i = 0; i < num_apps; i++)
         pow_sig_ids[num_apps - 1 - i] = htonl(pow_sig_id - i);
@@ -2032,7 +2066,7 @@ int postgresql_batch_insert_applications_no_mpi(PGconn *connection, application_
         param_values[0  + offset] = (char *) &apps[i].job.id;
         param_values[1  + offset] = (char *) &apps[i].job.step_id;
         param_values[2  + offset] = (char *) &apps[i].node_id;
-       // param_values[3  + offset] = (char *) &sig_ids[i];
+        // param_values[3  + offset] = (char *) &sig_ids[i];
         param_values[3  + offset] = (char *) NULL;
         param_values[4  + offset] = (char *) &pow_sig_ids[i];
 
@@ -2065,12 +2099,12 @@ int postgresql_batch_insert_applications_no_mpi(PGconn *connection, application_
 
     if (PQresultStatus(res) != PGRES_COMMAND_OK) //-> command sense lectura
     {
-       verbose(VMYSQL, "ERROR while inserting applications: %s\n", PQresultErrorMessage(res));
+        verbose(VMYSQL, "ERROR while inserting applications: %s\n", PQresultErrorMessage(res));
         PQclear(res);
         return EAR_ERROR;
     }
-    
-    
+
+
     PQclear(res);
     return EAR_SUCCESS;
 }
