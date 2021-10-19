@@ -183,9 +183,10 @@ uint powercap_reallocation(cluster_powercap_status_t *cluster_status,powercap_op
     uint num_nodes=cluster_status->total_nodes;
     uint min_reduction;
     verbose(0,"There are %u nodes  %u idle nodes %u greedy nodes ", num_nodes,cluster_status->idle_nodes,cluster_status->num_greedy);
-    memset(cluster_options,0,sizeof(powercap_opt_t));
-    cluster_options->greedy_nodes=calloc(cluster_status->num_greedy,sizeof(int));
-    cluster_options->extra_power=calloc(cluster_status->num_greedy,sizeof(uint));
+    if (cluster_options->greedy_nodes == NULL) {
+        cluster_options->greedy_nodes=calloc(cluster_status->num_greedy,sizeof(int));
+        cluster_options->extra_power=calloc(cluster_status->num_greedy,sizeof(uint));
+    }
     cluster_options->num_greedy=cluster_status->num_greedy;
     cluster_options->cluster_perc_power = (cluster_status->total_powercap * 100)/max_cluster_power;
     memcpy(cluster_options->greedy_nodes,cluster_status->greedy_nodes,cluster_status->num_greedy*sizeof(int));
@@ -368,6 +369,7 @@ void cluster_check_powercap()
         verbose(1,"num_power_status in cluster_check_powercap is 0");
         return;
     }
+    memset(&cluster_options, 0, sizeof(powercap_opt_t));
     must_send_pc_options=0;
     print_cluster_power_status(my_cluster_power_status);
     aggregate_data(my_cluster_power_status);
@@ -378,7 +380,7 @@ void cluster_check_powercap()
         } else{
             verbose(0,"%s%u Watts from idle nodes released%s",COL_GRE,rel_power.released,COL_CLR);
         }
-        my_cluster_power_status->released=rel_power.released;
+        my_cluster_power_status->released = 0;
         my_cluster_power_status->total_powercap = my_cluster_power_status->total_powercap - rel_power.released;
         powercap_reallocation(my_cluster_power_status,&cluster_options,1);
     }

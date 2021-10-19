@@ -15,7 +15,10 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#define SHOW_DEBUGS 1
+//#define SHOW_DEBUGS 1
+
+#define FIRST_SIGNIFICANT_BYTE 3
+#define POWER_PERIOD 5
 
 #include <math.h>
 #include <errno.h>
@@ -90,15 +93,17 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	memset(&_req, 0, sizeof(struct ipmi_req));
 
 	if (intf->addr != 0) {
-		ipmb_addr.slave_addr = intf->addr;
+		ipmb_addr.slave_addr = 0x2c;
 		ipmb_addr.lun = req->msg.lun;
 		_req.addr = (unsigned char *) &ipmb_addr;
 		_req.addr_len = sizeof(ipmb_addr);
+		//debug("IPMB channel %x addr %x", ipmb_addr.channel, ipmb_addr.slave_addr);
 
 	} else {
 		bmc_addr.lun = req->msg.lun;
 		_req.addr = (unsigned char *) &bmc_addr;
 		_req.addr_len = sizeof(bmc_addr);
+		//debug("BMC channel %x", bmc_addr.channel);
 	};
 	_req.msgid = curr_seq++;
 
@@ -107,8 +112,9 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	_req.msg.netfn = req->msg.netfn;
 	_req.msg.cmd = req->msg.cmd;
 
+
 	if (ioctl(intf->fd, IPMICTL_SEND_COMMAND, &_req) < 0) {
-		debug("Unable to send command\n");
+		debug("ioctl Unable to send command %s\n", strerror(errno));
 		if (data != NULL)
 			free(data);
 		return NULL;
@@ -143,10 +149,12 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 		};
 	};
 
-
+	// debug("ioctl completed with code 0x%02x len 0x%02x  ", recv.msg.data[0], recv.msg.data_len - 1);
 	/* save completion code */
 	rsp.ccode = recv.msg.data[0];
 	rsp.data_len = recv.msg.data_len - 1;
+
+
 
 	if (recv.msg.data[0] == 0) {
 
@@ -218,7 +226,10 @@ Byte 17:20 – Statistics Reporting Period (the timeframe in seconds, over which
   msg_data[4]=(uint8_t)0x00;
 	/* Policy ID */
   msg_data[5]=(uint8_t)0x00;
-  intf->addr=0x0;
+
+  intf->addr    = 0x20;
+	intf->channel = 0x0;
+
   req.msg.data = msg_data;
   req.msg.data_len = sizeof(msg_data);
 
@@ -233,13 +244,11 @@ Byte 17:20 – Statistics Reporting Period (the timeframe in seconds, over which
         out->mode=-1;
         return EAR_ERROR;
         };
-
-  out->data_len=rsp->data_len;
+	debug("Command returns with code %dii len %d", rsp->ccode, rsp->data_len);
+  out->data_len = rsp->data_len;
   for (i=0;i<rsp->data_len; i++) {
   	out->data[i]=rsp->data[i];
-		#if 0
 		debug("Byte %d: 0x%02x\n",i,rsp->data[i]);
-		#endif
   }
 	/*
  *   uint16_t current_power, min_power,max_power,avg_power;
@@ -247,30 +256,30 @@ Byte 17:20 – Statistics Reporting Period (the timeframe in seconds, over which
  */
 	/*
  * * Byte 1 – Completion code
-* Byte 2:4 – Intel Manufacturer ID – 000157h, LS byte first.
-* Byte 5:6 – Current Value (unsigned integer) see Section 3.1.1
-Byte 7:8 – Minimum Value (unsigned integer) see Section 3.1.2
-Byte 9:10 – Maximum Value (unsigned integer) see Section 3.1.3
-Byte 11:12 – Average Value (unsigned integer) see Section 3.1.4
-Byte 13:16 – Timestamp as defined by the IPMI v2.0 specification indicating when the response message was sent. If Intel® NM cannot obtain valid time, the timestamp is set to FFFFFFFFh as defined in the IPMI v2.0 specification.
-Byte 17:20 – Statistics Reporting Period (the timeframe in seconds, over which the firmware collects statistics). This is unsigned integer value. For all global statistics this field contains the time after the last statistics reset.
+* Byte 2:4 – Intel Manufacturer ID – 000157h, LS byte first.  3b
+* Byte 5:6 – Current Value (unsigned integer) see Section 3.1.1 2b
+Byte 7:8 – Minimum Value (unsigned integer) see Section 3.1.2 2b
+Byte 9:10 – Maximum Value (unsigned integer) see Section 3.1.3 2b
+Byte 11:12 – Average Value (unsigned integer) see Section 3.1.4 2b
+Byte 13:16 – Timestamp as defined by the IPMI v2.0 specification indicating when the response message was sent. If Intel® NM cannot obtain valid time, the timestamp is set to FFFFFFFFh as defined in the IPMI v2.0 specification. 4b
+Byte 17:20 – Statistics Reporting Period (the timeframe in seconds, over which the firmware collects statistics). This is unsigned integer value. For all global statistics this field contains the time after the last statistics reset. 4b
  */
-	current_powerp=(uint16_t *)&rsp->data[4];
+	current_powerp=(uint16_t *)&rsp->data[FIRST_SIGNIFICANT_BYTE]; // 3-4
 	current_power=*current_powerp;
-	min_powerp=(uint16_t *)&rsp->data[6];
-	max_powerp=(uint16_t *)&rsp->data[8];
-	avg_powerp=(uint16_t *)&rsp->data[10];
-	timestampp=(uint32_t *)&rsp->data[12];
-	timeframep=(uint32_t *)&rsp->data[16];
+	min_powerp=(uint16_t *)&rsp->data[FIRST_SIGNIFICANT_BYTE+2]; // 5-6
+	max_powerp=(uint16_t *)&rsp->data[FIRST_SIGNIFICANT_BYTE+4]; // 7-8
+	avg_powerp=(uint16_t *)&rsp->data[FIRST_SIGNIFICANT_BYTE+6]; // 9-10
+	timestampp=(uint32_t *)&rsp->data[FIRST_SIGNIFICANT_BYTE+8]; // 11-14
+	timeframep=(uint32_t *)&rsp->data[FIRST_SIGNIFICANT_BYTE+12]; // 15-18
 	min_power=*min_powerp;
 	max_power=*max_powerp;
 	avg_power=*avg_powerp;
 	timeframe=*timeframep;
 	timestamp=*timestampp;
 	#if SHOW_DEBUGS
-	debug("current power 0x%04x min power 0x%04x max power 0x%04x avg power 0x%04x\n",current_power,min_power,max_power,avg_power);
+	//debug("current power 0x%04x min power 0x%04x max power 0x%04x avg power 0x%04x\n",current_power,min_power,max_power,avg_power);
 	debug("current power %u min power %u max power %u avg power %u\n",(uint)current_power,(uint)min_power,(uint)max_power,(uint)avg_power);
-	debug("timeframe %u timestamp %u\n",timeframe,timestamp);
+	debug("timeframe %u timestamp %u\n",(uint)timeframe,(uint)timestamp);
 	#endif
 	cpower->current_power=(ulong)current_power;
 	cpower->min_power=(ulong)min_power;
@@ -289,11 +298,12 @@ state_t inm_power_thread_main(void *p)
 	ulong current_elapsed,current_energy;
 	inm_power_reading(&inm_context_for_pool, &out,&inm_current_power_reading);
 	if (inm_current_power_reading.current_power > 0){
-		current_elapsed = inm_current_power_reading.timestamp - inm_last_power_reading.timestamp;	
+		//current_elapsed = inm_current_power_reading.timeframe - inm_last_power_reading.timeframe;	
+		current_elapsed = POWER_PERIOD;
 		current_energy = current_elapsed * inm_current_power_reading.avg_power;
 		/* Energy is reported in MJ */
 		inm_power_accumulated_energy += (current_energy*1000);
-		debug("AVG power in last %lu ms is %u",current_elapsed,inm_current_power_reading.avg_power);		
+		debug("AVG power in last %lu sec is %u Total energy %lu\n",current_elapsed,inm_current_power_reading.avg_power, inm_power_accumulated_energy);		
 	}else{
 		debug("Current power is 0 in inm power reading pool reading");
 		return EAR_ERROR;
@@ -352,10 +362,10 @@ state_t energy_init(void **c)
 			inm_power_sus = suscription();
 			inm_power_sus->call_main = inm_power_thread_main;
 			inm_power_sus->call_init = inm_power_thread_init;
-			inm_power_sus->time_relax = inm_power_timeframe;
-			inm_power_sus->time_burst = inm_power_timeframe;
+			inm_power_sus->time_relax = POWER_PERIOD*1000;
+			inm_power_sus->time_burst = POWER_PERIOD*1000;
 			inm_power_sus->suscribe(inm_power_sus);
-			debug("inm energy plugin suscription initialized with timeframe %lu ms",inm_power_timeframe);
+			//debug("inm energy plugin suscription initialized with timeframe %lu ms",inm_power_timeframe);
 		}
 	}
 	pthread_mutex_unlock(&ompi_lock);
@@ -417,7 +427,7 @@ state_t energy_accumulated(unsigned long *e, edata_t init, edata_t end) {
 state_t energy_dc_read(void *c, edata_t energy_mj) {
 	ulong *penergy_mj=(ulong *)energy_mj;
 
-  debug("energy_dc_read\n");
+  //debug("energy_dc_read\n");
 
   *penergy_mj=inm_power_accumulated_energy;
 
@@ -428,10 +438,10 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
 {
   ulong *penergy_mj=(ulong *)energy_mj;
 
-  debug("energy_dc_read\n");
+  //debug("energy_dc_read\n");
 
   *penergy_mj = inm_power_accumulated_energy;
-	*time_ms = inm_last_power_reading.timestamp*1000;
+	*time_ms = inm_last_power_reading.timeframe;
 
   return EAR_SUCCESS;
 
