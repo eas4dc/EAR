@@ -203,6 +203,8 @@ MYSQL *mysql_create_connection()
         return NULL;
     }
 
+    unsigned int time_out = 20;
+    mysql_options(connection,MYSQL_OPT_CONNECT_TIMEOUT,(char*)&time_out);
     if (!mysql_real_connect(connection, db_config->ip, db_config->user, db_config->pass, db_config->database, db_config->port, NULL, 0))
     {
         verbose(VDBH, "ERROR connecting to the database: %s", mysql_error(connection));

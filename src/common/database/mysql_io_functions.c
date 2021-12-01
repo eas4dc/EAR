@@ -2394,14 +2394,16 @@ int mysql_batch_insert_periodic_metrics(MYSQL *connection, periodic_metric_t *pe
         bind[5+offset].buffer = (char *)&per_mets[i].step_id;
         if (node_detail)
         {
-            bind[8 + offset].buffer_type = bind[9 + offset].buffer_type = bind[10 + offset].buffer_type = MYSQL_TYPE_LONGLONG;
-            bind[8 + offset].is_unsigned = bind[9 + offset].is_unsigned = bind[10 + offset].is_unsigned = 1;
+            bind[8 + offset].buffer_type = bind[9 + offset].buffer_type = MYSQL_TYPE_LONGLONG;
+            bind[8 + offset].is_unsigned = bind[9 + offset].is_unsigned = 1;
 
             bind[6+offset].buffer = (char *)&per_mets[i].avg_f;
             bind[7+offset].buffer = (char *)&per_mets[i].temp;   
             bind[8+offset].buffer = (char *)&per_mets[i].DRAM_energy;
             bind[9+offset].buffer = (char *)&per_mets[i].PCK_energy;
 #if USE_GPUS
+            bind[10+offset].buffer_type = MYSQL_TYPE_LONGLONG;
+            bind[10+offset].is_unsigned = 1;
             bind[10+offset].buffer = (char *)&per_mets[i].GPU_energy;
 #endif
         }
