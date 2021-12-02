@@ -349,8 +349,8 @@ void powercap_get_status(powercap_status_t *my_status, pmgt_status_t *status)
     if (my_pc_opt.powercap_status == PC_STATUS_IDLE)
     {
         status->status = PC_STATUS_IDLE;
-        my_status->released = my_pc_opt.released;
-        my_status->total_idle_power = my_pc_opt.last_t1_allocated;
+        my_status->released += my_pc_opt.released;
+        my_status->total_idle_power += my_pc_opt.last_t1_allocated;
         my_status->idle_nodes++;
     }
     else {
@@ -376,7 +376,7 @@ void powercap_get_status(powercap_status_t *my_status, pmgt_status_t *status)
             case PC_STATUS_ASK_DEF: 
                 /* Data management */
                 debug("powercap_get_status: %sAsking for default power%s %uW allocated %uW",COL_BLU,COL_CLR,my_pc_opt.requested,my_pc_opt.last_t1_allocated);
-                my_status->requested = my_pc_opt.def_powercap - my_pc_opt.last_t1_allocated;
+                my_status->requested += my_pc_opt.def_powercap - my_pc_opt.last_t1_allocated;
                 break;
             case PC_STATUS_OK:
                 debug("powercap_get_status: PC_STATUS OK");
@@ -394,8 +394,8 @@ void powercap_get_status(powercap_status_t *my_status, pmgt_status_t *status)
         }
     }
     ulong limit = my_pc_opt.current_pc;
-    my_status->current_power = powermon_current_power();
-    my_status->total_powercap = get_powercap_allocated(&my_pc_opt);
+    my_status->current_power += powermon_current_power();
+    my_status->total_powercap += get_powercap_allocated(&my_pc_opt);
     pthread_mutex_unlock(&my_pc_opt.lock);
     powermon_report_event(POWERCAP_VALUE, limit);
 
