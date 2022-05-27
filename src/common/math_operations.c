@@ -15,10 +15,47 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#include <limits.h>
 #include <math.h>
 #include <string.h>
+#include <limits.h>
 #include <common/math_operations.h>
+
+#define overflow_zeros_def(type, suffix) \
+	type overflow_zeros_ ##suffix (type v2, type v1) \
+	{ \
+		if (v1 > v2) { \
+			return 0; \
+		} \
+	        return v2 - v1; \
+	}
+
+#define overflow_mixed_def(type, suffix) \
+	type overflow_mixed_ ##suffix (type v2, type v1, type max, uint bits) \
+	{ \
+		if (v1 > v2) { \
+			type mask = ~(max >> (bits+1)); \
+			if ((v1 & mask) > 0) { \
+				return (max - v1) + v2; \
+			} else { \
+				return 0; \
+			} \
+		} \
+		return v2 - v1; \
+	}
+
+#define overflow_magic_def(type, suffix) \
+	type overflow_magic_ ##suffix (type v2, type v1, type max) \
+	{ \
+		if (v1 > v2) { \
+			return (max - v1) + v2; \
+		} \
+		return v2 - v1; \
+	}
+
+overflow_zeros_def(ullong, u64);
+overflow_mixed_def(ullong, u64);
+overflow_magic_def(ullong, u64);
+overflow_magic_def(uint, u32);
 
 uint equal_with_th_ul(ulong a,ulong b,double th)
 {
@@ -135,10 +172,6 @@ void** ear_math_apply(void **arr, size_t len, void* (*fn_ptr)(void*)){
     return res;
 }
 
-void ear_math_free_gen_array(void **arr) {
-    free(arr);
-}
-
 double ear_math_cosine_similarity(double *a, double *b, size_t n) {
     double dot_product = 0, magnitude_a = 0, magnitude_b = 0;
     for (int i = 0; i < n; i++) {
@@ -166,7 +199,7 @@ mean_sd_t ear_math_mean_sd(const double data[], size_t n){
         return result;
     double sum, sq_sum;
     sum = sq_sum = 0;
-    for (int i = 0; i < n; i++){
+    for (int i = 0; i < n; i++) {
         sum += data[i];
         sq_sum += pow(data[i], 2);
     }

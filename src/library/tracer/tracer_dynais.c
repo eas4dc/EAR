@@ -33,13 +33,13 @@ void traces_init(char *app,int global_rank, int local_rank, int nodes, int mpis,
 {
 	char myhost[128];
 	
-	char *pathname = getenv(VAR_OPT_TRAC);
+	char *pathname = getenv(FLAG_TRACE_PATH);
 
 	if (pathname!=NULL){ 
 		debug("Dynais traces ON. Traces %s",pathname);
 	}
 	else {
-		debug("%s is not defined", VAR_OPT_TRAC);
+		debug("%s is not defined", FLAG_TRACE_PATH);
 	}
 
 	if (enabled || pathname == NULL) {

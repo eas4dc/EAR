@@ -60,7 +60,7 @@ void pmgt_set_power_per_domain(pwr_mgt_t *phandler,dom_power_t *pdomain,uint st)
 /* Gets the requested frequency */
 void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size);
 /* Sets the requested frequency */
-void pmgt_set_app_req_freq(pwr_mgt_t *phandler,pc_app_info_t *pc_app);
+void pmgt_set_app_req_freq(pwr_mgt_t *phandler);
 /* Notifies the pwr_mgt a new job/end job event */
 void pmgt_new_job(pwr_mgt_t *phandler);
 void pmgt_end_job(pwr_mgt_t *phandler);

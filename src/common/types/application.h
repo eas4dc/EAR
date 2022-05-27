@@ -60,7 +60,11 @@ int read_application_text_file(char *path, application_t **apps, char is_extende
 
 /** Appends in a file an application in CSV format. The returned integer is one
 *   of the following states: EAR_SUCCESS or EAR_ERROR. */
-int append_application_text_file(char *path, application_t *app, char is_extended);
+int append_application_text_file(char *path, application_t *app, char is_extended, int add_header, int single_column);
+
+int create_app_header(char * header, char *path, uint num_gpus, char is_extended, int single_column);
+
+
 
 /** PENDING */
 int scan_application_fd(FILE *fd, application_t *app, char is_extended);

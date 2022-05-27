@@ -3,8 +3,8 @@ LDFLAGS = -ldl
 ######## RULES
 
 tracer_OBJS = \
-    tracer.o \
-    tracer_paraver.o
+			  tracer.o \
+			  tracer_paraver.o
 tracer_BINS = tracer_paraver.so
 tracer_DEPS = $(SRCDIR)/common/libcommon.a
 tracer_PATH = $(DESTDIR)/lib/plugins/tracer

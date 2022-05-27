@@ -1,5 +1,5 @@
 CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -O2 
-LDFLAGS = $(DB_LDFLAGS) -lm
+LDFLAGS = -pthread -lm -rdynamic -ldl
 
 ######## INSTALLATION
 
@@ -11,6 +11,7 @@ oths_BINS = eardbd_api.o
 ######## FILES
 
 eard_LIBS = \
+	$(SRCDIR)/report/report.o \
 	$(SRCDIR)/management/libmgt.a \
 	$(SRCDIR)/metrics/libmetrics.a \
 	$(SRCDIR)/common/libcommon.a \
@@ -35,7 +36,7 @@ eardbd_api.o: eardbd_api.c eardbd_api.h $(eard_LIBS)
 	$(CC) $(CFLAGS) -c $<
 
 eardbd: $(eard_SRCS) $(eard_HDRS) $(eard_LIBS)
-	$(CC) $(CFLAGS) $(DB_CFLAGS) -o $@ $(eard_SRCS) $(eard_LIBS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(eard_SRCS) $(eard_LIBS) $(LDFLAGS)
 
 ######## OPTIONS
 

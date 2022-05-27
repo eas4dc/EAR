@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
 
 	// Initialization
 	no_opt = usage(argc, argv);
-	sprintf(path_root, argv[no_opt]);
+	sprintf(path_root, "%s", argv[no_opt]);
 	n_nodes = argc - (no_opt + 1 );
 
 	init();

@@ -1,6 +1,6 @@
 [Unit]
 Description=EARGMD - EAR Global Manager
-ConditionPathExists=@localstatedir@
+#ConditionPathExists=@localstatedir@
 #Wants=req1.service req2.service
 #After=req1.service req2.service
 
@@ -10,7 +10,6 @@ Type=simple
 Environment="EAR_ETC=@sysconfdir@"
 
 ExecStart=@prefix@/sbin/eargmd
-ExecReload=/bin/kill -HUP $MAINPID
 ExecStop=/bin/kill -TERM $MAINPID
 KillMode=process
 Restart=on-failure

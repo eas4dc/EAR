@@ -59,6 +59,8 @@ state_t GENERIC_parse_token(cluster_conf_t *conf,char *token,char *def_policy)
     else if (!strcmp(token, "NETWORKEXTENSION"))
     {
             token = strtok(NULL, "=");
+            remove_chars(token, '\n');
+            remove_chars(token, '\r');
             strcpy(conf->net_ext, token);
     }
 

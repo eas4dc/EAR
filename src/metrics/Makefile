@@ -16,28 +16,33 @@ mets_OBJS = \
     $(SRCDIR)/metrics/common/msr.o \
     $(SRCDIR)/metrics/common/omsr.o \
     $(SRCDIR)/metrics/common/perf.o \
+    $(SRCDIR)/metrics/common/likwid.o \
     $(SRCDIR)/metrics/accumulators/power_metrics.o \
     $(SRCDIR)/metrics/bandwidth/bandwidth.o \
-    $(SRCDIR)/metrics/bandwidth/cpu/amd49.o \
-    $(SRCDIR)/metrics/bandwidth/cpu/intel63.o \
-    $(SRCDIR)/metrics/bandwidth/cpu/dummy.o \
+    $(SRCDIR)/metrics/bandwidth/archs/amd17.o \
+    $(SRCDIR)/metrics/bandwidth/archs/bypass.o \
+    $(SRCDIR)/metrics/bandwidth/archs/dummy.o \
+    $(SRCDIR)/metrics/bandwidth/archs/eard.o \
+    $(SRCDIR)/metrics/bandwidth/archs/intel63.o \
+    $(SRCDIR)/metrics/bandwidth/archs/intel106.o \
+    $(SRCDIR)/metrics/bandwidth/archs/likwid.o \
     $(SRCDIR)/metrics/cache/cache.o \
-    $(SRCDIR)/metrics/cache/cpu/perf.o \
+    $(SRCDIR)/metrics/cache/archs/dummy.o \
+    $(SRCDIR)/metrics/cache/archs/perf.o \
     $(SRCDIR)/metrics/cpi/cpi.o \
-    $(SRCDIR)/metrics/cpi/cpu/intel63.o \
-    $(SRCDIR)/metrics/cpi/cpu/dummy.o \
+    $(SRCDIR)/metrics/cpi/archs/dummy.o \
+    $(SRCDIR)/metrics/cpi/archs/perf.o \
     $(SRCDIR)/metrics/energy/cpu.o \
     $(SRCDIR)/metrics/energy/energy_node.o \
-    $(SRCDIR)/metrics/energy/energy_node_lib.o \
     $(SRCDIR)/metrics/energy/cpu/intel63.o \
     $(SRCDIR)/metrics/flops/flops.o \
-    $(SRCDIR)/metrics/flops/cpu/amd49.o \
-    $(SRCDIR)/metrics/flops/cpu/intel63.o \
-    $(SRCDIR)/metrics/flops/cpu/dummy.o \
-    $(SRCDIR)/metrics/frequency/cpu.o \
-    $(SRCDIR)/metrics/frequency/cpufreq_base.o \
-    $(SRCDIR)/metrics/frequency/cpu/intel63.o \
-    $(SRCDIR)/metrics/frequency/cpu/intel_dummy.o \
+    $(SRCDIR)/metrics/flops/archs/perf.o \
+    $(SRCDIR)/metrics/flops/archs/dummy.o \
+    $(SRCDIR)/metrics/cpufreq/cpufreq.o \
+    $(SRCDIR)/metrics/cpufreq/cpufreq_base.o \
+    $(SRCDIR)/metrics/cpufreq/archs/eard.o \
+    $(SRCDIR)/metrics/cpufreq/archs/dummy.o \
+    $(SRCDIR)/metrics/cpufreq/archs/intel63.o \
     $(SRCDIR)/metrics/imcfreq/imcfreq.o \
     $(SRCDIR)/metrics/imcfreq/archs/amd17.o \
     $(SRCDIR)/metrics/imcfreq/archs/eard.o \
@@ -81,9 +86,9 @@ clean: clean.components rclean;
 	@ $(MAKE) -C 'cache'        $* || exit
 	@ $(MAKE) -C 'common'       $* || exit
 	@ $(MAKE) -C 'cpi'          $* || exit
+	@ $(MAKE) -C 'cpufreq'      $* || exit
 	@ $(MAKE) -C 'energy'       $* || exit
 	@ $(MAKE) -C 'flops'        $* || exit
-	@ $(MAKE) -C 'frequency'    $* || exit
 	@ $(MAKE) -C 'gpu'          $* || exit
 	@ $(MAKE) -C 'imcfreq'      $* || exit
 	@ $(MAKE) -C 'io'           $* || exit

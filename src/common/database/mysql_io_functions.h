@@ -16,6 +16,8 @@
 */
 
 #include <common/config.h>
+#include <common/database/db_io_common.h>
+
 #if DB_MYSQL
 #include <common/types/log.h>
 #include <common/types/job.h>
@@ -28,35 +30,6 @@
 #include <common/types/periodic_aggregation.h>
 
 #include <mysql/mysql.h>
-
-//
-#define EAR_TYPE_APPLICATION    1
-#define EAR_TYPE_LOOP           2
-
-//number of arguments inserted into periodic_metrics
-#define PERIODIC_AGGREGATION_ARGS   4
-#define EAR_EVENTS_ARGS             6
-#define POWER_SIGNATURE_ARGS        9
-#define APPLICATION_ARGS            5
-#define LOOP_ARGS                   8
-#define JOB_ARGS                    16
-
-#define PERIODIC_METRIC_ARGS        10
-
-#if USE_GPUS
-#define GPU_SIGNATURE_ARGS          5
-#endif
-
-#if !DB_SIMPLE
-#define SIGNATURE_ARGS              23
-#define AVG_SIGNATURE_ARGS          24
-#else
-#define SIGNATURE_ARGS              13
-#define AVG_SIGNATURE_ARGS          14
-#endif
-
-
-
 
 
 typedef struct
@@ -221,4 +194,6 @@ int mysql_statement_error(MYSQL_STMT *statement);
 int mysql_retrieve_power_signatures(MYSQL *connection, char *query, power_signature_t **pow_sigs);
 
 
+/** Given a MYSQL connection and a query, retrieves the corresponding result and stores it in results*/
+int mysql_run_query_string_results(MYSQL *connection, char *query, char ****results, int *num_columns);
 #endif

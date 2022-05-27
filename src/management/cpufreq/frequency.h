@@ -36,9 +36,7 @@ typedef struct governor {
 } governor_t;
 
 // Initializes API with privileges (used in: eard.c/dvfs.c).
-state_t frequency_init(uint x);
-// Initializes API passing a list of frequencies (used in: ear.c)
-state_t frequency_init_user(ulong *freq_list, uint freq_count);
+state_t frequency_init(uint eard);
 //
 state_t frequency_dispose();
 
@@ -90,4 +88,7 @@ void get_governor(governor_t *_governor);
 // Sets a specific governor (privileged).
 void set_governor(governor_t *_governor);
 
+
+void verbose_frequencies(int cpus, ulong *f);
+void vector_print_pstates(uint *pstates, uint num_cpus);
 #endif //MANAGEMENT_CPUFREQ_FREQUENCY

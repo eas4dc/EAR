@@ -28,6 +28,6 @@ void print_version()
 {
     char msg[256];
     sprintf(msg, "EAR version %s\n", RELEASE);
-    printf(msg);
+    printf("%s", msg);
 }
 

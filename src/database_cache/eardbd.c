@@ -26,7 +26,7 @@
 #include <database_cache/eardbd_storage.h>
 #if !EDB_OFFLINE
 #include <common/config.h>
-#include <common/database/db_helper.h>
+#include <report/report.h>
 #endif
 
 // Configuration
@@ -116,18 +116,23 @@ int                     updating;
 int                     dreaming;
 int                     veteran;
 int                     forked;
-int                     forced;
+int                     forced = 0;
 // Extras
 char                   *str_who[2] = { "server", "mirror" };
 int                     verbosity = 0;
 static float            total_alloc;
 sigset_t                sigset;
 
+// Reporting
+report_id_t 						rid;
+
 /*
  *
  * Init
  *
  */
+
+void create_tmp(char *tmp_dir) ;
 
 static void init_general_configuration(int argc, char **argv, cluster_conf_t *conf_clus)
 {
@@ -143,12 +148,10 @@ static void init_general_configuration(int argc, char **argv, cluster_conf_t *co
 	mirror_pid = 0;
 	others_pid = 0;
 
-	// ?
-	log_open("eardbd");
-
 	// Getting host name and host alias
 	gethostname(master_host, SZ_NAME_MEDIUM);
 	gethostname(master_nick, SZ_NAME_MEDIUM);
+
 	// Finding a possible short form
 	if ((p = strchr(master_nick, '.')) != NULL) {
 		p[0] = '\0';
@@ -173,14 +176,28 @@ static void init_general_configuration(int argc, char **argv, cluster_conf_t *co
 	read_eardbd_conf(extra_buffer, conf_clus->database.user, conf_clus->database.pass);
 	#endif
 
+	create_tmp(conf_clus->install.dir_temp);
+
 	// Output redirection
 	if (conf_clus->db_manager.use_log) {
 		verb_master("redirecting output to '%s'", conf_clus->install.dir_temp);
 	}
-	// Database
-	init_db_helper(&conf_clus->database);
-	debug("dbcon info: '%s@%s' access", conf_clus->database.database, conf_clus->database.user);
-	debug("dbcon info: '%s:%d' socket", conf_clus->database.ip, conf_clus->database.port);
+
+	/* Reporting plugin */
+	if (state_fail(report_load(conf_clus->install.dir_plug,conf_clus->db_manager.plugins))){
+		edb_error("Report plugin load failed");
+		report_create_id(&rid, -1, -1, -1);
+	}else{
+		report_create_id(&rid, 0, 0, 0);
+	}
+	if (state_fail(report_init(&rid, conf_clus))){
+		edb_error("Report plugin initialization failed");
+	}
+	debug("dbcon info: '%s'    plugin", conf_clus->db_manager.plugins);
+	if (strcmp(conf_clus->db_manager.plugins,"mysql.so") == 0){
+		debug("dbcon info: '%s@%s' access", conf_clus->database.database, conf_clus->database.user);
+		debug("dbcon info: '%s:%d' socket", conf_clus->database.ip, conf_clus->database.port);
+	}
 
 	// Mirror finding
 	if (!forced) {
@@ -255,8 +272,7 @@ static void init_general_configuration(int argc, char **argv, cluster_conf_t *co
 		edb_error("another EARDBD process is currently running");
 	}
 	#endif
-
-	// Server & mirro verbosity
+	// Server & mirror verbosity
 	verb_master("enabled cache server: %s",                  server_enabled ? "OK": "NO");
 	verb_master("enabled cache mirror: %s (of server '%s')", mirror_enabled ? "OK": "NO", server_host);
 }
@@ -332,7 +348,7 @@ static void init_sockets(int argc, char **argv, cluster_conf_t *conf_clus)
 	int st3 = (fd3 == -1) + ((fd3 == -1) * (errno3 != 0));
 	int st4 = (fd4 == -1) + ((fd4 == -1) * (errno4 != 0));
 	// Summary header
-	tprintf_init(fderr, STR_MODE_DEF, "18 8 7 10 8 8");
+	tprintf_init_v2(VERB_LEVEL, STR_MODE_DEF, "18 8 7 10 8 8");
 	tprintf("type||port||prot||stat||fd||err");
 	tprintf("----||----||----||----||--||---");
 	// Summary
@@ -526,7 +542,7 @@ static void init_process_configuration(int argc, char **argv, cluster_conf_t *co
 	}
 
 	// Verbose
-	tprintf_init(fderr, STR_MODE_DEF, "15 15 11 9 8");
+	tprintf_init_v2(VERB_LEVEL, STR_MODE_DEF, "15 15 11 9 8");
 
 	if(!master_iam) {
 		tprintf_close();
@@ -638,6 +654,21 @@ static state_t usage(int argc, char *argv[])
 	return 1;
 }
 
+void create_tmp(char *tmp_dir) {
+        int ret;
+        ret = mkdir(tmp_dir, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+        if ((ret < 0) && (errno != EEXIST)) {
+                error("ear tmp dir cannot be created (%s)", strerror(errno));
+                _exit(0);
+        }
+
+        if (chmod(tmp_dir, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH) < 0) {
+                warning("ear_tmp permissions cannot be set (%s)", strerror(errno));
+                _exit(0);
+        }
+}
+
+
 int main(int argc, char **argv)
 {
 	//
@@ -668,6 +699,8 @@ int main(int argc, char **argv)
 		init_pid_files(argc, argv);
 		// Output file
 		init_output_redirection(argc, argv, &conf_clus);
+
+
 
 		/*
  		 * Running

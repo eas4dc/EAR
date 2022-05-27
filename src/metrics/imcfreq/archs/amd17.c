@@ -22,15 +22,16 @@
 #include <common/system/symplug.h>
 #include <metrics/imcfreq/archs/amd17.h>
 	
-static const char *mgt_names[] = { "mgt_imcfreq_load",
-	                               "mgt_imcfreq_get_api",
-		                           "mgt_imcfreq_init",
-	                               "mgt_imcfreq_dispose",
-	                               "mgt_imcfreq_count_devices", 
-	                               "mgt_imcfreq_get_current_list" };
+static const char *mgt_names[] = {
+    "mgt_imcfreq_load",
+    "mgt_imcfreq_get_api",
+    "mgt_imcfreq_init",
+    "mgt_imcfreq_dispose",
+    "mgt_imcfreq_count_devices",
+    "mgt_imcfreq_get_current_list" };
 
 static struct mgt_ops_s {
-	state_t (*load)             (topology_t *c, int eard);
+	state_t (*load)             (topology_t *c, int eard, void *p);
 	state_t (*get_api)          (uint *api);
 	state_t (*init)             (ctx_t *c);
 	state_t (*dispose)          (ctx_t *c);
@@ -55,6 +56,7 @@ void imcfreq_amd17_load(topology_t *tp, imcfreq_ops_t *ops_in, int eard)
 	if (apis_loaded(ops)) {
 		debug("the API was already loaded");
 		ops->get_api(&api, &api_intern);
+		debug("API %u/%u Intern %u/%u", api, API_EARD, api_intern, API_AMD17);
 		//
 		if (api == API_EARD && api_intern == API_AMD17) {
 			apis_add(ops->init_static, imcfreq_amd17_init_static);
@@ -65,19 +67,15 @@ void imcfreq_amd17_load(topology_t *tp, imcfreq_ops_t *ops_in, int eard)
 	}
 	debug("the API was not loaded yet");
 	if (apis_not(ops)) {
-		debug("1");
 		// Loading symbols in runtime to avoid dependancies
 		symplug_join(RTLD_DEFAULT, (void **) &mgt_ops, mgt_names, 6);
-		debug("2");
 		// Testing all symbols are available
 		if (state_fail(symplug_test((void **) &mgt_ops, 6))) {
 			return;
 		}
-		debug("3");
 		// Loading management imcfreq API
-		mgt_ops.load(tp, eard);
+		mgt_ops.load(tp, eard, NULL);
 		mgt_ops.get_api(&api);
-		debug("4");
 		// If management API is not cool, bye
 		if (api <= API_DUMMY) {
 			return;
@@ -151,9 +149,11 @@ state_t imcfreq_amd17_data_diff(imcfreq_t *i2, imcfreq_t *i1, ulong *freq_list, 
 {
 	ulong aux1 = 0;
 	ulong aux2 = 0;
-    uint cpu;
+  uint cpu;
+	debug("imcfreq_amd17_data_diff %u devices", devs_count);
 	for (cpu = 0; cpu < devs_count; ++cpu) {
 		//aux1 = (i2[cpu].freq + i1[cpu].freq) / 2LU;
+		debug("IMCFREQ [%d] %lu", cpu, i2[cpu].freq);
 		aux1 = i2[cpu].freq;
 		if (freq_list != NULL) {
 			freq_list[cpu] = aux1;

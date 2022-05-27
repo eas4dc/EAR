@@ -44,6 +44,9 @@
 /** Locks the file for writting in a fixe dpart */
 int file_lock(int fd);
 
+/* Tries to acquire the lock with file_lock with a max a attemps = tiemoput, expressed as loop iterations, not time . Returns true when the lock has been acquired*/
+int file_lock_timeout(int fd, uint timeout);
+
 /** Creates a file to be used  as lock. It doesn't locks the file */
 int file_lock_create(char *lock_file_name);
 
@@ -57,7 +60,7 @@ void file_lock_clean(int fd,char *lock_file_name);
 int file_unlock(int fd);
 
 /** Releases a lock file */
-void file_unlock_master(int fd,char *lock_file_name);
+int file_unlock_master(int fd,char *lock_file_name);
 
 /** */
 int file_is_regular(const char *path);
@@ -66,15 +69,15 @@ int file_is_regular(const char *path);
 int file_is_directory(const char *path);
 
 /** */
-ssize_t file_size(char *path);
+ssize_t ear_file_size(char *path);
 
 /** */
-state_t file_read(const char *path, char *buffer, size_t size);
+state_t ear_file_read(const char *path, char *buffer, size_t size);
 
 /** */
-state_t file_write(const char *path, const char *buffer, size_t size);
+state_t ear_file_write(const char *path, const char *buffer, size_t size);
 
 /** */
-state_t file_clean(const char *path);
+state_t ear_file_clean(const char *path);
 
 #endif

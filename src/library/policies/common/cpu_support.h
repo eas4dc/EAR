@@ -18,6 +18,15 @@
 #ifndef _CPU_SUPPORT_H
 #define _CPU_SUPPORT_H
 
+#include <library/metrics/metrics.h>
+
+#ifdef EARL_RESEARCH
+extern unsigned long ext_def_freq;
+#define DEF_FREQ(f) (!ext_def_freq?f:ext_def_freq)
+#else
+#define DEF_FREQ(f) f
+#endif
+
 /* Compute reference metrics used before applying any policy projection/decision. */
 state_t compute_reference(polctx_t *c, signature_t *my_app, ulong *curr_freq, ulong *def_freq, ulong *freq_ref, double *time_ref, double *power_ref);
 
@@ -30,9 +39,6 @@ state_t compute_cpu_freq_min_energy(polctx_t *c,signature_t *my_app,ulong freq_r
  * Read wiki for more info about policies.  */
 state_t compute_cpu_freq_min_time(signature_t *my_app, int min_pstate, double time_ref,
         double min_eff_gain, ulong curr_pstate, ulong best_pstate, ulong best_freq, ulong def_freq, ulong *newf);
-
-/* Computes the average CPU frequency across all processes. */
-void process_avg_cpu_freq(cpu_set_t *aff, ulong *cpuflist, ulong *avgcpu);
 
 /* This function compares signatures with a given margin p. Comparison is done based on CPI and GBS 
  * TODO: This function is also used in states.c, we may put it on a higher level of the library*/
@@ -60,6 +66,9 @@ state_t copy_cpufreq_sel(ulong *to, ulong *from, size_t size);
 state_t set_all_cores(ulong *freqs, int len, ulong freq_val);
 
 ulong node_freqs_avgcpufreq(ulong *f);
+
+/** Given a value representing an averaged frequency, returns the nearest frequency (in kHz) rounded. */
+ulong avg_to_khz(ulong freq_khz);
 
 #endif
 

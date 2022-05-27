@@ -24,7 +24,6 @@
 //#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
 #include <common/output/debug.h>
-#if POWERCAP
 #include <common/types/pc_app_info.h>
 #include <daemon/powercap/powercap_status_conf.h>
 
@@ -82,5 +81,4 @@ void debug_pc_app_info(pc_app_info_t *t)
 	#endif
 }
 
-#endif
 

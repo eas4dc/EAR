@@ -37,6 +37,9 @@
 #include <management/gpu/gpu.h>
 #include <management/cpufreq/frequency.h>
 
+
+#define VAPP_API 1
+
 #define close_app_connection()
 
 static char app_to_eard[MAX_PATH_SIZE];
@@ -251,6 +254,7 @@ static uint read_app_command(int fd_in,app_send_t *app_req)
 			error("Error reading NON-EARL application request\n");
 			return DISCONNECT;
 		}else{    
+			if (ret == 0) return DISCONNECT;
 			/* If we have read something different, we read in non blocking mode */
 			orig_flags = fcntl(fd_in, F_GETFD);
 		    if (orig_flags<0){
@@ -493,10 +497,12 @@ void app_api_process_request(int fd_in)
 			ear_set_gpufreqlist(fd_out,app_req.send_data.gpu_freq_list.gpu_freq);	
 			break;
 	case INVALID_COMMAND:
-		verbose(0,"PANIC, invalid command received and not recognized\n");
+		verbose(VAPP_API,"PANIC, invalid command received and not recognized\n");
+		close_connection(fd_in,fd_out);
 		break;
 	default:
-		verbose(0,"PANIC, non-earl command received and not recognized\n");
+		verbose(VAPP_API,"PANIC, non-earl command received and not recognized\n");
+		close_connection(fd_in,fd_out);
 		break;
 	}
 	
@@ -540,9 +546,9 @@ void *eard_non_earl_api_service(void *noinfo)
 	rfds_basic=rfds;
 
 	/* Wait for messages */
-	verbose(0,"Waiting for non-earl requestst\n");
+	verbose(VAPP_API,"Waiting for non-earl requestst\n");
 	while ((eard_must_exit==0) && (numfds_ready=select(numfds_req,&rfds,NULL,NULL,NULL))>=0){
-		verbose(0,"New APP_API connections");
+		verbose(VAPP_API,"New APP_API connections");
 		if (numfds_ready>0){
 			for (i=0;i<numfds_req;i++){
 				if (FD_ISSET(i,&rfds)){

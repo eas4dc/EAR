@@ -28,12 +28,8 @@
 #define MODEL_HASWELL_X				63 // Also 0x3F (extended 3, model F)
 #define MODEL_BROADWELL_X			79 // Also 0x4F (extended 4, model F)
 #define MODEL_SKYLAKE_X				85 // Also 0x55 (extended 5, model 5)
-#define MODEL_CASCADE_LAKE_X		85
-#define MODEL_COOPER_LAKE_X			85
-#define MODEL_HEWITT_LAKE_X			86
-#define MODEL_XEON_D_X				86
-#define MODEL_KNIGHTS_LANDING_MIC	87
-#define MODEL_KNIGHTS_MILL_MIC		133
+#define MODEL_ICELAKE_X             106
+#define MODEL_TIGERLAKE_U           140
 // https://en.wikichip.org/wiki/amd/cpuid
 #define FAMILY_BOBCAT				20
 #define FAMILY_BULLDOZER			21
@@ -73,6 +69,7 @@ struct tp_group_s
 typedef struct core_s
 {
 	int id;
+	int apicid;
 	int is_thread;      // If is the second thread in a core.
 	int l3_id;
 	int sibling_id;     // The thread sibling within a core.
@@ -95,6 +92,8 @@ typedef struct topology_s
 	int gpr_count;		// Number of general purpose registers.
 	int gpr_bits;		// General purpose registers bit width.
 	int nmi_watchdog;	// NMI watdog enabled.
+    int apicids_found;  // List of CPUs ApicId's found.
+    int initialized;    // 1 if the topology is initialized
 } topology_t;
 
 state_t topology_select(topology_t *t, topology_t *s, int component, int group, int val);

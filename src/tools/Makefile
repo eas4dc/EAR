@@ -8,9 +8,12 @@ tool_BINS = \
     coeffs_show \
     coeffs_default \
     coeffs_null \
+    ear_conf
+ifdef DB_BASE
+tool_BINS += \
     learning_show \
-    learning_delete \
-		ear_conf
+    learning_delete
+endif
 ifdef GSL_BASE
 tool_BINS += \
 	coeffs_compute

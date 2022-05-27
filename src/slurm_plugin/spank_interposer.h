@@ -71,8 +71,26 @@ enum erun_context {
 typedef int spank_context_t;
 
 enum spank_item {
-	S_JOB_ID,
-	S_JOB_STEPID,
+    S_JOB_UID,
+    S_JOB_GID,
+    S_JOB_ID,
+    S_JOB_STEPID,
+    S_JOB_NNODES,
+    S_JOB_NODEID,
+    S_JOB_LOCAL_TASK_COUNT,
+    S_JOB_TOTAL_TASK_COUNT,
+    S_JOB_NCPUS,
+    S_TASK_ID,
+    S_TASK_GLOBAL_ID,
+    S_TASK_PID,
+    S_SLURM_VERSION,
+    S_SLURM_VERSION_MAJOR,
+    S_SLURM_VERSION_MINOR,
+    S_SLURM_VERSION_MICRO,
+    S_STEP_CPUS_PER_TASK,
+    S_STEP_ALLOC_CORES,
+    S_JOB_ALLOC_MEM,
+    S_SLURM_RESTART_COUNT,
 	S_TASK_EXIT_STATUS,
 };
 

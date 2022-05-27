@@ -40,11 +40,11 @@
 #include <common/messaging/msg_internals.h>
 
 
-int eards_remote_connected=0;
+int remote_connected=0;
 int eards_sfd=-1;
 
 // 2000 and 65535
-#define DAEMON_EXTERNAL_CONNEXIONS 1
+#define DAEMON_EXTERNAL_CONNEXIONS 10
 
 
 int _read(int fd, void *data, size_t ssize)
@@ -69,7 +69,7 @@ int _read(int fd, void *data, size_t ssize)
             if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) tries++;
             else {	
                 must_abort = 1;
-                error("_read: Error sending command to eard %s,%d", strerror(errno), errno);
+                verbose(VAPI, "_read: Error sending command to eard %s,%d", strerror(errno), errno);
             }
         }else if (ret == 0) {
             debug("_read: read returns 0 bytes");
@@ -78,7 +78,7 @@ int _read(int fd, void *data, size_t ssize)
 	} while ((tries < MAX_SOCKET_COMM_TRIES) && (to_read > 0) && (must_abort == 0)); //still pending to send and hasn't tried more than MAX_TRIES
 
 	if (tries >= MAX_SOCKET_COMM_TRIES) { 
-        debug("_read: tries reached in send %d", tries); 
+        debug("_read: tries reached in read%d", tries); 
     }
 
 	/* If there are bytes left to send, we return a 0 */
@@ -112,7 +112,7 @@ int _write(int fd, void *data, size_t ssize)
             if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) tries++;
             else {	
                 must_abort = 1;
-                error("_write: Error sending command to eard %s,%d", strerror(errno), errno);
+                verbose(VAPI, "_write: Error sending command to eard %s,%d", strerror(errno), errno);
             }
         }else if (ret == 0) {
             debug("_write: send returns 0 bytes");
@@ -210,7 +210,9 @@ int wait_for_client(int s,struct sockaddr_in *client)
 	}
 
     char conection_ok = 1;
+    debug("connection received");
     _write(new_sock, &conection_ok, sizeof(char));
+    debug("handshake sent");
 
     verbose(VCONNECT, "Sending handshake byte to client.");
 	verbose(VCONNECT, "new connection ");
@@ -223,7 +225,6 @@ void close_server_socket(int sock)
 	close(sock);
 }
 
-#if DYNAMIC_COMMANDS
 int read_command(int s, request_t *command)
 {
     request_header_t head;
@@ -245,14 +246,12 @@ int read_command(int s, request_t *command)
     memcpy(command, tmp_command, sizeof(internal_request_t));
     aux_size += sizeof(internal_request_t);
 
-#if NODE_PROP
     if (command->nodes > 0)
     {
         command->nodes = calloc(command->num_nodes, sizeof(int)); //this will be freed in propagate_data since it's the last point where it is needed and the common point in all requests
         memcpy(command->nodes, &tmp_command[aux_size], command->num_nodes * sizeof(int));
         aux_size += command->num_nodes * sizeof(int);
     }
-#endif
 
     //there is still data pending to read
     if (head.size > aux_size)
@@ -286,46 +285,6 @@ int read_command(int s, request_t *command)
     return command->req;
 }
 
-#else
-
-int read_command(int s, request_t *command)
-{
-    request_header_t head;
-    char *tmp_command;
-
-
-    head = receive_data(s, (void **)&tmp_command);
-    debug("read_command:received command type %d\t size: %u \t sizeof req: %lu", head.type, head.size, sizeof(request_t));
-
-    if (head.type != EAR_TYPE_COMMAND || head.size < sizeof(request_t))
-    {
-        debug("read_command:NO_COMMAND");
-        command->req = NO_COMMAND;
-        if (head.size > 0) free(tmp_command);
-        return EAR_SOCK_DISCONNECTED;
-        return command->req;
-    }
-    memcpy(command, tmp_command, sizeof(request_t));
-
-    if (head.size > sizeof(request_t))
-    {
-        if (command->req == EAR_RC_SET_POWERCAP_OPT)
-        {
-            debug("read_command:received powercap_opt");
-            size_t offset = command->my_req.pc_opt.num_greedy * sizeof(int);
-            command->my_req.pc_opt.greedy_nodes = calloc(command->my_req.pc_opt.num_greedy, sizeof(int));
-            command->my_req.pc_opt.extra_power = calloc(command->my_req.pc_opt.num_greedy, sizeof(int));
-            memcpy(command->my_req.pc_opt.greedy_nodes, &tmp_command[sizeof(request_t)], offset);
-            memcpy(command->my_req.pc_opt.extra_power, &tmp_command[sizeof(request_t) + offset], offset);
-        }
-    }
-
-    free(tmp_command);
-
-    return command->req;
-}
-#endif
-
 void send_answer(int s,long *ack)
 {
     int ret;
@@ -333,7 +292,6 @@ void send_answer(int s,long *ack)
     if (ret < 0) error("(%s)", strerror(errno));
 }
 
-#if DYNAMIC_COMMANDS
 size_t get_command_size(request_t *command, char **data_to_send)
 {
     size_t size = sizeof(internal_request_t);
@@ -372,32 +330,42 @@ size_t get_command_size(request_t *command, char **data_to_send)
             size += sizeof(new_policy_cont_t); //new policy_conf
             break;
         case EAR_RC_NEW_JOB:
+        case EAR_RC_NEW_JOB_LIST:
             size += sizeof(new_job_req_t);
             break;
         case EAR_RC_END_JOB:
+        case EAR_RC_END_JOB_LIST:
             size += sizeof(end_job_req_t);
             break;
+        case EAR_RC_NEW_TASK:
+            size += sizeof(new_task_req_t);
+            break;
+        case EAR_RC_END_TASK:
+            size += sizeof(end_task_req_t);
+            break;
+		case EAR_RC_GET_POWERCAP_STATUS:
+			size += sizeof(int);
+			break;
         case EARGM_NEW_JOB:
         case EARGM_END_JOB:
+        case EARGM_INC_PC:
+        case EARGM_RED_PC:
+        case EARGM_RESET_PC:
             size += sizeof(eargm_req_t);
             break;
     }
  
-#if NODE_PROP
     if (command->num_nodes > 0)
     {
         size += command->num_nodes * sizeof(int);
         aux_size = command->num_nodes * sizeof(int);
     }
-#endif
 
     //copy the original command
     command_b = calloc(1, size);
     memcpy(command_b, command, sizeof(internal_request_t)); //the first portion of request_t and internal_request_t align
-#if NODE_PROP
     debug("get_command_size:copying nodes (%d num_nodes)", command->num_nodes);
     memcpy(&command_b[sizeof(internal_request_t)], command->nodes, aux_size); //copy the nodes to propagate to
-#endif
 
     aux_size += sizeof(internal_request_t); //aux_size holds the position we have to start writing from
 
@@ -422,41 +390,6 @@ size_t get_command_size(request_t *command, char **data_to_send)
     return size;
 
 }
-#else
-size_t get_command_size(request_t *command, char **data_to_send)
-{
-    size_t size = sizeof(request_t);
-    size_t offset = 0;
-    char *command_b;
-
-
-		#if POWERCAP
-    switch(command->req)
-    {
-        case EAR_RC_SET_POWERCAP_OPT:
-            size += command->my_req.pc_opt.num_greedy * sizeof(int) * 2;
-            offset = command->my_req.pc_opt.num_greedy * sizeof(int);
-            break;
-    }
-		#endif
-
-    //copy the original command
-    command_b = calloc(1, size);
-    memcpy(command_b, command, sizeof(request_t));
-		#if POWERCAP
-    switch(command->req)
-    {
-        case EAR_RC_SET_POWERCAP_OPT:
-            memcpy(&command_b[sizeof(request_t)], command->my_req.pc_opt.greedy_nodes, offset);
-            memcpy(&command_b[sizeof(request_t) + offset], command->my_req.pc_opt.extra_power, offset);
-            break;
-    }
-		#endif
-
-    *data_to_send = command_b; 
-    return size;
-}
-#endif
 
 // Sends a command to eard
 int send_command(request_t *command)
@@ -473,7 +406,7 @@ int send_command(request_t *command)
     
     if (send_non_block_data(eards_sfd, command_size, command_b, EAR_TYPE_COMMAND) != EAR_SUCCESS)
     {
-        error("send_command: Error sending command");
+        verbose(VAPI, "send_command: Error sending command");
         free(command_b);
         return 0;
     }
@@ -483,7 +416,7 @@ int send_command(request_t *command)
 
 	ret = _read(eards_sfd, &ack, sizeof(ulong)); //read ack
 	if (ret<0){
-		error("send_command: Error receiving ack %s",strerror(errno));
+		verbose(VAPI, "send_command: Error receiving ack %s", strerror(errno));
 	}
 	else if (ret!=sizeof(ulong)) {
 		debug("send_command: Error receiving ack: expected %lu ret %d",sizeof(ulong),ret);
@@ -507,7 +440,7 @@ int send_non_block_data(int fd, size_t size, char *data, int type)
     ret = _write(eards_sfd, &head, sizeof(request_header_t));
 
     if (ret < sizeof(request_header_t)) {
-        error("send_non_block_data:error sending request_header in non_block command");
+        verbose(VAPI, "send_non_block_data:error sending request_header in non_block command");
         return 0;
     }
 
@@ -561,7 +494,7 @@ request_header_t receive_data(int fd, void **data)
     ret = _read(fd, &head, sizeof(request_header_t));
     debug("receive_data: values read: type %d size %u", head.type, head.size);
     if (ret < 0) {
-        error("receive_data: Error recieving response data header (%s) ", strerror(errno));
+        verbose(VAPI, "receive_data: Error recieving response data header (%s) ", strerror(errno));
         head.type = EAR_ERROR;
         head.size = 0;
         return head;
@@ -588,7 +521,7 @@ request_header_t receive_data(int fd, void **data)
     ret = _read(fd, read_data, head.size);
 	if (ret < head.size) 
     {
-		error("Error by receive data (%s)",strerror(errno));
+		verbose(VAPI, "Error by receive data (%s)", strerror(errno));
         if (ret > 0)
             free(read_data);
         head.type = EAR_ERROR;
@@ -615,7 +548,7 @@ int set_socket_block(int sfd, char blocking)
 }
 
 // based on getaddrinfo  man page
-int eards_remote_connect(char *nodename,uint port)
+int remote_connect(char *nodename,uint port)
 {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
@@ -623,7 +556,7 @@ int eards_remote_connect(char *nodename,uint port)
     int sfd, s;
     fd_set r_set, w_set;
 
-    /*if (eards_remote_connected){ 
+    /*if (remote_connected){ 
         debug("Connection already done!");
         return eards_sfd;
     }*/
@@ -736,15 +669,15 @@ int eards_remote_connect(char *nodename,uint port)
     memset(&timeout, 0, sizeof(struct timeval));
     setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, (void *)(&timeout), sizeof(timeout));
 
-	eards_remote_connected=1;
+	remote_connected=1;
 	eards_sfd=sfd;
 	return sfd;
 
 }
 
-int eards_remote_disconnect()
+int remote_disconnect()
 {
-	eards_remote_connected=0;
+	remote_connected=0;
     debug("normal disconnect, closing fd %d\n", eards_sfd);
 	close(eards_sfd);
 	return EAR_SUCCESS;
@@ -789,7 +722,7 @@ request_header_t correct_data_prop(int target_idx, int total_ips, int *ips, requ
         command->node_dist = current_idx - off_ip;
 
         //connect and send data
-        rc = eards_remote_connect(next_ip, port);
+        rc = remote_connect(next_ip, port);
         if (rc < 0)
         {
             debug("correct_data_prop:Error connecting to node: %s", next_ip);
@@ -810,10 +743,10 @@ request_header_t correct_data_prop(int target_idx, int total_ips, int *ips, requ
             if (head.type == EAR_ERROR)
             {
                 debug("propagate_req: Error propagating command to node %s", next_ip);
-                eards_remote_disconnect();
+                remote_disconnect();
                 head = correct_data_prop(current_idx, total_ips, ips, command, port, (void **)&temp_data);
             }
-            else eards_remote_disconnect();
+            else remote_disconnect();
         }
 
         if (head.size > 0 && head.type != EAR_ERROR)
@@ -866,7 +799,7 @@ void correct_error(int target_idx, int total_ips, int *ips, request_t *command, 
         command->node_dist = current_idx - off_ip;
 
         //connect and send data
-        rc = eards_remote_connect(next_ip, port);
+        rc = remote_connect(next_ip, port);
         if (rc < 0)
         {
             debug("correct_error:Error connecting to node: %s", next_ip);
@@ -877,15 +810,14 @@ void correct_error(int target_idx, int total_ips, int *ips, request_t *command, 
             if (!send_command(command)) 
             {
                 debug("correct_error: Error propagating command to node %s", next_ip);
-                eards_remote_disconnect();
+                remote_disconnect();
                 correct_error(current_idx, total_ips, ips, command, port);
             }
-            else eards_remote_disconnect();
+            else remote_disconnect();
         }
     }
 }
 
-#if NODE_PROP
 void correct_error_nodes(request_t *command, int self_ip, uint port)
 {
      
@@ -940,6 +872,7 @@ request_header_t correct_data_prop_nodes(request_t *command, int self_ip, uint p
         {
             if (command->nodes[i] == self_ip)
             {
+                debug("found node %d in list, removing it", self_ip);
                 command->num_nodes --;
                 command->nodes[i] = command->nodes[command->num_nodes];
                 command->nodes = realloc(command->nodes, sizeof(int) * command->num_nodes);
@@ -968,11 +901,11 @@ request_header_t correct_data_prop_nodes(request_t *command, int self_ip, uint p
         memcpy(tmp_command.nodes, &command->nodes[base_distance*i], max_ips*sizeof(int));
 
         //connect and send data
-        rc = eards_remote_connect(next_ip, port);
+        rc = remote_connect(next_ip, port);
         if (rc < 0)
         {
-            error("correct_data_prop_nodes: Error connecting to node: %s\n", next_ip);
-            head = correct_data_prop_nodes(&tmp_command, self_ip, port, (void **)&temp_data);
+            verbose(VAPI, "correct_data_prop_nodes: Error connecting to node: %s\n", next_ip);
+            head = correct_data_prop_nodes(&tmp_command, command->nodes[base_distance * i], port, (void **)&temp_data);
         }
         else
         {
@@ -980,20 +913,19 @@ request_header_t correct_data_prop_nodes(request_t *command, int self_ip, uint p
             head = receive_data(rc, (void **)&temp_data);
             if ((head.size) < 1 || head.type == EAR_ERROR)
             {
-                error("correct_data_prop_nodes: Error propagating command to node %s\n", next_ip);
-                eards_remote_disconnect();
-                head = correct_data_prop_nodes(&tmp_command, self_ip, port, (void **)&temp_data);
+                verbose(VAPI, "correct_data_prop_nodes: Error propagating command to node %s\n", next_ip);
+                remote_disconnect();
+                head = correct_data_prop_nodes(&tmp_command, command->nodes[base_distance * i], port, (void **)&temp_data);
             }
-            else eards_remote_disconnect();
+            else remote_disconnect();
         }
 
         if (head.size > 0 && head.type != EAR_ERROR)
         {
-            default_type = head.type;
-            final_data = realloc(final_data, final_size + head.size);
-            memcpy(&final_data[final_size], temp_data, head.size);
-            final_size += head.size;
+            head = process_data(head, (char **)&temp_data, (char **)&final_data, final_size);
             free(temp_data);
+            final_size = head.size;
+            default_type = head.type;
         }
 
         free(tmp_command.nodes);
@@ -1016,9 +948,7 @@ request_header_t correct_data_prop_nodes(request_t *command, int self_ip, uint p
 
 }
 
-#endif
 
-#if NODE_PROP
 
 #define MAX_PROP_DEPTH 3
 /* Calculates the "ideal" amount of nodes a node will comunicate to. See send_command_nodes for
@@ -1064,12 +994,13 @@ void internal_send_command_nodes(request_t *command, int port, int base_distance
     request_t tmp_command;
 
     memcpy(&tmp_command, command, sizeof(request_t));
-		#if SHOW_DEBUGS
-		for (i = 0; i < command->num_nodes;i++){
-			temp.sin_addr.s_addr = command->nodes[i];
-			debug("Node %i : %s",i,inet_ntoa(temp.sin_addr));
-		}
-		#endif
+#if SHOW_DEBUGS
+    for (i = 0; i < command->num_nodes;i++){
+        temp.sin_addr.s_addr = command->nodes[i];
+        debug("Node %i : %s",i,inet_ntoa(temp.sin_addr));
+    }
+#endif
+
 
     for (i = 0; i < num_sends; i++)
     {
@@ -1090,7 +1021,7 @@ void internal_send_command_nodes(request_t *command, int port, int base_distance
 
         memcpy(tmp_command.nodes, &command->nodes[base_distance*i], max_ips*sizeof(int));
 
-        rc=eards_remote_connect(next_ip, port);
+        rc=remote_connect(next_ip, port);
         if (rc<0){
             debug("internal_send_command_nodes: Error connecting with node %s, trying to correct it", next_ip);
             correct_error_nodes(&tmp_command, command->nodes[base_distance*i], port);
@@ -1099,10 +1030,10 @@ void internal_send_command_nodes(request_t *command, int port, int base_distance
             debug("internal_send_command_nodes: Node %s with %d num_nodes contacted!", next_ip, tmp_command.num_nodes);
             if (!send_command(&tmp_command)) {
                 debug("internal_send_command_nodes: Error sending command to node %s, trying to correct it", next_ip);
-                eards_remote_disconnect();
+                remote_disconnect();
                 correct_error_nodes(&tmp_command, command->nodes[i*base_distance], port);
             }
-            else eards_remote_disconnect();
+            else remote_disconnect();
         }
         free(tmp_command.nodes);
         tmp_command.num_nodes = 0;
@@ -1123,7 +1054,7 @@ void send_command_nodelist(request_t *command, cluster_conf_t *my_cluster_conf)
      * D will receive D E F, and G will only receive themselves. */
     base_distance = get_max_prop_group(NUM_PROPS, MAX_PROP_DEPTH, command->num_nodes);
     num_sends = command->num_nodes / base_distance; //number of nodes this function will comunicate with
-		if (command->num_nodes % base_distance) num_sends++;
+    if (command->num_nodes % base_distance) num_sends++;
     debug("sending command with %d nodes, %d base_distance and %d num_sends", command->num_nodes, base_distance, num_sends);
 
     /* Inner functionality for initial communication has been moved to its own function to avoid code replication */
@@ -1146,7 +1077,8 @@ request_header_t internal_data_nodes(request_t *command, int port, int base_dist
 
     memcpy(&tmp_command, command, sizeof(request_t));
     if (base_distance < 1) base_distance = 1; //if there is only 1 or 2 nodes
-    for (i = 0; i < NUM_PROPS; i++)
+    debug("entering internal_data_nodes with %d base_distance and %d num_sends", base_distance, num_sends);
+    for (i = 0; i < num_sends; i++)
     {
         if (base_distance * i >= command->num_nodes) break;
         //prepare next node data
@@ -1164,10 +1096,10 @@ request_header_t internal_data_nodes(request_t *command, int port, int base_dist
         memcpy(tmp_command.nodes, &command->nodes[base_distance*i], max_ips*sizeof(int));
 
         //connect and send data
-        rc = eards_remote_connect(next_ip, port);
+        rc = remote_connect(next_ip, port);
         if (rc < 0)
         {
-            error("correct_data_prop_nodes: Error connecting to node: %s\n", next_ip);
+            verbose(VAPI, "correct_data_prop_nodes: Error connecting to node: %s\n", next_ip);
             head = correct_data_prop_nodes(&tmp_command, command->nodes[base_distance * i], port, (void **)&temp_data);
         }
         else
@@ -1176,20 +1108,19 @@ request_header_t internal_data_nodes(request_t *command, int port, int base_dist
             head = receive_data(rc, (void **)&temp_data);
             if ((head.size) < 1 || head.type == EAR_ERROR)
             {
-                error("correct_data_prop_nodes: Error propagating command to node %s\n", next_ip);
-                eards_remote_disconnect();
+                verbose(VAPI, "correct_data_prop_nodes: Error propagating command to node %s\n", next_ip);
+                remote_disconnect();
                 head = correct_data_prop_nodes(&tmp_command, command->nodes[base_distance*i], port, (void **)&temp_data);
             }
-            else eards_remote_disconnect();
+            else remote_disconnect();
         }
 
         if (head.size > 0 && head.type != EAR_ERROR)
         {
-            default_type = head.type;
-            final_data = realloc(final_data, final_size + head.size);
-            memcpy(&final_data[final_size], temp_data, head.size);
-            final_size += head.size;
+            head = process_data(head, (char **)&temp_data, (char **)&final_data, final_size);
             free(temp_data);
+            final_size = head.size;
+            default_type = head.type;
         }
 
         free(tmp_command.nodes);
@@ -1229,13 +1160,13 @@ request_header_t data_nodelist(request_t *command, cluster_conf_t *my_cluster_co
      * D will receive D E F, and G will only receive themselves. */
     base_distance = get_max_prop_group(NUM_PROPS, MAX_PROP_DEPTH, command->num_nodes);
     num_sends = command->num_nodes / base_distance; //number of nodes this function will comunicate with
+    if (command->num_nodes % base_distance) num_sends++;
     debug("sending command with %d nodes, %d base_distance and %d num_sends", command->num_nodes, base_distance, num_sends);
 
     /* Inner functionality for initial communication has been moved to its own function to avoid code replication */
     head = internal_data_nodes(command, my_cluster_conf->eard.port, base_distance, num_sends, data);
     return head;
 }
-#endif
 
 void send_command_all(request_t command, cluster_conf_t *my_cluster_conf)
 {
@@ -1256,7 +1187,7 @@ void send_command_all(request_t command, cluster_conf_t *my_cluster_conf)
             temp.sin_addr.s_addr = ips[i][j];
             strcpy(next_ip, inet_ntoa(temp.sin_addr));
             
-            rc=eards_remote_connect(next_ip, my_cluster_conf->eard.port);
+            rc=remote_connect(next_ip, my_cluster_conf->eard.port);
             if (rc<0){
                 debug("Error connecting with node %s, trying to correct it", next_ip);
                 correct_error(j, ip_counts[i], ips[i], &command, my_cluster_conf->eard.port);
@@ -1265,10 +1196,10 @@ void send_command_all(request_t command, cluster_conf_t *my_cluster_conf)
                 debug("Node %s with distance %d contacted!", next_ip, command.node_dist);
                 if (!send_command(&command)) {
                     debug("Error sending command to node %s, trying to correct it", next_ip);
-                    eards_remote_disconnect();
+                    remote_disconnect();
                     correct_error(j, ip_counts[i], ips[i], &command, my_cluster_conf->eard.port);
                 }
-                else eards_remote_disconnect();
+                else remote_disconnect();
             }
             
         }
@@ -1280,9 +1211,12 @@ void send_command_all(request_t command, cluster_conf_t *my_cluster_conf)
 
 }
 
+#define MAX_CALLER_CONNECTIONS 50
+
 request_header_t data_all_nodes(request_t *command, cluster_conf_t *my_cluster_conf, void **data)
 {
-    int i, j, rc, total_ranges, final_size = 0, default_type = EAR_ERROR, num_sfds = 0, offset = 0;
+    int i, j, k, rc, total_ranges, final_size = 0, default_type = EAR_ERROR, num_sfds = 0, offset_send = 0, offset_read = 0;
+    int last_i_send, last_j_send, last_i_read, last_j_read;
     int **ips, *ip_counts, *sfds;
     struct sockaddr_in temp;
     request_header_t head;
@@ -1294,20 +1228,83 @@ request_header_t data_all_nodes(request_t *command, cluster_conf_t *my_cluster_c
     for (i = 0; i < total_ranges; i++)
         num_sfds += (ip_counts[i] < NUM_PROPS) ? ip_counts[i] : NUM_PROPS;
 
+    /* Section to prevent max_connections to be used at the same time (otherwise data may be lost) */
+    int iters = num_sfds/MAX_CALLER_CONNECTIONS;
+    if (num_sfds%MAX_CALLER_CONNECTIONS) iters += 1; //to prevent ranges of < MAX_CALLER_CONNECTIONS to not be sent, as well as 
+                                                    //avoiding the remainder ranges to not be contacted
+    last_i_send = last_j_send = 0;
+    last_i_read = last_j_read = 0;
+
+    debug("number of outer iterations %d (each of <= %d connections)", iters, MAX_CALLER_CONNECTIONS);
+
     sfds = calloc(num_sfds, sizeof(int));
 
-    for (i = 0; i < total_ranges; i++)
+    for (k = 0; k < iters; k++) 
     {
-        for (j = 0; j < ip_counts[i] && j < NUM_PROPS; j++, offset++)
+        for (i = last_i_send; i < total_ranges; i++)
         {
-            temp.sin_addr.s_addr = ips[i][j];
-            strcpy(next_ip, inet_ntoa(temp.sin_addr));
-            
-            rc=eards_remote_connect(next_ip, my_cluster_conf->eard.port);
-            if (rc<0){
-//               debug("data_all_nodes: Error connecting with node %s, trying to correct it", next_ip);
-//               debug("data_all_nodes: (node %s was %d in the current list of ips", next_ip, j);
-                head = correct_data_prop(j, ip_counts[i], ips[i], command, my_cluster_conf->eard.port, (void **)&temp_data);
+            /* for every range we connect to a maximum of NUM_PROPS connections. If we have MAX_CALLER_CONNECTIONS opened, we break out
+             * and start reading (to avoid taking too long from the first call to the first read, which could cause issues) */
+            for (j = last_j_send; j < ip_counts[i] && j < NUM_PROPS && offset_send < MAX_CALLER_CONNECTIONS*(k+1); j++, offset_send++)
+            {
+                temp.sin_addr.s_addr = ips[i][j];
+                strcpy(next_ip, inet_ntoa(temp.sin_addr));
+
+                rc=remote_connect(next_ip, my_cluster_conf->eard.port);
+                if (rc < 0){
+                    //debug("data_all_nodes: Error connecting with node %s, trying to correct it", next_ip);
+                    //debug("data_all_nodes: (node %s was %d in the current list of ips", next_ip, j);
+                    head = correct_data_prop(j, ip_counts[i], ips[i], command, my_cluster_conf->eard.port, (void **)&temp_data);
+
+                    if (head.size > 0 && head.type != EAR_ERROR)
+                    {
+                        head = process_data(head, (char **)&temp_data, (char **)&all_data, final_size);
+                        free(temp_data);
+                        final_size = head.size;
+                        default_type = head.type;
+                    }
+                }
+                else {
+                    debug("Node %s with distance %d contacted (fd %d)!", next_ip, command->node_dist, rc);
+                    sfds[offset_send] = rc;
+                    send_command(command);
+                }
+            }
+
+            if (offset_send == MAX_CALLER_CONNECTIONS*(k+1)) {
+                break; //break early to prevent i from incrementing
+            }
+            last_j_send = 0;
+        }
+
+        //store last position to come back to it later
+        last_i_send = i;
+        last_j_send = j;
+
+        debug("Finished sending to eards, now reading data\n\n");
+
+        for (i = last_i_read; i < total_ranges; i++)
+        {
+            for (j = last_j_read; j < ip_counts[i] && j < NUM_PROPS && offset_read < MAX_CALLER_CONNECTIONS*(k+1); j++, offset_read++)
+            {
+                if (sfds[offset_read] == 0) continue; // if the connection had failed we should have already corrected that in the previous loop 
+
+                head = receive_data(sfds[offset_read], (void **)&temp_data);
+                debug("received data from fd %d contacted with type %d and size %d", sfds[offset_read], head.type, head.size);
+                if (head.size < 1) 
+                {
+                    if (head.type == EAR_TYPE_APP_STATUS)
+                        default_type = head.type;
+                    else
+                        head.type = EAR_ERROR;
+                }
+                if (head.type == EAR_ERROR)
+                {
+                    debug("data_all_nodes:Error reading data from node %d in the list, trying to correct it", j);
+                    eards_remote_disconnect_fd(sfds[offset_read]);
+                    head = correct_data_prop(j, ip_counts[i], ips[i], command, my_cluster_conf->eard.port, (void **)&temp_data);
+                }
+                else eards_remote_disconnect_fd(sfds[offset_read]);
 
                 if (head.size > 0 && head.type != EAR_ERROR)
                 {
@@ -1317,52 +1314,20 @@ request_header_t data_all_nodes(request_t *command, cluster_conf_t *my_cluster_c
                     default_type = head.type;
                 }
             }
-            else{
-                debug("Node %s with distance %d contacted (fd %d)!", next_ip, command->node_dist, rc);
-                sfds[offset] = rc;
-                send_command(command);
+            if (offset_read == MAX_CALLER_CONNECTIONS*(k+1)) {
+                break; //break early to prevent i from incrementing
             }
+            last_j_read = 0;
+        }
+        //store last read position to come back to it later
+        last_i_read = i;
+        last_j_read = j;
+
+        if (last_i_read != last_i_send) {
+            debug("warning: last_i_read %d and last_i_send %d do not match!", last_i_read, last_i_send);
         }
     }
-
-    debug("Finished sending to eards, now reading data\n\n");
-
-    // reset offset to iterate through all the fds again
-    offset = 0;
-    for (i = 0; i < total_ranges; i++)
-    {
-        for (j = 0; j < ip_counts[i] && j < NUM_PROPS; j++, offset++)
-        {
-            if (sfds[offset] == 0) continue; // if the connection had failed we should have already corrected that in the previous loop 
-
-            head = receive_data(sfds[offset], (void **)&temp_data);
-            debug("received data from fd %d contacted with type %d and size %d", sfds[offset], head.type, head.size);
-            if (head.size < 1) 
-            {
-                if (head.type == EAR_TYPE_APP_STATUS)
-                    default_type = head.type;
-                else
-                    head.type = EAR_ERROR;
-            }
-            if (head.type == EAR_ERROR)
-            {
-                debug("data_all_nodes:Error reading data from node %d in the list, trying to correct it", j);
-                eards_remote_disconnect_fd(sfds[offset]);
-                head = correct_data_prop(j, ip_counts[i], ips[i], command, my_cluster_conf->eard.port, (void **)&temp_data);
-            }
-            else eards_remote_disconnect_fd(sfds[offset]);
-        
-            if (head.size > 0 && head.type != EAR_ERROR)
-            {
-                head = process_data(head, (char **)&temp_data, (char **)&all_data, final_size);
-                free(temp_data);
-                final_size = head.size;
-                default_type = head.type;
-            }
-            
-        }
-    }
-    debug("exiting data_all_nodes with %d num_sfds and %d offset\n", num_sfds, offset);
+    debug("exiting data_all_nodes with %d num_sfds and %d offset and %d iterations\n", num_sfds, offset_read, iters);
     head.size = final_size;
     head.type = default_type;
     *data = all_data;
@@ -1416,7 +1381,7 @@ char *mem_alloc_char_powercap_status(powercap_status_t *status)
 
     memcpy(&data[size], status->greedy_nodes, sizeof(int) * status->num_greedy);
     size += sizeof(int) * status->num_greedy;
-    
+
     memcpy(&data[size], status->greedy_data, sizeof(greedy_bytes_t) * status->num_greedy);
     size += sizeof(greedy_bytes_t) * status->num_greedy;
 
@@ -1431,7 +1396,7 @@ powercap_status_t *memmap_powercap_status(char *final_data, int *size)
     final_size = sizeof(powercap_status_t);
     status->greedy_nodes = (int *)&final_data[final_size];
     final_size += status->num_greedy*sizeof(int);
-               
+
     status->greedy_data = (greedy_bytes_t *)&final_data[final_size];
     final_size += status->num_greedy*sizeof(greedy_bytes_t);
 
@@ -1448,13 +1413,29 @@ request_header_t process_data(request_header_t data_head, char **temp_data_ptr, 
     head.type = data_head.type;
     switch(data_head.type)
     {
+        case EAR_TYPE_POWER_CHECK:
+            head.size = data_head.size;
+            if (final_data != NULL)
+            {
+                power_check_t *power = (power_check_t *)final_data; 
+                power_check_t *new_power = (power_check_t *)temp_data; 
+                power->power += new_power->power;
+                power->num_nodes += new_power->num_nodes;
+            }
+            else
+            {
+                final_data = realloc(final_data, final_size + data_head.size);
+                memcpy(&final_data[final_size], temp_data, data_head.size);
+                //cannot directly assign final_data = temp_data because the caller function (data_all_nodes) frees temp_data after passing through here
+            }
+            break;
         case EAR_TYPE_RELEASED:
             head.size = data_head.size;
             if (final_data != NULL)
             {
-               pc_release_data_t *released = (pc_release_data_t *)final_data; 
-               pc_release_data_t *new_released = (pc_release_data_t *)temp_data; 
-               released->released += new_released->released;
+                pc_release_data_t *released = (pc_release_data_t *)final_data; 
+                pc_release_data_t *new_released = (pc_release_data_t *)temp_data; 
+                released->released += new_released->released;
             }
             else
             {
@@ -1496,7 +1477,7 @@ request_header_t process_data(request_header_t data_head, char **temp_data_ptr, 
 
                 final_data = realloc(final_data, final_size);
                 memcpy(final_data, final_status, final_size);
-                
+
                 status = memmap_powercap_status(final_data, &final_size);
                 head.size = final_size;
                 free(final_status);
@@ -1512,12 +1493,12 @@ request_header_t process_data(request_header_t data_head, char **temp_data_ptr, 
                 //check if final_size == head.size??
 
             }
-        break;
+            break;
         default:
             final_data = realloc(final_data, final_size + data_head.size);
             memcpy(&final_data[final_size], temp_data, data_head.size);
             head.size = final_size + data_head.size;
-        break;
+            break;
     }
 
     *final_data_ptr = final_data;

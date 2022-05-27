@@ -20,7 +20,7 @@
 
 #include <management/imcfreq/imcfreq.h>
 
-state_t mgt_imcfreq_intel63_load(topology_t *tp, mgt_imcfreq_ops_t *ops);
+state_t mgt_imcfreq_intel63_load(topology_t *tp, mgt_imcfreq_ops_t *ops, my_node_conf_t *conf);
 
 state_t mgt_imcfreq_intel63_init(ctx_t *c);
 

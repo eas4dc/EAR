@@ -56,7 +56,7 @@
 #define BACKLOG             10
 #define TCP                 SOCK_STREAM
 #define UDP                 SOCK_DGRAM
-#define NON_BLOCK_TRYS      1000
+#define NON_BLOCK_TRYS      10000
 
 typedef struct socket {
 	struct addrinfo *info;

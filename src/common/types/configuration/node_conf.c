@@ -100,32 +100,44 @@ char island_range_conf_contains_node(node_island_t *node, char *nodename)
 */
 void copy_my_node_conf(my_node_conf_t *dest,my_node_conf_t *src)
 {
-	int i;
-	dest->cpus=src->cpus;
-	dest->island=src->island;
-	dest->max_pstate=src->max_pstate;
-	memcpy(dest->db_ip,src->db_ip,sizeof(src->db_ip));
-	memcpy(dest->db_sec_ip,src->db_sec_ip,sizeof(src->db_sec_ip));
-  if (src->coef_file == NULL)
+    int i;
+
+    dest->cpus=src->cpus;
+    dest->island=src->island;
+    dest->max_pstate=src->max_pstate;
+
+    memcpy(dest->db_ip, src->db_ip, sizeof(src->db_ip));
+    memcpy(dest->db_sec_ip, src->db_sec_ip, sizeof(src->db_sec_ip));
+
+    if (src->coef_file == NULL) {
         dest->coef_file="";
-  else{
-	    dest->coef_file=malloc(strlen(src->coef_file)+1);
-	    strcpy(dest->coef_file,src->coef_file);
-  }
-	dest->num_policies=src->num_policies;
-	dest->policies=(policy_conf_t *)malloc(src->num_policies*sizeof(policy_conf_t));
-	for (i=0;i<src->num_policies;i++){
-		copy_policy_conf(&dest->policies[i],&src->policies[i]);
-	}
-	dest->max_sig_power=src->max_sig_power;
-	dest->min_sig_power=src->min_sig_power;
-	dest->max_error_power=src->max_error_power;
-	dest->max_temp=src->max_temp;
-	dest->max_powercap=src->max_powercap;
-	dest->powercap=src->powercap;
-  dest->powercap_type=src->powercap_type;
-	dest->gpu_def_freq=src->gpu_def_freq;
-	
+    } else {
+        dest->coef_file = malloc(strlen(src->coef_file) + 1);
+        strcpy(dest->coef_file,src->coef_file);
+    }
+
+    dest->num_policies = src->num_policies;
+    dest->policies = (policy_conf_t *) malloc(src->num_policies * sizeof(policy_conf_t));
+
+    for (i = 0; i < src->num_policies; i++) {
+        copy_policy_conf(&dest->policies[i], &src->policies[i]);
+    }
+
+    dest->max_sig_power   = src->max_sig_power;
+    dest->min_sig_power   = src->min_sig_power;
+    dest->max_error_power = src->max_error_power;
+    dest->max_temp        = src->max_temp;
+    dest->max_powercap    = src->max_powercap;
+    dest->powercap        = src->powercap;
+    dest->powercap_type   = src->powercap_type;
+    dest->gpu_def_freq    = src->gpu_def_freq;
+    dest->cpu_max_pstate  = src->cpu_max_pstate;
+    dest->imc_max_pstate  = src->imc_max_pstate;
+    dest->imc_max_freq    = src->imc_max_freq;
+    dest->imc_min_freq    = src->imc_min_freq;
+
+    memcpy(dest->tag, src->tag, strlen(src->tag));
+
 }
 
 void print_node_conf(node_conf_t *my_node_conf)
@@ -133,39 +145,47 @@ void print_node_conf(node_conf_t *my_node_conf)
     int i;
     verbose(VCCONF,"-->cpus %u def_file: %s\n", my_node_conf->cpus, my_node_conf->coef_file);
     for (i = 0; i < my_node_conf->range_count; i++)
-        verbosen(VCCONF,"---->prefix: %s\tstart: %u\tend: %u\n", my_node_conf->range[i].prefix, my_node_conf->range[i].start, my_node_conf->range[i].end);
+        verbosen(VCCONF,"---->prefix: %s\tstart: %u\tend: %u\n", my_node_conf->range[i].prefix,
+                my_node_conf->range[i].start, my_node_conf->range[i].end);
 }
 
 void print_my_node_conf(my_node_conf_t *my_node_conf)
 {
     int i;
     if (my_node_conf!=NULL){
-        verbose(VCCONF,"My node: cpus %u max_pstate %lu island %u ip %s ",
-            my_node_conf->cpus,my_node_conf->max_pstate,my_node_conf->island,my_node_conf->db_ip);
-        if (my_node_conf->db_sec_ip!=NULL){
+        verbose(VCCONF,"My node: cpus %u max_pstate %lu island %u ip %s tag %s",
+                my_node_conf->cpus, my_node_conf->max_pstate,
+                my_node_conf->island, my_node_conf->db_ip, my_node_conf->tag);
+        if (my_node_conf->db_sec_ip!=NULL) {
             verbose(VCCONF,"sec_ip %s ",my_node_conf->db_sec_ip);
         }
-        if (my_node_conf->coef_file!=NULL){
+        if (my_node_conf->coef_file!=NULL) {
             verbose(VCCONF,"coeffs %s ",my_node_conf->coef_file);
         }
-        if (my_node_conf->energy_plugin != NULL && strlen(my_node_conf->energy_plugin) > 1)
-        {
+        if (my_node_conf->energy_plugin != NULL && strlen(my_node_conf->energy_plugin) > 1) {
             verbose(VCCONF,"energy_plugin %s ",my_node_conf->energy_plugin);
         }
-        if (my_node_conf->energy_model != NULL && strlen(my_node_conf->energy_model) > 1)
-        {
+        if (my_node_conf->energy_model != NULL && strlen(my_node_conf->energy_model) > 1) {
             verbose(VCCONF,"energy_model %s ",my_node_conf->energy_model);
         }
-        if (my_node_conf->powercap_plugin != NULL && strlen(my_node_conf->powercap_plugin) > 1)
-        {
+        if (my_node_conf->powercap_plugin != NULL && strlen(my_node_conf->powercap_plugin) > 1) {
             verbose(VCCONF,"powercap_plugin %s ",my_node_conf->powercap_plugin);
+        }
+        if (my_node_conf->powercap_gpu_plugin != NULL && strlen(my_node_conf->powercap_gpu_plugin) > 1) {
+            verbose(VCCONF,"powercap_gpu_plugin %s ",my_node_conf->powercap_gpu_plugin);
         }
         verbose(VCCONF,"\n");
         for (i=0;i<my_node_conf->num_policies;i++){
             print_policy_conf(&my_node_conf->policies[i]);
         }
     }
-	verbose(VCCONF,"max_sig_power %.0lf min_sig_power %.0lf error_power %.0lf\nmax_temp %lu powercap %ld max_powercap %ld powercap_type %d\ngpu_def_freq %lu\n",my_node_conf->max_sig_power,my_node_conf->min_sig_power,my_node_conf->max_error_power,my_node_conf->max_temp,my_node_conf->powercap,my_node_conf->max_powercap,my_node_conf->powercap_type,my_node_conf->gpu_def_freq);
+	verbose(VCCONF, "max_sig_power %.0lf min_sig_power %.0lf error_power %.0lf\nmax_temp %lu powercap"
+            " %ld max_powercap %ld powercap_type %d\ngpu_def_freq %lu / cpu_max_pstate %d / imc_max_pstate %d\n",
+            my_node_conf->max_sig_power, my_node_conf->min_sig_power,
+            my_node_conf->max_error_power, my_node_conf->max_temp, my_node_conf->powercap,
+            my_node_conf->max_powercap, my_node_conf->powercap_type,
+            my_node_conf->gpu_def_freq, my_node_conf->cpu_max_pstate, my_node_conf->imc_max_pstate);
+	verbose(VCCONF, "imc_max_freq %lu imc_min_freq %lu", my_node_conf->imc_max_freq, my_node_conf->imc_min_freq);
 }
 
 /** Converts from policy name to policy_id . Returns EAR_ERROR if error*/

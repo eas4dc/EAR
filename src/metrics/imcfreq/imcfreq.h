@@ -26,6 +26,29 @@
 #include <metrics/common/apis.h>
 #include <metrics/common/pstate.h>
 
+// The API
+//
+// This API is designed to get the uncore or integrated memory controllers
+// frequency.
+//
+// Props:
+// 	- Thread safe: yes.
+//	- Daemon API: yes.
+//  - Dummy API: yes.
+//  - Requires root: yes.
+//
+// Compatibility:
+//  -------------------------------------------------------------------------
+//  | Architecture    | F/M | Comp. | Granularity | System                  |
+//  -------------------------------------------------------------------------
+//  | Intel HASWELL   | 63  | v     | Socket/node | MSR                     |
+//  | Intel BROADWELL | 79  | v     | Socket/node | MSR                     |
+//  | Intel SKYLAKE   | 85  | v     | Socket/node | MSR                     |
+//  | Intel ICELAKE   | 106 | ?     | ?           | -                       |
+//  | AMD ZEN+/2      | 17h | v     | Socket/node | MGT IMCFREQ bypass      |
+//  | AMD ZEN3        | 19h | v     | Socket/node | MGT IMCFREQ bypass      |
+//  -------------------------------------------------------------------------
+
 typedef struct imcfreq_s {
 	timestamp_t time;
 	ulong freq; // KHz

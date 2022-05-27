@@ -15,90 +15,92 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+#include <pthread.h>
 #include <metrics/cache/cache.h>
-#include <metrics/cache/cpu/perf.h>
+#include <metrics/cache/archs/perf.h>
+#include <metrics/cache/archs/dummy.h>
 
-static struct cache_ops
-{
-	state_t (*init)			(ctx_t *c);
-	state_t (*dispose)		(ctx_t *c);
-	state_t (*reset)		(ctx_t *c);
-	state_t (*start)		(ctx_t *c);
-	state_t (*stop)			(ctx_t *c, llong *L1_misses, llong *LL_misses);
-	state_t (*read)			(ctx_t *c, llong *L1_misses, llong *LL_misses);
-	state_t (*data_print)	(ctx_t *c, llong  L1_misses, llong  LL_misses);
-} ops;
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static cache_ops_t ops;
+static uint init;
+static uint api;
 
-state_t cache_load(topology_t *tp)
+state_t cache_load(topology_t *tp, int eard)
 {
-	if (state_ok(cache_perf_status(tp)))
-	{
-		ops.init		= cache_perf_init;
-		ops.dispose		= cache_perf_dispose;
-		ops.reset		= cache_perf_reset;
-		ops.start		= cache_perf_start;
-		ops.stop		= cache_perf_stop;
-		ops.read		= cache_perf_read;
-		ops.data_print	= cache_perf_data_print;
-	} else {
-		return_msg(EAR_ERROR, Generr.api_incompatible);
+	while (pthread_mutex_trylock(&lock));
+	// Already initialized
+	if (api != API_NONE) {
+		return EAR_SUCCESS;
 	}
-
+	api = API_DUMMY;
+	if (state_ok(cache_perf_load(tp, &ops))) {
+		api = API_PERF;
+	}
+	cache_dummy_load(tp, &ops);
+	init = 1;
+	pthread_mutex_unlock(&lock);
 	return EAR_SUCCESS;
 }
 
-state_t cache_init()
+state_t cache_get_api(uint *api_in)
 {
-	preturn(ops.init, NULL);
-}
-
-state_t cache_dispose()
-{
-	preturn(ops.dispose, NULL);
-}
-
-state_t cache_reset()
-{
-	preturn(ops.reset, NULL);
-}
-
-state_t cache_start()
-{
-	preturn(ops.start, NULL);
-}
-
-/* This is an obsolete function to make metrics.c compatible. */
-static long long accum_L1_misses;
-static long long accum_LL_misses;
-
-state_t cache_stop(llong *L1_misses, llong *LL_misses)
-{
-	if (ops.stop != NULL) {
-		ops.stop(NULL, L1_misses, LL_misses);
-	}
-	accum_L1_misses += *L1_misses;
-    accum_LL_misses += *LL_misses;
+	*api_in = api;
 	return EAR_SUCCESS;
 }
 
-state_t cache_read(llong *L1_misses, llong *LL_misses)
+state_t cache_init(ctx_t *c)
 {
-	if (ops.read != NULL) {
-		ops.read(NULL, L1_misses, LL_misses);
+	while (pthread_mutex_trylock(&lock));
+	state_t s = ops.init(c);
+	pthread_mutex_unlock(&lock);
+	return s;
+}
+
+state_t cache_dispose(ctx_t *c)
+{
+	return ops.dispose(c);
+}
+
+state_t cache_read(ctx_t *c, cache_t *ca)
+{
+	return ops.read(c, ca);
+}
+
+// Helpers
+state_t cache_read_diff(ctx_t *c, cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs)
+{
+	state_t s;
+	if (state_fail(s = ops.read(c, ca2))) {
+		return s;
 	}
-	accum_L1_misses += *L1_misses;
-	accum_LL_misses += *LL_misses;
-	return EAR_SUCCESS;
+	return ops.data_diff(ca2, ca1, caD, gbs);
 }
 
-state_t cache_data_print(llong L1_misses, llong LL_misses)
+state_t cache_read_copy(ctx_t *c, cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs)
 {
-	preturn(ops.data_print, NULL, L1_misses, LL_misses);
+	state_t s;
+	if (state_fail(s = cache_read_diff(c, ca2, ca1, caD, gbs))) {
+		return s;
+	}
+	return ops.data_copy(ca1, ca2);
 }
 
-void get_cache_metrics(llong *L1_misses, llong *LL_misses)
+state_t cache_data_diff(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs)
 {
-	cache_read(L1_misses, LL_misses);
-	*L1_misses += accum_L1_misses;
-    *LL_misses += accum_LL_misses;
+	return ops.data_diff(ca2, ca1, caD, gbs);
+}
+
+state_t cache_data_copy(cache_t *dst, cache_t *src)
+{
+	return ops.data_copy(dst, src);
+}
+
+state_t cache_data_print(cache_t *caD, double gbs, int fd)
+{
+	return ops.data_print(caD, gbs, fd);
+}
+
+state_t cache_data_tostr(cache_t *caD, double gbs, char *buffer, size_t length)
+{
+	return ops.data_tostr(caD, gbs, buffer, length);
 }

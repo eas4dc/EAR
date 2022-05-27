@@ -31,8 +31,9 @@
 #include <common/output/verbose.h>
 #include <common/database/db_helper.h>
 #include <common/types/version.h>
-#include <common/types/log_eard.h>
+#include <daemon/log_eard.h>
 #include <common/types/configuration/cluster_conf.h>
+ #include <global_manager/log_eargmd.h>
 
 #if DB_MYSQL
 #include <mysql/mysql.h>
@@ -647,6 +648,15 @@ void event_type_to_str(int type, char *buff, size_t size)
         case POWERCAP_VALUE:
             strncpy(buff, "POWERCAP_VALUE", size);
             break;
+        case CLUSTER_POWER:
+            strncpy(buff, "CLUSTER_POWER", size);
+            break;
+        case NODE_POWERCAP:
+            strncpy(buff, "NODE_POWERCAP", size);
+            break;
+        case POWER_UNLIMITED:
+            strncpy(buff, "POWER_UNLIMITED", size);
+            break;
         default:
             snprintf(buff, size, "UNKNOWN(%d) ", type);
             break;
@@ -958,7 +968,6 @@ void print_all(PGconn *connection, int start_time, int end_time, char *inc_query
     {
         max_power = my_conf.tags[def_id].error_power;
     }   
-    int i;
     for (i = 0; i < my_conf.num_tags; i++)
         max_power = ear_max(my_conf.tags[i].error_power, max_power);
     
@@ -1197,7 +1206,7 @@ int main(int argc,char *argv[])
         }
     }
 
-    if (start_time == 0) start_time = end_time - MAX(my_conf.eard.period_powermon, my_conf.db_manager.insr_time)*4;
+    if (start_time == 0) start_time = end_time - MAX(my_conf.eard.period_powermon, my_conf.db_manager.aggr_time)*4;
     if (!all_users && !all_nodes && !all_tags && !all_eardbds && !global_energy && !report_events)
     {
         long long result = get_sum(connection, start_time, end_time, divisor);

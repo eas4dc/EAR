@@ -159,7 +159,7 @@ void set_ear_dynais_window_size(int size);
 void set_ear_learning(int learning);
 
 
-state_t read_config_env(char *var, const char* sched_env_var);
+state_t read_config_env(char **var, const char* sched_env_var);
 state_t read_config(uint *var, const char *config_var);
 
 

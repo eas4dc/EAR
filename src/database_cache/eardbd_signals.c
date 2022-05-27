@@ -51,24 +51,20 @@ void log_handler(cluster_conf_t *conf_clus, uint close_previous)
 	int fd_output = -1;
 
 	if (close_previous) {
-		close(fd_output);
+		log_close(fd_output);
 	}
 	// create_log also cleans old files
 	if (conf_clus->db_manager.use_log) {
 		if (server_iam) {
-			fd_output = create_log(conf_clus->install.dir_temp, "eardbd.server");
+			create_log(conf_clus->install.dir_temp, "eardbd.server", fd_output);
 		} else {
-			fd_output = create_log(conf_clus->install.dir_temp, "eardbd.mirror");
+			create_log(conf_clus->install.dir_temp, "eardbd.mirror", fd_output);
 		}
 	}
 	if (fd_output < 0) {
 		return;
 	}
 	// Setting file descriptors
-	VERB_SET_FD (fd_output);
-	WARN_SET_FD (fd_output);
-	ERROR_SET_FD(fd_output);
-	DEBUG_SET_FD(fd_output);
 	TIMESTAMP_SET_EN(conf_clus->db_manager.use_log);
 }
 
@@ -81,6 +77,7 @@ void signal_handler(int signal, siginfo_t *info, void *context)
 	if (signal == SIGUSR1) {
 		verb_who("signal SIGUSR1 received, switching verbosity to '%d'", verbosity);
 		verbosity   = (verbosity != 2) * 2;
+        verb_level  = verbosity;
 		updating    = 1;
 	}
 	// Log rotation signal

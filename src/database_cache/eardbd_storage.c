@@ -15,25 +15,33 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-//#define SOCKETS_DEBUG 1
+#define SOCKETS_DEBUG 0
 
 #include <database_cache/eardbd.h>
 #include <database_cache/eardbd_body.h>
 #include <database_cache/eardbd_sync.h>
 #include <database_cache/eardbd_signals.h>
 #include <database_cache/eardbd_storage.h>
-#if !EDB_OFFLINE
-#include <common/database/db_helper.h>
-#endif
+#include <report/report.h>
+extern report_id_t rid;
+
 
 #if EDB_OFFLINE
-	#define db_batch_insert_applications(a, b);
-	#define db_batch_insert_applications_no_mpi(a, b);
-	#define db_batch_insert_applications_learning(a, b);
-	#define db_batch_insert_loops(a, b);
-	#define db_batch_insert_periodic_metrics(a, b);
-	#define db_batch_insert_periodic_aggregations(a, b);
-	#define db_batch_insert_ear_event(a, b);
+	#define batch_insert_applications(a, b);
+	#define batch_insert_applications_no_mpi(a, b);
+	#define batchh_insert_applications_learning(a, b);
+	#define batch_insert_loops(a, b);
+	#define batch_insert_periodic_metrics(a, b);
+	#define batch_insert_periodic_aggregations(a, b);
+	#define batch_insert_ear_event(a, b);
+#else
+	#define batch_insert_applications(a, b)          report_applications(&rid, a, b);
+	#define batch_insert_applications_no_mpi(a, b)   report_applications(&rid, a, b);
+	#define batch_insert_applications_learning(a, b) report_applications(&rid, a, b);
+	#define batch_insert_loops(a, b)                 report_loops(&rid, a , b);
+	#define batch_insert_periodic_metrics(a, b)      report_periodic_metrics(&rid, a, b);
+	#define batch_insert_periodic_aggregations(a, b) report_misc(&rid, PERIODIC_AGGREGATIONS, (char *)a, b);
+	#define batch_insert_ear_event(a, b)             report_events(&rid, a , b);
 #endif
 
 #define EDB_SYNC_TYPE_ENERGY          0x001
@@ -118,7 +126,7 @@ void metrics_print()
 	int n = 0;
 	int i = 0;
 
-	print_line();
+	print_line(VL2);
 	// Counting samples
 	for (; i < EDB_NTYPES && n == 0; ++i) {
 		n += (samples_index[i] > 0);
@@ -126,7 +134,7 @@ void metrics_print()
 	// If there are samples then we can print
 	if (n > 0) {
 	//
-	tprintf_init(verb_channel, STR_MODE_DEF, "15 13 9 10 10");
+	tprintf_init_v2(VL2, STR_MODE_DEF, "15 13 9 10 10");
 	// Printing if there are more than 1 sample to insert per type.
 	tprintf("sample (%d)||recv/alloc||%%||t. insr||t. recv", mirror_iam);
 	tprintf("-----------||----------||--||-------||-------");
@@ -147,13 +155,20 @@ void metrics_print()
 				type_name[i], samples_index[i], type_alloc_len[i], percent, time_insert, time_recv);
 	}
 
-	verbose(0, "--");
+	verbose(VL2, "--");
 	}
 	//
-	verbose(0, "actv./accp. sockets: %u/%u", sockets_online, sockets_accepted);
-	verbose(0, "disc./tout. sockets: %u/%u", sockets_disconnected, sockets_timeout);
-	verbose(0, "recv. unknown samples: %u", sockets_timeout);
-	print_line();
+	verbose(VL2, "actv./accp. sockets: %u/%u", sockets_online, sockets_accepted);
+	verbose(VL2, "disc./tout. sockets: %u/%u", sockets_disconnected, sockets_timeout);
+	verbose(VL2, "recv. unknown samples: %u", sockets_timeout);
+	print_line(VL2);
+    // When empty
+    if (!verbosity) {
+        verbose(VL0, "Inserting APPS: %lu+%lu, LOOPS: %lu, EVENTS: %lu, POWERMON: %lu/%lu | Current sockets: %u", 
+            samples_index[0], samples_index[1], samples_index[3],
+            samples_index[4], samples_index[5], samples_index[6],
+            sockets_online); 
+    }
 
 	sockets_accepted     = 0;
 	sockets_disconnected = 0;
@@ -239,7 +254,7 @@ static void insert_apps_mpi(int i)
 		return;
 	}
 	insert_start(i);
-	s = db_batch_insert_applications((application_t *) type_chunk[i], samples_index[i]);
+	s = batch_insert_applications((application_t *) type_chunk[i], samples_index[i]);
 	insert_stop(i, s);
 }
 
@@ -250,7 +265,7 @@ static void insert_apps_non_mpi(int i)
 		return;
 	}
 	insert_start(i);
-	s = db_batch_insert_applications_no_mpi((application_t *) type_chunk[i], samples_index[i]);
+	s = batch_insert_applications_no_mpi((application_t *) type_chunk[i], samples_index[i]);
 	insert_stop(i, s);
 }
 
@@ -261,7 +276,7 @@ static void insert_apps_learning(int i)
 		return;
 	}
 	insert_start(i);
-	s = db_batch_insert_applications_learning((application_t *) type_chunk[i], samples_index[i]);
+	s = batch_insert_applications_learning((application_t *) type_chunk[i], samples_index[i]);
 	insert_stop(i, s);
 }
 
@@ -272,7 +287,7 @@ static void insert_loops(int i)
 		return;
 	}
 	insert_start(i);
-	s = db_batch_insert_loops((loop_t *) type_chunk[i], samples_index[i]);
+	s = batch_insert_loops((loop_t *) type_chunk[i], samples_index[i]);
 	insert_stop(i, s);
 }
 
@@ -283,7 +298,7 @@ static void insert_energy(int i)
 		return;
 	}
 	insert_start(i);
-	s = db_batch_insert_periodic_metrics((periodic_metric_t *) type_chunk[i], samples_index[i]);
+	s = batch_insert_periodic_metrics((periodic_metric_t *) type_chunk[i], samples_index[i]);
 	insert_stop(i, s);
 }
 
@@ -294,7 +309,7 @@ static void insert_aggregations(int i)
 		return;
 	}
 	insert_start(i);
-	s = db_batch_insert_periodic_aggregations((periodic_aggregation_t *) type_chunk[i], samples_index[i]);
+	s = batch_insert_periodic_aggregations((periodic_aggregation_t *) type_chunk[i], samples_index[i]);
 	reset_aggregations();
 	insert_stop(i, s);
 }
@@ -306,14 +321,15 @@ static void insert_events(int i)
 		return;
 	}
 	insert_start(i);
-	s = db_batch_insert_ear_event((ear_event_t *) type_chunk[i], samples_index[i]);
+	s = batch_insert_ear_event((ear_event_t *) type_chunk[i], samples_index[i]);
 	insert_stop(i, s);
 }
 
 void insert_hub(uint option, uint reason)
 {
-	verb_who("looking for possible DB insertion (type 0x%x, reason 0x%x)",
-				  option, reason);
+    if (verbosity >= 2) {
+	    verb_who("looking for possible DB insertion (type 0x%x, reason 0x%x)", option, reason);
+    }
 	// Why print is set before inserts?
 	metrics_print();
 	// Insert one by one samples

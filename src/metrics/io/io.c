@@ -23,15 +23,20 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 // #define SHOW_DEBUGS 1
+
+#if !SHOW_DEBUGS
+#define NDEBUG
+#endif
+
+#include <assert.h>
+
 #include <metrics/io/io.h>
 #include <common/states.h>
 #include <common/types/generic.h>
 #include <common/string_enhanced.h>
 #include <common/plugins.h>
 #include <common/output/verbose.h>
-
 
 state_t io_init(ctx_t *c,pid_t pid)
 {
@@ -72,20 +77,27 @@ static void assign_token_value(io_data_t *iodata,char *token,char *value)
 }
 state_t io_read(ctx_t *c, io_data_t *iodata)
 {
-	char line[256];	
-	char *token,*value;
-	fseek((FILE *)c->context,0L, SEEK_SET);
-	while (fgets(line, 256, (FILE *)c->context) != NULL)
-  {
-    token = strtok(line, ":");
-		if (token != NULL){
-			remove_chars(token,' ');
-			debug("token found %s",token);
-			value=strtok(NULL,"");
-			if (value != NULL){
+    char line[256];	
+    char *token,*value;
+
+    if (iodata == NULL) {
+        state_return(EAR_ERROR);
+    }
+
+    memset(iodata, 0, sizeof(io_data_t));
+
+    fseek((FILE *)c->context,0L, SEEK_SET);
+    while (fgets(line, 256, (FILE *)c->context) != NULL)
+    {
+        token = strtok(line, ":");
+        if (token != NULL){
+            remove_chars(token,' ');
+            debug("token found %s",token);
+			value = strtok(NULL,"");
+			if (value != NULL) {
 				remove_chars(value,' ');
 				debug("value %s",value);
-				assign_token_value(iodata,token,value);
+				assign_token_value(iodata, token, value);
 			}
 		}
 	}
@@ -114,7 +126,7 @@ state_t io_print(io_data_t *iodata)
 	char msg[512];
 	if (iodata == NULL) return_msg(EAR_BAD_ARGUMENT,Generr.input_null);
 	io_tostr(iodata,msg,sizeof(msg));
-	printf(msg);
+	printf("%s", msg);
 	state_return(EAR_SUCCESS);
 }
 
@@ -127,16 +139,34 @@ state_t io_tostr(io_data_t *iodata,char *msg,size_t len)
 
 state_t io_diff(io_data_t *diff,io_data_t *iodata_init,io_data_t *iodata_end)
 {
-	if ((diff == NULL) || ( iodata_init == NULL) || (iodata_end == NULL)) return_msg(EAR_BAD_ARGUMENT,Generr.input_null);
+	if ((diff == NULL) || ( iodata_init == NULL) || (iodata_end == NULL)) {
+        return_msg(EAR_BAD_ARGUMENT,Generr.input_null);
+    }
+
+    assert(iodata_end->rchar > iodata_init->rchar);
 	diff->rchar = iodata_end->rchar -  iodata_init->rchar;
+
+    assert(iodata_end->wchar > iodata_init->wchar);
 	diff->wchar = iodata_end->wchar -  iodata_init->wchar;
+
+    assert(iodata_end->syscr > iodata_init->syscr);
 	diff->syscr = iodata_end->syscr - iodata_init->syscr;
+
+    assert(iodata_end->syscw > iodata_init->syscw);
 	diff->syscw = iodata_end->syscw - iodata_init->syscw;
+
+    assert(iodata_end->read_bytes > iodata_init->read_bytes);
 	diff->read_bytes = iodata_end->read_bytes - iodata_init->read_bytes;
+
+    assert(iodata_end->write_bytes > iodata_init->write_bytes);
 	diff->write_bytes = iodata_end->write_bytes - iodata_init->write_bytes;
+
+    assert(iodata_end->cancelled > iodata_init->cancelled);
 	diff->cancelled = iodata_end->cancelled - iodata_init->cancelled;
+
 	state_return(EAR_SUCCESS);
 }
+
 /** Copies from src to dst */
 state_t io_copy(io_data_t *dst,io_data_t *src)
 {
@@ -153,3 +183,19 @@ state_t io_dispose(ctx_t *c)
 	state_return(EAR_SUCCESS);
 }
 
+state_t io_accum(ctx_t *c, io_data_t *dst, io_data_t *src)
+{
+    if ((dst == NULL) || (src == NULL)) {
+        return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
+    }
+
+	dst->rchar       += src->rchar      ;
+	dst->wchar       += src->wchar      ;
+	dst->syscr       += src->syscr      ;
+	dst->syscw       += src->syscw      ;
+	dst->read_bytes  += src->read_bytes ;
+	dst->write_bytes += src->write_bytes;
+	dst->cancelled   += src->cancelled  ;
+
+    state_return(EAR_SUCCESS);
+}

@@ -35,7 +35,7 @@ char s_log[64]		__attribute__ ((weak, unused));
 		time(&time_log); \
 		tm_log = localtime(&time_log); \
 		strftime(s_log, sizeof(s_log), "%c", tm_log); \
-		dprintf(channel, "%s:", s_log); \
+		dprintf(channel, "[%s] ", s_log); \
 	}
 
 #endif //EAR_VERBOSE_H

@@ -15,50 +15,32 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#ifndef _OUTCONF_H
-#define _OUTCONF_H
+#ifndef EAR_OUTCONF_H
+#define EAR_OUTCONF_H
 
-#define SHOW_WARNINGS  1
-#define SHOW_ERRORS     1
-#define SHOW_LOGS       1
+#define SHOW_WARNINGS 1
+#define SHOW_ERRORS   1
 
-/* EARD VERBOSE constants */
-/* Used in eard_rapi.h */
-#define VCONNECT 2
-#define VMSG    3
-/* Used in eard.c */
-#define VCONF   1
-#define VEARD   2
-/* Used in power monitoring */
-#define VNODEPMON   1
-#define VJOBPMON    1
-/* Used in dynamic_configuration */
-#define VRAPI 2
-/* Used in eard_api.c */
-#define VAPI    2
-/* Used in checkpoint */
-#define VCHCK 2
-
-
-/* USed in GM */
-#define VGM 0
-
-
-/* Used to print the cluster_conf */
-#define VCCONF 0
-#define VPRIV 0
-
-/* Used in base mysql library calls. */
-#define VMYSQL 0
-/* Used in db_helper.c */
-#define VDBH 0
-
-
-#define VMETRICS 3
-#define VTYPE   2
-#define VJOBINFO 1
-
-#define DYN_VERBOSE 2
-#define LRZ_VERBOSE_LEVEL 0
+#define VCONNECT  2 //eard_rapi.c
+#define VCONF     0 //eard.c
+#define VEARD     0 //eard.c
+#define VEARD_PC  1
+#define VEARD_INIT 0
+#define VEARD_NMGR 1
+#define VEARD_LAPI 2
+#define VNODEPMON 1 			// Node power monitoring
+#define VNODEPMON_BASIC 0   // Minimum Node power monitoring 
+#define VJOBPMON  1 			// Job accounting in power monitoring
+#define VJOBPMON_BASIC 0 	// Basic job accounting in power monitoring. Only new & end msg
+#define VRAPI     2 //dynamic_configuration
+#define VAPI      2 //eard_api.c
+#define VCHCK     2 //checkpoint
+#define VGM       0 //GM
+#define VGM_PC    0 //GM POWERCAP
+#define VCCONF    0 //cluster_conf
+#define VPRIV     0 //cluster_conf
+#define VMYSQL    0 //mysql
+#define VDBH      0 //db_helper.c
+#define VTYPE     2
 
 #endif

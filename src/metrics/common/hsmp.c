@@ -69,7 +69,6 @@ static pci_t     *pcis;
 static state_t unlock_msg(state_t s, char *msg)
 {
 	pthread_mutex_unlock(&lock);
-	debug("unloking with message %s", msg);
 	return_msg(s, msg);
 }
 
@@ -77,12 +76,13 @@ state_t hsmp_scan(topology_t *tp)
 {
 	state_t s;
 
+	if (tp->vendor == VENDOR_INTEL || tp->family < FAMILY_ZEN) {
+		return_msg(EAR_ERROR, Generr.api_incompatible);
+	}
+
 	while (pthread_mutex_trylock(&lock));
 	if (pcis != NULL) {
 		return unlock_msg(EAR_SUCCESS, "");
-	}
-	if (tp->vendor == VENDOR_INTEL || tp->family < FAMILY_ZEN) {
-		return_msg(EAR_ERROR, Generr.api_incompatible);
 	}
 	sockets_count = tp->socket_count;
 	// By now just ZEN2 and greater
@@ -116,7 +116,8 @@ static state_t smn_write(pci_t *pci, mailopt_t *opt, uint data)
 		debug("pci_write returned: %s (%d)", state_msg, s);
 		return s;
 	}
-	debug("PCI%d: written %u (%lu) in %s (%x)", pci->fd, data, opt->size, opt->name, opt->address);
+	debug("PCI%d: written %u (%lu) in %s (%lx)",
+		pci->fd, data, opt->size, opt->name, opt->address);
 	return EAR_SUCCESS;
 }
 
@@ -132,13 +133,14 @@ static state_t smn_read(pci_t *pci, mailopt_t *opt, uint *data)
 		debug("pci_write returned: %s (%d)", state_msg, s);
 		return s;
 	}
-	debug("PCI%d: readed %u (%lu) from %s (%x)", pci->fd, *data, opt->size, opt->name, opt->address);
+	debug("PCI%d: Readed %u (%lu) from %s (%lx)",
+		pci->fd, *data, opt->size, opt->name, opt->address);
 	return EAR_SUCCESS;
 }
 
 state_t hsmp_send(int socket, uint function, uint *args, uint *reps)
 {
-	struct timespec one_ms = { 0, 1000 * 1000};
+	struct timespec one_ms = { 0, 1000 * 1000 };
 	mailopt_t arg;
 	uint response;
 	uint timeout;
@@ -200,7 +202,7 @@ retry:
 	return unlock_msg(EAR_SUCCESS, "");
 }
 
-#if 0
+#if TEST
 int main(int argc, char *arg[])
 {
 	uint args0[1] = { -1 };
@@ -216,37 +218,65 @@ int main(int argc, char *arg[])
 
 	topology_init(&tp);
 
-	if (state_fail(s = hsmp_open(&tp))) {
+	if (state_fail(s = hsmp_scan(&tp))) {
 		serror("Failed during HSMP open");
 		return 0;
 	}
 
-	#if 0
+	printf("-------------------------------------------------------------------------------\n");
 	// Testing sockets
-	if (state_fail(s = hsmp_send(0, 0x01, args5, reps5))) {
+	args1[0] = 68;
+	reps1[0] = 0;
+
+	if (state_fail(s = hsmp_send(0, 0x01, args1, reps1))) {
 		serror("Failed during HSMP test");
 		return 0;
 	}
-	printf("Ping0 returned %d\n", reps5[0]);
-	
-	
-	hsmp_send(1, 0x01, args5, reps5);
-	printf("Ping1 returned %d\n", reps5[0]);
+	printf("Ping0 returned %d\n", reps1[0]);
+	printf("-------------------------------------------------------------------------------\n");
 	
 	// Getting firmware version
-	hsmp_send(0, 0x02, args0, reps5);
-	printf("Firmware returned %d\n", reps5[0]);
+	reps1[0] = 0;
+	
+	hsmp_send(0, 0x02, args0, reps1);
+	printf("Firmware returned %d\n", reps1[0]);
+	printf("-------------------------------------------------------------------------------\n");
 	
 	// Getting interface version
-	hsmp_send(0, 0x03, args0, reps5);
-	printf("Interface returned %d\n", reps5[0]);
+	reps1[0] = 0;
+	
+	hsmp_send(0, 0x03, args0, reps1);
+	printf("Interface returned %d\n", reps1[0]);
+	printf("-------------------------------------------------------------------------------\n");
+	
+	// Asking frequency
+	reps2[0] = 0;
+	reps2[0] = 0;
+		
+	hsmp_send(0, 0x0f, args0, reps2);
+	printf("Frequency get returned %d/%d\n", reps2[0], reps2[1]);
+	printf("-------------------------------------------------------------------------------\n");
+	
+	// Setting frequency
+	args1[0] = 0;
+		
+	hsmp_send(0, 0x0d, args1, reps0);
+	printf("Frequency set returned nothing\n", reps2[0], reps2[1]);
+	printf("-------------------------------------------------------------------------------\n");
+	
+	// Asking frequency
+	reps2[0] = 0;
+	reps2[0] = 0;
+		
+	hsmp_send(0, 0x0f, args0, reps2);
+	printf("Frequency get returned %d/%d\n", reps2[0], reps2[1]);
+	printf("-------------------------------------------------------------------------------\n");
 
+	#if 0	
 	// Enabling ABP
 	hsmp_send(0, 0x0e, args0, reps0);
 	printf("0x0e answered\n");
-	#endif	
 
-	// Asking frequency	
 	ullong freqs[4];
 	memset(freqs, 0, sizeof(ullong)*4);
 
@@ -264,6 +294,7 @@ int main(int argc, char *arg[])
 			j = 0;
 		}
 	}
+	#endif
 
 	return 0;
 }

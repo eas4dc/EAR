@@ -32,4 +32,7 @@ int plug_rcom_eard_job_finish(spank_t sp, plug_serialization_t *sd);
 int plug_rcom_eargmd_job_start(spank_t sp, plug_serialization_t *sd);
 int plug_rcom_eargmd_job_finish(spank_t sp, plug_serialization_t *sd);
 
+int plug_rcom_eard_task_start(spank_t sp, plug_serialization_t *sd);
+int plug_rcom_eard_task_finish(spank_t sp, plug_serialization_t *sd);
+
 #endif //EAR_SLURM_PLUGIN_REPORTS_H

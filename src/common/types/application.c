@@ -23,13 +23,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
+// #define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/system/file.h>
 #include <common/states.h>
-//#define SHOW_DEBUGS 1
 #include <common/output/debug.h>
 #include <common/output/verbose.h>
 #include <common/types/application.h>
+#include <common/output/debug.h>
 
 void init_application(application_t *app)
 {
@@ -114,14 +115,20 @@ int read_application_text_file(char *path, application_t **apps, char is_extende
     return i;
 }
 
-static int print_application_fd(int fd, application_t *app, int new_line, char is_extended)
+static int print_application_fd(int fd, application_t *app, int new_line, char is_extended, int single_column)
 {
     char buff[1024];
     sprintf(buff, "%s;", app->node_id);
     write(fd, buff, strlen(buff));
     print_job_fd(fd, &app->job);
     dprintf(fd, ";");
-    signature_print_fd(fd, &app->signature, is_extended);
+    if (app->signature.DRAM_power == 0) app->signature.DRAM_power = app->power_sig.DRAM_power;
+    if (app->signature.PCK_power == 0) app->signature.PCK_power = app->power_sig.PCK_power;
+    if (app->signature.DC_power == 0) app->signature.DC_power = app->power_sig.DC_power;
+    if (app->signature.avg_f == 0) app->signature.avg_f = app->power_sig.avg_f;
+    if (app->signature.def_f == 0) app->signature.def_f = app->power_sig.def_f;
+
+    signature_print_fd(fd, &app->signature, is_extended, single_column,',');
 
     if (new_line) {
         dprintf(fd, "\n");
@@ -130,10 +137,52 @@ static int print_application_fd(int fd, application_t *app, int new_line, char i
     return EAR_SUCCESS;
 }
 
-int append_application_text_file(char *path, application_t *app, char is_extended)
+int create_app_header(char * header, char *path, uint num_gpus, char is_extended, int single_column)
+{
+    char *HEADER_BASE = "NODENAME;JOBID;STEPID;USERID;GROUPID;JOBNAME;USER_ACC;ENERGY_TAG;POLICY;POLICY_TH;"\
+                        "AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;TIME_SEC;CPI;TPI;MEM_GBS;IO_MBS;PERC_MPI;DC_NODE_POWER_W;DRAM_POWER_W;"\
+                        "PCK_POWER_W;CYCLES;INSTRUCTIONS;CPU-GFLOPS";
+		char HEADER[1024];
+
+		/* If file already exists we will not add the header */
+		if (file_is_regular(path)) return EAR_SUCCESS;
+
+		if (header != NULL){ 
+			strncpy(HEADER, header, sizeof(HEADER));
+			strncat(HEADER, HEADER_BASE, sizeof(HEADER));
+		}else{
+			strncpy(HEADER, HEADER_BASE, sizeof(HEADER));
+		}
+
+    if (is_extended) {
+        char *ext_header = ";L1_MISSES;L2_MISSES;L3_MISSES;SPOPS_SINGLE;SPOPS_128;SPOPS_256;SPOPS_512;DPOPS_SINGLE;"\
+                           "DPOPS_128;DP_256;DPOPS_512";
+        xstrncat(HEADER, ext_header, strlen(ext_header));
+    }
+		debug("Creating header with %d GPUS", num_gpus);
+#if USE_GPUS
+		if (single_column) num_gpus = ear_min(num_gpus, 1);
+    for (int i = 0; i < num_gpus; i++){
+        char gpu_hdr[128];
+        xsnprintf(gpu_hdr, sizeof(gpu_hdr), ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC",
+                i+1, i+1, i+1, i+1, i+1);
+        xstrncat(HEADER, gpu_hdr, sizeof(gpu_hdr));
+    }
+#endif
+	  int fd = open(path, OPTIONS, PERMISSION);
+    if (fd >= 0) {
+    	dprintf(fd, "%s\n", HEADER);
+    }
+		close(fd);
+
+	return EAR_SUCCESS;
+}
+
+int append_application_text_file(char *path, application_t *app, char is_extended, int add_header, int single_column)
 {
     //lacking: NODENAME(node_id in loop_t), not linked to any loop
-    int fd, ret;
+    int fd;
+    #if 0
     char HEADER[1024] = "NODE_ID;JOB_ID;STEP_ID;USER_ID;GROUP_ID;APP_ID;USER_ACC;ENERGY_TAG;POLICY;POLICY_TH;"\
                         "AVG.CPUFREQ;AVG.IMCFREQ;DEF.FREQ;TIME;CPI;TPI;GBS;IO_MBS;P.MPI;DC-NODE-POWER;DRAM-POWER;"\
                         "PCK-POWER;CYCLES;INSTRUCTIONS;GFLOPS";
@@ -147,9 +196,9 @@ int append_application_text_file(char *path, application_t *app, char is_extende
     int num_gpus = app->signature.gpu_sig.num_gpus;
     for (int i = 0; i < num_gpus; i++){
         char gpu_hdr[128];
-        xsnprintf(gpu_hdr, strlen(gpu_hdr), ";GPU%d_POWER;GPU%d_FREQ;GPU%d_MEM_FREQ;GPU%d_UTIL;GPU%d_MEM_UTIL",
+        xsnprintf(gpu_hdr, sizeof(gpu_hdr), ";GPU%d_POWER;GPU%d_FREQ;GPU%d_MEM_FREQ;GPU%d_UTIL;GPU%d_MEM_UTIL",
                 i+1, i+1, i+1, i+1, i+1);
-        xstrncat(HEADER, gpu_hdr, strlen(gpu_hdr));
+        xstrncat(HEADER, gpu_hdr, sizeof(gpu_hdr));
     }
 #endif
 
@@ -176,12 +225,22 @@ int append_application_text_file(char *path, application_t *app, char is_extende
     if (fd < 0) {
         return EAR_ERROR;
     }
+		#endif
+		uint num_gpus = 0;
+#if USE_GPUS
+		num_gpus = app->signature.gpu_sig.num_gpus;
+#endif
+    if (add_header) create_app_header(NULL, path, num_gpus, is_extended, single_column);
+		fd = open(path, O_WRONLY | O_APPEND);
+    if (fd < 0)
+    {
+			return EAR_ERROR;
+		}
 
-    print_application_fd(fd, app, 1, is_extended);
+    print_application_fd(fd, app, 1, is_extended, single_column);
 
     close(fd);
 
-    if (ret < 0) return EAR_ERROR;
     return EAR_SUCCESS;
 }
 
@@ -252,7 +311,7 @@ void read_application_fd_binary(int fd,application_t *app)
 
 int print_application(application_t *app)
 {
-    return print_application_fd(STDOUT_FILENO, app, 1, 1);
+    return print_application_fd(STDOUT_FILENO, app, 1, 1, 0);
 }
 
 void verbose_gpu_app(uint vl,application_t *myapp)
@@ -268,7 +327,7 @@ void verbose_gpu_app(uint vl,application_t *myapp)
 #endif
 }
 
-void verbose_application_data(uint vl,application_t *app)
+void verbose_application_data(uint vl, application_t *app)
 {
     float avg_f = ((double) app->signature.avg_f) / 1000000.0;
     float avg_imc_f = ((double) app->signature.avg_imc_f) / 1000000.0;
@@ -288,7 +347,7 @@ void verbose_application_data(uint vl,application_t *app)
     strftime(etmpi, sizeof(etmpi), "%c", tmp);
 
 
-    verbose(vl,"----------------------------------- Application Summary[%s] --\n",app->node_id);
+    verbose(vl,"----------------------------------- Application Summary [%s] --\n",app->node_id);
     verbose(vl,"-- App id: %s, user id: %s, job id: %lu.%lu", app->job.app_id, app->job.user_id, app->job.id,app->job.step_id);
     verbose(vl,"   procs: %lu  acc %s\n", app->job.procs,app->job.user_acc);
     verbose(vl,"   start time %s end time %s start mpi %s end mpi %s\n",st,et,stmpi,etmpi);
@@ -319,25 +378,70 @@ void report_mpi_application_data(application_t *app)
     float avg_f = ((double) app->signature.avg_f) / 1000000.0;
     float avg_imc_f = ((double) app->signature.avg_imc_f) / 1000000.0;
     float def_f = ((double) app->job.def_f) / 1000000.0;
-    //float pavg_f = ((double) app->power_sig.avg_f) / 1000000.0;
-    //float pdef_f = ((double) app->power_sig.def_f) / 1000000.0;
 
-    verbose(VTYPE,"---------------------------------------------- Application Summary [%s] --\n",app->node_id);
-    verbose(VTYPE,"-- App id: %s, user id: %s, job id: %lu.%lu", app->job.app_id, app->job.user_id, app->job.id,app->job.step_id);
-    verbose(VTYPE,"   acc %s\n", app->job.user_acc);
-    if (app->is_mpi){
+#if NEW_APP_SUMMARY
+    char job_info_txt[1024];
+    snprintf(job_info_txt, sizeof(job_info_txt), "--- App id: %s / user id: %s / account: %s / job.step: %lu.%lu ---\n", app->job.app_id, app->job.user_id, app->job.user_acc, app->job.id, app->job.step_id);
 
-        verbose(VTYPE,"-- mpi_sig: E. time: %0.3lf (s), nom freq: %0.2f (MHz), avg freq: %0.2f (MHz), avg imc freq: %0.2f (MHz) ", app->signature.time, def_f, avg_f, avg_imc_f);
-        verbose(VTYPE,"\tAvg mpi_time/exec_time %.1lf %%\n",app->signature.perc_MPI);
-        verbose(VTYPE,"   tasks: %lu \n", app->job.procs);
-        verbose(VTYPE,"\tCPI/TPI: %0.3lf/%0.3lf, GB/s: %0.3lf, GFLOPS: %0.3lf,IO: %0.3lf (MB/s) ", app->signature.CPI, app->signature.TPI,
-                app->signature.GBS, app->signature.Gflops, app->signature.IO_MBS);
-        verbose(VTYPE,"  DC/DRAM/PCK power: %0.3lf/%0.3lf/%0.3lf (W) GFlops/Watts %.3lf\n", app->signature.DC_power, app->signature.DRAM_power,
-                app->signature.PCK_power,app->signature.Gflops/app->signature.DC_power);
+    char mpi_info_txt[512];
+    if (app->is_mpi) {
+        snprintf(mpi_info_txt, sizeof(mpi_info_txt), "(mpi_sig) Wall time: %0.3lf s, nominal freq.: %0.2f GHz, avg. freq: %0.2f GHz, avg imc freq: %0.2f GHz\n          Avg. mpi_time/exec_time %.1lf %%\n\n          tasks: %lu\n\n          CPI/TPI: %0.3lf/%0.3lf, GB/s: %0.3lf, GFLOPS: %0.3lf,IO: %0.3lf (MB/s)\n          DC/DRAM/PCK power: %0.3lf/%0.3lf/%0.3lf (W) GFlops/Watts %.3lf\n\n",
+                app->signature.time, def_f, avg_f, avg_imc_f, app->signature.perc_MPI, app->job.procs, app->signature.CPI, app->signature.TPI, app->signature.GBS, app->signature.Gflops, app->signature.IO_MBS, app->signature.DC_power, app->signature.DRAM_power, app->signature.PCK_power, app->signature.Gflops/app->signature.DC_power);
     }
-    verbose_gpu_app(VTYPE,app);
 
-    verbose(VTYPE,"-----------------------------------------------------------------------------------------------\n");
+    size_t max_str_len = strlen(job_info_txt);
+
+    char app_summ_hdr_txt[512];
+    snprintf(app_summ_hdr_txt, sizeof(app_summ_hdr_txt), " Application Summary [%s] ", app->node_id);
+
+    int app_summ_hdr_dec_len = (int)((max_str_len - strlen(app_summ_hdr_txt)) / 2);
+    char *app_summ_hdr_dec_txt = malloc(app_summ_hdr_dec_len + 1);
+    memset(app_summ_hdr_dec_txt, '-', app_summ_hdr_dec_len);
+    app_summ_hdr_dec_txt[app_summ_hdr_dec_len] = '\0';
+
+    verbose(VTYPE, "%s%s%s\n%s\n", app_summ_hdr_dec_txt, app_summ_hdr_txt, app_summ_hdr_dec_txt, job_info_txt);
+
+    free(app_summ_hdr_dec_txt);
+
+    if (app->is_mpi) {
+        verbose(VTYPE, "%s", mpi_info_txt);
+    }
+
+    verbose_gpu_app(VTYPE, app);
+
+    int app_summ_ftr_dec_len = (int)(strlen(app_summ_hdr_txt) + app_summ_hdr_dec_len * 2);
+    char *app_summ_ftr_dec = malloc(app_summ_ftr_dec_len + 1);
+    memset(app_summ_ftr_dec, '-', app_summ_ftr_dec_len);
+    app_summ_ftr_dec[app_summ_ftr_dec_len] = '\0';
+
+    verbose(VTYPE, "%s", app_summ_ftr_dec);
+
+    free(app_summ_ftr_dec);
+
+#else
+    verbose(VTYPE,"------------------------------------- Application Summary [%s] -----------------------------------\n", app->node_id);
+
+    verbose(VTYPE,"--- App id: %s / user id: %s / job.step id: %lu.%lu ---",
+            app->job.app_id, app->job.user_id, app->job.id, app->job.step_id);
+    verbose(VTYPE,"--- account: %s\n", app->job.user_acc);
+
+    if (app->is_mpi) {
+        verbose(VTYPE,"--- mpi_sig: E. time: %0.3lf (s), nom freq: %0.2f (GHz), avg freq: %0.2f (GHz), avg imc freq: %0.2f (GHz) ---",
+                app->signature.time, def_f, avg_f, avg_imc_f);
+        verbose(VTYPE,"             Avg. mpi_time/exec_time %.1lf %%\n", app->signature.perc_MPI);
+
+        verbose(VTYPE,"             tasks: %lu\n", app->job.procs);
+
+        verbose(VTYPE,"             CPI/TPI: %0.3lf/%0.3lf, GB/s: %0.3lf, GFLOPS: %0.3lf, IO: %0.3lf (MB/s)",
+                app->signature.CPI, app->signature.TPI, app->signature.GBS, app->signature.Gflops, app->signature.IO_MBS);
+        verbose(VTYPE,"             DC/DRAM/PCK power: %0.3lf/%0.3lf/%0.3lf (W) GFlops/Watts %.3lf\n",
+                app->signature.DC_power, app->signature.DRAM_power, app->signature.PCK_power, app->signature.Gflops/app->signature.DC_power);
+    }
+
+    verbose_gpu_app(VTYPE, app);
+
+    verbose(VTYPE,"--------------------------------------------------------------------------------------------------\n");
+#endif
 }
 
 void mark_as_eard_connected(int jid,int sid,int pid)

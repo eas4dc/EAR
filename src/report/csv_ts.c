@@ -14,13 +14,16 @@
  * use and EPL-1.0 license for commercial use. Full text of both licenses can be
  * found in COPYING.BSD and COPYING.EPL files.
  */
-
+//#define SHOW_DEBUGS 1
 #include <stdio.h>
 #include <common/config.h>
 #include <common/states.h>
 #include <common/types/types.h>
+#include <common/types/configuration/cluster_conf.h>
 #include <common/system/time.h>
 #include <common/output/verbose.h>
+#include <report/report.h>
+
 
 static char *csv_log_file_env;
 static char csv_loop_log_file[1024];
@@ -28,10 +31,13 @@ static char csv_log_file[1024];
 
 static ullong my_time = 0;
 
-state_t report_init()
+static uint must_report;
+state_t report_init(report_id_t *id, cluster_conf_t *cconf)
 {
     debug("eard report_init");
     char nodename[128];
+		if (id->master_rank >= 0 ) must_report = 1;
+		if (!must_report) return EAR_SUCCESS;
     gethostname(nodename, sizeof(nodename));
     strtok(nodename, ".");
 
@@ -48,21 +54,23 @@ state_t report_init()
     return EAR_SUCCESS;
 }
 
-state_t report_applications(application_t *apps, uint count)
+state_t report_applications(report_id_t *id,application_t *apps, uint count)
 {
     int i;
+    if (!must_report) return EAR_SUCCESS;
     debug("csv report_applications");
     if ((apps == NULL) || (count == 0)) return EAR_SUCCESS;
     for (i=0;i<count;i++){
-        append_application_text_file(csv_log_file,&apps[i],1);
+        append_application_text_file(csv_log_file,&apps[i],1, 1, 0);
     }
     return EAR_SUCCESS;
 }
 
-state_t report_loops(loop_t *loops, uint count)
+state_t report_loops(report_id_t *id,loop_t *loops, uint count)
 {
     int i;
     ullong currtime;
+    if (!must_report) return EAR_SUCCESS;
     debug("csv report_loops");
     // TODO: we could return EAR_ERROR
     if ((loops == NULL) || (count == 0)) return EAR_SUCCESS;
@@ -70,7 +78,7 @@ state_t report_loops(loop_t *loops, uint count)
     currtime = sec - my_time;
     for (i=0;i<count;i++){
         // TODO: we could return EAR_ERROR in case the below functions returns EAR_ERROR
-        append_loop_text_file_no_job_with_ts(csv_loop_log_file,&loops[i], currtime);
+        append_loop_text_file_no_job_with_ts(csv_loop_log_file,&loops[i], currtime, 1, 0, ' ');
     }
     return EAR_SUCCESS;
 }

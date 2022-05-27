@@ -30,9 +30,16 @@
 #define ONLY_MASTER         (FEAT_ONLY_MASTER || !MPI)
 
 // Database
-#define DB_MYSQL            @DB_MYSQL@
-#define DB_PSQL             @DB_PGSQL@
+#define DB_MYSQL            @FEAT_DB_MYSQL@
+#define DB_PSQL             @FEAT_DB_PGSQL@
+#define DB_IS(db)           (db)
 #define USE_DB              DB_MYSQL || DB_PSQL
+
+// Scheduler
+#define SCHED_SLURM         @FEAT_SCHED_SLURM@
+#define SCHED_PBS           @FEAT_SCHED_PBS@
+#define SCHED_IS(sched)     (sched)
+#define USE_SCHED           SCHED_SLURM || SCHED_PBS
 
 // Others
 #define RELEASE             "@PACKAGE_VERSION@"

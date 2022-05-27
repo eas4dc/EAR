@@ -31,7 +31,6 @@
 #include <library/policies/policy_ctx.h>
 #include <common/types/projection.h>
 #include <common/types/pc_app_info.h>
-#if POWERCAP
 extern pc_app_info_t *pc_app_info_data;
 static const ulong **gpu_freq_list;
 static const uint *gpu_freq_num;
@@ -194,4 +193,3 @@ void pc_support_compute_next_state(polctx_t *c,node_powercap_opt_t *pc,signature
     }
 #endif
 }
-#endif

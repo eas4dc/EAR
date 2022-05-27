@@ -23,51 +23,53 @@
 #include <common/utils/string.h>
 #include <common/utils/serial_buffer.h>
 
-#define psize_alloc(b) ((size_t *) &b->data[0]);
-#define psize_taken(b) ((size_t *) &b->data[sizeof(size_t)]);
-#define pelem_next(b)  ((size_t *) &b->data[sizeof(size_t)*2]);
-#define size_meta      sizeof(size_t)*3
+#define psize_alloc(b) (&b->size)
+#define psize_taken(b) ((size_t *) &b->data[0])
+#define pelem_next(b)  ((size_t *) &b->data[sizeof(size_t)])
+#define size_meta      (sizeof(size_t)*2)
 
-//  0: size alloc
-//  8: size taken
-// 16: elem next (pointer)
-// 24: data (first elem size + first elem)
+//  0: size taken
+//  8: elem next (pointer)
+// 16: data (first elem size + first elem)
 
 static void serial_debug(wide_buffer_t *b, char *from)
 {
+	#if SHOW_DEBUGS
 	size_t *size_alloc;
 	size_t *size_taken;
 	size_t *elem_next;
-	size_t size_data;
 	int i, j;
 
-	#if !SHOW_DEBUGS
-	return;
-	#endif
 
 	// Taking pointers from first bytes
 	size_alloc = psize_alloc(b);
 	size_taken = psize_taken(b);
 	elem_next  = pelem_next(b);
-	size_data  = *size_taken - size_meta;
-	
+
 	debug("Wide buffer content: (%s)", from);
-	debug("wide[00]: %llu (allocated)", *size_alloc);
-	debug("wide[08]: %llu (taken)",     *size_taken);
-	debug("wide[16]: %llu (elem)",      *elem_next);
-	debug("wide[xx]: %llu (data)",       size_data);
+	debug("alloc: %lu", *size_alloc);
+	debug("taken: %lu", *size_taken);
+	debug("next : %lu",  *elem_next);
 
 	// Printing first content
-	for (i = 0, j = 24; i < 8; ++i, j += 8) {
+	for (i = 0, j = 16; i < 8; ++i, j += 8) {
 		//debug("wide[%d]: %02hhx %02hhx %02hhx %02hhx %02hhx %02hhx %02hhx %02hhx", j,
-		debug("wide[%d]: %03hhu %03hhu %03hhu %03hhu %03hhu %03hhu %03hhu %03hhu", j,
+		debug("data[%d]: %03hhu %03hhu %03hhu %03hhu %03hhu %03hhu %03hhu %03hhu", j,
 			b->data[j+7], b->data[j+6], b->data[j+5], b->data[j+4],
 			b->data[j+3], b->data[j+2], b->data[j+1], b->data[j+0]);
 	}
 
 	unused(size_alloc);
-	unused(size_data);
 	unused(elem_next);
+	#endif
+}
+
+static size_t size_calc(size_t size_pow, size_t size)
+{
+	if (size_pow >= size) {
+		return size_pow;
+	}
+	return size_calc(size_pow*2, size);
 }
 
 static void serial_init(wide_buffer_t *b, size_t size)
@@ -76,13 +78,8 @@ static void serial_init(wide_buffer_t *b, size_t size)
 	size_t *size_taken;
 	size_t *elem_next;
 
-	if (b->data != NULL) {
-		return;
-	}
 	// Size meta + size first data size + size data
-	if ((size = size_meta + sizeof(size_t) + size) < 8192) {
-		size = 8192;
-	}
+	size    = size_calc(SIZE_1KB, size);
 	b->data = calloc(1, size);
 	// Taking pointers from first bytes
 	size_alloc  = psize_alloc(b);
@@ -99,6 +96,7 @@ static void serial_init(wide_buffer_t *b, size_t size)
 void serial_alloc(wide_buffer_t *b, size_t size)
 {
 	b->data = NULL;
+	b->size = 0;
 	serial_init(b, size);
 }
 
@@ -106,26 +104,33 @@ void serial_free(wide_buffer_t *b)
 {
 	free(b->data);
 	b->data = NULL;
+	b->size = 0;
 }
 
 void serial_resize(wide_buffer_t *b, size_t size)
 {
 	size_t *size_alloc;
 
-	// Init if required
-	serial_init(b, size);
 	// Resize does not counts current taken space
 	size_alloc = psize_alloc(b);
-	// Size meta + size data size + new data size taken
-	if ((size = (size_meta + sizeof(size_t) + size)) > *size_alloc) {
+	// Resize is for allocated big chunks, not for small expansions.
+	if (size > *size_alloc) {
+		size = size_calc(SIZE_1KB, size);
 		b->data = realloc(b->data, size);
-		// Recovering size_alloc
-		size_alloc = psize_alloc(b);
-		// New size
 		*size_alloc = size;
 	}
 	
 	serial_debug(b, "serial_resize");
+}
+
+static void serial_expand(wide_buffer_t *b, size_t size_new_elem)
+{
+	size_t *size_alloc = psize_alloc(b);
+	size_t *size_taken = psize_taken(b);
+
+	if ((*size_taken + size_new_elem + sizeof(size_t)) > *size_alloc) {
+		serial_resize(b, *size_taken + size_new_elem + sizeof(size_t));
+	}
 }
 
 void serial_clean(wide_buffer_t *b)
@@ -133,8 +138,6 @@ void serial_clean(wide_buffer_t *b)
 	size_t *size_taken;
 	size_t *elem_next;
 	
-	// Init if NULL
-	serial_init(b, 0);
 	// Resetting content
 	size_taken = psize_taken(b);
 	elem_next  = pelem_next(b);
@@ -145,18 +148,15 @@ void serial_clean(wide_buffer_t *b)
 	serial_debug(b, "serial_clean");
 }
 
-void serial_assign(wide_buffer_t *b, size_t size)
+void serial_reset(wide_buffer_t *b, size_t size)
 {
-	size_t *size_taken = psize_taken(b);
 
-	// Cleans the metadata
-	serial_clean(b);
 	// Resize with new value in case of requirement
 	serial_resize(b, size);
-	// The size taken is size of metadata + the incoming data size
-	*size_taken = size_meta + size; 
-	
-	serial_debug(b, "serial_assign");
+	// Cleans the metadata
+	serial_clean(b);
+
+	serial_debug(b, "serial_reset");
 }
 
 void serial_rewind(wide_buffer_t *b)
@@ -171,13 +171,11 @@ void serial_rewind(wide_buffer_t *b)
 
 void serial_add_elem(wide_buffer_t *b, char *data, size_t size)
 {
-	size_t *size_alloc;
 	size_t *size_taken;
 
-	// Error handling
-	serial_resize(b, size);
+	// Expand allocated space if needed
+	serial_expand(b, size);
 	// Taking pointers
-	size_alloc = psize_alloc(b);
 	size_taken = psize_taken(b);
 	//
 	memcpy(&b->data[*size_taken], (char *) &size, sizeof(size_t));
@@ -187,20 +185,16 @@ void serial_add_elem(wide_buffer_t *b, char *data, size_t size)
 	*size_taken += size;
 	
 	serial_debug(b, "serial_add_elem");
-	// Removing unused
-	unused(size_alloc);
 }
 
 char *serial_copy_elem(wide_buffer_t *b, char *data, size_t *size)
 {
-	size_t *size_alloc;
 	size_t *size_taken;
 	size_t *size_elem;
 	size_t *elem_next;
 	char   *p;
 
 	//
-	size_alloc = psize_alloc(b);
 	size_taken = psize_taken(b);
 	elem_next  = pelem_next(b);
 	// It is the end, try to rewind
@@ -214,6 +208,9 @@ char *serial_copy_elem(wide_buffer_t *b, char *data, size_t *size)
 	} else {
 		p = data;
 	}
+	if (size != NULL) {
+		*size = *size_elem;
+	}
 	// Elem points directly to the data
 	*elem_next += sizeof(size_t);
 	// Copying
@@ -223,22 +220,17 @@ char *serial_copy_elem(wide_buffer_t *b, char *data, size_t *size)
 	*elem_next += *size_elem;
 	
 	serial_debug(b, "serial_copy_elem");
-	// Removing unused
-	unused(size_alloc);
 
 	return p;
 }
 
 char *serial_data(wide_buffer_t *b)
 {
-	return &b->data[size_meta];
+	return b->data;
 }
 
-size_t serial_size(wide_buffer_t *b, uint data)
+size_t serial_size(wide_buffer_t *b)
 {
 	size_t *size_taken = psize_taken(b);
-	if (data) {
-		return *size_taken - size_meta;
-	}
 	return *size_taken;
 }

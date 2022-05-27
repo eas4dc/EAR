@@ -72,4 +72,6 @@ state_t mgt_governor_tostr(uint governor, char *buffer);
 
 state_t mgt_governor_toint(char *buffer, uint *governor);
 
+int mgt_governor_is(char *buffer, uint governor);
+
 #endif //MANAGEMENT_GOVERNOR

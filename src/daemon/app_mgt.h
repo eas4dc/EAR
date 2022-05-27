@@ -17,6 +17,9 @@
 
 #ifndef _APP_MGT_H
 #define _APP_MGT_H
+#define _GNU_SOURCE
+#include <sched.h>
+
 
 typedef struct app_management_data{
   uint master_rank;
@@ -24,6 +27,7 @@ typedef struct app_management_data{
   uint nodes;
   uint total_processes;
   uint max_ppn;
+	cpu_set_t node_mask;
 }app_mgt_t;
 
 

@@ -31,7 +31,6 @@ static unsigned int columns;
 static unsigned int mode;
 static int fd;
 
-
 /*
  *
  *
@@ -111,6 +110,11 @@ int tprintf_init(int _fd, int _mode, char *_format)
 	return 0;
 }
 
+int tprintf_init_v2(int v, int mode, char *format)
+{
+    return tprintf_init(-v-1, mode, format);
+}
+
 int tprintf_format()
 {
     char *p1 = strstr(tprintf_ibuf, sym);
@@ -118,20 +122,20 @@ int tprintf_format()
     char *p3 = tprintf_obuf;
 
     int len = strlen(tprintf_ibuf);
-	int chr = 0;
-	int col = 0;
-	int vis = 0;
+    int chr = 0;
+    int col = 0;
+    int vis = 0;
     int i = 0;
 
-	if ((len >= STR_SIZE_BUFFER) || (columns == 0)) {
-		return -1;
-	}
+    if ((len >= STR_SIZE_BUFFER) || (columns == 0)) {
+        return -1;
+    }
 
     while(p1 && i < columns)
     {
-		// If it is a visible wall
-		if (vis)
-		{
+        // If it is a visible wall
+        if (vis)
+        {
 			p3[0] = '|';
             p3[1] = ' ';
             p3++;
@@ -184,7 +188,12 @@ int tprintf_format()
 
 	p3[0] = '\n';
 	p3[1] = '\0';
-    dprintf(fd, "%s", tprintf_obuf);
+
+    if (fd < 0) {
+        verbosen(-(fd+1), "%s", tprintf_obuf);
+    } else {
+        dprintf(fd, "%s", tprintf_obuf);
+    }
 
 	return 0;
 }
@@ -212,19 +221,19 @@ void strtoup(char *string)
 
 int strinlist(const char *list, const char *separator, const char *element)
 {
-	char buffer[SZ_PATH];
-	char *e;
+    char buffer[SZ_PATH];
+    char *e;
 
-	strcpy(buffer, list);	
-	e = strtok(buffer, separator);
-	while (e != NULL) {
-		// An extra parameter would be needed to switch between strcmp and strncmp.
-		if (strncmp(element, e, strlen(e)) == 0) {
-			return 1;
-		}
-		e = strtok(NULL, separator);
-	}
-	return 0;
+    strcpy(buffer, list);	
+    e = strtok(buffer, separator);
+    while (e != NULL) {
+        // An extra parameter would be needed to switch between strcmp and strncmp.
+        if (strncmp(element, e, strlen(e)) == 0) {
+            return 1;
+        }
+        e = strtok(NULL, separator);
+    }
+    return 0;
 }
 
 int strinargs(int argc, char *argv[], const char *opt, char *value)
@@ -241,7 +250,7 @@ int strinargs(int argc, char *argv[], const char *opt, char *value)
     opterr = 0;
 	// If the option argument is long
     if ((len = strlen(opt)) > 2)
-	{
+    {
     	struct option long_options[2];
     	int has_arg = 2;
         //
@@ -258,9 +267,9 @@ int strinargs(int argc, char *argv[], const char *opt, char *value)
         long_options[0].val     = 2;
         // This function is for '-long' or '--long' type arguments, 
         // and returns 2 as we specified.
-        do { 
-        	result = getopt_long (argc, argv, "", long_options, NULL);
-		} while (result != 2 && result != -1);
+    do { 
+        result = getopt_long (argc, argv, "", long_options, NULL);
+    } while (result != 2 && result != -1);
         // Expected result
         expected = 2;
         //int result2 = getopt_long (argc, argv, "", long_options, NULL);
@@ -305,4 +314,29 @@ void remove_chars(char *s, char c)
     }
 
     s[writer]=0;
+}
+
+void str_cut_list(char *src, char ***elements, int *num_elements, char *separator)
+{
+    if (src == NULL) {
+        *elements = NULL;
+        *num_elements = 0;
+        return;
+    }
+    int tmp_num = 0;
+    char **tmp_elements = calloc(1, sizeof(char *));
+    tmp_elements[0] = strtok(src, separator);
+    tmp_num++;
+    char *token;
+    
+    while((token = strtok(NULL, separator)) != NULL)
+    {
+        tmp_elements = realloc(tmp_elements, sizeof(char *)*(tmp_num + 1));
+        tmp_elements[tmp_num] = token;
+        tmp_num++;
+    }
+
+    *elements = tmp_elements;
+    *num_elements = tmp_num;
+
 }

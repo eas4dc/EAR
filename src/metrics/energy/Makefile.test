@@ -1,0 +1,7 @@
+all:test
+test:energy_node_test.c
+	gcc -I ../../ -o test energy_node_test.c ../libmetrics.a ../../common/libcommon.a -ldl -lpthread -rdynamic
+
+clean:
+	rm -rf test
+

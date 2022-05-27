@@ -39,12 +39,12 @@
 //#define MSR_PKG_RAPL_POWER_LIMIT		0x610
 #define MSR_INTEL_PKG_ENERGY_STATUS		0x611
 //#define MSR_PKG_PERF_STATUS			0x613
-//#define MSR_PKG_POWER_INFO			0x614
+#define MSR_PKG_POWER_INFO			0x614
 /* DRAM RAPL Domain */
 //#define MSR_DRAM_POWER_LIMIT			0x618
 #define MSR_INTEL_DRAM_ENERGY_STATUS	0x619
 //#define MSR_DRAM_PERF_STATUS			0x61B
-//#define MSR_DRAM_POWER_INFO			0x61C
+#define MSR_DRAM_POWER_INFO			0x61C
 /** AMD */
 #define MSR_AMD_RAPL_POWER_UNIT			0xC0010299
 #define MSR_AMD_PKG_ENERGY_STATUS		0xC001029B
@@ -56,6 +56,7 @@ static pthread_mutex_t rapl_msr_lock = PTHREAD_MUTEX_INITIALIZER;
 static int rapl_msr_instances = 0;
 
 static double cpu_energy_units;
+static double power_units;
 static double dram_energy_units;
 static int vendor;
 
@@ -97,16 +98,57 @@ int init_rapl_msr(int *fd_map)
 			return EAR_ERROR;
 		}
 
-		//power_units = pow(0.5, (double) (result & 0xf));
+		power_units = pow(0.5, (double) (result & 0xf));
 		//time_units = pow(0.5, (double) ((result >> 16) & 0xf));
 		
 		cpu_energy_units = pow(0.5, (double) ((result >> 8) & 0x1f));
 		// Take a look to Intel's RAPL test
 		dram_energy_units = pow(0.5, (double) 16);
+		// dram_energy_units = cpu_energy_units;
+	  
 	}
 	pthread_mutex_unlock(&rapl_msr_lock);
 	return EAR_SUCCESS;
 }
+
+int read_rapl_pck_tdp(int *fd_map, double *tdps)
+{
+	llong result;
+	int nump, j;
+	off_t offset = MSR_PKG_POWER_INFO;
+  nump = get_total_packages();
+	for (j = 0; j < nump; j++)	{
+  	if (omsr_read(&fd_map[j], &result, sizeof result, offset)){
+			debug("Error in omsr_read read_rapl_pck_tdp");
+			return EAR_ERROR;
+		}
+		/* Thermal Spec Power (bits 14:0): The unsigned integer value is the equivalent of thermal specification power
+		* of the package domain. The unit of this field is specified by the “Power Units” field of MSR_RAPL_POWER_UNIT.A*/
+  	tdps[j] = power_units*(double)(result&0x7fff);
+	}
+	return EAR_SUCCESS;
+}
+
+int read_rapl_dram_tdp(int *fd_map, double *tdps)
+{ 
+  llong result;
+  int nump, j; 
+  off_t offset = MSR_DRAM_POWER_INFO;
+  nump = get_total_packages();
+  for (j = 0; j < nump; j++)  {
+    if (omsr_read(&fd_map[j], &result, sizeof result, offset)){
+      debug("Error in omsr_read read_rapl_dram_tdp");
+      return EAR_ERROR;
+    }
+		/* Thermal Spec Power (bits 14:0): The unsigned integer value is the equivalent of thermal specification power
+ 	* of the DRAM domain. The unit of this field is specified by the “Power Units” field of MSR_RAPL_POWER_UNIT.*/
+    tdps[j] = power_units*(double)(result&0x7fff);
+  }
+  return EAR_SUCCESS;
+}
+
+
+
 
 /* DRAM 0, DRAM 1,..DRAM N, PCK0,PCK1,...PCKN */
 int read_rapl_msr(int *fd_map, ullong *_values)
@@ -171,14 +213,17 @@ void dispose_rapl_msr(int *fd_map)
 void diff_rapl_msr_energy(ullong *diff, ullong *end, ullong *init)
 {
 	ullong ret = 0;
+    long long tmp_end, tmp_init;
 	int nump, j;
 	nump = get_total_packages();
 
 	for (j = 0; j < nump * RAPL_ENERGY_EV; j++) {
-		if (end[j] >= init[j]) {
-			ret = end[j] - init[j];
+        tmp_end = (long long) end[j];
+        tmp_init = (long long) init[j];
+		if (tmp_end >= tmp_init) {
+			ret = tmp_end - tmp_init;
 		} else {
-			ret = ullong_diff_overflow(init[j], end[j]);
+			ret = ullong_diff_overflow(tmp_init, tmp_end);
 		}
 		diff[j] = ret;
 	}

@@ -21,12 +21,12 @@
 #include <daemon/local_api/eard_api.h>
 #include <metrics/imcfreq/archs/eard.h>
 
-static uint eard_api;
 static uint dev_count;
+static uint eard_api;
 
 void imcfreq_eard_load(topology_t *tp, imcfreq_ops_t *ops, int eard)
 {
-	uint imc_pack[2];
+    state_t s;
 
 	debug("loading (eard: %d)", eard);
 	if (!eard) {
@@ -39,11 +39,14 @@ void imcfreq_eard_load(topology_t *tp, imcfreq_ops_t *ops, int eard)
 	}
 	debug("asking data to daemon");
 	// Contacting daemon
-	if (state_fail(eards_imcfreq_data_count(imc_pack))) {
-		return;
-	}
-	eard_api = imc_pack[0];
-	dev_count = imc_pack[1];
+    if (state_fail(s = eard_rpc(RPC_MET_IMCFREQ_GET_API, NULL, 0, (char *) &eard_api, sizeof(uint)))) {
+        debug("RPC RPC_MET_CPUFREQ_GET_API returned: %s (%d)", state_msg, s);
+        return;
+    }
+    if (state_fail(s = eard_rpc(RPC_MET_IMCFREQ_COUNT_DEVICES, NULL, 0, (char *) &dev_count, sizeof(uint)))) {
+        debug("RPC RPC_MET_IMCFREQ_COUNT_DEVICES returned: %s (%d)", state_msg, s);
+        return;
+    }
 	//
 	if (eard_api == API_NONE || eard_api == API_DUMMY) {
 		debug("EARD has loaded DUMMY API");
@@ -80,18 +83,12 @@ state_t imcfreq_eard_dispose(ctx_t *c)
 
 state_t imcfreq_eard_count_devices(ctx_t *c, uint *dev_count_in)
 {
-	if (dev_count_in == NULL) {
-		return_msg(EAR_ERROR, Generr.input_null);
-	}
 	*dev_count_in = dev_count;
 	return EAR_SUCCESS;
 }
 
-state_t imcfreq_eard_read(ctx_t *c, imcfreq_t *i)
+state_t imcfreq_eard_read(ctx_t *c, imcfreq_t *list)
 {
-	if (i == NULL) {
-		return_msg(EAR_ERROR, Generr.input_null);
-	}
-	memset((void *) i, 0, dev_count * sizeof(imcfreq_t));
-	return eards_imcfreq_read(i, dev_count * sizeof(imcfreq_t));
+    memset((void *) list, 0, sizeof(imcfreq_t)*dev_count);
+    return eard_rpc(RPC_MET_IMCFREQ_GET_CURRENT, NULL, 0, (char *) list, sizeof(imcfreq_t)*dev_count);
 }

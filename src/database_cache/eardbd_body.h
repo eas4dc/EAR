@@ -20,29 +20,32 @@
 
 #include <common/output/verbose.h>
 
+#define VERB_LEVEL 0 // Verbose level (deprecated)
+#define VL0        0
+#define VL2        VL0+2
 #define line "---------------------------------------------------------------"
 #define col1 "\x1b[35m"
 #define col2 "\x1b[0m"
 
-#define print_line() \
-		verb(0, col1 line col2);
+#define print_line(level) \
+    verb(level, col1 line col2);
 
 #define verb_who_noarg(format) \
-	verb(0, "%s, %s", str_who[mirror_iam], format);
+    verb(VERB_LEVEL, "%s, %s", str_who[mirror_iam], format);
 
 #define verb_who(format, ...) \
-	verb(0, "%s, " format, str_who[mirror_iam], __VA_ARGS__);
+    verb(VERB_LEVEL, "%s, " format, str_who[mirror_iam], __VA_ARGS__);
 
 #define verb_master(...) \
     if (!forked || master_iam) { \
-		verb(0, __VA_ARGS__); \
+        verb(VERB_LEVEL, __VA_ARGS__); \
     }
 
 #define verb_master_line(...) \
     if (!forked || master_iam) { \
-        dprintf(verb_channel, col1 line "\n" __VA_ARGS__); \
-        dprintf(verb_channel, col2 "\n"); \
-	}
+        verbosen(VERB_LEVEL, col1 line "\n" __VA_ARGS__); \
+        verbosen(VERB_LEVEL, col2 "\n"); \
+    }
 
 void body();
 

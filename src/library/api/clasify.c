@@ -14,6 +14,7 @@
  * use and EPL-1.0 license for commercial use. Full text of both licenses can be
  * found in COPYING.BSD and COPYING.EPL files.
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <common/config.h>
@@ -24,15 +25,19 @@
 #include <library/dynais/dynais.h>
 #include <library/api/clasify.h>
 #include <library/states/states_comm.h>
+#include <library/loader/module_cuda.h>
 
+#define INFO_CLASSIFY 3
 
+extern ulong perf_accuracy_min_time;
+extern uint signature_reported;
 
 state_t classify(uint iobound,uint mpibound, uint *app_state)
 {
 	*app_state = APP_COMP_BOUND;
 	if (iobound && !mpibound){
 		*app_state = APP_IO_BOUND;
-	}else if (mpibound){
+	} else if (mpibound) {
 		*app_state = APP_MPI_BOUND;
 	}
 	return EAR_SUCCESS;
@@ -55,10 +60,13 @@ state_t is_network_bound(float mpisec,uint *mpibound)
 	return EAR_SUCCESS;
 }
 
-state_t must_switch_to_time_guide(float mpisec, uint *ear_guided)
+state_t must_switch_to_time_guide(float mpisec, ulong last_sig_elapsed, uint *ear_guided)
 {
     if (mpisec < MIN_MPI_TH){
         *ear_guided = TIME_GUIDED;
+    }
+    if (signature_reported && (last_sig_elapsed > ((5*perf_accuracy_min_time)/1000000))){
+      *ear_guided = TIME_GUIDED;
     }
     return EAR_SUCCESS;
 }
@@ -78,14 +86,15 @@ state_t is_cpu_busy_waiting(signature_t *sig,uint *busy)
 	c1 = (cpi      < CPI_BUSY_WAITING);
 	c2 = (sig->GBS < GBS_BUSY_WAITING);
 	c3 = (flops    < GFLOPS_BUSY_WAITING);
-	if (c1 || c2 || c3){
-		verbose_master(2,"CPI (%.3lf/%.3lf/%.3lf) GBS(%.3lf/%.3lf) FLOPS (%.3lf/%.3lf)", sig->CPI,cpi,CPI_BUSY_WAITING,sig->GBS,GBS_BUSY_WAITING,flops,GFLOPS_BUSY_WAITING);
-	}
-	if (c1 && c2 && c3) *busy = BUSY_WAITING;
+    if (c1 || c2 || c3){
+        verbose_master(INFO_CLASSIFY, "--- NO Busy waiting ---\n(prev/current/th) CPI (%.3lf/%.3lf/%.3lf) GBS(%.3lf/%.3lf) FLOPS (%.3lf/%.3lf)",
+                sig->CPI, cpi, CPI_BUSY_WAITING, sig->GBS, GBS_BUSY_WAITING, flops, GFLOPS_BUSY_WAITING);
+    }
+    if (c1 && c2 && c3) *busy = BUSY_WAITING;
 	return EAR_SUCCESS;
 }
 
-state_t is_cpu_bound(signature_t *sig,uint *cbound)
+state_t is_cpu_bound(signature_t *sig, uint *cbound)
 {
     *cbound = 0;
     if ((sig->CPI < CPI_CPU_BOUND) && (sig->GBS < GBS_CPU_BOUND)) *cbound = 1;
@@ -99,21 +108,28 @@ state_t is_mem_bound(signature_t *sig,uint *mbound)
     return EAR_SUCCESS;
 }
 
-state_t  is_gpu_idle(signature_t *sig,uint *gidle)
+state_t is_gpu_idle(signature_t *sig, gpu_state_t *gpu_state)
 {
 #if USE_GPUS
-	int total = 0;
-	int i;
-	if (sig->gpu_sig.num_gpus == 0){
-		*gidle = GPU_IDLE;
-		return EAR_SUCCESS;
-	}
-	for (i=0;i< sig->gpu_sig.num_gpus;i++) total += sig->gpu_sig.gpu_data[i].GPU_util;
-	if (total == 0) *gidle = GPU_IDLE;
-	else *gidle = GPU_COMP;
-	return EAR_SUCCESS;
+    if (!is_cuda_enabled()) {
+        /* One of the following cases:
+         * - Node does not have GPUs
+         * - Node has GPUs but Job does not use them
+         */
+        *gpu_state = _GPU_NoGPU;
+        return EAR_SUCCESS;
+    }
+    // for sure the Job has been assigned to use GPUs, but are they being used?
+	for (int i = 0; i < sig->gpu_sig.num_gpus; i++) {
+        if (sig->gpu_sig.gpu_data[i].GPU_util > 0) {
+            *gpu_state = _GPU_Comp;
+            return EAR_SUCCESS;
+        }
+    }
+    // GPUs are idle here
+    *gpu_state = _GPU_Idle;
 #else
-	*gidle = GPU_IDLE;
+	*gpu_state = _GPU_NoGPU;
+#endif // USE_GPUS
 	return EAR_SUCCESS;
-#endif
 }

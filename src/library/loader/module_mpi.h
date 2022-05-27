@@ -23,7 +23,7 @@
 #include <library/loader/module_mpic.h>
 #include <library/loader/module_mpif.h>
 
-int module_mpi(char *path_lib_so,char *libhack);
+int module_mpi(char *path_lib_so, char *libhack);
 
 void module_mpi_destructor();
 

@@ -7,6 +7,7 @@ CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(CONSTANTS)  -Wall
 
 remote_api_OBJS = \
     eard_rapi.o \
+	eard_rapi_internals.o \
     eard_server_api.o \
     dynamic_configuration.o \
 	dyn_conf_theading.o 
@@ -24,7 +25,7 @@ dyn_conf_theading.o: dyn_conf_theading.c dyn_conf_theading.h
 eard_rapi_internals.o: eard_rapi_internals.c eard_rapi_internals.h 
 	$(CC) $(CFLAGS) -fPIC -c $<
 
-eard_rapi.o: eard_rapi.c eard_rapi.h 
+eard_rapi.o: eard_rapi.c eard_rapi.h eard_rapi_internals.h
 	$(CC) $(CFLAGS) -fPIC -c $<
 
 eard_server_api.o: eard_server_api.c eard_server_api.h

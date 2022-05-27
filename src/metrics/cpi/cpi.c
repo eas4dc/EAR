@@ -15,91 +15,92 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#include <common/output/debug.h>
+#include <pthread.h>
 #include <metrics/cpi/cpi.h>
-#include <metrics/cpi/cpu/dummy.h>
-#include <metrics/cpi/cpu/intel63.h>
+#include <metrics/cpi/archs/perf.h>
+#include <metrics/cpi/archs/dummy.h>
 
-static struct uncore_op {
-	state_t (*init)		(ctx_t *c);
-	state_t (*dispose)	(ctx_t *c);
-	state_t (*reset)	(ctx_t *c);
-	state_t (*start)	(ctx_t *c);
-	state_t (*stop)		(ctx_t *c, llong *cycles, llong *insts);
-	state_t (*read)		(ctx_t *c, llong *cycles, llong *insts);
-} ops;
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static cpi_ops_t ops;
+static uint init;
+static uint api;
 
-static ctx_t context;
-static ctx_t *c = &context;
-static topology_t topo;
-
-int init_basic_metrics()
+state_t cpi_load(topology_t *tp, int eard)
 {
-	topology_init(&topo);
-
-	if (state_ok(cpi_intel63_status(&topo)))
-	{
-		debug("loaded intel63");
-		ops.init  = cpi_intel63_init;
-		ops.reset = cpi_intel63_reset;
-		ops.start = cpi_intel63_start;
-		ops.stop  = cpi_intel63_stop;
-		ops.read  = cpi_intel63_read;
-		ops.dispose = cpi_intel63_dispose;
+	while (pthread_mutex_trylock(&lock));
+	// Already initialized
+	if (api != API_NONE) {
+		return EAR_SUCCESS;
 	}
-	else
-	{
-		debug("loaded dummy");
-		ops.init    = cpi_dummy_init;
-		ops.reset   = cpi_dummy_reset;
-		ops.start   = cpi_dummy_start;
-		ops.stop    = cpi_dummy_stop;
-		ops.read    = cpi_dummy_read;
-		ops.dispose = cpi_dummy_dispose;
+	api = API_DUMMY;
+	if (state_ok(cpi_perf_load(tp, &ops))) {
+		api = API_PERF;
 	}
-
-	return ops.init(c);
+	cpi_dummy_load(tp, &ops);
+	init = 1;
+	pthread_mutex_unlock(&lock);
+	return EAR_SUCCESS;
 }
 
-void reset_basic_metrics()
+state_t cpi_get_api(uint *api_in)
 {
-	if (ops.reset != NULL) {
-		ops.reset(c);
-	}
+	*api_in = api;
+	return EAR_SUCCESS;
 }
 
-void start_basic_metrics()
+state_t cpi_init(ctx_t *c)
 {
-	if (ops.start != NULL) {
-		ops.start(c);
-	}
+	while (pthread_mutex_trylock(&lock));
+	state_t s = ops.init(c);
+	pthread_mutex_unlock(&lock);
+	return s;
 }
 
-/* This is an obsolete function to make metrics.c compatible. */
-static long long accum_cycles;
-static long long accum_insts;
-
-void stop_basic_metrics(llong *cycles, llong *insts)
+state_t cpi_dispose(ctx_t *c)
 {
-	if (ops.stop != NULL) {
-		ops.stop(c, cycles, insts);
-	}
-	accum_cycles += *cycles;
-	accum_insts  += *insts;
+	return ops.dispose(c);
 }
 
-void read_basic_metrics(llong *cycles, llong *insts)
+state_t cpi_read(ctx_t *c, cpi_t *ci)
 {
-	if (ops.read != NULL) {
-		ops.read(c, cycles, insts);
-	}
-	// accum_cycles += *cycles;
-	// accum_insts  += *insts;
+	return ops.read(c, ci);
 }
 
-void get_basic_metrics(llong *cycles, llong *insts)
+// Helpers
+state_t cpi_read_diff(ctx_t *c, cpi_t *ci2, cpi_t *ci1, cpi_t *ciD, double *cpi)
 {
-	read_basic_metrics(cycles, insts);
-	*cycles = accum_cycles;
-	*insts  = accum_insts;
+	state_t s;
+	if (state_fail(s = ops.read(c, ci2))) {
+		return s;
+	}
+	return ops.data_diff(ci2, ci1, ciD, cpi);
+}
+
+state_t cpi_read_copy(ctx_t *c, cpi_t *ci2, cpi_t *ci1, cpi_t *ciD, double *cpi)
+{
+	state_t s;
+	if (state_fail(s = cpi_read_diff(c, ci2, ci1, ciD, cpi))) {
+		return s;
+	}
+	return ops.data_copy(ci1, ci2);
+}
+
+state_t cpi_data_diff(cpi_t *ci2, cpi_t *ci1, cpi_t *ciD, double *cpi)
+{
+	return ops.data_diff(ci2, ci1, ciD, cpi);
+}
+
+state_t cpi_data_copy(cpi_t *dst, cpi_t *src)
+{
+	return ops.data_copy(dst, src);
+}
+
+state_t cpi_data_print(cpi_t *ciD, double cpi, int fd)
+{
+	return ops.data_print(ciD, cpi, fd);
+}
+
+state_t cpi_data_tostr(cpi_t *ciD, double cpi, char *buffer, size_t length)
+{
+	return ops.data_tostr(ciD, cpi, buffer, length);
 }

@@ -20,10 +20,9 @@
 
 #include <common/config.h>
 #include <common/types/generic.h>
-#if USE_GPUS
-#include <metrics/gpu/gpu.h>
-#endif
 #include <metrics/io/io.h>
+#include <metrics/gpu/gpu.h>
+#include <metrics/flops/flops.h>
 
 // 0: float
 // 1: 128 float
@@ -33,7 +32,6 @@
 // 5: 128 double
 // 6: 256 double
 // 7: 512 double
-#define FLOPS_EVENTS 8
 
 typedef struct gpu_app{
     double GPU_power;
@@ -48,9 +46,12 @@ typedef struct gpu_signature{
     gpu_app_t gpu_data[MAX_GPUS_SUPPORTED];
 }gpu_signature_t;
 
+
 typedef struct mini_sig
 {
     float DC_power;
+	float DRAM_power;
+	float PCK_power;
     float GBS;
     float TPI;
     float CPI;
@@ -59,12 +60,21 @@ typedef struct mini_sig
     ull FLOPS[FLOPS_EVENTS];
     ull instructions;
     ull cycles;
+    ull L1_misses;
+    ull L2_misses;
+    ull L3_misses;
     ulong avg_f;
     ulong def_f;
     io_data_t iod;
 #if USE_GPUS
     gpu_signature_t gpu_sig;
 #endif
+		ulong accum_energy;
+		ulong accum_dram_energy;
+		ulong accum_pack_energy;
+		ull   accum_mem_access;
+		ulong accum_avg_f;
+		double valid_time;
 }ssig_t;
 
 
@@ -109,7 +119,7 @@ void signature_copy(signature_t *destiny, signature_t *source);
 void clean_db_signature(signature_t *sig, double limit);
 
 /** Outputs the signature contents to the file pointed by the fd. */
-void signature_print_fd(int fd, signature_t *sig, char is_extended);
+void signature_print_fd(int fd, signature_t *sig, char is_extended, int single_column, char sep);
 void compute_vpi(double *vpi,signature_t *sig);
 void compute_ssig_vpi(double *vpi,ssig_t *sig);
 void compute_ssig_vpi2(double *vpi,ssig_t *sig);

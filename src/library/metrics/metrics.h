@@ -20,7 +20,32 @@
 
 #include <common/hardware/topology.h>
 #include <common/types/application.h>
+#include <library/common/library_shared_data.h>
 #include <metrics/io/io.h>
+
+typedef struct sig_ext {
+    io_data_t iod;
+    mpi_information_t *mpi_stats;
+    mpi_calls_types_t *mpi_types;
+	float max_mpi, min_mpi;
+	float elapsed;
+	float telapsed;
+	float saving;
+	float psaving;
+	float tpenalty;
+} sig_ext_t;
+
+#define MGT_CPUFREQ 1
+#define MGT_IMCFREQ 2
+#define MET_CPUFREQ 3
+#define MET_IMCFREQ 4
+#define MET_BWIDTH  5
+#define MET_FLOPS   6
+#define MET_CACHE   7
+#define MET_CPI     8
+
+/** New metrics **/
+const metrics_t *metrics_get(uint api);
 
 /** Returns the current time in usecs */
 long long metrics_time();
@@ -43,17 +68,19 @@ int metrics_compute_signature_finish(signature_t *metrics, uint iterations, ulon
 /** Estimates whether the current time running the loops is enough to compute the signature */
 int time_ready_signature(ulong min_time_us);
 
-/* Returns the totall IO for this process till now */
-void metrics_get_total_io(io_data_t *rdwr);
-
 /** Copute the number of vector instructions since signature reports FP ops, metrics is valid signature*/
 unsigned long long metrics_vec_inst(signature_t *metrics);
 
 /* Computes the node signature including data from other processes */
 void metrics_node_signature(signature_t *master,signature_t *ns);
 
+/* Computes the node signature at app end */
+void metrics_app_node_signature(signature_t *master,signature_t *ns);
+
+/* CoOmputes the per-process and per-job metrics using power models for node sharing */
+void compute_per_process_and_job_metrics(signature_t *sig);
+
 /* Computes metrics per-iteration, very lightweight */
 state_t metrics_new_iteration(signature_t *sig);
-
 
 #endif //EAR_EAR_METRICS_H

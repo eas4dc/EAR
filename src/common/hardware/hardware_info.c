@@ -23,10 +23,71 @@
 #include <string.h>
 #include <unistd.h>
 #include <sched.h>
+#include <common/config.h>
 #include <common/hardware/topology.h>
 #include <common/hardware/hardware_info.h>
 
 #define INTEL_VENDOR_NAME       "GenuineIntel"
+
+uint num_cpus_in_mask(cpu_set_t *my_mask)
+{
+    uint c, lcpus = 0;
+
+    for (c = 0; c < MAX_CPUS_SUPPORTED; c++){
+        if (CPU_ISSET(c, my_mask)) lcpus++;
+    }
+    return lcpus;
+
+}
+
+int list_cpus_in_mask(cpu_set_t *my_mask, uint n_cpus, uint *cpu_list)
+{
+    if (my_mask == NULL || cpu_list == NULL || n_cpus < 1) return -1;
+
+    uint c, lcpus = 0;
+
+    for (c = 0; c < MAX_CPUS_SUPPORTED && lcpus < n_cpus; c++) {
+        if (CPU_ISSET(c, my_mask)) {
+            cpu_list[lcpus] = c;
+            lcpus++;
+        }
+    }
+
+    if (lcpus < n_cpus) {
+        return -1;
+    }
+
+    return 0;
+
+}
+
+void aggregate_cpus_to_mask(cpu_set_t *dst, cpu_set_t *src)
+{
+    for (uint c=0; c < MAX_CPUS_SUPPORTED; c++){
+      if (CPU_ISSET(c, src)) CPU_SET(c, dst);
+  }
+
+}
+
+void remove_cpus_from_mask(cpu_set_t *dst, cpu_set_t *src)
+{
+  for (uint c=0; c < MAX_CPUS_SUPPORTED; c++){
+      if (CPU_ISSET(c, src)) CPU_CLR(c, dst);
+  }
+
+}
+
+
+/* Sets in dst CPUs not in src */
+void cpus_not_in_mask(cpu_set_t *dst, cpu_set_t *src)
+{
+	CPU_ZERO(dst);
+  for (uint c=0; c < MAX_CPUS_SUPPORTED; c++){
+      if (!CPU_ISSET(c, src)) CPU_SET(c, dst);
+  }
+
+}
+
 
 void print_affinity_mask(topology_t *topo) 
 {
@@ -40,6 +101,29 @@ void print_affinity_mask(topology_t *topo)
     }
     fprintf(stderr,"\n");
 }
+
+state_t print_this_affinity_mask(cpu_set_t *mask)
+{
+    if (mask == NULL) return EAR_ERROR;
+    fprintf(stderr,"mask affinity = ");
+    for (int i = 0; i < MAX_CPUS_SUPPORTED; i++) {
+        fprintf(stderr,"CPU[%d]=%d ", i,CPU_ISSET(i, mask));
+    }
+    fprintf(stderr,"\n");
+    return EAR_SUCCESS;
+}
+
+state_t verbose_affinity_mask(cpu_set_t *mask, uint cpus)
+{
+    if (mask == NULL) return EAR_ERROR;
+    verbosen(0,"mask affinity = ");
+    for (int i = 0; i < cpus; i++) {
+        verbosen(0,"CPU[%d]=%d ", i,CPU_ISSET(i, mask));
+    }
+    verbosen(0,"\n");
+    return EAR_SUCCESS;
+}
+
 
 state_t is_affinity_set(topology_t *topo,int pid,int *is_set,cpu_set_t *my_mask)
 {
@@ -65,6 +149,27 @@ state_t set_affinity(int pid,cpu_set_t *mask)
 	ret=sched_setaffinity(pid,sizeof(cpu_set_t),mask);
 	if (ret <0 ) return EAR_ERROR;
 	else return EAR_SUCCESS;
+}
+
+state_t add_affinity(topology_t *topo, cpu_set_t *dest,cpu_set_t *src)
+{
+	state_t s = EAR_SUCCESS;
+	if ((dest == NULL) || (src == NULL)) return EAR_ERROR;
+	for (uint i = 0;i<topo->cpu_count; i++){
+		if (CPU_ISSET(i,src)) CPU_SET(i,dest);
+	}
+	return s;	
+}
+
+
+state_t set_mask_all_ones(cpu_set_t *mask)
+{
+    for (int i = 0; i < MAX_CPUS_SUPPORTED; i++)
+    {
+        CPU_SET(i, mask);
+    }
+
+    return EAR_SUCCESS;
 }
 
 #if 0
@@ -145,3 +250,10 @@ int is_cpu_boost_enabled()
 	return cpuid_getbits(r.eax, 1, 1);
 }
 
+int cpu_isset(int cpu, cpu_set_t *mask)
+{
+    if (cpu < 0 || mask == NULL) {
+        return -1;
+    }
+    return CPU_ISSET(cpu, mask);
+}

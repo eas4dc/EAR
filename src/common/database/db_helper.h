@@ -30,12 +30,26 @@
 #include "libpq-fe.h"
 #endif
 
+#if 0
 #if DB_MYSQL
-MYSQL *mysql_create_connection();
+static MYSQL *mysql_create_connection();
 #elif DB_PSQL
-PGconn *postgresql_create_connection();
+static PGconn *postgresql_create_connection();
+#endif
 #endif
 
+#define _MAX(X,Y)			(X > Y ? X : Y)
+#define _MMAAXX(W,X,Y,Z) 	(_MAX(W,X) > _MAX(Y,Z) ? _MAX(W,X) : _MAX(Y,Z))
+#define _BULK_ELMS(V)		USHRT_MAX / V
+#define _BULK_SETS(T,V)		T / V
+#define APP_VARS	        APPLICATION_ARGS
+#define PSI_VARS	        POWER_SIGNATURE_ARGS
+#define NSI_VARS	        SIGNATURE_ARGS
+#define JOB_VARS	        JOB_ARGS
+#define PER_VARS	        PERIODIC_METRIC_ARGS
+#define LOO_VARS			LOOP_ARGS
+#define AGG_VARS			PERIODIC_AGGREGATION_ARGS
+#define EVE_VARS			EAR_EVENTS_ARGS
 
 #if DB_MYSQL || DB_PSQL
 
@@ -108,5 +122,11 @@ int db_read_applications_query(application_t **apps, char *query);
 int db_read_loops_query(loop_t **loops, char *query);
 
 void db_reset_counters();
+
+
+/** Runs the received query to database, and stores the results as a string in results.
+ *  the number of columns in each row is stored in num_columns, and the number of 
+ *  rows is the return value. Returns EAR_ERROR if anything fails. */
+int db_run_query_string_results(char *query, char ****results, int *num_columns);
 
 #endif

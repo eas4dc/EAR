@@ -15,9 +15,13 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+//#define SHOW_DEBUGS 1
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <common/types/generic.h>
 #include <common/system/folder.h>
+#include <common/output/debug.h>
 
 state_t folder_open(folder_t *folder, char *path)
 {
@@ -82,6 +86,34 @@ char *folder_getnext(folder_t *folder, char *prefix, char *suffix)
 	folder_close(folder);
 
 	return NULL;
+}
+
+state_t folder_remove(char *path)
+{
+  char job_path[MAX_PATH_SIZE];
+  char file_path[MAX_PATH_SIZE];
+  state_t s;
+  folder_t job_folder;
+  char *file;
+
+  xsnprintf(job_path,sizeof(job_path),"%s",path);
+  s = folder_open(&job_folder, job_path);
+  if (state_fail(s)) {
+    debug("Error opening job path %s",job_path);
+    return EAR_ERROR;
+  }
+  debug("Cleaning job_path: %s", job_path);
+
+  while ((file = folder_getnext(&job_folder, NULL, NULL)))
+  {
+    xsnprintf(file_path,sizeof(file_path),"%s/%s",job_path,file);
+    debug("Deleting: %s",file_path);
+    unlink(file_path);
+  }
+  folder_close(&job_folder);
+  rmdir(job_path);
+	return EAR_SUCCESS;
+
 }
 
 /*

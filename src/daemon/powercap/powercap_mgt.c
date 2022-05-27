@@ -15,6 +15,7 @@
  * found in COPYING.BSD and COPYING.EPL files.
  */
 
+#define _GNU_SOURCE
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,8 +23,9 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#define _GNU_SOURCE
-//#define SHOW_DEBUGS 1
+
+#include <sched.h>
+// #define SHOW_DEBUGS 1
 #include <pthread.h>
 #include <common/config.h>
 #include <common/config/config_install.h>
@@ -33,9 +35,11 @@
 #include <common/system/symplug.h>
 #include <common/system/monitor.h>
 #include <common/hardware/topology.h>
+#include <common/hardware/hardware_info.h>
 #include <common/types/configuration/cluster_conf.h>
 
 #include <daemon/shared_configuration.h>
+#include <daemon/power_monitor.h>
 #include <daemon/powercap/powercap_mgt.h>
 #include <daemon/powercap/powercap_status.h>
 #if USE_GPUS
@@ -45,9 +49,6 @@
 
 
 #ifndef SYN_TEST
-extern pc_app_info_t *pc_app_info_data;
-extern settings_conf_t *dyn_conf;
-extern pc_app_info_t *pc_app_info_data;
 extern cluster_conf_t my_cluster_conf;
 extern node_powercap_opt_t my_pc_opt;
 extern my_node_conf_t *my_node_conf;
@@ -55,6 +56,10 @@ extern my_node_conf_t *my_node_conf;
 cluster_conf_t my_cluster_conf;
 #endif
 
+extern powermon_app_t *current_ear_app[MAX_NESTED_LEVELS];
+extern int max_context_created;
+extern int num_contexts;
+ulong  pmgt_idle_def_freq;
 
 
 typedef struct powercap_symbols {
@@ -75,6 +80,8 @@ typedef struct powercap_symbols {
     state_t (*reset_powercap_value)();
     state_t (*release_powercap_allocation)(uint decrease);
     state_t (*increase_powercap_allocation)(uint increase);
+    state_t (*plugin_set_burst)();
+    state_t (*plugin_set_relax)();
 } powercapsym_t;
 
 static uint pmgt_limit;
@@ -90,14 +97,18 @@ static ulong  dom_util_limit[NUM_DOMAINS];
 static dom_power_t pdist_per_domain;
 static float pdomains_def[NUM_DOMAINS]={0.6,0.5,0,GPU_PERC_UTIL};
 static float pdomains_def_dummy[NUM_DOMAINS]={1.0,0.9,0,0};
+static float pdomains_min[NUM_DOMAINS]={0.6,0.4,0,GPU_PERC_UTIL};
+static float pdomains_min_dummy[NUM_DOMAINS]={1.0,0.75,0,0};
 #else
 static float pdomains_def[NUM_DOMAINS]={1.0,0.9,0,0};
+static float pdomains_min[NUM_DOMAINS]={1.0,07575,0,0};
 #endif
-static uint default_pdomains = 1;
 static uint domains_loaded[NUM_DOMAINS]={0,0,0,0};
 static powercapsym_t pcsyms_fun[NUM_DOMAINS];
+
+#define SECURITY_RANGE 0.95
 //static void *pcsyms_obj[NUM_DOMAINS] ={ NULL,NULL,NULL,NULL};
-const int   pcsyms_n = 17;
+const int   pcsyms_n = 19;
 
 static suscription_t *sus[NUM_DOMAINS];
 
@@ -118,7 +129,9 @@ const char     *pcsyms_names[] ={
     "get_powercap_status",
     "reset_powercap_value",
     "release_powercap_allocation",
-    "increase_powercap_allocation"
+    "increase_powercap_allocation",
+    "plugin_set_burst",
+    "plugin_set_relax",
 };
 
 #ifndef SYN_TEST
@@ -166,6 +179,9 @@ static uint gpu_pc_num_gpus=1;
 static topology_t pc_topology_info;
 /* These functions identies and monitors load changes */
 
+
+extern double rapl_pck_tdps[MAX_PACKAGES];
+extern double rapl_dram_tdps[MAX_PACKAGES];
 #define TDP_CPU 150
 #define TDP_DRAM 30
 #define TDP_GPU 250
@@ -178,8 +194,11 @@ void compute_power_distribution()
 #endif
     uint pd_total=0,pd_cpu=0,pd_dram=0, pd_gpu=0, pd_pckg;
     uint bpd_cpu,bpd_dram,bpd_gpu = 0;
-    bpd_cpu = TDP_CPU;
-    bpd_dram = TDP_DRAM;
+
+		/* CPU and DRAM are read in eard.c during the initialization */
+    bpd_cpu = rapl_pck_tdps[0];
+    bpd_dram = rapl_dram_tdps[0];
+		debug("Using CPU TDP %u DRAM TDP %u", bpd_cpu, bpd_dram);
 #if USE_GPUS
     if ((domains_loaded[DOMAIN_GPU]) && (gpu_pc_model != MODEL_DUMMY)) bpd_gpu = TDP_GPU;
 #endif
@@ -213,7 +232,7 @@ uint pmgt_utilization_changed()
             }
         }
 #if USE_GPUS
-        else if ((i == DOMAIN_GPU ) && (gpu_pc_model != MODEL_DUMMY)){
+        else if ((i == DOMAIN_GPU )){
             uint g;
             for (g=0;g<gpu_pc_num_gpus;g++){
                 //debug("Comparing utilization for GPU %d : %lu vs %lu",g,current_util[DOMAIN_GPU][g],prev_util[DOMAIN_GPU][g]);
@@ -232,6 +251,7 @@ uint pmgt_utilization_changed()
 #if USE_GPUS
 static state_t util_detect_main(void *p)
 {
+
     int i;
     float min,vmin,xvmin;
     uint runnable,total,lastpid;
@@ -240,7 +260,7 @@ static state_t util_detect_main(void *p)
     if ((pmgt_powercap_status_per_domain(CHECK_ASK_DEFAULT) == 0) && ((util_period % UTIL_BURST_PERIOD) == 0)){
         util_period = 0;
         loadavg(&min,&vmin,&xvmin,&runnable,&total,&lastpid);
-        debug("%sCPU load %.2f%s ",COL_MGT,min,COL_CLR);
+        //debug("%sCPU load %.2f%s ",COL_MGT,min,COL_CLR);
         /* DOMAIN_NODE and DOMAIN_CPU are evaluated as a whole, GPU is evaluated in more detail */
         dom_util[DOMAIN_NODE] = min;
         prev_util[DOMAIN_CPU][0] = current_util[DOMAIN_CPU][0];
@@ -269,7 +289,7 @@ static state_t util_detect_main(void *p)
         float ratio;
         for (i=0;i<NUM_DOMAINS;i++){
             ratio = (float)dom_util[i]/(float)dom_util_limit[i];
-            debug("%sDomain %d perc_use %.2f (%.2f/%.1f)%s",COL_RED,i,ratio,(float)dom_util[i],(float)dom_util_limit[i],COL_CLR);
+            //debug("%sDomain %d perc_use %.2f (%.2f/%.1f)%s",COL_RED,i,ratio,(float)dom_util[i],(float)dom_util_limit[i],COL_CLR);
         }
 #endif
         pmgt_powercap_status_per_domain(CHECK_POWER_RED);
@@ -307,12 +327,14 @@ static state_t util_detect_init(void *p)
 void util_monitoring_init()
 {
 #if USE_GPUS
-    sus_util_detection=suscription();
-    sus_util_detection->call_main = util_detect_main;
-    sus_util_detection->call_init = util_detect_init;
-    sus_util_detection->time_relax = CHECK_STATUS_PERIOD;
-    sus_util_detection->time_burst = CHECK_STATUS_PERIOD;
-    sus_util_detection->suscribe(sus_util_detection);
+    if (gpu_pc_model != MODEL_DUMMY) {
+        sus_util_detection=suscription();
+        sus_util_detection->call_main = util_detect_main;
+        sus_util_detection->call_init = util_detect_init;
+        sus_util_detection->time_relax = CHECK_STATUS_PERIOD;
+        sus_util_detection->time_burst = CHECK_STATUS_PERIOD;
+        sus_util_detection->suscribe(sus_util_detection);
+    }
 #endif
 }
 
@@ -321,6 +343,7 @@ state_t pmgt_init()
 {
     state_t ret;
     int i;
+		policy_conf_t *my_policy;
     char basic_path[SZ_PATH];
     topology_init(&pc_topology_info);
 #if USE_GPUS
@@ -338,9 +361,13 @@ state_t pmgt_init()
         memcpy(pdomains_def,pdomains_def_dummy,sizeof(pdomains_def));
         memcpy(pdomains,pdomains_def_dummy,sizeof(pdomains_def));
         memcpy(pdomains_idle,pdomains_def_dummy,sizeof(pdomains_def));
+        memcpy(pdomains_min,pdomains_min_dummy,sizeof(pdomains_def));
         debug("Setting the percentage of powercap to GPUS to 0 because DUMMY");
     }
 #endif
+    my_policy = get_my_policy_conf(my_node_conf,my_cluster_conf.default_policy);
+    pmgt_idle_def_freq = frequency_pstate_to_freq(my_policy->p_state);
+
     /* DOMAIN_NODE is not cmpatible with CPU+DRAM */
     /* DOMAIN_NODE */
     char *obj_path = getenv("EAR_POWERCAP_POLICY_NODE");
@@ -352,11 +379,11 @@ state_t pmgt_init()
         }
     }
     if (obj_path!=NULL){
-        debug("Loading %s powercap plugin domain node",obj_path);
+        verbose(VEARD_PC, "Loading %s powercap plugin domain node",obj_path);
         ret=symplug_open(obj_path, (void **)&pcsyms_fun[DOMAIN_NODE], pcsyms_names, pcsyms_n);
         if (ret==EAR_SUCCESS) domains_loaded[DOMAIN_NODE]=1;
     }else{
-        debug("DOMAIN_NODE not loaded");
+        verbose(VEARD_PC, "DOMAIN_NODE not loaded");
     }
     /* We have a single domain node */
     debug("Initialzing Node util");
@@ -381,7 +408,7 @@ state_t pmgt_init()
             }
         } 
         if (obj_path!=NULL){
-            debug("Loading %s powercap plugin domain cpu",obj_path);
+            verbose(VEARD_PC, "Loading %s powercap plugin domain cpu",obj_path);
             ret=symplug_open(obj_path, (void **)&pcsyms_fun[DOMAIN_CPU], pcsyms_names, pcsyms_n);
             if (ret==EAR_SUCCESS){ 
                 domains_loaded[DOMAIN_CPU]=1;
@@ -409,7 +436,7 @@ state_t pmgt_init()
             }
         } 
         if (obj_path!=NULL){
-            debug("Loading %s powercap plugin domain dram",obj_path);
+            verbose(VEARD_PC, "Loading %s powercap plugin domain dram",obj_path);
             ret=symplug_open(obj_path, (void **)&pcsyms_fun[DOMAIN_DRAM], pcsyms_names, pcsyms_n);
             if (ret==EAR_SUCCESS) domains_loaded[DOMAIN_DRAM]=1;
         }else{
@@ -426,28 +453,39 @@ state_t pmgt_init()
 #if USE_GPUS
     /* DOMAIN_GPU */
     obj_path = getenv("EAR_POWERCAP_POLICY_GPU");
-    if (obj_path==NULL){
-        obj_path = my_node_conf->powercap_gpu_plugin;
-        if (obj_path != NULL && strlen(obj_path) > 1) {
-            sprintf(basic_path,"%s/powercap/%s",my_cluster_conf.install.dir_plug,obj_path);
-            obj_path=basic_path;
-        }
-        /* Plugin per domain node defined */
-        else if (strcmp(DEFAULT_PC_PLUGIN_NAME_GPU,"noplugin")){
-            sprintf(basic_path,"%s/powercap/%s.so",my_cluster_conf.install.dir_plug,DEFAULT_PC_PLUGIN_NAME_GPU);
-            obj_path=basic_path;
-        }
-    } 
-    if (obj_path!=NULL){
-        debug("Loading %s powercap plugin domain gpu",obj_path);
-        ret=symplug_open(obj_path, (void **)&pcsyms_fun[DOMAIN_GPU], pcsyms_names, pcsyms_n);
-        if (ret==EAR_SUCCESS) domains_loaded[DOMAIN_GPU]=1;
-        else debug("Error loading GPU powercap plugin");
-    }else{
+    if (gpu_pc_model != MODEL_DUMMY) {
+        if (obj_path==NULL){
+            obj_path = my_node_conf->powercap_gpu_plugin;
+            if (obj_path != NULL && strlen(obj_path) > 1) {
+                sprintf(basic_path,"%s/powercap/%s",my_cluster_conf.install.dir_plug,obj_path);
+                obj_path=basic_path;
+            }
+            /* Plugin per domain node defined */
+            else if (strcmp(DEFAULT_PC_PLUGIN_NAME_GPU,"noplugin")){
+                sprintf(basic_path,"%s/powercap/%s.so",my_cluster_conf.install.dir_plug,DEFAULT_PC_PLUGIN_NAME_GPU);
+                obj_path=basic_path;
+            }
+        } 
+        if (obj_path!=NULL){
+            verbose(VEARD_PC, "Loading %s powercap plugin domain gpu",obj_path);
+            ret=symplug_open(obj_path, (void **)&pcsyms_fun[DOMAIN_GPU], pcsyms_names, pcsyms_n);
+            if (ret==EAR_SUCCESS) domains_loaded[DOMAIN_GPU]=1;
+            else verbose(VEARD_PC, "Error loading GPU powercap plugin");
+        }else{
+            debug("DOMAIN_GPU not loaded");
+            memset(&pcsyms_fun[DOMAIN_GPU], 0, sizeof(powercapsym_t));
+            memcpy(pdomains_def,pdomains_def_dummy,sizeof(pdomains_def));
+            memcpy(pdomains,pdomains_def_dummy,sizeof(pdomains_def));
+            memcpy(pdomains_idle,pdomains_def_dummy,sizeof(pdomains_def));
+            memcpy(pdomains_min,pdomains_min_dummy,sizeof(pdomains_def));
+        } 
+    } else {
         debug("DOMAIN_GPU not loaded");
+        memset(&pcsyms_fun[DOMAIN_GPU], 0, sizeof(powercapsym_t));
         memcpy(pdomains_def,pdomains_def_dummy,sizeof(pdomains_def));
         memcpy(pdomains,pdomains_def_dummy,sizeof(pdomains_def));
         memcpy(pdomains_idle,pdomains_def_dummy,sizeof(pdomains_def));
+        memcpy(pdomains_min,pdomains_min_dummy,sizeof(pdomains_def));
     }
     debug("Initialzing GPU util");
     if (domains_loaded[DOMAIN_GPU]){
@@ -509,14 +547,28 @@ state_t pmgt_handler_alloc(pwr_mgt_t **phandler)
 state_t pmgt_set_powercap_value(pwr_mgt_t *phandler,uint pid,uint domain,ulong limit)
 {
     state_t ret,gret=EAR_SUCCESS;
+    uint value;
+    int cc;
     int i;
+    debug("entering set_powercap_value with domaind %u and limit %lu", domain, limit);
     for (i=0;i<NUM_DOMAINS;i++){
-        //debug("Using %f weigth for domain %d: Total %lu allocated %f",pdomains[i],i,limit,limit*pdomains[i]);
-        ret=freturn(pcsyms_fun[i].set_powercap_value,pid,domain,limit*pdomains[i],current_util[i]);
+        value = ear_max(limit*pdomains[i], 1);
+        debug("Using %f weigth for domain %d: Total %lu allocated %u",pdomains[i],i,limit,value);
+        ret = freturn(pcsyms_fun[i].set_powercap_value, pid, domain, value, current_util[i]);
 #ifndef SYN_TEST
-        dyn_conf->pc_opt.pper_domain[i]=limit*pdomains[i];
+        for (cc = 0;cc <= max_context_created; cc++){
+            if (current_ear_app[cc] != NULL){
+                /* PENDING to distribute power among running jobs proportionally to the number of resources*/
+                current_ear_app[cc]->settings->pc_opt.pper_domain[i] = limit*pdomains[i]/num_contexts;
+            }
+        }
 #endif
         if ((ret!=EAR_SUCCESS) && (domains_loaded[i])) gret=ret;
+        if (value == 1) {
+            ret = freturn(pcsyms_fun[i].plugin_set_relax);
+        } else {
+            ret = freturn(pcsyms_fun[i].plugin_set_burst);
+        }
     }
     pmgt_limit=limit;
     return gret;
@@ -524,6 +576,8 @@ state_t pmgt_set_powercap_value(pwr_mgt_t *phandler,uint pid,uint domain,ulong l
 
 static void reallocate_power_between_domains()
 {
+
+    if (pmgt_limit == POWER_CAP_UNLIMITED) return;
     int i;
     char buffer[1024],buffer2[1024];
     uint pid=0, domain=0; // we must manage this
@@ -574,6 +628,10 @@ uint pmgt_is_powercap_enabled(pwr_mgt_t *phandler,uint pid)
 void pmgt_print_powercap_value(pwr_mgt_t *phandler,int fd)
 {
     int i;
+    if (pmgt_limit == POWER_CAP_UNLIMITED){
+        dprintf(fd, "Node powercap unlimited");
+        return;
+    }  
     for (i=0;i<NUM_DOMAINS;i++){
         if (domains_loaded[i]) freturn(pcsyms_fun[i].print_powercap_value,fd);
     }
@@ -582,6 +640,11 @@ void pmgt_powercap_to_str(pwr_mgt_t *phandler,char *b)
 {
     int i;
     char new_s[512];
+    if (pmgt_limit == POWER_CAP_UNLIMITED){
+        sprintf(b, "Node powercap unlimited");
+        return;
+    }
+
     for (i=0;i<NUM_DOMAINS;i++){
         if (domains_loaded[i]){ 
             freturn(pcsyms_fun[i].powercap_to_str,new_s);
@@ -632,55 +695,115 @@ void pmgt_set_pc_mode(pwr_mgt_t *phandler,uint mode)
 void pmgt_set_power_per_domain(pwr_mgt_t *phandler,dom_power_t *pdomain,uint st)
 {
     int i;
+    if (pmgt_limit == POWER_CAP_UNLIMITED) return;
 #if USE_GPUS 
-    float pnode,pcpu,pdram,pgpu = 0.0;
     memcpy(&pdist_per_domain,pdomain,sizeof(dom_power_t));
+#if SHOW_DEBUGS
+    float pnode,pcpu,pdram,pgpu = 0.0;
     pnode=(float)(pdomain->platform-pdomain->gpu)/(float)pdomain->platform;
     pcpu=(float)(pdomain->cpu+pdomain->dram)/(float)pdomain->platform;
     pdram=(float)(pdomain->dram)/(float)pdomain->platform;
     pgpu=(float)(pdomain->gpu)/(float)pdomain->platform;
+#endif
     debug("[NODE-GPU %f CPU %f DRAM %f GPU %f][NODE-GPU %f CPU %f DRAM %f GPU %f]",pnode,pcpu,pdram,pgpu,pdomains[DOMAIN_NODE],pdomains[DOMAIN_CPU],pdomains[DOMAIN_DRAM],pdomains[DOMAIN_GPU]);
 #endif
     if (my_pc_opt.last_t1_allocated < my_pc_opt.def_powercap) return;
     if (pdomain->platform > pmgt_limit){
-        verbose(1,"%s Warning! we are over the limit: Limit %u Power %u%s",COL_RED,pmgt_limit,pdomain->platform,COL_CLR);
+        verbose(VEARD_PC,"%s Warning! we are over the limit: Limit %u Power %u%s",COL_RED,pmgt_limit,pdomain->platform,COL_CLR);
         float excess = ((float)(pdomain->platform - pmgt_limit))/(float)pmgt_limit;
         for (i=0;i< NUM_DOMAINS; i++){
             if (pdomains[i] > 0)
-                pdomains[i] = pdomains[i] - excess*pdomains[i];
+                pdomains[i] = ear_max(pdomains_min[i], pdomains[i] - excess*pdomains[i]);
         }
-        pmgt_reset_pdomain();
         debug("reduced power domains by %.2f, new CPU %.2f new GPU %.2f", excess, pdomains[DOMAIN_CPU], pdomains[DOMAIN_GPU]);
-        default_pdomains = 0;
-    }else if ((pdomain->platform < pmgt_limit) && (!default_pdomains)){    
+        pmgt_reset_pdomain();
+    }else if (pdomain->platform < (pmgt_limit * SECURITY_RANGE)){    
         for (i=0;i< NUM_DOMAINS; i++){
             pdomains[i] = ear_min(pdomains[i] + 0.02,pdomains_def[i]);
-            if (pdomains[i] == pdomains_def[i]) default_pdomains = 1;
         }
+        debug("increase power domains new CPU %.2f new GPU %.2f", pdomains[DOMAIN_CPU], pdomains[DOMAIN_GPU]);
+        pmgt_reset_pdomain();
     }
 }
 
 void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
 {
+    int cc, i;
+    powermon_app_t *pmapp;	
+    job_context_t *alloc;
+    int pos_job_in_node;
+    for (cc = 1; cc  <= max_context_created; cc ++){
+        if (current_ear_app[cc] != NULL){
+            pmapp = current_ear_app[cc];
+            /* For each app, we must merge CPUfreq and GPUfreq requested */
 #ifndef SYN_TEST
-    if (domain == DOMAIN_CPU) memcpy(f,pc_app_info_data->req_f,sizeof(ulong)*MAX_CPUS_SUPPORTED);
+            if (domain == DOMAIN_CPU){ 
+                //memcpy(f,pc_app_info_data->req_f,sizeof(ulong)*MAX_CPUS_SUPPORTED);
+                cpu_set_t m;
+                pos_job_in_node = is_job_in_node(pmapp->app.job.id, &alloc);
+                if (pmapp->app.is_mpi) {  //job step with EARL
+                    debug("Using EARL mask");
+                    m = pmapp->app_info->node_mask;
+                } else if (!pmapp->is_job) { //job step without EARL
+                    debug("Using plugin mask (step without EARL)");
+                    m = pmapp->plug_mask;
+                } else if (pmapp->is_job && pos_job_in_node && alloc->numc == 1) { //srun without an sbatch
+                    debug("Using plugin mask (step without EARL neither sbatch)");
+                    m = pmapp->plug_mask;
+                } else { //sbatch with other steps inside
+                    continue;
+                }
+                //verbose_affinity_mask(&m, dom_size);
+
+
+                for (i=0; i < MAX_CPUS_SUPPORTED; i++){
+                    if (CPU_ISSET(i,&m)) f[i] = pmapp->pc_app_info->req_f[i];
+                }
+            }
 #if USE_GPUS
-    if (domain == DOMAIN_GPU) memcpy(f,pc_app_info_data->req_gpu_f,sizeof(ulong)*MAX_GPUS_SUPPORTED);
+            if (domain == DOMAIN_GPU){ 
+                //memcpy(f,pc_app_info_data->req_gpu_f,sizeof(ulong)*MAX_GPUS_SUPPORTED);
+                for (i=0; i < MAX_GPUS_SUPPORTED; i++){
+                    if (pmapp->pc_app_info->req_gpu_f[i] != 0) f[i] = pmapp->pc_app_info->req_gpu_f[i];
+                }
+            }
 #endif
 #endif
+        }
+
+    }
+		#define USE_IDLE_PC_MINFREQ 1
+		if (domain == DOMAIN_CPU){
+    for (i=0; i < MAX_CPUS_SUPPORTED; i++){
+				#if USE_IDLE_PC_MINFREQ
+        if (!f[i]) f[i] = frequency_pstate_to_freq(frequency_get_num_pstates() -1 );
+				#else
+        if (!f[i]) f[i] = pmgt_idle_def_freq;
+				#endif
+    }
+		}
 }
 
-void pmgt_set_app_req_freq(pwr_mgt_t *phandler, pc_app_info_t *pc_app)
+void pmgt_set_app_req_freq(pwr_mgt_t *phandler)
 {
+    ulong cpuf[MAX_CPUS_SUPPORTED];
+    memset(cpuf, 0, sizeof(ulong)*MAX_CPUS_SUPPORTED);
     if (pcsyms_fun[DOMAIN_NODE].set_app_req_freq != NULL){
-        freturn(pcsyms_fun[DOMAIN_NODE].set_app_req_freq,pc_app->req_f);
+        pmgt_get_app_req_freq(DOMAIN_NODE, cpuf, MAX_CPUS_SUPPORTED);
+        freturn(pcsyms_fun[DOMAIN_NODE].set_app_req_freq,cpuf);
     }
     if (pcsyms_fun[DOMAIN_CPU].set_app_req_freq != NULL){
-        freturn(pcsyms_fun[DOMAIN_CPU].set_app_req_freq,pc_app->req_f);
+        pmgt_get_app_req_freq(DOMAIN_CPU, cpuf, MAX_CPUS_SUPPORTED);
+        freturn(pcsyms_fun[DOMAIN_CPU].set_app_req_freq,cpuf);
     }
 #if USE_GPUS
-    if (pcsyms_fun[DOMAIN_GPU].set_app_req_freq != NULL) {
-        freturn(pcsyms_fun[DOMAIN_GPU].set_app_req_freq,pc_app->req_gpu_f);
+    if (gpu_pc_model != MODEL_DUMMY) {
+        ulong gpuf[MAX_GPUS_SUPPORTED];
+        memset(gpuf, 0, sizeof(ulong)*MAX_GPUS_SUPPORTED);
+        if (pcsyms_fun[DOMAIN_GPU].set_app_req_freq != NULL) {
+            pmgt_get_app_req_freq(DOMAIN_GPU, gpuf, MAX_GPUS_SUPPORTED);
+            freturn(pcsyms_fun[DOMAIN_GPU].set_app_req_freq,gpuf);
+        }
     }
 #endif
 }
@@ -701,7 +824,7 @@ void pmgt_set_default_powercap()
 void pmgt_powercap_node_reallocation()
 {
     int i;
-    
+
 #if SHOW_DEBUGS
     float ratio;
     for (i=0; i< NUM_DOMAINS;i++){
@@ -739,6 +862,7 @@ void pmgt_idle_to_run(pwr_mgt_t *phandler)
 {
     memcpy(pdomains,pdomains_def,sizeof(float)*NUM_DOMAINS);
     reallocate_power_between_domains();
+    debug("sending PC_STATUS_RUN to all domain");
     pmgt_set_status(phandler,PC_STATUS_RUN);
 }
 void pmgt_run_to_idle(pwr_mgt_t *phandler)
@@ -755,6 +879,10 @@ void pmgt_get_status(pmgt_status_t *status)
 
     memset(cdomain_status, 0, sizeof(domain_status_t)*NUM_DOMAINS);
     memset(status, 0, sizeof(pmgt_status_t));
+    if (pmgt_limit == POWER_CAP_UNLIMITED) {
+        status->status = PC_STATUS_OK;
+        return;
+    }
     /* We ask each domain its curent status to compute the node's status */
     for (i=0; i< NUM_DOMAINS;i++) {
         if (pcsyms_fun[i].get_powercap_status != NULL){
@@ -799,6 +927,7 @@ uint pmgt_powercap_status_per_domain(uint action)
     totalok = totalrel = totalask = 0;
     uint ret,from = 0,to = 0;
     memset(cdomain_status,0,sizeof(domain_status_t)*NUM_DOMAINS);
+    if (pmgt_limit == POWER_CAP_UNLIMITED) return 0;
     /* We ask each domain its curent status to distribute power accross domains */
     for (i=0; i< NUM_DOMAINS;i++){
         if (pcsyms_fun[i].get_powercap_status != NULL){

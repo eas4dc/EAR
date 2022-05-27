@@ -25,33 +25,31 @@
 // This API is designed to nothing more than rely on the driver. It just sorts
 // some of the driver raw information.
 
-state_t cpufreq_default_status(topology_t *_tp);
+state_t mgt_cpufreq_default_load(topology_t *tp, mgt_ps_ops_t *ops, mgt_ps_driver_ops_t *ops_driver);
 
-state_t cpufreq_default_init(ctx_t *c, mgt_ps_driver_ops_t *ops_driver);
+state_t mgt_cpufreq_default_init(ctx_t *c);
 
-state_t cpufreq_default_init_user(ctx_t *c, mgt_ps_driver_ops_t *ops_driver, const ullong *freq_list, uint freq_count);
-
-state_t cpufreq_default_dispose(ctx_t *c);
+state_t mgt_cpufreq_default_dispose(ctx_t *c);
 
 // Data
-state_t cpufreq_default_count_available(ctx_t *c, uint *pstate_count);
+state_t mgt_cpufreq_default_count_available(ctx_t *c, uint *pstate_count);
 
 // Getters
-state_t cpufreq_default_get_available_list(ctx_t *c, pstate_t *pstate_list);
+state_t mgt_cpufreq_default_get_available_list(ctx_t *c, pstate_t *pstate_list);
 
-state_t cpufreq_default_get_current_list(ctx_t *c, pstate_t *pstate_list);
+state_t mgt_cpufreq_default_get_current_list(ctx_t *c, pstate_t *pstate_list);
 
-state_t cpufreq_default_get_nominal(ctx_t *c, uint *pstate_index);
+state_t mgt_cpufreq_default_get_nominal(ctx_t *c, uint *pstate_index);
 
-state_t cpufreq_default_get_governor(ctx_t *c, uint *governor);
+state_t mgt_cpufreq_default_get_governor(ctx_t *c, uint *governor);
 
-state_t cpufreq_default_get_index(ctx_t *c, ullong freq_khz, uint *pstate_index, uint closest);
+state_t mgt_cpufreq_default_get_index(ctx_t *c, ullong freq_khz, uint *pstate_index, uint closest);
 
 // Setters
-state_t cpufreq_default_set_current_list(ctx_t *c, uint *pstate_index);
+state_t mgt_cpufreq_default_set_current_list(ctx_t *c, uint *pstate_index);
 
-state_t cpufreq_default_set_current(ctx_t *c, uint pstate_index, int cpu);
+state_t mgt_cpufreq_default_set_current(ctx_t *c, uint pstate_index, int cpu);
 
-state_t cpufreq_default_set_governor(ctx_t *c, uint governor);
+state_t mgt_cpufreq_default_set_governor(ctx_t *c, uint governor);
 
 #endif //MANAGEMENT_CPUFREQ_ARCHS_DEFAULT

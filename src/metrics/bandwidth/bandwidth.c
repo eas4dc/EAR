@@ -15,298 +15,170 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-/*
- * Usage:
- * 1) Call init passing the processor model of clusters
- * nodes to initialize the uncores scan and allocate file
- * descriptors memory.
- * 2) Call reset and start when you want to begin to count
- * the bandwith for a period of time.
- * 3) Call stop passing an array of unsigned long long
- * to also get the final uncore counters values.
- * 4) Repeat steps 2 and 3 every time you need to obtain
- * counters values.
- * 4) Call dispose to close the file descriptors and also
- * free it's allocated memory.
- *
- * When an error occurs, those calls returns -1.
- */
+// #define SHOW_DEBUGS 1
 
-#include <limits.h>
-#include <stdlib.h>
+#include <pthread.h>
 #include <common/output/debug.h>
-#include <common/math_operations.h>
+#include <common/utils/overhead.h>
 #include <metrics/bandwidth/bandwidth.h>
-#include <metrics/bandwidth/cpu/dummy.h>
-#include <metrics/bandwidth/cpu/amd49.h>
-#include <metrics/bandwidth/cpu/intel63.h>
+#include <metrics/bandwidth/archs/eard.h>
+#include <metrics/bandwidth/archs/dummy.h>
+#include <metrics/bandwidth/archs/bypass.h>
+#include <metrics/bandwidth/archs/likwid.h>
+#include <metrics/bandwidth/archs/amd17.h>
+#include <metrics/bandwidth/archs/intel63.h>
+#include <metrics/bandwidth/archs/intel106.h>
 
-static struct uncore_op {
-	state_t (*init)		(ctx_t *c, topology_t *tp);
-	state_t (*dispose)	(ctx_t *c);
-	state_t (*count)	(ctx_t *c, uint *count);
-	state_t (*start)	(ctx_t *c);
-	state_t (*reset)	(ctx_t *c);
-	state_t (*read)		(ctx_t *c, ullong *cas);
-	state_t (*stop)		(ctx_t *c, ullong *cas);
-} ops;
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static bwidth_ops_t    ops;
+static uint            api;
+static uint            oid;
 
-static ctx_t context;
-static ctx_t *c = &context;
-static topology_t topo;
-
-// Depending on the architecture delivered by cpu_model variable,
-// the pmons structure would point to its proper reading functions.
-int init_uncores(int cpu_model)
+state_t bwidth_load(topology_t *tp, int eard)
 {
-	topology_init(&topo);
-
-	if (state_ok(bwidth_intel63_status(&topo)))
-	{
-		debug("selected intel63");
-		ops.init  = bwidth_intel63_init;
-		ops.count = bwidth_intel63_count;
-		ops.reset = bwidth_intel63_reset;
-		ops.start = bwidth_intel63_start;
-		ops.stop  = bwidth_intel63_stop;
-		ops.read  = bwidth_intel63_read;
-		ops.dispose = bwidth_intel63_dispose;
+	while (pthread_mutex_trylock(&lock));
+	// Already initialized
+	if (api != API_NONE) {
+		pthread_mutex_unlock(&lock);
+		return EAR_SUCCESS;
 	}
-	else if (state_ok(bwidth_amd49_status(&topo)))
-	{
-		debug("selected amd49");
-		ops.init    = bwidth_amd49_init;
-		ops.count   = bwidth_amd49_count;
-		ops.reset   = bwidth_amd49_reset;
-		ops.start   = bwidth_amd49_start;
-		ops.stop    = bwidth_amd49_stop;
-		ops.read    = bwidth_amd49_read;
-		ops.dispose = bwidth_amd49_dispose;
+	// Dummy by default
+	api = API_DUMMY;
+	if (state_ok(bwidth_eard_load(tp, &ops, eard))) {
+		debug("Loaded EARD");
+		api = API_EARD;
 	}
-	else
-	{
-		debug("selected dummy");
-		ops.init    = bwidth_dummy_init;
-		ops.count   = bwidth_dummy_count;
-		ops.reset   = bwidth_dummy_reset;
-		ops.start   = bwidth_dummy_start;
-		ops.stop    = bwidth_dummy_stop;
-		ops.read    = bwidth_dummy_read;
-		ops.dispose = bwidth_dummy_dispose;
+    #if 0
+	if (state_ok(bwidth_intel106_load(tp, &ops))) {
+		api = API_INTEL106;
+		debug("Loaded INTEL106");
 	}
-
-	if (state_ok(ops.init(c, &topo))) {
-		return count_uncores();
+    #endif
+	if (state_ok(bwidth_intel63_load(tp, &ops))) {
+		api = API_INTEL63;
+		debug("Loaded INTEL63");
 	}
-
-	return 0;
-}
-
-int dispose_uncores()
-{
-	preturn (ops.dispose, c);
-}
-
-int count_uncores()
-{
-	int count = 0;
-	if (ops.count != NULL) {
-		ops.count(c, (uint *) &count);
+	if (state_ok(bwidth_amd17_load(tp, &ops))) {
+		api = API_AMD17;
+		debug("Loaded AMD17");
 	}
-	return count;
-	//preturn (ops.count, c);
-}
-
-int check_uncores()
-{
+	if (state_ok(bwidth_likwid_load(tp, &ops))) {
+		api = API_LIKWID;
+		debug("Loaded LIKWID");
+	}
+    #if 0
+	if (state_ok(bwidth_bypass_load(tp, &ops))) {
+		api = API_BYPASS;
+		debug("Loaded BYPASS");
+	}
+    #endif
+	bwidth_dummy_load(tp, &ops);
+    // Overhead control
+    overhead_suscribe("metrics/bandwidth", &oid);
+    // Leaving
+	pthread_mutex_unlock(&lock);
 	return EAR_SUCCESS;
 }
 
-int reset_uncores()
+state_t bwidth_get_api(uint *api_in)
 {
-	preturn (ops.reset, c);
-}
-
-int start_uncores()
-{
-	#if 0
-	if (ops.start != NULL) {
-		ops.start(c);
-	}
-	
-	return read_uncores(NULL);
-	#endif
-	preturn (ops.start, c);
-}
-
-int read_uncores(ullong *cas)
-{
-	preturn (ops.read, c, cas);
-}
-
-int stop_uncores(ullong *cas)
-{
-	preturn (ops.stop, c, cas);
-}
-
-ullong acum_uncores(ullong *cas,int N)
-{
-	ullong acum=0;
-	int i;
-  int dev_count = N;
-  if (dev_count == 0) {
-    return_msg(EAR_ERROR, Generr.api_uninitialized);
-  }
-	  for (i = 0; i < dev_count; ++i) {
-    acum += cas[i] ;
-  }
-	return acum;
-}
-
-ullong acum_diff(ullong *end, ullong *init,int N)
-{
-  ullong acum=0;
-  int i;
-  int dev_count = N;
-  if (dev_count == 0) {
-    return_msg(EAR_ERROR, Generr.api_uninitialized);
-  }
-  for (i = 0; i < dev_count; ++i) {
-		if (end[i] >= init[i]){
-			acum += end[i] -init[i];
-		}else{
-    	acum += uncore_ullong_diff_overflow(init[i],end[i]);
-		}
-  }
-  return acum;
-}
-
-int compute_mem_bw(ullong *cas2, ullong *cas1, double *bps, double t,int N)
-{
-	int dev_count = N;
-	ullong accum;
-	if (dev_count == 0) {
-		return_msg(EAR_ERROR, Generr.api_uninitialized);
-	}
-	topology_init(&topo);
-	accum = acum_diff(cas2,cas1,N);
-	debug("Total uncore events %llu cache line size %u\n",accum,topo.cache_line_size);
-	*bps = (double)(accum * topo.cache_line_size)/(t*BW_GB);
+	*api_in = api;
 	return EAR_SUCCESS;
 }
 
-int compute_tpi(ullong *cas2, ullong *cas1, double *tpi, ullong inst,int N)
+state_t bwidth_init(ctx_t *c)
 {
-  int dev_count = N;
-  ullong accum;
-  if (dev_count == 0) {
-    return_msg(EAR_ERROR, Generr.api_uninitialized);
-  }
-  topology_init(&topo);
-  accum = acum_diff(cas2,cas1,N);
-  debug("Total uncore events %llu cache line size %u\n",accum,topo.cache_line_size);
-  *tpi = (double)(accum * topo.cache_line_size)/(double)inst;
-  return EAR_SUCCESS;
-}
-
-
-int compute_uncores(ullong *cas2, ullong *cas1, double *bps, double units)
-{
-	int dev_count = count_uncores();
-	ullong accum=0;
-	if (dev_count == 0) {
-		return_msg(EAR_ERROR, Generr.api_uninitialized);
+	while (pthread_mutex_trylock(&lock));
+	state_t s = ops.init(c);
+	if (state_ok(bwidth_dummy_init_static(c, &ops))) {
+		// Debug
 	}
-	accum = acum_diff(cas2,cas1,dev_count);
-	*bps = (double) accum;
-	*bps = ((*bps)*64.0) / (units*4.0);
-	return EAR_SUCCESS;
+	pthread_mutex_unlock(&lock);
+	return s;
 }
 
-
-int alloc_array_uncores(ullong **array)
+state_t bwidth_dispose(ctx_t *c)
 {
-	int dev_count = count_uncores();
-	if (dev_count == 0) {
-		return_msg(EAR_ERROR, Generr.api_uninitialized);
+	return ops.dispose(c);
+}
+
+state_t bwidth_count_devices(ctx_t *c, uint *dev_count)
+{
+	return ops.count_devices(c, dev_count);
+}
+
+state_t bwidth_get_granularity(ctx_t *c, uint *granularity)
+{
+	return ops.get_granularity(c, granularity);
+}
+
+state_t bwidth_read(ctx_t *c, bwidth_t *b)
+{
+    overhead_start(oid);
+    state_t s = ops.read(c, b);
+    overhead_stop(oid);
+    return s;
+}
+
+state_t bwidth_read_diff(ctx_t *c, bwidth_t *b2, bwidth_t *b1, bwidth_t *bD, ullong *cas, double *gbs)
+{
+	state_t s;
+	if (state_fail(s = bwidth_read(c, b2))) {
+		return s;
 	}
-	*array = calloc(dev_count, sizeof(ullong));
-	return EAR_SUCCESS;
+	return ops.data_diff(b2, b1, bD, cas, gbs);
 }
 
-int alloc_uncores(ullong **array,int N)
+state_t bwidth_read_copy(ctx_t *c, bwidth_t *b2, bwidth_t *b1, bwidth_t *bD, ullong *cas, double *gbs)
 {
-  int dev_count = N;
-  if (dev_count == 0) {
-    return_msg(EAR_ERROR, Generr.api_uninitialized);
-  }
-  *array = calloc(dev_count, sizeof(ullong));
-  return EAR_SUCCESS;
-
-}
-
-
-ullong uncore_ullong_diff_overflow(ullong begin, ullong end)
-{
-	ullong max_64 = ULLONG_MAX;
-	ullong max_48 = 281474976710656; //2^48
-	ullong ret = 0;
-
-	if (begin < max_48 && end < max_48) {
-		ret = max_48 - begin + end;
-	} else {
-		ret = max_64 - begin + end;
+	state_t s;
+	if (state_fail(s = bwidth_read_diff(c, b2, b1, bD, cas, gbs))) {
+		return s;
 	}
-	return ret;
+	return ops.data_copy(b1, b2);
 }
 
-void diff_uncores(ullong * diff,ullong *end,ullong  *begin,int N)
+state_t bwidth_data_diff(bwidth_t *b2, bwidth_t *b1, bwidth_t *bD, ullong *cas, double *gbs)
 {
-	int i;
-	for (i=0;i<N;i++){
-		if (end[i]<begin[i]){
-			diff[i]=uncore_ullong_diff_overflow(begin[i],end[i]);
-		}else{
-			diff[i]=end[i]-begin[i];
-		}
-	}
+	return ops.data_diff(b2, b1, bD, cas, gbs);
 }
 
-void copy_uncores(ullong * DEST,ullong * SRC,int N)
+state_t bwidth_data_accum(bwidth_t *bA, bwidth_t *bD, ullong *cas, double *gbs)
 {
-	memcpy((void *)DEST, (void *)SRC, N*sizeof(ullong));
+	return ops.data_accum(bA, bD, cas, gbs);
 }
 
-int uncore_are_frozen(ullong * DEST,int N)
+state_t bwidth_data_alloc(bwidth_t **b)
 {
-	int i,frozen=1;
-	for (i=0;i<N;i++){
-		if (DEST[i]>0){
-			frozen=0;
-			break;
-		}
-	}
-	return frozen;
+	return ops.data_alloc(b);
 }
 
-void print_uncores(unsigned long long * DEST,int N)
+state_t bwidth_data_free(bwidth_t **b)
 {
-  int i;
-  for (i=0;i<N;i++){
-		fprintf(stdout,"Counter %d= %llu \t",i,DEST[i]);
-	}
-	fprintf(stdout,"\n");
+	return ops.data_free(b);
 }
 
-void uncores_to_str(unsigned long long * DEST,int N,char *txt,int len)
+state_t bwidth_data_copy(bwidth_t *dst, bwidth_t *src)
 {
-	int i;
-	char coun[128];
-	txt[0]='\0';
-  for (i=0;i<N;i++){
-		sprintf(coun,"cas[%d]= %llu ",i,DEST[i]);
-		if ((strlen(txt) +  strlen(coun)) > len) return;
-		strcat(txt,coun);	
-  }
+	return ops.data_copy(dst, src);
 }
 
+state_t bwidth_data_print(ullong cas, double gbs, int fd)
+{
+	return ops.data_print(cas, gbs, fd);
+}
+
+state_t bwidth_data_tostr(ullong cas, double gbs, char *buffer, size_t length)
+{
+	return ops.data_tostr(cas, gbs, buffer, length);
+}
+
+double bwidth_help_castogbs(ullong cas, double secs)
+{
+    return bwidth_dummy_help_castogbs(cas, secs);
+}
+
+double bwidth_help_castotpi(ullong cas, ullong instructions)
+{
+    return bwidth_dummy_help_castotpi(cas, instructions);
+}

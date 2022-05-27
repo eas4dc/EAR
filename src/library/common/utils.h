@@ -26,5 +26,5 @@
 
 #include <common/states.h>
 
-state_t utils_create_report_plugin_path(char *result_path, char *install_path, char *custom_path, int authorized_user);
+state_t utils_create_plugin_path(char *result_path, char *install_path, char *custom_path, int authorized_user);
 #endif

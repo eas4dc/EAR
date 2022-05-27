@@ -147,7 +147,7 @@ static void fill_policies(cluster_conf_t *conf)
     }
 }
 
-static void generate_node_ranges(node_island_t *island, char *nodelist)
+void generate_node_ranges(node_island_t *island, char *nodelist)
 {
     char *buffer_ptr;
     char *second_ptr;
@@ -233,6 +233,7 @@ void parse_island(cluster_conf_t *conf, char *line)
     int idx = -1, i = 0;
     int contains_ip = 0;
     int contains_sec_ip = 0;
+    int contains_eargm = 0;
     char tag_parsing = 0;
     char *token;
 
@@ -365,17 +366,26 @@ void parse_island(cluster_conf_t *conf, char *line)
         }
         else if (!strcmp(token, "NODES"))
         {
-            contains_ip = contains_sec_ip = 0;
+            contains_ip = contains_sec_ip = contains_eargm = 0;
             token = strtok(NULL, " ");
             int id_f = idx < 0 ? conf->num_islands: idx;
             current_ranges = conf->islands[id_f].num_ranges;
             generate_node_ranges(&conf->islands[id_f], token);
         }
+        else if (!strcmp(token, "EARGMID"))
+        {
+            contains_eargm = 1;
+            int id_f = idx < 0 ? conf->num_islands: idx;
+            token = strtok(NULL, " ");
+            int egm_id = atoi(token);
+            for (i = current_ranges; i < conf->islands[id_f].num_ranges; i++)
+                conf->islands[id_f].ranges[i].eargm_id = egm_id;
+        }
         else if (!strcmp(token, "ISLAND_TAGS"))
         {
             tag_parsing = 1;
             int i, found = 0;
-            char aux_token[256], *next_token = NULL;
+            char aux_token[512], *next_token = NULL;
             token = strtok(NULL, " ");
             strcpy(aux_token, token);
             token = strtok(NULL, " ");
@@ -409,7 +419,7 @@ void parse_island(cluster_conf_t *conf, char *line)
         else if (!strcmp(token, "TAGS") || !strcmp(token, "TAG") )
         {
             tag_parsing = 1;
-            char aux_token[256], *next_token = NULL;
+            char aux_token[512], *next_token = NULL;
             token = strtok(NULL, " ");
             strcpy(aux_token, token);
             token = strtok(NULL, " ");
@@ -478,13 +488,22 @@ void parse_island(cluster_conf_t *conf, char *line)
         for (i = current_ranges; i < conf->islands[id_f].num_ranges; i++)
             conf->islands[id_f].ranges[i].sec_ip = id_sec_db;
     }
+    if (!contains_eargm)
+    {
+        int last_eargm = current_ranges > 0 ? conf->islands[id_f].ranges[current_ranges-1].eargm_id : 0;
+        if (conf->eargm.num_eargms > 0 && last_eargm == 0) {
+            last_eargm = conf->eargm.eargms[0].id;
+        }
+        for (i = current_ranges; i < conf->islands[id_f].num_ranges; i++)
+            conf->islands[id_f].ranges[i].eargm_id = last_eargm;
+    }
     if (idx < 0)
         conf->num_islands++;
 }
 
 void get_cluster_config(FILE *conf_file, cluster_conf_t *conf)
 {
-    char line[256];
+    char line[512];
     char def_policy[128];
     char *token;
 
@@ -493,7 +512,7 @@ void get_cluster_config(FILE *conf_file, cluster_conf_t *conf)
     conf->num_etags=0;
     conf->power_policies = calloc(TOTAL_POLICIES, sizeof(policy_conf_t));
     fill_policies(conf);
-    while (fgets(line, 256, conf_file) != NULL)
+    while (fgets(line, 512, conf_file) != NULL)
     {
         if (line[0] == '#') continue;
         remove_chars(line, 13); //carriage return (\n or \r)
@@ -618,6 +637,24 @@ void get_cluster_config(FILE *conf_file, cluster_conf_t *conf)
             break;
         }
     }
+
+    /* Plugins */
+    if (strlen(conf->eard.plugins) == 0){
+        strcpy(conf->eard.plugins,"eardbd.so");	
+    }
+    if (strlen(conf->db_manager.plugins) == 0){
+        strcpy(conf->db_manager.plugins,"mysql.so");
+    }
+    if (strlen(conf->eargm.plugins) == 0){
+        strcpy(conf->eargm.plugins,"mysql.so");	
+    }
+    if (strlen(conf->earlib.plugins) == 0){
+        strcpy(conf->earlib.plugins,"eard.so");
+    }
+
+    /* EARGM checks */
+
+    check_cluster_conf_eargm(&conf->eargm);
 }
 
 
@@ -663,14 +700,14 @@ int read_cluster_conf(char *conf_path,cluster_conf_t *my_conf)
 int read_eardbd_conf(char *conf_path,char *username,char *pass)
 {
     FILE *conf_file = fopen(conf_path, "r");
-    char line[256];
+    char line[512];
     if (conf_file == NULL)
     {
         error("ERROR opening file: %s\n", conf_path);
         return EAR_ERROR;
     }
     int current_line=0;
-    while ((fgets(line, 256, conf_file) != NULL) && (current_line<2))
+    while ((fgets(line, 512, conf_file) != NULL) && (current_line<2))
     {
         strclean(line, '\n');
         if (current_line==0) 	strcpy(username,line);

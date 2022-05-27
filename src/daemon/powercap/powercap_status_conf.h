@@ -20,6 +20,7 @@
 
 
 #include <stdint.h>
+#include <common/types/powercap.h>
 
 #define POWERCAP_IDLE_PERC 0.5
 
@@ -35,18 +36,6 @@
 #else
 #define GPU_PERC_UTIL 0
 #endif
-
-
-
-
-#define PC_STATUS_OK        0
-#define PC_STATUS_GREEDY    1
-#define PC_STATUS_RELEASE   2
-#define PC_STATUS_ASK_DEF   3
-#define PC_STATUS_IDLE      4
-#define PC_STATUS_STOP      5
-#define PC_STATUS_START     6
-#define PC_STATUS_RUN       7
 
 #define PC_DVFS     50
 #define PC_POWER    51

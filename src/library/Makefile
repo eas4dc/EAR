@@ -1,4 +1,4 @@
-CFLAGS  = -fPIC -O2 -I$(SRCDIR)  -Wall
+CFLAGS  = -fPIC -O2 -I$(SRCDIR) -Wall -g -DEARL_LIGHT=0
 LDFLAGS = -shared -ldl -lm -lpthread -rdynamic
 
 ifeq ($(FEAT_MPI_API), 0)
@@ -9,7 +9,12 @@ MPI_VERSION = gen
 else
 LIBCC       = $(MPICC)
 LIBCC_FLAGS = $(MPICC_FLAGS)
-LIB_CFLAGS  = $(MPI_CFLAGS) -DMPI=1 -DNODE_LB=1
+LIB_CFLAGS  = $(MPI_CFLAGS) -DMPI=1 -DNODE_LB=1 -g
+endif
+
+ifeq ($(FEAT_RESEARCH), 1)
+	CFLAGS += -DNEW_LB_EFF=1 -DNEW_MPI_STATS=1 # $(GSL_CFLAGS) -DCOUNTDOWN=1 -DUSE_GSL=1
+	# LDFLAGS += $(GSL_LDFLAGS) 
 endif
 
 export LIBCC
@@ -33,12 +38,12 @@ libs_PERM  = 0755
 ######## FILES
 
 comm_OBJS = \
-    $(SRCDIR)/daemon/local_api/eard_api.o \
     $(SRCDIR)/daemon/shared_configuration.o \
     $(SRCDIR)/daemon/powercap/powercap_status.o \
     $(SRCDIR)/report/report.o \
     $(SRCDIR)/management/libmgt.a \
     $(SRCDIR)/metrics/libmetrics.a \
+    $(SRCDIR)/daemon/local_api/libeard.a \
     $(SRCDIR)/common/libcommon.a
 
 core_OBJS = \
@@ -46,22 +51,25 @@ core_OBJS = \
     api/clasify.o \
     api/mpi_support.o \
     api/cupti.o \
+    api/eard_dummy.o \
     common/library_shared_data.o \
     common/utils.o \
     metrics/metrics.o \
+    metrics/gpu.o \
+	metrics/energy_node_lib.o \
     models/models.o \
+    models/cpu_power_model.o \
     policies/policy.o \
     policies/common/pc_support.o \
     policies/common/gpu_support.o \
     policies/common/cpu_support.o \
     policies/common/mpi_stats_support.o \
     policies/common/imc_policy_support.o \
-	  policies/common/generic.o \
+    policies/common/generic.o \
     states/states_comm.o \
     states/states.o \
     tracer/tracer.o \
-    dynais/dynais.a \
-    metrics/gpu.o 
+    dynais/dynais.a 
 
 ifeq ($(FEAT_MPI_API), 1)
 mpix_OBJS = \

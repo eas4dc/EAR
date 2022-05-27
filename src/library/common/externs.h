@@ -83,6 +83,5 @@ extern uint report_node_sig;
 extern uint report_all_sig;
 extern uint earl_phase_classification;
 extern topology_t mtopo;
-extern ulong *cpufreq_data_per_core;
 
 #endif

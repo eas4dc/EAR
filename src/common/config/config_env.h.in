@@ -18,7 +18,18 @@
 #ifndef CONFIG_ENVIRONMENT_H
 #define CONFIG_ENVIRONMENT_H
 
-/* These variables are used by the plugin to configure the EAR environment */
+#include <string.h>
+#include <common/config/config_install.h>
+
+#define SCHED_PREFIX    "@SCHED_NAME@_"
+
+/** @config_env.h */
+
+/**
+ * @defgroup PLUGIN_VARIABLES Plugin Variables
+ * These variables are used by the plugin to configure the EAR environment.
+ * @{
+ */
 #define VAR_INS_PATH "EAR_INSTALL_PATH"
 #define VAR_TMP_PATH "EAR_TMP"
 #define VAR_ETC_PATH "EAR_ETC"
@@ -34,123 +45,139 @@
 #define VAR_OPT_THRB "EAR_PERFORMANCE_PENALTY"
 #define VAR_OPT_THRC "EAR_MIN_PERFORMANCE_EFFICIENCY_GAIN"
 
-/* EAR paths and names */
+/**
+ * @defgroup EAR_PATHS EAR installation
+ * EAR paths and names.
+ * @{
+ */
 #define REL_PATH_LIBR "lib"
 #define REL_NAME_LIBR "libear"
 #define REL_PATH_LOAD "lib/libearld.so"
+/** @} */
 
-/* Scheduler definitions */
-/* SLURM removes some env vars. Variables starting with SLURM are not removed */
-#define SCHED_SLURM 1
-#ifdef  SCHED_SLURM
+/**
+ * @defgroup HACK Hack variables.
+ * They modify the default configuration.
+ * @{
+ */
+#define HACK_LIBRARY_FILE            SCHED_PREFIX "HACK_LIBRARY_FILE"       // Sets a specific library file.
+#define HACK_LOADER_FILE             SCHED_PREFIX "HACK_LOADER_FILE"        // Sets a specific loader file.
+#define HACK_NVML_FILE               SCHED_PREFIX "HACK_NVML_FILE"          // The GPU API loads a specific NVML library file.
+#define HACK_MPI_VERSION             SCHED_PREFIX "HACK_MPI_VERSION"        // Adds a suffix to libear.so (i.e: libear.hello.so).
+#define HACK_ENERGY_PLUGIN           SCHED_PREFIX "HACK_ENERGY_PLUGIN"       // This var forces to load a specific energy plugin.
+#define HACK_POWER_POLICY            SCHED_PREFIX "HACK_POWER_POLICY"       // This var forces to load a specific power policy. Replaces (SCHED_PREFIX)_EAR_POWER_POLICY.
+#define HACK_GPU_POWER_POLICY        SCHED_PREFIX "HACK_GPU_POWER_POLICY"   // This var forces to load a specific gpu power policy. Replaces (SCHED_PREFIX)_EAR_GPU_POWER_POLICY.
+#define HACK_POWER_MODEL             SCHED_PREFIX "HACK_POWER_MODEL"        // This var forces to load a specific power model plugin. Replaces (SCHED_PREFIX)_EAR_POWER_MODEL.
+#define HACK_CPU_POWER_MODEL         SCHED_PREFIX "HACK_CPU_POWER_MODEL"    // This var forces to load a specific cpu power model plugin.
+#define HACK_DYNAIS_WINDOW_SIZE      SCHED_PREFIX "HACK_DYNAIS_WINDOW_SIZE" // This var forces a specific dynais windows size. Replaces (SCHED_PREFIX)_EAR_DYNAIS_WINDOW_SIZE.
+#define HACK_DEF_FREQ                SCHED_PREFIX "HACK_DEF_FREQ"           // This var forces a different default frequency than the predefined for a policy. Replaces (SCHED_PREFIX)_EAR_DEF_FREQ.
+#define HACK_EARL_VERBOSE            SCHED_PREFIX "HACK_EARL_VERBOSE"       // This var forces an EARL verbosity.
+#define HACK_EARL_INSTALL_PATH       SCHED_PREFIX "HACK_EARL_INSTALL_PATH"  // This variable HACKS all the library environment, simplifies the utilization of a privatized environment.
+#define HACK_PROCS_VERB_FILES        SCHED_PREFIX "HACK_PROCS_VERB_FILES"   // This variable makes all processes having a log verbose file each one.
+/** @} */
 
-#define VAR_OPT_TRAC "SLURM_EAR_TRACE_PATH"
+/**
+ * @defgroup OTHER Other
+ * These variables are not HACKS as there is no other way to specify in EAR.
+ * @{
+ */
+#define FLAG_TRACE_PATH              SCHED_PREFIX "EAR_TRACE_PATH"         // Sets the output path of the trace plugin.
+#define FLAG_TRACE_PLUGIN            SCHED_PREFIX "EAR_TRACE_PLUGIN"       // Sets the trace plugin in EARL.
+#define FLAG_GPU_DEF_FREQ            SCHED_PREFIX "EAR_GPU_DEF_FREQ"       // This var sets a default GPU frequency.
 
-/* HACK variables, they modify the default configuration */
-// Sets a specific library path (the loader selects the file).
-#define HACK_PATH_LIBR "SLURM_HACK_LIBRARY"
-// Sets a specific library file.
-#define HACK_FILE_LIBR "SLURM_HACK_LIBRARY_FILE"
-// Sets a specific loader file.
-#define HACK_FILE_LOAD "SLURM_HACK_LOADER"
-// The GPU API loads a specific NVML library file.
-#define HACK_FILE_NVML "SLURM_HACK_NVML"
-// Adds a suffix to libear.so (i.e: libear.hello.so). 
-#define FLAG_NAME_LIBR "SLURM_HACK_EAR_MPI_VERSION"
-/* This var forces to load a specific power policy. Replaces SLURM_EAR_POWER_POLICY */
-#define SCHED_EAR_POWER_POLICY "SLURM_HACK_EAR_POWER_POLICY"
-/* This var forces to load a specific gpu power policy. Replaces SLURM_EAR_GPU_POWER_POLICY */
-#define SCHED_EAR_GPU_POWER_POLICY "SLURM_HACK_EAR_GPU_POWER_POLICY"
-/* This var forces to load a specific power model plugin.  Replaces SLURM_EAR_POWER_MODEL */
-#define SCHED_EAR_POWER_MODEL "SLURM_HACK_EAR_POWER_MODEL"
-/* This var forces a specific dynais windows size. Replaces SLURM_EAR_DYNAIS_WINDOW_SIZE */
-#define SCHED_EAR_DYNAIS_WINDOW_SIZE "SLURM_HACK_EAR_DYNAIS_WINDOW_SIZE"
-/* This var forces a different default frequency than the predefined for a policy. replaces SLURM_EAR_DEF_FREQ */
-#define SCHED_EAR_DEF_FREQ "SLURM_HACK_EAR_DEF_FREQ"
-/* This var forces an EARL verbosity */
-#define SCHED_EARL_VERBOSE "SLURM_HACK_EARL_VERBOSE"
-/* This variables HACKS all the library environment, simplifies the utilization of a privatized environment */
-#define SCHED_EARL_INSTALL_PATH "SLURM_HACK_EARL_INSTALL_PATH"
+#define SCHED_LOADER_LOAD_NO_MPI_LIB "SLURM_LOADER_APPLICATION"            // TODO: Deprectated. This variable is maintaned here in order to avoid errors in users' scripts.
+                                                                           // They will be warned and this variable will be removed in future versions.
+#define FLAG_LOADER_APPLICATION      SCHED_PREFIX "EAR_LOADER_APPLICATION" // This variable forces to load the NON MPI version of the library for a given application (i.e. SLURM_LOADER_LOAD_NO_MPI_LIB=gromacs).
 
-/* END HACK section */
+#define SCHED_LOAD_MPI_VERSION       "SLURM_LOAD_MPI_VERSION"              // TODO: Deprectated. This variable is maintaned here in order to avoid errors in users' scripts.
+                                                                           // They will be warned and this variable will be removed in future versions.
+#define FLAG_LOAD_MPI_VERSION        SCHED_PREFIX "EAR_LOAD_MPI_VERSION"   // This variable is used for not detected MPI application (python) to specify which version it is: intel, ompi, etc
 
+#define SCHED_MAX_IMC_FREQ           "SLURM_MAX_IMC_FREQ"                  // TODO: Deprectated. This variable is maintaned here in order to avoid errors in users' scripts.
+                                                                           // They will be warned and this variable will be removed in future versions.
+#define FLAG_MAX_IMCFREQ             SCHED_PREFIX "EAR_MAX_IMCFREQ"        // Sets the maximum IMC/DF frequency at which the application must run.
 
-/* These variables are not HACKS given there is no other way to specify in EAR */
-/* Sets the trace plugin in EARL */
-#define SCHED_EAR_TRACE_PLUGIN "SLURM_EAR_TRACE_PLUGIN"
-/* This var sets a default GPU ferquency. */
-#define SCHED_EAR_GPU_DEF_FREQ "SLURM_EAR_GPU_DEF_FREQ"
-/* This variable forces to load the NON MPI version of the library for a given application.
- * SLURM_LOADER_LOAD_NO_MPI_LIB=gromacs */
-#define SCHED_LOADER_LOAD_NO_MPI_LIB "SLURM_LOADER_LOAD_NO_MPI_LIB"
-#define SCHED_MAX_IMC_FREQ						"SLURM_MAX_IMC_FREQ"
-#define SCHED_MIN_IMC_FREQ						"SLURM_MIN_IMC_FREQ"
-/* This variable specifies the IMC freq must be selected by the EAR policy */
-#define SCHED_SET_IMC_FREQ          "SLURM_SET_IMC_FREQ"
-#define SCHED_IMC_EXTRA_TH          "SLURM_IMC_EXTRA_TH"
-#define SCHED_LET_HW_CTRL_IMC       "SLURM_LET_HW_CTRL_IMC"
-#define SCHED_EXCLUSIVE_MODE        "SLURM_EXCLUSIVE_MODE"
-#define SCHED_USE_EARL_PHASES       "SLURM_USE_EARL_PHASES"
-#define SCHED_ENABLE_LOAD_BALANCE  	"SLURM_ENABLE_LOAD_BALANCE"
-#define SCHED_USE_TURBO_FOR_CP      "SLURM_USE_TURBO_FOR_CP"
-#define SCHED_MIN_CPUFREQ           "SLURM_MIN_CPUFREQ"
-#define SCHED_NETWORK_USE_IMC       "SLURM_NETWORK_USE_IMC"
-#define SCHED_TRY_TURBO             "SLURM_TRY_TURBO"
-#define SCHED_LOAD_BALANCE_TH       "SLURM_LOAD_BALANCE_TH"
-#define SCHED_EAR_REPORT_ADD				"SLURM_EAR_REPORT_ADD"
-#define SCHED_USE_ENERGY_MODELS			"SLURM_USE_ENERGY_MODELS"
+#define SCHED_MIN_IMC_FREQ           "SLURM_MIN_IMC_FREQ"                  // TODO: Deprectated. This variable is maintaned here in order to avoid errors in users' scripts.
+                                                                           // They will be warned and this variable will be removed in future versions.
+#define FLAG_MIN_IMCFREQ             SCHED_PREFIX "EAR_MIN_IMCFREQ"        // Sets the minimum IMC/DF frequency at which the application must run.
 
+#define SCHED_SET_IMC_FREQ           "SLURM_SET_IMC_FREQ"                  // TODO: Deprectated. This variable is maintaned here in order to avoid errors in users' scripts.
+                                                                           // They will be warned and this variable will be removed in future versions.
+#define FLAG_SET_IMCFREQ             SCHED_PREFIX "EAR_SET_IMCFREQ"        // This variable specifies the IMC freq must be selected by the EAR policy.
 
+#define SCHED_IMC_EXTRA_TH           "SLURM_IMC_EXTRA_TH"                  // TODO: Deprectated.
+#define FLAG_IMC_TH                  SCHED_PREFIX "EAR_POLICY_IMC_TH"      // Sets the threshold penalty tolered by the IMC/DF policy.
 
+#define SCHED_LET_HW_CTRL_IMC        "SLURM_LET_HW_CTRL_IMC"               // TODO: Deprectated.
+#define FLAG_LET_HW_IMC              SCHED_PREFIX "EAR_LET_HW_IMC"         // Tells the IMC policy to be first guided by hardware's UFS algorithm.
 
+#define SCHED_EXCLUSIVE_MODE         "SLURM_EXCLUSIVE_MODE"                // TODO: Deprectated.
+#define FLAG_EXCLUSIVE_MODE          SCHED_PREFIX "EAR_JOB_EXCLUSIVE_MODE" // Tells EAR the current job is the unique executing in the node.
 
+#define FLAG_EARL_PHASES             SCHED_PREFIX "USE_EARL_PHASES"        // Allows EARL to detect application phases (e.g., compute bound, memory bound, mpi bound) and improve policy default decisions.
 
-/* Asks EARL to write verbose messages in separate per_task files */
-#define SCHED_EARL_VERBOSE_PATH "SLURM_EARL_VERBOSE_PATH"
+#define SCHED_ENABLE_LOAD_BALANCE  	 "SLURM_ENABLE_LOAD_BALANCE"           // TODO: Deprectated.
+#define FLAG_LOAD_BALANCE  	         SCHED_PREFIX "EAR_LOAD_BALANCE"       // Force changing policies' default decisions if they detect the application is load unbalanced.
 
+#define FLAG_TURBO_CP                SCHED_PREFIX "USE_TURBO_FOR_CP"
 
+#define SCHED_MIN_CPUFREQ            "SLURM_MIN_CPUFREQ"                   // TODO: Deprectated.
+#define FLAG_MIN_CPUFREQ             SCHED_PREFIX "EAR_MIN_CPUFREQ"        // Sets a minimum CPU frequency policies can set.
 
-/* Modifies the verbosity of the loader */
-#define SCHED_LOADER_VERBOSE "SLURM_LOADER_VERBOSE"
-// Sets the value of the loader's verbosity.
-#define FLAG_LOAD_VERB "SLURM_LOADER_VERBOSE"
+#define SCHED_NETWORK_USE_IMC        "SLURM_NETWORK_USE_IMC"               // TODO: Deprectated.
+#define FLAG_NTWRK_IMC               SCHED_PREFIX "EAR_NTWRK_IMC"          // Tells the IMC policy the application uses IMC freq for network operations, making the policy less aggressive.
 
+#define SCHED_TRY_TURBO              "SLURM_TRY_TURBO"                     // TODO: Deprectated.
+#define FLAG_TRY_TURBO               SCHED_PREFIX "EAR_TRY_TURBO"          // If policies have make CPU frequency be at maximum, try to boost the CPU frequency.
+                                                                     
+#define SCHED_LOAD_BALANCE_TH        "SLURM_LOAD_BALANCE_TH"               // TODO: Deprectated.
+#define FLAG_LOAD_BALANCE_TH         SCHED_PREFIX "EAR_LOAD_BALANCE_TH"    // Sets a threshold to considere the application is load unbalanced.
 
-// Delivered by SLURM, this flag contains the task PID.
-#define FLAG_TASK_PID  "SLURM_TASK_PID"
-#define SCHED_JOB_ID  "SLURM_JOB_ID"
-#define SCHED_STEP_ID "SLURM_STEP_ID"
-#define SCHED_STEPID "SLURM_STEPID"
-#define SCHED_JOB_ACCOUNT "SLURM_JOB_ACCOUNT"
-#define SCHED_NUM_TASKS "SLURM_STEP_TASKS_PER_NODE"
-#define SCHED_JOB_NAME "SLURM_JOB_NAME"
-#define SCHED_NUM_NODES "SLURM_NNODES"
-#define SCHED_STEP_NUM_NODES "SLURM_STEP_NUM_NODES"
+#define FLAG_REPORT_ADD              SCHED_PREFIX "EAR_REPORT_ADD"
 
-#define NULL_JOB_ID getpid()
-#define NULL_STEPID (0xfffffffe)
-#define NULL_ACCOUNT "NO_SLURM_ACCOUNT"
+#define SCHED_USE_ENERGY_MODELS      "SLURM_USE_ENERGY_MODELS"             // TODO: Deprecated.
+#define FLAG_USE_ENERGY_MODELS       SCHED_PREFIX "EAR_USE_ENERGY_MODELS"  // Tells policies to use power models instead of probe and error DVFS.
 
+#define FLAG_EARL_VERBOSE_PATH       SCHED_PREFIX "EARL_VERBOSE_PATH"      // Asks EARL to write verbose messages in separate per-task files.
 
+#define FLAG_LOADER_VERBOSE          SCHED_PREFIX "EAR_LOADER_VERBOSE"     // Loader's verbosity.
+#define FLAG_TASK_PID                SCHED_PREFIX "TASK_PID"               // Delivered by SLURM, this flag contains the task PID.
+#define SCHED_JOB_ID                 SCHED_PREFIX "JOB_ID"
+#define SCHED_STEP_ID                SCHED_PREFIX "STEP_ID"
+#define SCHED_STEPID                 SCHED_PREFIX "STEPID"                 // Deprecated by SLURM, maintained for backwards compatibility.
+#define SCHED_JOB_ACCOUNT            SCHED_PREFIX "JOB_ACCOUNT"
+#define SCHED_NUM_TASKS              SCHED_PREFIX "STEP_TASKS_PER_NODE"
+#define SCHED_JOB_NAME               SCHED_PREFIX "JOB_NAME"
+#define SCHED_NUM_NODES              SCHED_PREFIX "NNODES"
+#define SCHED_STEP_NUM_NODES         SCHED_PREFIX "STEP_NUM_NODES"
 
+#define SCHED_IS_ERUN                SCHED_PREFIX "IS_ERUN"
 
+#define NULL_JOB_ID                  getpid()
+#define NULL_STEPID                  (0xfffffffe)
+#define NULL_ACCOUNT                 "NO_SLURM_ACCOUNT"
+/** @} */
 
-// These variables controls the behaviour for new infrastructure. They affect features under development.
-// These three affects to verbose effects: Prints all the signatures in state.c, and print per node or all shared signatures
-#define SCHED_EAR_MIN_PERC_MPI "SLURM_EAR_MIN_PERC_MPI"
-#define SCHED_EAR_RED_FREQ_IN_MPI "SLURM_EAR_RED_FREQ_IN_MPI"
-#define SCHED_EAR_SHOW_SIGNATURES "SLURM_EAR_SHOW_SIGNATURES"
-#define REPORT_NODE_SIGNATURES "SLURM_REPORT_NODE_SIGNATURES"
-#define REPORT_ALL_SIGNATURES "SLURM_REPORT_ALL_SIGNATURES"
-/* Force to shares all the signatures */
-#define SHARE_INFO_PER_PROCESS "SLURM_SHARE_INFO_PER_PROCESS"
-/* Force to share only the average signature per node */
-#define SHARE_INFO_PER_NODE 	"SLURM_SHARE_INFO_PER_NODE"
-#define USE_APP_MGR_POLICIES	"SLURM_APP_MGR_POLICIES"
-#define EAR_STATS 						"SLURM_GET_EAR_STATS"
-#define SCHED_GET_EAR_STATS   "SLURM_GET_EAR_STATS"
-#define EAR_POLICY_GRAIN			"SLURM_EAR_POLICY_GRAIN"
+/**
+ * @defgroup DEVELOPMENT Under development
+ * These variables controls the behaviour for new infrastructure.
+ * They affect features under development.
+ * @{
+ */
 
-#endif //SCHED_SLURM
+/**
+ * @defgroup VERBOSE Verbose effects
+ * Prints all the signatures in state.c, and print per node or all shared signatures.
+ * @{
+ */
+#define FLAG_SHOW_SIGNATURES         SCHED_PREFIX "EAR_SHOW_SIGNATURES"
+#define FLAG_REPORT_NODE_SIGNATURES  SCHED_PREFIX "EAR_REPORT_NODE_SIGNATURES"
+#define FLAG_REPORT_ALL_SIGNATURES   SCHED_PREFIX "EAR_REPORT_ALL_SIGNATURES"
+#define FLAG_SHARE_INFO_PPROC        SCHED_PREFIX "EAR_SHARE_INFO_PER_PROCESS" // Forces to share all the signatures.
+#define FLAG_SHARE_INFO_PNODE 	     SCHED_PREFIX "EAR_SHARE_INFO_PER_NODE"    // Forces to share only the average signature per node.
+#define FLAG_APP_MGR_POLICIES	     SCHED_PREFIX "EAR_APP_MGR_POLICIES"
+#define SCHED_GET_EAR_STATS          "SLURM_GET_EAR_STATS"                     // TODO: Deprecated.
+#define FLAG_GET_MPI_STATS           SCHED_PREFIX "EAR_GET_MPI_STATS"
 
+/** @}  */
 #endif //CONFIG_ENVIRONMENT_H

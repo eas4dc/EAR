@@ -25,11 +25,13 @@
 //#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
 #include <common/output/debug.h>
+#include <common/types/configuration/cluster_conf.h>
 
 static ctx_t gpu_node_mgr;
 static uint num_dev;
 static ulong *def_khz,*max_khz,*current_khz;
 static ulong *def_w,*max_w,*current_w,*min_w;
+extern my_node_conf_t *my_node_conf;
 state_t gpu_mgr_init()
 {
 	uint i;
@@ -100,6 +102,9 @@ state_t gpu_mgr_init()
 	for (i=0;i<num_dev;i++){
 		debug("GPU %u freq limits: def %lu max %lu current %lu",i,def_khz[i],max_khz[i],current_khz[i]);
 		debug("GPU %u power limits:def %lu min %lu max %lu current %lu",i,def_w[i],min_w[i],max_w[i],current_w[i]);
+	}
+	if (my_node_conf->gpu_def_freq == 0){
+		my_node_conf->gpu_def_freq = max_khz[0];
 	}
 	return EAR_SUCCESS;
 }

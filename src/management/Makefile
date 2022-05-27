@@ -7,7 +7,9 @@ root_OBJS = \
     $(SRCDIR)/management/cpufreq/governor.o \
     $(SRCDIR)/management/cpufreq/frequency.o \
     $(SRCDIR)/management/cpufreq/archs/amd17.o \
+    $(SRCDIR)/management/cpufreq/archs/dummy.o \
     $(SRCDIR)/management/cpufreq/archs/default.o \
+    $(SRCDIR)/management/cpufreq/archs/eard.o \
     $(SRCDIR)/management/cpufreq/drivers/linux_cpufreq.o \
     $(SRCDIR)/management/imcfreq/imcfreq.o \
     $(SRCDIR)/management/imcfreq/archs/amd17.o \

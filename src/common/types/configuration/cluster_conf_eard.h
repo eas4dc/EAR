@@ -34,7 +34,8 @@ typedef struct eard_conf
   uint use_mysql;     /* Must EARD report to DB */
   uint use_eardbd;    /* Must EARD report to DB using EARDBD */
   uint force_frequencies; /* 1=EARD will force pstates specified in policies , 0=will not */
-  uint    use_log;
+  uint use_log;
+  char plugins[SZ_PATH_INCOMPLETE];
 } eard_conf_t;
 
 

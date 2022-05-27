@@ -1,0 +1,1879 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Energy Aware Runtime" />
+  <title>EAR4.1 guide</title>
+  <style>
+    html {
+      line-height: 1.5;
+      font-family: Georgia, serif;
+      font-size: 20px;
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 1em;
+      }
+    }
+    @media print {
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, 'Lucida Console', Consolas, monospace;
+      font-size: 85%;
+      margin: 0;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  
+  
+  
+  
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">EAR4.1 guide</h1>
+<p class="author">Energy Aware Runtime</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#introduction">Introduction</a>
+<ul>
+<li><a href="#license">License</a></li>
+<li><a href="#publications">Publications</a></li>
+</ul></li>
+<li><a href="#user-guide">User guide</a>
+<ul>
+<li><a href="#running-jobs-with-ear">Running jobs with EAR</a></li>
+<li><a href="#use-cases">Use cases</a>
+<ul>
+<li><a href="#mpi-applications">MPI applications</a></li>
+<li><a href="#hybrid-mpi-openmp-cuda-mkl-applications">Hybrid MPI + (OpenMP, CUDA, MKL) applications</a></li>
+<li><a href="#python-not-mpi">Python (not MPI)</a></li>
+<li><a href="#python-mpi-applications">Python + MPI applications</a></li>
+<li><a href="#openmp-cuda-mk-non-mpi-applications">OpenMP, CUDA, MK (non-MPI) applications</a></li>
+<li><a href="#other-application-types-or-frameworks">Other application types or frameworks</a></li>
+</ul></li>
+<li><a href="#mpi-srun">MPI + srun</a>
+<ul>
+<li><a href="#ear-job-submission-flags">EAR job submission flags</a></li>
+<li><a href="#cpu-frequency-selection">CPU frequency selection</a></li>
+<li><a href="#gpu-frequency-selection">GPU frequency selection</a></li>
+</ul></li>
+<li><a href="#mpi-mpirun">MPI + mpirun</a>
+<ul>
+<li><a href="#intel-mpi">Intel MPI</a></li>
+<li><a href="#openmpi">OpenMPI</a></li>
+<li><a href="#mpi4py">MPI4PY</a></li>
+<li><a href="#using-additional-mpi-profiling-librariestools">Using additional MPI profiling libraries/tools</a></li>
+</ul></li>
+<li><a href="#examples">Examples</a>
+<ul>
+<li><a href="#sbatch-earl-srun"><code>sbatch</code> + EARL + srun</a></li>
+<li><a href="#earl-mpirun">EARL + mpirun</a></li>
+<li><a href="#erun">erun</a></li>
+</ul></li>
+<li><a href="#job-accounting-eacct">Job accounting (eacct)</a>
+<ul>
+<li><a href="#eacct-usage-examples">eacct usage examples</a></li>
+</ul></li>
+<li><a href="#jobs-executed-without-the-ear-library-basic-job-accounting">Jobs executed without the EAR library: Basic Job accounting</a></li>
+</ul></li>
+<li><a href="#admin-guide">Admin guide</a>
+<ul>
+<li><a href="#ear-components">EAR Components</a></li>
+<li><a href="#quick-installation-guide">Quick Installation Guide</a>
+<ul>
+<li><a href="#ear-requirements">EAR Requirements</a></li>
+<li><a href="#compiling-and-installing-ear">Compiling and installing EAR</a></li>
+<li><a href="#deployment-and-validation">Deployment and validation</a></li>
+<li><a href="#ear-library-versions-mpi-vs.-non-mpi">EAR Library versions: MPI vs. Non-MPI</a></li>
+</ul></li>
+<li><a href="#installing-from-rpm">Installing from RPM</a>
+<ul>
+<li><a href="#installation-content">Installation content</a></li>
+</ul></li>
+<li><a href="#next-steps">Next steps</a></li>
+<li><a href="#architecture">Architecture</a>
+<ul>
+<li><a href="#eard-node-manager">EARD: Node Manager</a></li>
+<li><a href="#eardbd-database-manager">EARDBD: Database Manager</a></li>
+<li><a href="#eargmd-global-manager">EARGMD: Global Manager</a></li>
+<li><a href="#earl-the-ear-library">EARL: The EAR Library</a></li>
+<li><a href="#earlo-ear-loader">EARLo: EAR Loader</a></li>
+<li><a href="#ear-slurm-plugin">EAR SLURM plugin</a></li>
+</ul></li>
+<li><a href="#installation-from-source">Installation from source</a>
+<ul>
+<li><a href="#requirements">Requirements</a></li>
+<li><a href="#compilation-and-installation-guide-summary">Compilation and installation guide summary</a></li>
+<li><a href="#configure-options">Configure options</a></li>
+<li><a href="#adding-required-libraries-installed-in-custom-locations">Adding required libraries installed in custom locations</a></li>
+<li><a href="#additional-configure-flags">Additional configure flags</a></li>
+<li><a href="#pre-installation-fast-tweaks">Pre-installation fast tweaks</a></li>
+<li><a href="#library-distributionsversions">Library distributions/versions</a></li>
+<li><a href="#other-useful-flags">Other useful flags</a></li>
+<li><a href="#installation-content-1">Installation content</a></li>
+<li><a href="#fine-grain-tuning-of-ear-options">Fine grain tuning of EAR options</a></li>
+<li><a href="#next-step">Next step</a></li>
+</ul></li>
+<li><a href="#configuration">Configuration</a>
+<ul>
+<li><a href="#configuration-requirements">Configuration requirements</a></li>
+<li><a href="#ear-configuration-file">EAR configuration file</a></li>
+<li><a href="#slurm-spank-plug-in-configuration-file">SLURM SPANK plug-in configuration file</a></li>
+<li><a href="#mysqlpostgresql">MySQL/PostgreSQL</a></li>
+<li><a href="#msr-safe">MSR Safe</a></li>
+<li><a href="#examples-1">Examples</a></li>
+<li><a href="#considerations">Considerations</a></li>
+<li><a href="#considerations-1">Considerations</a></li>
+</ul></li>
+<li><a href="#db-tables">DB Tables</a></li>
+<li><a href="#database-creation-and-ear.conf">Database creation and <code>ear.conf</code></a></li>
+<li><a href="#information-reported-and-ear.conf">Information reported and <code>ear.conf</code></a></li>
+<li><a href="#updating-from-previous-versions">Updating from previous versions</a>
+<ul>
+<li><a href="#from-ear-3.4-to-4.0">From EAR 3.4 to 4.0</a></li>
+<li><a href="#from-ear-3.3-to-3.4">From EAR 3.3 to 3.4</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#architectures-and-schedulers-supported">Architectures and schedulers supported”</a>
+<ul>
+<li><a href="#cpu-models">CPU Models</a></li>
+<li><a href="#gpu-models">GPU models</a></li>
+<li><a href="#schedulers">Schedulers</a></li>
+</ul></li>
+<li><a href="#changelog">Changelog</a>
+<ul>
+<li><a href="#ear-4.1">EAR 4.1</a></li>
+<li><a href="#ear-4.0">EAR 4.0</a></li>
+<li><a href="#ear-3.4">EAR 3.4</a></li>
+<li><a href="#ear-3.3">EAR 3.3</a></li>
+<li><a href="#ear-3.2">EAR 3.2</a></li>
+</ul></li>
+<li><a href="#faqs-when-using-ear-flags-with-slurm-plugin">FAQS when using EAR flags with SLURM plugin</a></li>
+<li><a href="#known-issues">Known issues</a></li>
+</ul>
+</nav>
+<h1 id="introduction">Introduction</h1>
+<p><img src="./images/logo.png" align="right" width="440"> Energy Aware Runtime (EAR) package provides an energy management framework for super computers. EAR contains different components, all together provide three main services:</p>
+<ol type="1">
+<li>An <strong>easy-to-use</strong> and <strong>lightweight optimization service</strong> to automatically select the optimal CPU frequency according to the application and the node characteristics. This service is provided by two components: the EAR library (<strong>EARL</strong>) and the EAR daemon (<strong>EARD</strong>). EARL is a smart component which is loaded next to the application, intercepting MPI calls and selecting the CPU frequency based on the application behaviour on the fly. The library is loaded automatically through the EAR Loader (<strong>EARLO</strong>) and SLURM plugin (<strong>EARPLUG</strong>).</li>
+<li>A complete <strong>energy and performance accounting and monitoring system</strong> based on SQL database (MariaDB and PostgreSQL are supported). The energy accounting system is configurable in terms of application details and update frequency. The EAR database daemon (<strong>EARDBD</strong>) is used to cache those metrics prior to DB insertions.</li>
+<li>A <strong>global energy management</strong> to monitor and control the energy consumed in the system through the EAR global manager daemon (<strong>EARGMD</strong>). This control is configurable, it can dynamically adapt policy settings based on global energy limits or just offer global cluster monitoring.</li>
+</ol>
+<p>Visit <a href="Architecture">the architecture page</a> for a detailed description of each of these components.</p>
+<h2 id="license">License</h2>
+<p>EAR is an open source software and it is licensed under both the BSD-3 license for individual/non-commercial use and EPL-1.0 license for commercial use. Full text of both licenses can be found in COPYING.BSD and COPYING.EPL files.</p>
+<p>Contact: <a href="mailto:ear-support@bsc.es">ear-support@bsc.es</a></p>
+<h2 id="publications">Publications</h2>
+<p><a href="https://ieeexplore.ieee.org/document/9229570">J. Corbalan, L. Alonso, J. Aneas and L. Brochard, “Energy Optimization and Analysis with EAR,” 2020 IEEE International Conference on Cluster Computing (CLUSTER), 2020, pp. 464-472, doi: 10.1109/CLUSTER49012.2020.00067.</a></p>
+<p><a href="https://ieeexplore.ieee.org/document/9555970">J. Corbalan, O. Vidal, L. Alonso and J. Aneas, “Explicit uncore frequency scaling for energy optimisation policies with EAR in Intel architectures,” 2021 IEEE International Conference on Cluster Computing (CLUSTER), 2021, pp. 572-581, doi: 10.1109/Cluster48925.2021.00089.</a></p>
+<p>[[<em>TOC</em>]]</p>
+<h1 id="user-guide">User guide</h1>
+<h2 id="running-jobs-with-ear">Running jobs with EAR</h2>
+<p>With EAR’s SLURM plugin, running an application with EAR is as easy as submitting a job with either <code>srun</code>, <code>sbatch</code> or <code>mpirun</code>. The EAR Library is automatically loaded with some applications when EAR is enabled by default.</p>
+<p>You can type <code>ear-info</code> to see whether EAR is turned on by default. For other schedulers, a simple prolog/epilog command can be created to provide transparent job submission with EAR and default configuration.</p>
+<h2 id="use-cases">Use cases</h2>
+<h3 id="mpi-applications">MPI applications</h3>
+<p>EAR Library is automatically loaded with MPI applications when EAR is enabled by default (check <code>ear-info</code>). EAR supports the utilization of both <code>mpirun</code>/<code>mpiexec</code> and <code>srun</code> commands.</p>
+<p>When using <code>sbacth</code>/<code>srun</code> or <code>salloc</code>, Intel MPI and OpenMPI are fully supported. When using specific MPI flavour commands to start applications (e.g., <code>mpirun</code>, <code>mpiexec.hydra</code>), there are some keypoints which you must take account. See next sections for examples and more details.</p>
+<h3 id="hybrid-mpi-openmp-cuda-mkl-applications">Hybrid MPI + (OpenMP, CUDA, MKL) applications</h3>
+<p>EAR Library automatically supports this use case. Check with the <code>ear-info</code> command if EAR library is <code>on</code>/<code>off</code> by default. If it’s <code>off</code>, use <code>--ear=on</code> option offered by EAR SLURM plugin to enable it. <code>mpirun</code>/<code>mpiexec</code> and <code>srun</code> are supported in the same manner as explained above.</p>
+<h3 id="python-not-mpi">Python (not MPI)</h3>
+<p>EAR version 4.1 automatically executes the EAR Library with Python applications, so no action is needed. Check with the <code>ear-info</code> command if EAR library is <code>on</code>/<code>off</code> by default. If it’s <code>off</code>, use <code>--ear=on</code> option offered by EAR SLURM plugin to enable it.</p>
+<h3 id="python-mpi-applications">Python + MPI applications</h3>
+<p>EAR Library cannot detect automatically MPI symbols when Python is used. On that case, an environment variable used to specify which MPI flavour is provided. Export <code>SLURM_EAR_LOAD_MPI_VERSION</code> environment variable with either <em>intel</em> or <em>open mpi</em> values, e.g., <code>export SLURM_EAR_LOAD_MPI_VERSION="open mpi"</code>, whose are the two MPI implementations 100% supported by EAR.</p>
+<p>Check with the <code>ear-info</code> command if EAR library is <code>on</code>/<code>off</code> by default. If it’s <code>off</code>, use <code>--ear=on</code> option offered by EAR SLURM plugin to enable it.</p>
+<h3 id="openmp-cuda-mk-non-mpi-applications">OpenMP, CUDA, MK (non-MPI) applications</h3>
+<p>To load the EAR Library automatically with non MPI applications it is required to have it compiled with dynamic symbols and also it must be executed with <code>srun</code> command. For example, for CUDA applications the <code>--cudart=shared</code> option must be used. EARL is loaded for OpenMP, MKL and CUDA programming models when symbols are dynamically detected.</p>
+<h3 id="other-application-types-or-frameworks">Other application types or frameworks</h3>
+<p>For other programming models or sequential apps not supported by default, EARL can be forced to be loaded by setting <code>SLURM_EAR_LOADER_APPLICATION</code> enviroment variable, defined with the application name.</p>
+<pre><code>#!/bin/bash
+
+export SLURM_EAR_LOADER_APPLICATION=my_app
+srun my_app</code></pre>
+<h2 id="mpi-srun">MPI + srun</h2>
+<p>Running MPI applications with EARL is automatic for SLURM systems when using <code>srun</code>. All the jobs are monitored by EAR and the Library is loaded by default depending on the cluster configuration. To run a job with srun and EARL there is no need to load the EAR module. Even though it is automatic, there are few flags than can be selected at job submission. When using slurm commands for job submission, both Intel and OpenMPI implementations are supported.</p>
+<h3 id="ear-job-submission-flags">EAR job submission flags</h3>
+<p>The following EAR options can be specified when running <code>srun</code> and/or <code>sbatch</code>, and are supported with <code>srun</code>/<code>sbatch</code>/<code>salloc</code>:</p>
+<table>
+<colgroup>
+<col style="width: 27%" />
+<col style="width: 72%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Options</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>--ear=[on|off]</td>
+<td>Enables/disables EAR library loading with this job.</td>
+</tr>
+<tr class="even">
+<td>--ear-user-db=<em>&lt;filename&gt;</em></td>
+<td>Asks the EAR Library to generate a set of CSV files with EARL metrics. One file per node is generated with the average node metrics (node signature) and one file with multiple lines per node is generated with runtime collected metrics (loops node signatures).</td>
+</tr>
+<tr class="odd">
+<td>--ear-verbose=[0|1]</td>
+<td>Specifies the level of verbosity; the default is 0. Verbose messages are placed by default in <em>stderr</em>. For jobs with multiple nodes, this option can result in lots of messages mixed at <em>stderr</em>. You can set <code>SLURM_EARL_VERBOSE_PATH</code> environment variable and one file per node will be generated with EAR output. The environemnt variable must be set with the path (a directory) where you want the output files to be generated, it will be automatically created if needed.</td>
+</tr>
+</tbody>
+</table>
+<p>For more information consult <code>srun --help</code> output or see configuration options sections for more detailed description.</p>
+<h3 id="cpu-frequency-selection">CPU frequency selection</h3>
+<p>The EAR configuration files supports the specification of <em>EAR authorized users</em>, who can ask for a more privileged submission options. The most relevant ones are the possibility to ask for a specific optimisation policy and a specific CPU frequency. Contact with sysadmin or helpdesk team to become an authorized user.</p>
+<ul>
+<li>The <code>--ear-policy=policy_name</code> flag asks for <em>policy_name</em> policy. Type <code>srun --help</code> to see policies currently installed in your system.</li>
+<li>The <code>--ear-cpufreq=value</code> (<em>value</em> must be given in kHz) asks for a specific CPU frequency.</li>
+</ul>
+<h3 id="gpu-frequency-selection">GPU frequency selection</h3>
+<p>EAR version 3.4 and upwards supports GPU monitoring for NVIDIA devices from the point of view of the application and node monitoring. GPU frequency optimization is not yet supported. <strong>Authorized</strong> users can ask for a specific GPU frequency by setting the <code>SLURM_EAR_GPU_DEF_FREQ</code> environment variable, giving the desired GPU frequency expressed in kHz. Only one frequency for all GPUs is now supported. Contact with sysadmin or helpdesk team to become an authorized user.</p>
+<p>To see the list of available frequencies of the GPU you will work on, you can type the following command:</p>
+<pre><code>nvidia-smi -q -d SUPPORTED_CLOCKS</code></pre>
+<h2 id="mpi-mpirun">MPI + mpirun</h2>
+<p>To provide an automatic loading of the EAR library, the only requirement from the MPI library is to be coordinated with the scheduler.</p>
+<h3 id="intel-mpi">Intel MPI</h3>
+<p>Recent versions of Intel MPI offers two environment variables that can be used to guarantee the correct scheduler integrations:</p>
+<ul>
+<li><code>I_MPI_HYDRA_BOOTSTRAP</code> sets the bootstrap server. It must be set to slurm.</li>
+<li><code>I_MPI_HYDRA_BOOTSTRAP_EXEC_EXTRA_ARGS</code> sets additional arguments for the bootstrap server. These arguments are passed to slurm.</li>
+</ul>
+<p>You can read <a href="https://www.intel.com/content/www/us/en/develop/documentation/mpi-developer-reference-linux/top/environment-variable-reference/hydra-environment-variables.html">here</a> the Intel environment variables guide.</p>
+<h3 id="openmpi">OpenMPI</h3>
+<p>For OpenMPI and EAR it is highly recommened to use SLURM. When using <code>mpirun</code>, as OpenMPI is not fully coordinated with the scheduler, the EAR Library is not automatilly loaded on all the nodes. If <code>mpirun</code> is used, tEARL will be disabled and only basic energy metrics will be reported.</p>
+<h3 id="mpi4py">MPI4PY</h3>
+<p>To use MPI with Python applications, the EAR Loader cannot automatically detect symbols to classify the application as Intel or OpenMPI. In order to specify it, the user has to define the <code>SLURM_LOAD_MPI_VERSION</code> environment variable with the values <em>intel</em> or <em>open mpi</em>. It is recommended to add in Python modules to make it easy for final users.</p>
+<h3 id="using-additional-mpi-profiling-librariestools">Using additional MPI profiling libraries/tools</h3>
+<p>EAR uses the <code>LD_PRELOAD</code> mechanism to be loaded and the PMPI API for a transparent loading. In order to be compatible with other profiling libraries EAR is not replacing the MPI symbols, it just calls the next symbol in the list. So it is compatible with other tools or profiling libraries. In case of conflict, the EARL can be disabled by setting <code>--ear=off</code> flag at submission time.</p>
+<h2 id="examples">Examples</h2>
+<h4 id="srun-examples"><code>srun</code> examples</h4>
+<p>Having an MPI application asking for one node and 24 tasks, the following is a simple case of job submission. If EAR library is turned on by default, no extra options are needed to load it. To check if it is on by default, load the EAR module and execute the <code>ear-info</code> command. EAR verbose is set to 0 by default (no messages).</p>
+<pre><code>srun -J test -N 1 -n 24 --tasks-per-node=24 application</code></pre>
+<p>The following executes the application showing EAR messages, including EAR configuration and node signature in <em>stderr</em>.</p>
+<pre><code>srun --ear-verbose=1 -J test -N 1 -n 24 --tasks-per-node=24 application</code></pre>
+<p>EARL verbose messages are generated in the standard error. For jobs using more than 2 or 3 nodes messages can be overwritten. If the user wants to have EARL messages in a file the <code>SLURM_EARL_VERBOSE_PATH</code> environment variable must be set with a folder name. One file per node will be generated with EARL messages.</p>
+<pre><code>export SLURM_EARL_VERBOSE_PATH=logs
+srun --ear-verbose=1 -J test -N 1 -n 24 --tasks-per-node=24 application</code></pre>
+<p>The following asks for EAR library metrics to be stored in csv file after the application execution. Two files per node will be generated: one with the average/global signature and another with loop signatures. The format of output files is <em>&lt;filename&gt;.&lt;nodename&gt;</em>.time.csv for the global signature and <em>&lt;filename&gt;.&lt;nodename&gt;</em>.time.loops.csv for loop signatures.</p>
+<pre><code>srun -J test -N 1 -n 24 --tasks-per-node=24 --ear-user-db=filename application</code></pre>
+<p>For EAR <em>authorized users</em>, the following executes the application with a CPU frequency of 2.0GHz:</p>
+<pre><code>srun --ear-cpufreq=2000000 --ear-policy=monitoring --ear-verbose=1 -J test -N 1 -n 24 --tasks-per-node=24 application</code></pre>
+<p>For <code>--ear-cpufreq</code> to have any effect, you must specify the <code>--ear-policy</code> option even if you want to run your application with the default policy.</p>
+<h3 id="sbatch-earl-srun"><code>sbatch</code> + EARL + srun</h3>
+<p>When using <code>sbatch</code> EAR options can be specified in the same way. If more than one <code>srun</code> is included in the job submission, EAR options can be inherited from <code>sbatch</code> to the different <code>srun</code> instances or they can be specifically modified on each individual <code>srun</code>.</p>
+<p>The following example will execute twice the application. Both instances will have the verbosity set to 1. As the job is asking for 10 nodes, we have set the <code>SLURM_EARL_VERBOSE_PATH</code> environment variable set to the <em>ear_log</em> folder. Moreover, the second step will create a set of csv files placed in the <em>ear_metrics</em> folder. The nodename, Job Id and Step Id are part of the filename for a better identification.</p>
+<pre><code>#!/bin/bash
+#SBATCH -N 1
+#SBATCH -e test.%j.err
+#SBATCH -o test.%j.out
+#SBTACH --ntasks=24
+#SBATCH --tasks-per-node=24
+#SBATCH --cpus-per-task=1
+#SBATCH --ear-verbose=1
+
+export SLURM_EARL_VERBOSE_PATH=ear_logs
+
+srun application
+
+mkdir ear_metrics
+srun --ear-user-db=ear_metrics/app_metrics application</code></pre>
+<h3 id="earl-mpirun">EARL + mpirun</h3>
+<h4 id="intel-mpi-1">Intel MPI</h4>
+<p>When running EAR with <code>mpirun</code> rather than <code>srun</code>, we have to specify the utilization of <code>srun</code> as bootstrap. Version 2019 and newer offers two environment variables for bootstrap server specification and arguments.</p>
+<pre><code>export I_MPI_HYDRA_BOOTSTRAP=slurm
+export I_MPI_HYDRA_BOOTSTRAP_EXEC_EXTRA_ARGS=&quot;--ear-policy=monitoring --ear-verbose=1&quot;
+mpiexec.hydra -n 10 application</code></pre>
+<h4 id="openmpi-1">OpenMPI</h4>
+<p>Bootstrap is an Intel® MPI option but not an OpenMPI option. For OpenMPI <code>srun</code> must be used for an automatic EAR support. In case OpenMPI with <code>mpirun</code> is needed, EAR offers the <code>erun</code> comman explained below.</p>
+<h3 id="erun">erun</h3>
+<p><em>erun</em> is a program that simulates all the SLURM and EAR SLURM Plugin pipeline. You can launch erun with the <code>--program</code> option to specify the application name and arguments.</p>
+<pre><code>mpirun -n 4 /path/to/erun --program=&quot;hostname --alias&quot;</code></pre>
+<p>In this example, <code>mpirun</code> would run 4 <code>erun</code> processes. Then, <code>erun</code> would launch the application <code>hostname</code> with its alias parameter. You can use as many parameters as you want but the semicolons have to cover all the parameters in case there are more than just the program name. <code>erun</code> would simulate on the remote node both the local and remote pipelines for all created processes. It has an internal system to avoid repeating functions that are executed just one time per job or node, like SLURM does with its plugins.</p>
+<pre><code>&gt; erun --help
+
+This is the list of ERUN parameters:
+Usage: ./erun [OPTIONS]
+
+Options:
+    --job-id=&lt;arg&gt;  Set the JOB_ID.
+    --nodes=&lt;arg&gt;   Sets the number of nodes.
+    --program=&lt;arg&gt; Sets the program to run.
+    --clean     Removes the internal files.
+    
+SLURM options:
+...</code></pre>
+<p>The <code>--job-id</code> and <code>--nodes</code> parameters create the environment variables that SLURM would have created automatically, because it is possible that your application make use of them. The <code>--clean</code> option removes the temporal files created to synchronize all ERUN processes.</p>
+<p>Also you have to load the EAR environment module or define its environment variables in your environment or script:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>EAR_INSTALL_PATH=&lt;path&gt;</td>
+<td>prefix=&lt;path&gt;</td>
+</tr>
+<tr class="even">
+<td>EAR_TMP=&lt;path&gt;</td>
+<td>localstatedir=&lt;path&gt;</td>
+</tr>
+<tr class="odd">
+<td>EAR_ETC=&lt;path&gt;</td>
+<td>sysconfdir=&lt;path&gt;</td>
+</tr>
+<tr class="even">
+<td>EAR_DEFAULT=&lt;on/off&gt;</td>
+<td>default=&lt;on/off&gt;</td>
+</tr>
+</tbody>
+</table>
+<h2 id="job-accounting-eacct">Job accounting (eacct)</h2>
+<p>The eacct command shows accounting information stored in the EAR DB for jobs (and step) IDs. The command uses EAR’s configuration file to determine if the user running it is privileged or not, as non-privileged users can only access their information. It provides the following options. The ear module needs to be loaded to use the eacct command.</p>
+<pre><code>Usage: eacct [Optional parameters]
+        Optional parameters: 
+                -h      displays this message
+                -v      displays current EAR version
+                -b      verbose mode for debugging purposes
+                -u      specifies the user whose applications will be retrieved. Only available to privileged users. [default: all users]
+                -j      specifies the job id and step id to retrieve with the format [jobid.stepid] or the format [jobid1,jobid2,...,jobid_n].
+                                A user can only retrieve its own jobs unless said user is privileged. [default: all jobs]
+                -a      specifies the application names that will be retrieved. [default: all app_ids]
+                -c      specifies the file where the output will be stored in CSV format. [default: no file]
+                -t      specifies the energy_tag of the jobs that will be retrieved. [default: all tags].
+                -l      shows the information for each node for each job instead of the global statistics for said job.
+                -x      shows the last EAR events. Nodes, job ids, and step ids can be specified as if were showing job information.
+                -m      prints power signatures regardless of whether mpi signatures are available or not.
+                -r      shows the EAR loop signatures. Nodes, job ids, and step ids can be specified as if were showing job information.
+                -n      specifies the number of jobs to be shown, starting from the most recent one. [default: 20][to get all jobs use -n all]
+                -f      specifies the file where the user-database can be found. If this option is used, the information will be read from the file and not the database.</code></pre>
+<h3 id="eacct-usage-examples">eacct usage examples</h3>
+<p>The basic usage of <code>eacct</code> retrieves the last 20 applications (by default) of the user executing it. If a user is privileged, it may see all users applications. The default behaviour shows data from each job-step, aggregating the values from each node in said job-step. If using SLURM as a job manager, a sb (sbatch) job-step is created with the data from the entire execution. A specific job may be specified with <code>-j</code> option: - <code>[user@host EAR]$ eacct</code> -&gt; Shows last 20 jobs (maximum) executed by the user. - <code>[user@host EAR]$ eacct -j 175966</code> –&gt; Shows data for jobid = 175966. Metrics are averaged per job.stepid. - <code>[user@host EAR]$ eacct -j 175966.0</code> –&gt; Shows data for jobid = 175966 stepid=0. Metrics are averaged per job.stepid. - <code>[user@host EAR]$ eacct -j 175966,175967,175968</code> –&gt; Shows data for jobid= 175966, 175967, 175968 Metrics are averaged per job.stepid.</p>
+<p><em>eacct</em> shows a pre-selected set of columns. Some flags sligthly modifies the set of columns reported: - JOB-STEP: JobID and Step ID. sb is shown for the sbatch. - USER: Username who executed the job. - APP=APPLICATION: Job’s name or executable name if job name is not provided. - POLICY: Energy optimization policy name (MO = Monitoring). - NODES: Number of nodes which ran the job. - AVG/DEF/IMC(GHz): Average CPU frequency, default frequency and average uncore frequency. Includes all the nodes for the step. In KHz. - TIME(s): Step execution time, in seconds. - POWER: Average node power including all the nodes, in Watts. - GBS: CPU Main memory bandwidth (GB/second). Hint for CPU/Memory bound classification. - CPI: CPU Cycles per Instruction. Hint for CPU/Memory bound classification. - ENERGY(J): Accumulated node energy. Includes all the nodes. In Joules. - GFLOPS/WATT : CPU GFlops per Watt. Hint for energy efficiency. - IO(MBs) : IO (read and write) Mega Bytes per second. - MPI% : Percentage of MPI time over the total execution time. It’s the average including all the processes and nodes. - GPU metrics - G-POW (T/U) : Average GPU power. Accumulated per node and average of all the nodes. - T = Total (GPU power consumed even if the process is not using them). - U = GPUs used by the job. - G-FREQ : Average GPU frequency. Per node and average of all the nodes. - G-UTIL(G/MEM) : GPU utilization and GPU memory utilization.</p>
+<p>For node-specific information, the <code>-l</code> option provides detailed accounting of each individual node: - <code>[user@host EAR]$ eacct -j 175966 -l</code> –&gt; Shows per-node data for jobid=175966. - <code>[user@host EAR]$ eacct -j 175966.0 -l</code> –&gt; Shows per-node data for jobid=175966, stepid=0.</p>
+<p>One additional column is shown: the VPI. The VPI is the percentage of AVX512 instructions over the total number of instructions.</p>
+<p>For runtime data (EAR loops) one may retrieve them with <code>-r</code>. Both Job Id and Step Id filtering works: - <code>[user@host EAR]$ eacct -j 175966.1 -r</code> –&gt; shows metrics reported at runtime by the EAR library for jobid=175966 , stepid=1.</p>
+<p>To easily transfer eacct’s output, <code>-c</code> option saves it in .csv format. Both aggregated and detailed accountings are available, as well as filtering: - <code>[user@host EAR]$ eacct -j 175966 -c test.csv</code> –&gt; adds to file test.csv all the metrics in EAR DB for jobid=175966. Metrics are averaged per application. - <code>[user@host EAR]$ eacct -j 175966.1 -c -l test.csv</code> –&gt; adds to file test.csv all the metrics in EAR DB for jobid=175966, stepid= 1. Metrics are per-node. - <code>[user@host EAR]$ eacct -j 175966.1 -c -r test.csv</code> –&gt; adds to file test.csv all the metrics in EAR DB for jobid=175966, stepid= 1. Metrics are per loop and node.</p>
+<p>When using the <code>-c</code> option, all the metrics available in the EAR DB are reported.</p>
+<h2 id="jobs-executed-without-the-ear-library-basic-job-accounting">Jobs executed without the EAR library: Basic Job accounting</h2>
+<p>EAR library is automatically loaded with some programming models (MPI, MKL, OpenMP and CUDA). For applications not executed with the EARL loaded -for example, when srun is not used or programming models or applications not loaded by default by the EAR library- EAR provides a default monitoring. In this case a subset of metrics will be reported. In particular: - accumulated DC energy(J) - accumulated DRAM energy(J) - accumulated CPU PCK energy(J) - EDP - maximum DC power detected(W) - minimum DC power detected(W) - execution time (in sec) - CPU average frequency (kHz) - CPU default frequency(KHz).</p>
+<p>DC node energy includes the CPU and GPU energy if there are. These metrics are reported per node and jobid and stepid, so they can be seen per job and job and step when using eacct.</p>
+<p>[[<em>TOC</em>]]</p>
+<h1 id="admin-guide">Admin guide</h1>
+<h2 id="ear-components">EAR Components</h2>
+<p>EAR is composed of five main components: - <strong>Node Manager (EARD)</strong>. The Node Manager must have root access to the node where it will be running. - <strong>Database Manager (EARDBD)</strong>. The database manager requires access to the DB server (we support MariaDB and Postgress). Documentation for Postgress is still under development. - <strong>Global Manager (EARGM)</strong>. The global manager needs access to all node managers in the cluster as well as access to database. - <strong>Library (EARL)</strong> - <strong>SLURM plugin</strong></p>
+<p>The following image shows the main interactions between components:</p>
+<p><img src="./images/EAR_arch.png" align="center" width=500></p>
+<p>   </p>
+<p>For a more detailed information about EAR components, visit the <a href="Architecture">Architecture</a> page.</p>
+<h2 id="quick-installation-guide">Quick Installation Guide</h2>
+<p>This section provides a, summed up, step by step installation and execution guide for EAR. For a more in depth explanation of the necessary steps see the <a href="Installation%20from%20source">Installation from source</a> page or the <a href="#installing-from-rpm">Installing from RPM</a> section, following the <a href="Configuration">Configuration</a> guide, or contact us at ear-support@bsc.es</p>
+<h3 id="ear-requirements">EAR Requirements</h3>
+<p>Requirements to compile EAR are: - C compiler. - MPI compiler. - CUDA installation path if NVIDIA is used. - Likwid path if Likwid is used. - Freeipmi path if freeipmi is used. - GSL is needed for coefficient computations.</p>
+<p>To install EAR from <strong>rpm</strong> (only binaries) all these dependencies have been removed except <em>mysqlclient</em>. However, they are needed when running EAR.</p>
+<p>SLURM must also be present if the SLURM plugin wants to be used. Since current EAR version only supports automatic execution of applications with EAR library using the SLURM plugin, it must be running when EAR library wants to be used (not needed for node monitoring).</p>
+<p>Lastly, but not less important: - The drivers for CPU frequency management (<em>acpi-cpufreq</em>) and Open IPMI must be present and loaded in compute nodes. - <em>msr kernel</em> module must be loaded in compute nodes. - mariaDB or postgress server must be up and running. - Hardware counters must be accessible for normal users. Set <em>/proc/sys/kernel/perf_event_paranoid</em> to 2 (or less). Type <code>sudo sh -c "echo 2 &gt; /proc/sys/kernel/perf_event_paranoid"</code> in compute nodes.</p>
+<p>Run <code>./configure --help</code> to see all the flags and options.</p>
+<h3 id="compiling-and-installing-ear">Compiling and installing EAR</h3>
+<p>Once downloaded the code from repository, execute: - <code>autoreconf -i</code>.</p>
+<pre><code>./configure --prefix=ear-install-path \
+            EAR_TMP=ear-tmp-path \EAR_ETC=ear-etc-path \
+            CC=c-compiler-path \
+            MPICC=mpi-compiler-path \
+            CC_FLAGS=c-flags-compiler \
+            MPICC_FLAGS=mpi-flags \
+            --with-cuda=path-to-cuda \
+            MAKE_NAME=make_extension`</code></pre>
+<p>Additionally to the Makefile, <code>MAKE_NAME</code> forces to copy the generated Makefile with the name Makefile._make_extension_. It simplifies the fact of having multiple configurations (1 for each library version needed). More relevant options are: - The option <code>--disable-mpi</code> must be set to generate a configuration for non-MPI version of the library. - Use <code>MPI_VERSION=ompi</code> for OpenMPI compatible version.</p>
+<p>Before running <code>make</code>, review the Makefile and the configuration log to validate all the requirements of your installation have been automatically detected. In particular, if you need to use some specific library such likwid, freeipmi or CUDA. If CUDA path is specified, EAR will be compiled with GPU support. Check also that MySQL ot PostgreSQL paths have been detected. You can use options <code>USER</code> and <code>GROUP</code> if you want to install EAR with a special USER/GROUP.</p>
+<p>The following shows how to configure EAR to be compiled with Intel MPI:</p>
+<pre><code>autoreconf -i
+./configure --prefix=/opt/ear CC=icc MPICC=mpiic MAKE_NAME=impi
+make -f Makefile.impi
+make -f Makefile.impi install
+make -f Makefile.impi doc.install
+make -f Makefile.impi etc.install</code></pre>
+<p>At this point the EAR binaries will be installed including one version of the EAR library for MPI (default), EAR documentation, EAR service files for EAR daemons and templates for <code>ear.conf</code> files and SLURM plugin. The configure tool tries to automatically detect paths to mysql and/or postgress, scheduler sources, etc. It is mandatory to detect the scheduler path, by default SLURM is assumed. After the configure, check in the Makefile all the options have been detected. After the make install, you should have the following folders in the ear-install-path: bin, sbin, etc, lib, include, man. The bin directory includes commands and tools, the sbin includes EAR services, the lib includes all the libraries and plugins, and etc includes templates and examples for EAR service files, ear.conf file, the EAR module, etc.</p>
+<h3 id="deployment-and-validation">Deployment and validation</h3>
+<h4 id="monitoring-compute-node-and-db">Monitoring: Compute node and DB</h4>
+<p><strong>Prepare the configuration</strong></p>
+<p>Either installing from sources or rpm, EAR installs a template for <code>ear.conf</code> file in <code>$EAR_ETC/ear/ear.conf.template</code> and <code>$EAR_ETC/ear/ear.conf.full.template</code>. The full version includes all fields. Copy only one as <code>$EAR_ETC/ear/ear.conf</code> and update with the desired configuration. Go to the <a href="www.example.org">configuration</a> section to see how to do it. The <code>ear.conf</code> is used by all the services. It is recommended to have in a shared folder to simplify the changes in the configuration.</p>
+<p><strong>EAR module</strong></p>
+<p>Install and load EAR module to enable commands. It can be found at <code>$EAR_ETC/module</code>. You can add ear module whan it is not in standard path by doing <code>module use $EAR_ETC/module</code> and then <code>module load ear</code>.</p>
+<p><strong>EAR Database</strong> Create EAR database with <code>edb_create</code>, installed at <code>$EAR_INSTALL_PATH/sbin</code>. The <code>edb_create -p</code> command will ask you for the DB root password. If you get any problem here, check first whether the node where you are running the command can connect to the DB server. In case problems persists, execute edb_create -o to report the specific SQL queries generated. In case of trouble, contact with ear-support@bsc.es or open in issue.</p>
+<p><strong>Energy models</strong></p>
+<p>EAR uses a power and performance model based on systems signatures. These system signatures are stored in coefficient files.</p>
+<p>Before starting EARD, and just for testing, it is needed to create a dummy coefficient file and copy in the coefficients path, by default placed at<code>$EAR_ETC/coeffs</code>. Use the <code>coeffs_null</code> application from tools section.</p>
+<blockquote>
+<p>EAR version 4.1 does not require null coefficients.</p>
+</blockquote>
+<p><strong>EAR services</strong></p>
+<p>Create soft links or copy EAR service files to start/stop services using system commands such as <code>systemctl</code> in the services folder. EAR service files are generated at <code>$EAR_ETC/systemd</code> and they can usually be placed in <code>$(ETC)/systemd</code>.</p>
+<ul>
+<li>EARD must be started on compute nodes.</li>
+<li>EARDBD must be started on service nodes (can be any node with DB access).</li>
+</ul>
+<p>Enable and start EARDs and EARDBDs via services (e.g., <code>sudo systemctl start eard</code>, <code>sudo systemctl start eardbd</code>). EARDBD and EARD outputs can be found at <code>$EAR_TMP/eardbd.server.log</code> and <code>$EAR_TMP/eard.log</code> respectively when <em>DBDaemonUseLog</em> and <em>NodeUseLog</em> options are set to <em>1</em> in the <code>ear.conf</code> file, respectively. Otherwise, their outputs are generated at <em>stderr</em> and can be seen using the <code>journalctl</code> command (i.e., journalctl -u eard).</p>
+<p>By default, a certain level of verbosity is set. It is not recommended to modify it but you can change it by modifying the value of constants in file <code>src/common/output/output_conf.h</code>.</p>
+<p><strong>Quick validation</strong></p>
+<p>Check that EARDs are up and running correctly with <code>econtrol --status</code> (note that daemons will take around a minute to correctly report energy and not show up as an error in econtrol). EARDs create a per-node text file with values reported to the EARDBD (local to compute nodes). In case there are problems when running econtrol, you can also find this file at <code>$EAR_TMP/nodename.pm_periodic_data.txt</code>.</p>
+<p>Check that EARDs are reporting metrics to database with ereport. <code>ereport -n all</code> should report the total energy sent by each daemon since the setup.</p>
+<h4 id="monitoring-ear-plugin">Monitoring: EAR plugin</h4>
+<ul>
+<li>Set up EAR’s SLURM plugin (see the <a href="www.example.org">configuration</a> section for more information). &gt; It is recommented to create a soft link to the <code>$EAR_ETC/slurm/ear.plugstack.conf</code> file in the <code>/etc/slurm/plugstack.conf.d</code> directory to simplify the EAR plugin management.</li>
+</ul>
+<blockquote>
+<p>For a first test it is recommened to set <code>default=off</code> in the <code>ear.plugstack.conf</code> (to disable the automatic loading of the EAR library).</p>
+</blockquote>
+<p><strong>EAR plugin validation</strong></p>
+<p>At this point you must be able to see EAR options when doing, for example, <code>srun --help</code>. You must see something like below as part of the output. The EAR plugin must be enabled at login and compute nodes.</p>
+<pre><code>[user@hostname ~]$ srun --help
+Usage: srun [OPTIONS(0)... [executable(0) [args(0)...]]] [ : [OPTIONS(N)...]] executable(N) [args(N)...]
+
+Parallel run options:
+...
+
+Constraint options:
+...
+
+Consumable resources related options:
+...
+
+Affinity/Multi-core options: (when the task/affinity plugin is enabled)
+...
+
+Options provided by plugins:
+      --ear=on|off            Enables/disables Energy Aware Runtime Library
+      --ear-policy=type       Selects an energy policy for EAR
+                              {type=default,gpu_monitoring,monitoring,min_energ-
+                              y,min_time,gpu_min_energy,gpu_min_time}
+      --ear-cpufreq=frequency Specifies the start frequency to be used by EAR
+                              policy (in KHz)
+      --ear-policy-th=value   Specifies the threshold to be used by EAR policy
+                              (max 2 decimals) {value=[0..1]}
+      --ear-user-db=file      Specifies the file to save the user applications
+                              metrics summary &#39;file.nodename.csv&#39; file will be
+                              created per node. If not defined, these files
+                              won&#39;t be generated.
+      --ear-verbose=value     Specifies the level of the
+                              verbosity{value=[0..1]}; default is 0
+      --ear-learning=value    Enables the learning phase for a given P_STATE
+                              {value=[1..n]}
+      --ear-tag=tag           Sets an energy tag (max 32 chars)
+
+...
+
+Help options:
+  -h, --help                  show this help message
+      --usage                 display brief usage message
+
+Other options:
+  -V, --version               output version information and exit
+</code></pre>
+<ul>
+<li>Submit one application via SLURM and check that it is correctly reported to the database with <code>eacct</code> command.</li>
+</ul>
+<blockquote>
+<p>Note that only privileged users can check other users’ applications.</p>
+</blockquote>
+<ul>
+<li>Submit one MPI application (corresponding with the version you have compiled) with <code>--ear=on</code> and check that now the output of <code>eacct</code> includes the Library metrics.</li>
+<li>Set <code>default=on</code> to set the EAR Library loading by default at <code>ear.plugstack.conf</code>. If default is turned off, EARL can be explicitly loaded by setting the flag <code>--ear=off</code> at job submission.</li>
+</ul>
+<p>At this point, you can use EAR for monitoring and accounting purposes but it cannot use the power policies offered by EARL. To enable them, first perform a learning phase and compute node coefficients. See the <a href="www.example.org">EAR learning phase</a> wiki page. For the coefficients to be active, restart daemons.</p>
+<blockquote>
+<p><strong>Important</strong> Reloading daemons will NOT make them load coefficients, restarting the service is the only way.</p>
+</blockquote>
+<h3 id="ear-library-versions-mpi-vs.-non-mpi">EAR Library versions: MPI vs. Non-MPI</h3>
+<p>As commented in the overview, the EAR Library is loaded next to the user MPI application by the EAR Loader. The Library uses MPI symbols, so it is compiled by using the includes provided by your MPI distribution. The selection of the library version is automatic at runtime, but it is not required during the compilation and installation steps. Each compiled library version has its own file name that has to be defined by the <code>MPI_VERSION</code> variable during the <code>./configure</code> or by editing the root Makefile.</p>
+<p>The name list per distribution is exposed in the following table:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;"><strong>Distribution</strong></th>
+<th><strong>Name</strong></th>
+<th><strong>MPI_VERSION value</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">Intel MPI</td>
+<td>libear.so (default)</td>
+<td>not required</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">MVAPICH</td>
+<td>libear.so (default)</td>
+<td>not required</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">OpenMPI</td>
+<td>libear.ompi.so</td>
+<td>ompi</td>
+</tr>
+</tbody>
+</table>
+<p>If different MPI distributions share the same library name, it means their symbols are compatible between them, so compiling and installing the library one time will be enough. However, if you provide different MPI distributions to users, you will have to compile and install the library multiple times.</p>
+<p>EAR makefiles include a specific target for each <a href="#ear-components">EAR component</a>, supporting full or partial updates:</p>
+<table>
+<colgroup>
+<col style="width: 51%" />
+<col style="width: 49%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>make -f Makefile.make_extension install</code></td>
+<td>Reinstall all the files except <code>etc</code> and <code>doc</code>.</td>
+</tr>
+<tr class="even">
+<td><code>make -f Makefile.make_extension earl.install</code></td>
+<td>Reinstall only the EARL.</td>
+</tr>
+<tr class="odd">
+<td><code>make -f Makefile.make_extension eard.install</code></td>
+<td>Reinstall only the EARD.</td>
+</tr>
+<tr class="even">
+<td><code>make -f Makefile.make_extension earplug.install</code></td>
+<td>Reinstall only the EAR SLURM plugin.</td>
+</tr>
+<tr class="odd">
+<td><code>make -f Makefile.make_extension eardbd.install</code></td>
+<td>Reinstall only the EARDBD.</td>
+</tr>
+<tr class="even">
+<td><code>make -f Makefile.make_extension eargmd.install</code></td>
+<td>Reinstall only the EARGMD.</td>
+</tr>
+<tr class="odd">
+<td><code>make -f Makefile.make_extension reports.install</code></td>
+<td>Reinstall only report plugins.</td>
+</tr>
+</tbody>
+</table>
+<p>Before compiling new libraries you have to install by typing <code>make install</code>. Then you can run the <code>./configure</code> again, changing the <code>MPICC</code>, <code>MPICC_FLAGS</code> and <code>MPI_VERSION</code> variables, or just opening the root Makefile and edit the same variables and <code>MPI_BASE</code>, which just sets the MPI installation root path. Now type <code>make full</code> to perform a clean compilation and <code>make earl.install</code>, to install only the new version of the library.</p>
+<p>If your MPI version is not fully compatible, please contact ear-support@bsc.es.</p>
+<p>See the <a href="User%20guide">User guide</a> to check the use cases supported and how to submit jobs with EAR.</p>
+<h2 id="installing-from-rpm">Installing from RPM</h2>
+<p>EAR includes the specification files to create an rpm from an already existing installation. The spec file is placed at <code>etc/rpms</code>. To create the RPM it is needed a valid installation from source. The RPM can be part of the system image. Visit the <a href="RPM%20requirements">Requirements</a> page for a quick overview of the requirements.</p>
+<p>Execute the <code>rpmbuild.sh</code> script to create the EAR rpm file. Once created, it can be included in the compute nodes images. It is recommened only when no more changes are expected on the installation. Once you have the rpm file, execute the following steps: - Before the installation, make sure the installation path is accessible by all the computing nodes. Do the same in the folder where you want to set the temporary files (it will be called <code>$(EAR_TMP)</code> in this guide for simplicity). - Default paths are <code>/usr</code> and <code>/etc</code>. - Run <code>rpm -ivh --relocate /usr=/new/install/path --relocate /etc=/new/etc/path ear.version.rpm</code>.</p>
+<blockquote>
+<p>You can also use the <code>--nodeps</code> if your dependency test fails.</p>
+</blockquote>
+<ul>
+<li>During the installation the configuration files <code>*.in</code> are compiled to the ready to use version, replacing tags for correct paths. You will have more information of those files in the following pages. Check the <a href="#installation-content">next section</a> for more information.</li>
+<li>Type <code>rpm -e ear.version</code> to uninstall.</li>
+</ul>
+<h3 id="installation-content">Installation content</h3>
+<p>The <code>*.in</code> configuration files are compiled into <code>etc/ear/ear.conf.template</code> and <code>etc/ear/ear.full.conf.template</code>, <code>etc/module/ear</code>, <code>etc/slurm/ear.plugstack.conf</code> and various <code>etc/systemd/ear*.service</code>. You can find more information in the <a href="Configuration">configuration</a> page. Below table describes the complet heriarchy of the EAR installation:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Directory</th>
+<th>Content / description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>/usr/lib</code></td>
+<td>Libraries and the scheduler plugin.</td>
+</tr>
+<tr class="even">
+<td><code>/usr/lib/plugins</code></td>
+<td>EAR plugins.</td>
+</tr>
+<tr class="odd">
+<td><code>/usr/bin</code></td>
+<td>EAR commands.</td>
+</tr>
+<tr class="even">
+<td><code>/usr/bin/tools</code></td>
+<td>EAR tools for coefficients computation.</td>
+</tr>
+<tr class="odd">
+<td><code>/usr/sbin</code></td>
+<td>Privileged components: EARD, EARDBD, EARGMD.</td>
+</tr>
+<tr class="even">
+<td><code>/etc/ear</code></td>
+<td>Configuration files templates.</td>
+</tr>
+<tr class="odd">
+<td><code>/etc/ear/coeffs</code></td>
+<td>Folder to store coefficient files.</td>
+</tr>
+<tr class="even">
+<td><code>/etc/module</code></td>
+<td>EAR module.</td>
+</tr>
+<tr class="odd">
+<td><code>/etc/slurm</code></td>
+<td>EAR SLURM plugin configuration file.</td>
+</tr>
+<tr class="even">
+<td><code>/etc/systemd</code></td>
+<td>EAR service files.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="next-steps">Next steps</h2>
+<p>For a better overview of the installation process, return to the <a href="#quick-installation-guide">installation guide</a>. To continue the installation, visit the <a href="Configuration">configuration page</a> to set up properly the EAR configuration file and the EAR SLURM plugin stack file.</p>
+<p>[[<em>TOC</em>]]</p>
+<h2 id="architecture">Architecture</h2>
+<h3 id="eard-node-manager">EARD: Node Manager</h3>
+<p>EAR’s daemon is a per-node process that provides privileged metrics of each node as well as a periodic power monitoring service. Said periodic power metrics are sent to EAR’s database either directly or via the database daemon (see the <a href="Configuration">configuration page</a>).</p>
+<p>For more information, see <a href="EARD">EARD</a>.</p>
+<h3 id="eardbd-database-manager">EARDBD: Database Manager</h3>
+<p>The database daemon acts as an intermediate layer between any EAR component that inserts data and the EAR’s database, in order to prevent the database server from collapsing due to getting overrun with connections and insert queries.</p>
+<p>For more information, see <a href="EARDBD">EARDBD</a>.</p>
+<h3 id="eargmd-global-manager">EARGMD: Global Manager</h3>
+<p>EAR’s Global Manager Daemon (EARGMD) is a cluster wide component that controls the percentage of the maximum energy consumed.</p>
+<p>For more information, see <a href="EARGM">EARGM</a>.</p>
+<h3 id="earl-the-ear-library">EARL: The EAR Library</h3>
+<p>The EAR Library is the core of the EAR package. The EARL offers a lightweight and simple solution to select the optimal frequency for MPI applications at runtime, with multiple power policies each with a different approach to find said frequency. EARL uses the daemon to read performance metrics and to send application data to EAR’s database.</p>
+<p>For more information about the library itself, see <a href="EARL">EARL</a>. You can also read about <a href="EARL#policies">EAR policies</a> and the <a href="EARL#ear-api">EAR API</a> to use EAR as a third party library in you application.</p>
+<h3 id="earlo-ear-loader">EARLo: EAR Loader</h3>
+<p>The EAR Loader is the responsible for loading the EAR Library. It is a small and lightweight library loaded by the <a href="#ear-slurm-plugin">EAR SLURM Plugin</a> that identifies the user application and loads its corresponding EAR Library distribution.</p>
+<p>For more information, see <a href="EAR%20Loader">EARLo</a>.</p>
+<h3 id="ear-slurm-plugin">EAR SLURM plugin</h3>
+<p>EAR SLURM plugin allows to dynamically load and configure the EAR library for the SLURM jobs, if the enabling argument is set or is enabled by default. Additionally, it reports any jobs that start or end to the nodes’ EARDs for accounting and monitoring purposes.</p>
+<p>For more information, see <a href="EAR%20SLURM%20plugin">SLURM Plugin</a>.</p>
+<h2 id="installation-from-source">Installation from source</h2>
+<h3 id="requirements">Requirements</h3>
+<p>EAR requires some third party libraries and headers to compile and run, in addition to the basic requirements such as the compiler and Autoconf. This is a list of these <strong>libraries</strong>, minimum <strong>tested</strong> versions and its references:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Library</th>
+<th>Minimum version</th>
+<th>References</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>MPI</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr class="even">
+<td>MySQL*</td>
+<td>15.1</td>
+<td><a href="https://mysql.com">MySQL</a> or <a href="https://mariadb.org/">MariaDB</a></td>
+</tr>
+<tr class="odd">
+<td>PostgreSQL*</td>
+<td>9.2</td>
+<td><a href="https://www.postgresql.org/">PostgreSQL</a></td>
+</tr>
+<tr class="even">
+<td>Autoconf</td>
+<td>2.69</td>
+<td><a href="https://www.gnu.org/software/autoconf/autoconf.html">Website</a></td>
+</tr>
+<tr class="odd">
+<td>GSL</td>
+<td>1.4</td>
+<td><a href="https://www.gnu.org/software/gsl/">Website</a></td>
+</tr>
+</tbody>
+</table>
+<p>* Just one of them required.</p>
+<p>These libraries are not required, but can be used to get additional functionality or metrics:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Library</th>
+<th>Minimum version</th>
+<th>References</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>SLURM</td>
+<td>17.02.6</td>
+<td><a href="https://slurm.schedmd.com/">Website</a></td>
+</tr>
+<tr class="even">
+<td>PBS**</td>
+<td>2021</td>
+<td><a href="https://www.altair.com.es/pbs-professional/">PBSPro</a> or <a href="https://www.openpbs.org/">OpenPBS</a></td>
+</tr>
+<tr class="odd">
+<td>CUDA/NVML</td>
+<td>7.5</td>
+<td><a href="https://developer.nvidia.com/cuda-zone">CUDA</a></td>
+</tr>
+<tr class="even">
+<td>CUPTI**</td>
+<td>7.5</td>
+<td><a href="https://developer.nvidia.com/cuda-zone">CUDA</a></td>
+</tr>
+<tr class="odd">
+<td>Likwid</td>
+<td>5.2.1</td>
+<td><a href="https://github.com/RRZE-HPC/likwid">Likwid</a></td>
+</tr>
+<tr class="even">
+<td>FreeIPMI</td>
+<td>1.6.8</td>
+<td><a href="https://www.gnu.org/software/freeipmi/">FreeIPMI</a></td>
+</tr>
+<tr class="odd">
+<td>OneAPI/L0**</td>
+<td>1.7.9</td>
+<td><a href="https://www.intel.com/content/www/us/en/developer/tools/oneapi/overview.html#gs.0k5fbb">OneAPI</a></td>
+</tr>
+<tr class="even">
+<td>LibRedFish**</td>
+<td>1.3.6</td>
+<td><a href="https://github.com/DMTF/libredfish">LibRedFish</a></td>
+</tr>
+</tbody>
+</table>
+<p>** These will be available in next release.</p>
+<p>Also, some <strong>drivers</strong> has to be present and loaded in the system:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Driver</th>
+<th>File</th>
+<th>Kernel version</th>
+<th>References</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CPUFreq</td>
+<td>kernel/drivers/cpufreq/acpi-cpufreq.ko</td>
+<td>3.10</td>
+<td><a href="https://wiki.archlinux.org/index.php/CPU_frequency_scaling">Information</a></td>
+</tr>
+<tr class="even">
+<td>Open IPMI</td>
+<td>kernel/drivers/char/ipmi/*.ko</td>
+<td>3.10</td>
+<td><a href="https://docs.oracle.com/en/database/oracle/oracle-database/12.2/cwlin/configuring-the-open-ipmi-driver.html">Information</a></td>
+</tr>
+</tbody>
+</table>
+<p>Lastly, the <strong>compilers</strong>: EAR uses C compilers. It has been tested with both Intel and GNU.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Compiler</th>
+<th>Comment</th>
+<th>Minimum version</th>
+<th>References</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>GNU Compiler Collection (GCC)</td>
+<td>For the library and daemon</td>
+<td>4.8.5</td>
+<td><a href="https://gcc.gnu.org/">Website</a></td>
+</tr>
+<tr class="even">
+<td>Intel C Compiler (ICC)</td>
+<td>For the library and daemon</td>
+<td>17.0.1</td>
+<td><a href="https://software.intel.com/en-us/c-compilers">Website</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="compilation-and-installation-guide-summary">Compilation and installation guide summary</h3>
+<ol type="1">
+<li>Before the installation, make sure the installation path is accessible by all the computing nodes. Do the same in the folder where you want to set the configuration files (it will be called <code>$(EAR_ETC)</code> in this guide for simplicity).</li>
+<li>Generate Autoconf’s <code>configure</code> program by typing <code>autoreconf -i</code>.</li>
+<li>Read sections below to understand how to properly set the <code>configure</code> parameters.</li>
+<li>Compile EAR components by typing <code>./configure ...</code>, <code>make</code> and <code>make install</code> in the root directory.</li>
+<li>Type <code>make etc.install</code> to install the content of <code>$(EAR_ETC)</code>. It is the configuration content, but that configuration will be expanded in the next section. You have a link at the bottom of this page.</li>
+</ol>
+<h3 id="configure-options">Configure options</h3>
+<p><code>configure</code> is based on shell variables which initial value could be given by setting variables in the command line, or in the environment. Take a look to the table with the most popular variables:</p>
+<table>
+<colgroup>
+<col style="width: 8%" />
+<col style="width: 91%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>MPICC</td>
+<td>MPI compiler.</td>
+</tr>
+<tr class="even">
+<td>CC</td>
+<td>C compiler command.</td>
+</tr>
+<tr class="odd">
+<td>MPICC_FLAGS</td>
+<td>MPI compiler flags.</td>
+</tr>
+<tr class="even">
+<td>CFLAGS</td>
+<td>C compiler flags.</td>
+</tr>
+<tr class="odd">
+<td>CC_FLAGS</td>
+<td>Also C compiler flags.</td>
+</tr>
+<tr class="even">
+<td>LDFLAGS</td>
+<td>Linker flags. E.g. ‘-L&lt;lib dir&gt;’ if you have libraries in a nonstandard directory &lt;lib dir&gt;.</td>
+</tr>
+<tr class="odd">
+<td>LIBS</td>
+<td>Libraries to pass to the linker. E.g. ‘-l<library>’.</td>
+</tr>
+<tr class="even">
+<td>EAR_TMP</td>
+<td>Defines the node local storage as ‘var’, ‘tmp’ or other tempfs file system (default: /var/ear) (you can alo use –localstatedir=DIR).</td>
+</tr>
+<tr class="odd">
+<td>EAR_ETC</td>
+<td>Defines the read-only single-machine data as ‘etc’ (default: EPREFIX/etc) (you can also use –sharedstatedir=DIR).</td>
+</tr>
+<tr class="even">
+<td>MAN</td>
+<td>Defines the manual directory (default: PREFIX/man) (you can use also –mandir=DIR).</td>
+</tr>
+<tr class="odd">
+<td>DOC</td>
+<td>Defines the documentation directory (default: PREFIX/doc) (you can use also –docdir=DIR).</td>
+</tr>
+<tr class="even">
+<td>MPI_VERSION</td>
+<td>Adds a suffix to the compiled EAR library name. Read further down this page for more information.</td>
+</tr>
+<tr class="odd">
+<td>USER</td>
+<td>Owner user of the installed files.</td>
+</tr>
+<tr class="even">
+<td>GROUP</td>
+<td>Owned group of the installed files</td>
+</tr>
+<tr class="odd">
+<td>MAKE_NAME</td>
+<td>It adds an additional Makefile with a suffix.</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>This is an example of <code>CC</code>, <code>CFLAGS</code> and <code>DEBUG</code> variables overwriting: </br> <code>./configure CC=icc CFLAGS=-g EAR_ETC=/hpc/opt/etc</code></li>
+</ul>
+<p>You can choose the root folder by typing <code>./configure --PREFIX=&lt;path&gt;</code>. But there are other options in the following table:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Definition</th>
+<th>Default directory</th>
+<th>Content / description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>&lt;<em>PREFIX</em>&gt;</td>
+<td>/usr/local</td>
+<td>Installation path</td>
+</tr>
+<tr class="even">
+<td>&lt;<em>EAR_ETC</em>&gt;</td>
+<td>&lt;<em>PREFIX</em>&gt;/etc</td>
+<td>Configuration files.</td>
+</tr>
+<tr class="odd">
+<td>&lt;<em>EAR_TMP</em>&gt;</td>
+<td>/var/ear</td>
+<td>Pipes and temporal files.</td>
+</tr>
+</tbody>
+</table>
+<p>You have more installation options information by typing <code>./configure --help</code>. If you want to change the value of any of this options after the configuration process, you can edit the root Makefile. All the options are at the top of the text and its names are self-explanatory.</p>
+<h3 id="adding-required-libraries-installed-in-custom-locations">Adding required libraries installed in custom locations</h3>
+<p>The <code>configure</code> script is capable to find libraries located in custom location if a module is loaded in the environment or its path is included in <code>LD_LIBRARY_PATH</code>. If not, you can help <code>configure</code> to find SLURM, or other required libraries in case you installed in a custom location. It is necessary to add its root path for the compiler to see include headers and libraries for the linker. You can do this by adding to it the following arguments:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>–with-cuda=&lt;path&gt;</td>
+<td>Specifies the path to CUDA installation.</td>
+</tr>
+<tr class="even">
+<td>–with-freeipmi=&lt;path&gt;</td>
+<td>Specify path to FREEIPMI installation.</td>
+</tr>
+<tr class="odd">
+<td>–with-gsl=&lt;path&gt;</td>
+<td>Specifies the path to GSL installation.</td>
+</tr>
+<tr class="even">
+<td>–with-likwid=&lt;path&gt;</td>
+<td>Specifies the path to LIKWID installation.</td>
+</tr>
+<tr class="odd">
+<td>–with-mysql=&lt;path&gt;</td>
+<td>Specify path to MySQL installation.</td>
+</tr>
+<tr class="even">
+<td>–with-pgsql=&lt;path&gt;</td>
+<td>Specify path to PostgreSQL installation.</td>
+</tr>
+<tr class="odd">
+<td>–with-pbs</td>
+<td>Enable PBS components.</td>
+</tr>
+<tr class="even">
+<td>–with-slurm=&lt;path&gt;</td>
+<td>Specifies the path to SLURM installation.</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>This is an example of <code>CC</code> overwriting the CUDA path specification:<br /> <code>./configure --with-cuda=/path/to/CUDA</code></li>
+</ul>
+<p>If unusual procedures must be done to compile the package, please try to figure out how <code>configure</code> could check whether to do them and contact the team to be considered for the next release. In the meantime, you can overwrite shell variables or export its paths to the environment (e.g. LD_LIBRARY).</p>
+<h3 id="additional-configure-flags">Additional configure flags</h3>
+<p>Also, there are additional flags to help administrator increase the compatibility of EAR in nodes.</p>
+<table>
+<colgroup>
+<col style="width: 18%" />
+<col style="width: 81%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>–disable-rpath</td>
+<td>Disables the RPATH included in binaries to specify some dependencies location.</td>
+</tr>
+<tr class="even">
+<td>–disable-avx512</td>
+<td>Replaces the AVX-512 function calls by AVX-2.</td>
+</tr>
+<tr class="odd">
+<td>–disable-gpus</td>
+<td>The GPU monitoring data is not allocated nor inserted in the database.</td>
+</tr>
+<tr class="even">
+<td>–disable-mpi</td>
+<td>Compiles the non-mpi version of the library.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pre-installation-fast-tweaks">Pre-installation fast tweaks</h3>
+<p>Some EAR characteristics can be modified by changing the value of the constants defined in <code>src/common/config/config_def.h</code>. You can open it with an editor and modify those pre-procesor variables to alter the EAR behaviour.</p>
+<p>Also, you can quickly switch the user/group of your installation files by modifying the <code>CHOWN_USR/CHOWN_GRP</code> variables in the root Makefile.</p>
+<h3 id="library-distributionsversions">Library distributions/versions</h3>
+<p>As commented in the overview, the EAR library is loaded next to the user MPI application by the <a href="EARLO">EAR Loader</a>. The library uses MPI symbols, so it is compiled by using the includes provided by your MPI distribution. The selection of the library version is automatic in runtime, but in the compiling and installation process is not required. Each compiled library has its own file name that has to be defined by the <code>MPI_VERSION</code> variable during <code>./configure</code> or by editing the root Makefile. The name list per distribution is exposed in the following table:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Distribution</th>
+<th>Name</th>
+<th>MPI_VERSION variable</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Intel MPI</td>
+<td>libear.so (default)</td>
+<td>it is not required</td>
+</tr>
+<tr class="even">
+<td>MVAPICH</td>
+<td>libear.so (default)</td>
+<td>it is not required</td>
+</tr>
+<tr class="odd">
+<td>OpenMPI</td>
+<td>libear.ompi.so</td>
+<td>ompi</td>
+</tr>
+</tbody>
+</table>
+<p>If different MPI distributions shares the same library name, it means that its symbols are compatible between them, so compiling and installing the library one time will be enough. However, if you provide different MPI distributions to the users, you will have to compile and install the library multiple times.</p>
+<p>Before compiling new libraries you have to install by typing <code>make install</code>. Then you can run the <code>./configure</code> again, changing the <code>MPICC</code>, <code>MPICC_FLAGS</code> and <code>MPI_VERSION</code> variables, or just opening the root <code>Makefile</code> and edit the same variables and <code>MPI_BASE</code>, which just sets the MPI installation root path. Now type <code>make full</code> to perform a clean compilation and <code>make earl.install</code>, to install only the new version of the library.</p>
+<p>If your MPI version is not fully compatible, please contact ear-support@bsc.es. We will add compatibility to EAR and give you a solution in the meantime.</p>
+<h3 id="other-useful-flags">Other useful flags</h3>
+<p>You can install individual components by doing: <code>make eard.install</code> to install EAR Daemon, <code>make earl.install</code> to install EAR Library, <code>make eardbd.install</code> EAR Database Manager, <code>make eargmd.install</code> EAR Global Manager and <code>make commands.install</code> the EAR command binaries.</p>
+<h3 id="installation-content-1">Installation content</h3>
+<p>This is the list of the inner installation folders and their content:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Root</th>
+<th>Directory</th>
+<th>Content / description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>&lt;<em>PREFIX</em>&gt;</td>
+<td>/lib</td>
+<td>Libraries.</td>
+</tr>
+<tr class="even">
+<td>&lt;<em>PREFIX</em>&gt;</td>
+<td>/lib/plugins</td>
+<td>Plugins.</td>
+</tr>
+<tr class="odd">
+<td>&lt;<em>PREFIX</em>&gt;</td>
+<td>/bin</td>
+<td>EAR commands.</td>
+</tr>
+<tr class="even">
+<td>&lt;<em>PREFIX</em>&gt;</td>
+<td>/bin/tools</td>
+<td>EAR tools for coefficients.</td>
+</tr>
+<tr class="odd">
+<td>&lt;<em>PREFIX</em>&gt;</td>
+<td>/sbin</td>
+<td>Privileged components.</td>
+</tr>
+<tr class="even">
+<td>&lt;<em>PREFIX</em>&gt;</td>
+<td>/man</td>
+<td>Documentation.</td>
+</tr>
+<tr class="odd">
+<td>&lt;<em>EAR_ETC</em>&gt;</td>
+<td>/ear</td>
+<td>Configuration file.</td>
+</tr>
+<tr class="even">
+<td>&lt;<em>EAR_ETC</em>&gt;</td>
+<td>/ear/coeffs</td>
+<td>Coefficient files store.</td>
+</tr>
+<tr class="odd">
+<td>&lt;<em>EAR_ETC</em>&gt;</td>
+<td>/module</td>
+<td>EAR module.</td>
+</tr>
+<tr class="even">
+<td>&lt;<em>EAR_ETC</em>&gt;</td>
+<td>/slurm</td>
+<td>ear.plugstack.conf.</td>
+</tr>
+<tr class="odd">
+<td>&lt;<em>EAR_ETC</em>&gt;</td>
+<td>/systemd</td>
+<td>EAR service files.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fine-grain-tuning-of-ear-options">Fine grain tuning of EAR options</h3>
+<p>Some options such as the maximum number of CPUs or GPUs supported are defined in src/common/config files. It is not recommended to modify these files but some options and default values can be set by modifying them.</p>
+<h3 id="next-step">Next step</h3>
+<p>For a better overview of the installation process, return to our <a href="Admin%20guide#quick-installation-guide">Quick installation guide</a>. To continue the installation, visit the <a href="Configuration">configuration page</a> to set up properly the EAR configuration file and the SLURMs plugin stack file.</p>
+<h2 id="configuration">Configuration</h2>
+<p>[[<em>TOC</em>]]</p>
+<h3 id="configuration-requirements">Configuration requirements</h3>
+<p>The following requirements must be met for EAR to work properly:</p>
+<h4 id="ear-paths">EAR paths</h4>
+<p><strong>EAR folders</strong> EAR uses two paths for EAR configuration: - <strong>EAR_TMP:</strong> <em>tmp_ear_path</em> must be a private folder per compute node. It must have read/write permissions for normal users. Communication files are created here. It must be created by the admin. For instance: <code>mkdir /var/ear; chmod ugo +rwx /var/ear</code> - <strong>EAR_ETC:</strong> <em>etc_ear_path</em> must be readable for normal users in all compute nodes. It can be a shared folder in “GPFS” (simple to manage) or replicated data because it has very few data and it is modified at a very low frequency (<strong>ear.conf</strong> and coefficients). Coefficients can be installed in a different path specified at configure time with <strong>COEFFS</strong> flag. Both <code>ear.conf</code> and coefficients must be readable in all the nodes (compute and <em>“service”</em> nodes).</p>
+<p><strong>ear.conf</strong> <code>ear.conf</code> is an ascii file setting default values and cluster descriptions. An <code>ear.conf</code> is automatically generated based on a <strong>ear.conf.in</strong> template. However, the administrator must include installation details such as hostname details for EAR services, ports, default values, and the list of nodes. For more details, check <a href="#ear-configuration-file">EAR configuration file</a> below.</p>
+<h4 id="db-creation-and-db-server">DB creation and DB server</h4>
+<p>MySQL or PostgreSQL database: EAR saves data in a MySQL/PostgreSQL DB server. EAR DB can be created using <code>edb_create</code> command provided (MySQL/PostgreSQL server must be running and root access to the DB is needed).</p>
+<h4 id="ear-slurm-plug-in">EAR SLURM plug-in</h4>
+<p>EAR SLURM plug-in can be enabled by adding an additional line at the <code>/etc/slurm/plugstack.conf</code> file. You can copy from the <code>ear_etc_path/slurm/ear.plugstack.conf</code> file).</p>
+<p>Another way to enable it is to create the directory <code>/etc/slurm/plugstack.conf.d</code> and copy there the <code>ear_etc_path/slurm/ear.plugstack.conf</code> file. On that case, the content of <code>/etc/slurm/plugstack.conf</code> must be <code>include /etc/slurm/plugstack.conf.d/*</code>.</p>
+<h3 id="ear-configuration-file">EAR configuration file</h3>
+<p>The <strong>ear.conf</strong> is a text file describing the EAR package behaviour in the cluster. It must be readable by all compute nodes and by nodes where commands are executed. Two <code>ear.conf</code> templates are generated with default values and will be installed as reference when executing <code>make etc.install</code>.</p>
+<p>Usually the first word in the configuration file expresses the component related with the option. Lines starting with <code>#</code> are comments. A test for <code>ear.conf</code> file can be found in the path <code>src/test/functionals/ear_conf</code>. It is recommended to test it since the <code>ear.conf</code> parser is very sensible to errors in the <code>ear.conf</code> syntax, spaces, newlines, etc.</p>
+<h4 id="database-configuration">Database configuration</h4>
+<pre><code># The IP of the node where the MariaDB (MySQL) or PostgreSQL server process is running. Current version uses same names for both DB servers.
+DBIp=172.30.2.101
+# Port in which the server accepts the connections.
+DBPort=3306
+
+# MariaDB user that services will use. Needs INSERT/SELECT privileges. Used by the EARDBD.
+DBUser=eardbd_user
+# Password for the previous user. If left blank or commented it will assume the user has no password.
+DBPassw=eardbd_pass
+# Database user that the commands (eacct, ereport) will use. Only uses SELECT privileges.
+DBCommandsUser=ear_commands
+# Password for the previous user. If left blank or commented it will assume the user has no password.
+DBCommandsPassw=commandspass
+
+# Name of EAR&#39;s database in the server.
+DBDatabase=EAR
+
+# Maximum number of connections of the commands user to prevent server 
+# saturation/malicious actuation. Applies to DBCommandsUser.
+DBMaxConnections=20
+# The following specify the granularity of data reported to database.
+# Extended node information reported to database (added: temperature, avg_freq, DRAM and PCK energy in power monitoring).
+DBReportNodeDetail=1
+# Extended signature hardware counters reported to database.
+DBReportSigDetail=1
+# Set to 1 if you want Loop signatures to be reported to database.
+DBReportLoops=1</code></pre>
+<h4 id="eard-configuration">EARD configuration</h4>
+<pre><code># The port where the EARD will be listening.
+NodeDaemonPort=50001
+
+# Frequency used by power monitoring service, in seconds.
+NodeDaemonPowermonFreq=60
+# Maximum supported frequency (1 means nominal, no turbo).
+NodeDaemonMaxPstate=1
+# Enable (1) or disable (0) the turbo frequency.
+NodeDaemonTurbo=0
+
+# Enables the use of the database.
+NodeUseDB=1
+# Inserts data to MySQL by sending that data to the EARDBD (1) or directly (0).
+NodeUseEARDBD=1
+# &#39;1&#39; means EAR is controlling frequencies at all times (targeted to production systems) and 0 means EAR will not change the frequencies when users are not using EAR library (targeted to benchmarking systems).
+NodeDaemonForceFrequencies=1
+
+# The verbosity level [0..4]
+NodeDaemonVerbose=1
+# When set to 1, the output is saved at &#39;$EAR_TMP&#39;/eard.log (common configuration) as a log file. Otherwsie, stderr is used.
+NodeUseLog=1
+
+# Report plug-ins to be used by the EARD. Default= eardbd.so. 
+# Add extra plug-ins by separating with colons (e.g., eardbd.so:plugin1.so).
+EARDReportPlugins=eardbd.so</code></pre>
+<h4 id="eardbd-configuration">EARDBD configuration</h4>
+<pre><code># Port where the EARDBD server is listening.
+DBDaemonPortTCP=50002
+# Port where the EARDBD mirror is listening.
+DBDaemonPortSecTCP=50003
+# Port used to synchronize the server and mirror.
+DBDaemonSyncPort=50004
+
+# In seconds, interval of time of accumulating data to generate an energy aggregation.
+DBDaemonAggregationTime=60
+# In seconds, time between inserts of the buffered data.
+DBDaemonInsertionTime=30
+# Memory allocated per process. These allocations are used for buffering the data
+# sent to the database by EARD or other components. If there is a server and a
+# mirror in a node a double of that value will be allocated. It is expressed in MegaBytes.
+DBDaemonMemorySize=120
+
+# When set to 1, EARDBD uses a &#39;$EAR_TMP&#39;/eardbd.log file as a log file.
+DBDaemonUseLog=1
+
+# Report plug-ins to be used by the EARDBD. Default= mysql.so. 
+# Add extra plug-ins by separating with colons (e.g., mysql.so:plugin1.so).
+EARDBDReportPlugins=mysql.so</code></pre>
+<h4 id="earl-configuration">EARL configuration</h4>
+<pre><code># Path where coefficients are installed, usually $EAR_ETC/ear/coeffs.
+CoefficientsDir=/path/to/coeffs
+
+# NOTE: It is not recommended to change the following
+# attributes if you are not an expert user.
+# Number of levels used by DynAIS algorithm. 
+DynAISLevels=10
+# Windows size used by DynAIS, the higher the size the higher the overhead.
+DynAISWindowSize=200
+# Maximum time (in seconds) that EAR will wait until a signature is computed. After this value, if no signature is computed, EAR will go to periodic mode.
+DynaisTimeout=15
+# Time in seconds to compute every application signature when the EAR goes to periodic mode.
+LibraryPeriod=10
+# Number of MPI calls whether EAR must go to periodic mode or not.
+CheckEARModeEvery=1000
+# EARL default report plug-ins
+EARLReportPlug-ins=eard.so</code></pre>
+<h4 id="eargm-configuration">EARGM configuration</h4>
+<p>You can skip this section if EARGM is not used in your installation.</p>
+<pre><code># Use aggregated periodic metrics or periodic power metrics.
+# Aggregated metrics are only available when EARDBD is running.
+EARGMUseAggregated=1
+# Period T1 and T2 are specified in seconds. T1 must be less than T2, e.g., 10min and 1 month.
+EARGMPeriodT1=90
+EARGMPeriodT2=259200
+# &#39;-&#39; are Joules, &#39;K&#39; KiloJoules and &#39;M&#39; MegaJoules.
+EARGMUnits=K
+
+# Energy limit applies to EARGMPeriodT2.
+EARGMEnergyLimit=550000
+EARGMPort=50000
+
+# Two modes are supported &#39;0=manual&#39; and &#39;1=automatic&#39;.
+# manual means no actions are token, only monitoring.
+EARGMMode=0
+# Email address to report the warning level (and the action taken in automatic mode).
+EARGMMail=nomail
+# Percentage of accumulated energy to start the warning DEFCON level L4, L3 and L2.
+EARGMWarningsPerc=85,90,95
+# T1 &quot;grace&quot; periods between DEFCON before re-evaluate.
+EARGMGracePeriods=3
+# Verbosity
+EARGMVerbose=1
+# When set to 1, the output is saved at &#39;TmpDir&#39;/eargmd.log (common configuration) as a log file.
+EARGMUseLog=1
+# Format for action is: &quot;command_name energy_T1 energy_T2 energy_limit T2 T1  units&quot;
+# This action is automatically executed at each warning level (only once per grace periods).
+EARGMEnergyAction=no_action
+
+# Period at which the powercap thread is activated.
+EARGMPowerPeriod=120
+# 1 means automatic, 0 is only monitoring.
+EARGMPowerCapMode=1
+# Admins can specify to automatically execute a command in
+# EARGMPowerCapSuspendAction when total_power &gt;= EARGMPowerLimit*EARGMPowerCapResumeLimit/100
+EARGMPowerCapSuspendLimit=90
+# Format for action is: command_name current_power current_limit total_idle_nodes total_idle_power 
+EARGMPowerCapSuspendAction=no_action
+# Admins can specify to automatically execute a command in EARGMPowerCapResumeAction
+# to undo EARGMPowerCapSuspendAction when total_power &gt;= EARGMPowerLimit*EARGMPowerCapResumeLimit/100.
+# Note that this will only be executed if a suspend action was executed previously.
+EARGMPowerCapResumeLimit=40
+# Format for action is: command_name current_power current_limit total_idle_nodes total_idle_power 
+EARGMPowerCapResumeAction=no_action
+
+# EARGMs must be specified with a unique id, their node and the port that receives
+# remote connections. An EARGM can also act as meta-eargm if the meta field is filled,
+# and it will control the EARGMs whose ids are in said field. If two EARGMs are in the
+# same node, setting the EARGMID environment variable overrides the node field and
+# chooses the characteristics of the EARGM with the correspoding id. If energy is
+# set to 0, cluster_energy_cap will be disabled for that EARGM. Currently, only 1
+# cluster_energy_cap is supported.
+EARGMId=1 energy=1800 power=600 node=node1 port=50100 meta=1,2,3
+EARGMId=2 energy=0 power=500 node=node1 port=50101
+EARGMId=3 energy=0 power=500 node=node2 port=50100</code></pre>
+<h4 id="common-configuration">Common configuration</h4>
+<pre><code># Default verbose level
+Verbose=0
+# Path used for communication files, shared memory, etc. It must be PRIVATE per
+# compute node and with read/write permissions. $EAR_TMP
+TmpDir=/tmp/ear
+# Path where coefficients and configuration are stored. It must be readable in all compute nodes. $EAR_ETC
+EtcDir=/path/to/etc
+InstDir=/path/to/inst
+
+# Network extension: To be used in case the DC has more than one
+# network and a special extension needs to be used for global commands
+#NetworkExtension=</code></pre>
+<h4 id="ear-authorized-usersgroupsaccounts">EAR Authorized users/groups/accounts</h4>
+<p>Authorized users that are allowed to change policies, thresholds and frequencies are supposed to be administrators. A list of users, Linux groups, and/or SLURM accounts can be provided to allow normal users to perform that actions. Only normal Authorized users can execute the learning phase.</p>
+<pre><code>AuthorizedUsers=user1,user2
+AuthorizedAccounts=acc1,acc2,acc3
+AuthorizedGroups=xx,yy</code></pre>
+<h4 id="energy-tags">Energy tags</h4>
+<p>Energy tags are pre-defined configurations for some applications (EAR Library is not loaded). This energy tags accept a user ids, groups and SLURM accounts of users allowed to use that tag.</p>
+<pre><code># General energy tag
+EnergyTag=cpu-intensive pstate=1
+# Energy tag with limited users
+EnergyTag=memory-intensive pstate=4 users=user1,user2 groups=group1,group2 accounts=acc1,acc2</code></pre>
+<h4 id="tags">Tags</h4>
+<p>Tags are used for architectural descriptions. Max. AVX frequencies are used in predictor models and are SKU-specific. At least a default tag is mandatory to be included for a cluster to properly work.</p>
+<p>The <strong>min_power</strong>, <strong>max_power</strong> and <strong>error_power</strong> are threshold values that determine if the metrics read might be invalid, and a warning message to syslog will be reported if the values are outside of said thresholds. The <strong>error_power</strong> field is a more extreme value that if a metric surpasses it, said metric will not be reported to the DataBase.</p>
+<p>A special energy plug-in or energy model can be specified in a tag that will override the global values previously defined in all nodes that have this tag associated with them.</p>
+<p>Powercap set to 0 means powercap is disabled and cannot be enabled at runtime. Powercap set to 1 means no limits on power consumption but a powercap can be set without stopping eard. List of accepted options: - max_avx512 (GHz) - max_avx2 (GHz) - max_power (W) - min_power (W) - error_power (W) - coeffs (filename) - powercap (W) - powercap_plugin (filename) - energy_plugin (filename) - gpu_powercap_plugin (filename) - max_powercap (W) - gpu_def_freq (GHz) - cpu_max_pstate (0..max_pstate) - imc_max_pstate (0..max_imc_pstate) - energy_model (filename)</p>
+<pre><code>Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=500 powercap=1 max_powercap=600 gpu_def_freq=1.4 energy_model=avx512_model.so energy_plugin=energy_nm.so powercap_plugin=dvfs.so gpu_powercap_plugin=gpu.so min_power=50 error_power=600 coeffs=coeffs.default
+Tag=6126 max_avx512=2.3 max_avx2=2.9 ceffs=coeffs.6126.default max_power=600 error_power=700</code></pre>
+<h4 id="power-policies-plug-ins">Power policies plug-ins</h4>
+<pre><code># Policy names must be exactly file names for policies installeled in the system.
+DefaultPowerPolicy=monitoring
+Policy=monitoring Settings=0 DefaultFreq=2.4 Privileged=0
+Policy=min_time Settings=0.7 DefaultFreq=2.0 Privileged=0
+Policy=min_energy Settings=0.05 DefaultFreq=2.4 Privileged=1
+
+# For homogeneous systems, default frequencies can be easily specified using freqs.
+# For heterogeneous systems it is preferred to use pstates. 
+
+# Example with pstates (lower pstates corresponds with higher frequencies).
+# Pstate=1 is nominal and 0 is turbo
+#Policy=monitoring Settings=0 DefaultPstate=1 Privileged=0
+#Policy=min_time Settings=0.7 DefaultPstate=4 Privileged=0
+#Policy=min_energy Settings=0.05 DefaultPstate=1 Privileged=1
+
+# Tags can be also used with policies for specific configurations
+#Policy=monitoring Settings=0 DefaultFreq=2.6 Privileged=0 tag=6126</code></pre>
+<h4 id="island-description">Island description</h4>
+<p>This section is mandatory since it is used for cluster description. Normally nodes are grouped in islands that share the same hardware characteristics as well as its database managers (EARDBDS). Each entry describes part of an island, and every node must be in an island.</p>
+<p>There are two kinds of database daemons. One called <strong>server</strong> and other one called <strong>mirror</strong>. Both perform the metrics buffering process, but just one performs the insert. The mirror will do that insert in case the ‘server’ process crashes or the node fails.</p>
+<p>It is recommended for all islands to maintain server-mirror symmetry. For example, if the island I0 and I1 have the server N0 and the mirror N1, the next island would have to point the same N0 and N1 or point to new ones N2 and N3, not point to N1 as server and N0 as mirror.</p>
+<p>Multiple EARDBDs are supported in the same island, so more than one line per island is required, but the condition of symmetry have to be met.</p>
+<p>It is recommended that for an island the server and the mirror to be running in different nodes. However, the EARDBD program could be both server and mirror at the same time. This means that the islands I0 and I1 could have the N0 server and the N2 mirror, and the islands I2 and I3 the N2 server and N0 mirror, fulfilling the symmetry requirements.</p>
+<p>A tag can be specified that will apply to all the nodes in that line. If no tag is defined, the default one will be used as hardware definition.</p>
+<p>Finally, if an EARGM is being used to cap power, the EARGMID field is necessary in at least one line, and will specify what EARGM controls the nodes declared in that line. If no EARGMID is found in a line, the first one found will be used (ie, the previous line EARGMID).</p>
+<pre><code># In the following example the nodes are clustered in two different islands,
+# but the Island 1 have two types of EARDBDs configurations.
+
+Island=0 DBIP=node1081 DBSECIP=node1082 Nodes=node10[01-80] EARGMID=1
+
+# These nodes are in island0 using different DB connections and with a different architecture
+
+Island=0 DBIP=node1084 DBSECIP=node1085 Nodes=node11[01-80] DBSECIP=node1085 tag=6126
+
+# These nodes are in island0 and will use default values for DB connection (line 0 for island0) and default tag
+#These nodes will use the same EARGMID as the previous ones
+Island=0 Nodes=node12[01-80]
+
+# Will use default tag 
+Island=1 DBIP=node1181 DBSECIP=node1182 Nodes=node11[01-80]</code></pre>
+<p>Detailed island accepted values: - nodename_list accepts the following formats: - Nodes=<code>node1,node2,node3</code> - Nodes=<code>node[1-3]</code> - Nodes=<code>node[1,2,3]</code> - Any combination of the two latter options will work, but if nodes have to be specified individually (the first format) as of now they have to be specified in their own line. As an example: - Valid formats: - Island=1 Nodes=<code>node1,node2,node3</code> - Island=1 Nodes=<code>node[1-3],node[4,5]</code> - Invalid formats: - Island=1 Nodes=<code>node[1,2],node3</code> - Island=1 Nodes=<code>node[1-3],node4</code></p>
+<h3 id="slurm-spank-plug-in-configuration-file">SLURM SPANK plug-in configuration file</h3>
+<p>SLURM loads the plug-in through a file called <code>plugstack.conf</code>, which is composed by a list of a plug-ins. In the file <code>etc/slurm/ear.plugstack.conf</code>, there is an example entry with the paths already set to the plug-in, temporal and configuration paths.</p>
+<p><strong>Example</strong>:</p>
+<pre><code>required ear_install_path/lib/earplug.so  prefix=ear_install_path sysconfdir=etc_ear_path localstatedir=tmp_ear_path earlib_default=off</code></pre>
+<p>The argument <code>prefix</code> points to the EAR installation path and it is used to load the library using <code>LD_PRELOAD</code> mechanism. Also the <code>localstatedir</code> is used to contact with the EARD, which by default points the path you set during the <code>./configure</code> using <code>--localstatedir</code> or <code>EAR_TMP</code> arguments. Next to these fields, there is the field <code>earlib_default=off</code>, which means that by default EARL is not loaded. Finally there are <code>eargmd_host</code> and <code>eargmd_port</code> if you plan to connect with the EARGMD component (you can leave this empty).</p>
+<p>Also, there are two additional arguments. The first one, <code>nodes_allowed=</code> followed by a comma separated list of nodes, enables the plug-in only in that nodes. The second, <code>nodes_excluded=</code>, also followed by a comma separated list of nodes, disables the plug-in only in nodes in the list. These are arguments for very specific configurations that must be used with caution, if they are not used it is better that they are not written.</p>
+<p><strong>Example</strong>:</p>
+<pre><code>required ear_install_path/lib/earplug.so  prefix=ear_install_path sysconfdir=etc_ear_path localstatedir=tmp_ear_path earlib_default=off nodes_excluded=node01,node02</code></pre>
+<h3 id="mysqlpostgresql">MySQL/PostgreSQL</h3>
+<p><strong>WARNING</strong>: If any EAR component is running in the same machine as the MySQL server some connection problems might occur. This will not happen with PostgreSQL. To solve those issues, input into MySQL’s CLI client the <code>CREATE USER</code> and <code>GRANT PRIVILEGES</code> queries from <code>edb_create -o</code> changing the portion <code>'user_name'@'%'</code> to <code>'user_name'@'localhost'</code> so that EAR’s users have access to the server from the local machine. There are two ways to configure a database server for EAR’s usage. - run <code>edb_create -r</code> located in <code>$EAR_INSTALLATION_PATH/sbin</code> from a node with root access to the MySQL server. This requires MySQL/PostgreSQL’s section of ear.conf to be correctly written. For more info run <code>edb_create -h</code>. - Manually create the database and users specified in ear.conf, as well as the required tables. If ear.conf has been configured, running <code>edb_create -o</code> will output the queries that would be run with the program that contain all that is needed for EAR to properly function.</p>
+<p>For more information about how each <code>ear.conf</code> flag changes the database creation, see our <a href="EAR-Database">Database section</a>.</p>
+<h3 id="msr-safe">MSR Safe</h3>
+<p>MSR Safe is a kernel module that allows to read and write MSR without root permission. EAR opens MSR Safe files if the ordinary MSR files fail. MSR Safe requires a configuration file to allow read and write registers. You can find configuration files in <code>etc/msr_safe</code> for Intel Skylake and superior and AMD Zen and superior.</p>
+<p>You can pass these configuration files to MSR Safe kernel mode like this:</p>
+<pre><code>cat intel63 &gt; /dev/cpu/msr_allowlist</code></pre>
+<p>You can find more information in the <a href="https://github.com/LLNL/msr-safe">official repository</a></p>
+<p>The best way to execute all EAR daemon components (EARD, EARDBD, EARGM) is by the unit services method.</p>
+<blockquote>
+<p><strong>NOTE</strong> EAR uses a MariaDB/MySQL server. The server must be started before EAR services are executed.</p>
+</blockquote>
+<p>The way to launch the EAR daemons is via unit services. The generated unit services for the EAR Daemon, EAR Global Manager Daemon and EAR Database Daemon are generated and installed in <code>$(EAR_ETC)/systemd</code>. You have to copy those unit service files to your <code>systemd</code> operating system folder and then use the <code>systemctl</code> command to run the daemons. Check the <a href="Daemon">EARD</a>, <a href="Database-Daemon">EARDBD</a>, <a href="Global-Manager">EARGMD</a> pages to find the precise execution commands.</p>
+<p>When using <code>systemctl</code> commands, you can check messages reported to <code>stderr</code> using <code>journalctl</code>. For instance: <code>journalctl -u eard -f</code>. Note that if <code>NodeUseLog</code> is set to 1 in <code>ear.conf</code>, the messages will not be printed to <code>stderr</code> but to <code>$EAR_TMP/eard.log</code> instead. <code>DBDaemonUseLog</code> and <code>GlobalmanagerUseLog</code> options in <code>ear.conf</code> specifies the output for EARDBD and EARGM, respectivelly.</p>
+<p>Additionally, services can be started, stopped or reloaded on parallel using parallel commands such as <code>pdsh</code>. As an example: <code>sudo pdsh -w nodelist systemctl start eard</code>.</p>
+<p>The following table lists tools provided with EAR package to work with coefficients computed during the learning phase.</p>
+<table>
+<colgroup>
+<col style="width: 13%" />
+<col style="width: 48%" />
+<col style="width: 37%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><strong>Name</strong></th>
+<th><strong>Description</strong></th>
+<th><strong>Basic arguments</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>coeffs compute</td>
+<td>Computes the learning coefficients.</td>
+<td>&lt;save path&gt; &lt;min_freq&gt; &lt;nodename&gt;</td>
+</tr>
+<tr class="even">
+<td>coeffs_default</td>
+<td>Computes the default coefficients file.</td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>coeffs_null</td>
+<td>Creates a dummy configuration file to be used by EARD.</td>
+<td>&lt;coeff_path&gt;, &lt;max_freq&gt; &lt;min_freq&gt;</td>
+</tr>
+<tr class="even">
+<td>coeffs_show</td>
+<td>Shows the computed coefficients file in text format.</td>
+<td>&lt;file_path&gt;</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Use the argument <code>--help</code> to expand the application information and list the admitted flags.</p>
+</blockquote>
+<h3 id="examples-1">Examples</h3>
+<p>Compute the coefficients for the node <code>node1001</code> in which the minimum frequency set during the learning phase was 1900000 KHz</p>
+<p><code>./coeffs_compute /etc/coeffs 1900000 node1001</code></p>
+<p>This is a necessary phase prior to the normal EAR utilization and is a kind of hardware characterization of the nodes. During the phase a matrix of coefficients are calculated and stored. These coefficients will be used to predict the energy consumption and performance of each application.</p>
+<p>Please, visit the learning phase <a href="https://gitlab.bsc.es/ear_team/ear_learning/-/wikis/home">wiki page</a> to read the manual and the <a href="https://gitlab.bsc.es/ear_team/ear_learning">repository</a> to get the scripts and the kernels.</p>
+<p>Some of the core of EAR functionality can be dynamically loaded through a plug-in mechanism, making EAR more extensible and dynamic than previous version since it is not needed to reinstall the system to add, for instance, a new policy or a new power model. It is only needed to copy the file in the <code>$EAR_INSTALL_PATH/lib/plugins</code> folder and restart some components. The following table lists the current EAR functionalities designed with a plu-in mechanism:</p>
+<table>
+<thead>
+<tr class="header">
+<th><strong>Plug-in</strong></th>
+<th><strong>Description</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Power model</td>
+<td>Energy models used by energy policies.</td>
+</tr>
+<tr class="even">
+<td>Power policies</td>
+<td>Energy policies themselves.</td>
+</tr>
+<tr class="odd">
+<td>Energy readings</td>
+<td>Node energy readings.</td>
+</tr>
+<tr class="even">
+<td>Tracing</td>
+<td>Execution traces.</td>
+</tr>
+<tr class="odd">
+<td>Report</td>
+<td>Data reporting.</td>
+</tr>
+<tr class="even">
+<td>Powercap</td>
+<td>Powercap management.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="considerations">Considerations</h3>
+<ul>
+<li>Plug-in <strong>paths</strong> is set by default to <code>$EAR_INSTALL_PATH/lib/plugins</code>.</li>
+<li>Default <strong>power model</strong> library is specified in <code>ear.conf</code> (<em>energy_model</em> option). By default EAR includes a <code>basic_model.so</code> and <code>avx512_model.so</code> plug-ins.</li>
+<li>The <strong>node energy readings</strong> library is specified at <code>ear.conf</code> in the <em>energy_plugin</em> option for each tag. Several plug-ins are included: <code>energy_nm.so</code> (uses Intel NodeManager IPMI commands), <code>energy_rapl.so</code> (uses a node energy estimation based on DRAM and PACKAGE energy provided by RAPL), <code>energy_sd650.so</code> (uses the high frequency IPMI hardware included in Lenovo SD650 systems) and the <code>energy_inm_power_freeipmi.so</code>, which uses the Intel Node Manager power reading commands and requires the freeipmi library.</li>
+<li><strong>Power policies</strong> included in EAR are: <code>monitoring.so</code>, <code>min_energy.so</code>, <code>min_time.so</code>, <code>min_energy_no_models.so</code> and <code>min_time_no_models.so</code>. The list of policies installed is automatically detected by the EAR plug-in. However, only policies included in <code>ear.conf</code> can be used.</li>
+<li>The <strong>tracing</strong> is an optional functionality. It is included to provide additional information or to generate runtime information.</li>
+<li><strong>Report</strong> plug-ins include different options to report EAR data from the different components. By default it is included the eard, eardbd, csv_ts, mysql/psql (depending on the installation). Plug-ins to be loaded by default can be specified on the <code>ear.conf</code>.</li>
+</ul>
+<blockquote>
+<p><strong>Note</strong> SLURM Plugin does not fit in this philosophy, it is a core component of EAR and can not be replaced by any third party development.</p>
+</blockquote>
+<p>Some of the core of EAR functionality can be dynamically loaded through a plug-in mechanism, making EAR more extensible and dynamic than previous version since it is not needed to reinstall the system to add, for instance, a new policy or a new power model. It is only needed to copy the file in the <code>$EAR_INSTALL_PATH/lib/plugins</code> folder and restart some components. The following table lists the current EAR functionalities designed with a plu-in mechanism:</p>
+<table>
+<thead>
+<tr class="header">
+<th><strong>Plug-in</strong></th>
+<th><strong>Description</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Power model</td>
+<td>Energy models used by energy policies.</td>
+</tr>
+<tr class="even">
+<td>Power policies</td>
+<td>Energy policies themselves.</td>
+</tr>
+<tr class="odd">
+<td>Energy readings</td>
+<td>Node energy readings.</td>
+</tr>
+<tr class="even">
+<td>Tracing</td>
+<td>Execution traces.</td>
+</tr>
+<tr class="odd">
+<td>Report</td>
+<td>Data reporting.</td>
+</tr>
+<tr class="even">
+<td>Powercap</td>
+<td>Powercap management.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="considerations-1">Considerations</h3>
+<ul>
+<li>Plug-in <strong>paths</strong> is set by default to <code>$EAR_INSTALL_PATH/lib/plugins</code>.</li>
+<li>Default <strong>power model</strong> library is specified in <code>ear.conf</code> (<em>energy_model</em> option). By default EAR includes a <code>basic_model.so</code> and <code>avx512_model.so</code> plug-ins.</li>
+<li>The <strong>node energy readings</strong> library is specified at <code>ear.conf</code> in the <em>energy_plugin</em> option for each tag. Several plug-ins are included: <code>energy_nm.so</code> (uses Intel NodeManager IPMI commands), <code>energy_rapl.so</code> (uses a node energy estimation based on DRAM and PACKAGE energy provided by RAPL), <code>energy_sd650.so</code> (uses the high frequency IPMI hardware included in Lenovo SD650 systems) and the <code>energy_inm_power_freeipmi.so</code>, which uses the Intel Node Manager power reading commands and requires the freeipmi library.</li>
+<li><strong>Power policies</strong> included in EAR are: <code>monitoring.so</code>, <code>min_energy.so</code>, <code>min_time.so</code>, <code>min_energy_no_models.so</code> and <code>min_time_no_models.so</code>. The list of policies installed is automatically detected by the EAR plug-in. However, only policies included in <code>ear.conf</code> can be used.</li>
+<li>The <strong>tracing</strong> is an optional functionality. It is included to provide additional information or to generate runtime information.</li>
+<li><strong>Report</strong> plug-ins include different options to report EAR data from the different components. By default it is included the eard, eardbd, csv_ts, mysql/psql (depending on the installation). Plug-ins to be loaded by default can be specified on the <code>ear.conf</code>.</li>
+</ul>
+<blockquote>
+<p><strong>Note</strong> SLURM Plugin does not fit in this philosophy, it is a core component of EAR and can not be replaced by any third party development.</p>
+</blockquote>
+<h2 id="db-tables">DB Tables</h2>
+<p>EAR’s database consists of the following tables: - <strong>Jobs</strong>: job information (app_id, user_id, job_id, step_id, etc). One record per JOBID.STEPID is created in the DB. - <strong>Applications</strong>: this table’s records serve as a link between Jobs and Signatures, providing an application signature (from EARL) for each node of a job. One record per JOBID.STEPID.NODENAME is created in the DB. - <strong>Signatures</strong>: EARL computed signature and metrics. One record per JOBID.STEPID.NODENAME is created in the DB when the application is executed with EARL. - <strong>GPU_signatures</strong>: EARL computed GPU signatures. This information belongs to a loop or application signature. If the signature is from a node with 4 GPUs there will be 4 records. - <strong>Periodic_metrics</strong>: node metrics reported every N seconds (N is defined in <code>ear.conf</code>). - <strong>Periodic_aggregations</strong>: sum of all <em>Periodic_metrics</em> in a time period to ease accounting in <code>ereport</code> command and EARGM, as well as reducing database size (<em>Periodic_metrics</em> of older periods where precision at node level is not needed can be deleted and the aggregations can be used instead). - <strong>Loops</strong>: similar to <em>Applications</em>, but stores a Signature for each application loop detected by EARL, instead of one per each application. This table provides internal details of running applications and could significantly increase the DB size. - <strong>Events</strong>: EARL events report. Events includes frequency changes, and internal EARL decisions such as turning off the DynAIS algorithm. - <strong>Global_energy</strong>: contains reports of cluster-wide energy accounting set by EARGM using the parameters in <code>ear.conf</code>. One record every T1 period (defined at ear.conf) is reported. - <strong>Power_signatures</strong>: Basic time and power metrics that can be obtained without EARL. Reported for all applications. One record per JOBID.STEPID.NODENAME is created in the DB. - <strong>Learning_applications</strong>: same as <em>Applications</em>, restricted to learning phase applications. - <strong>Learning_jobs</strong>: same as <em>Jobs</em>, restricted to learning phase jobs. - <strong>Learning_signatures</strong>: same as <em>Signatures</em>, restricted to learning phase job metrics.</p>
+<blockquote>
+<p><strong>NOTE</strong> In order to have <em>GPU_signatures</em> table created and <em>Periodic_metrics</em> containing GPU data, the DataBase must be created (if you follow the <code>edb_create</code> approach, see below section) with GPUs enabled at the compilation time. See <a href="#updating-from-previous-versions">how to update from previous versions</a> if you are updating EAR from a release not having GPU metrics.</p>
+</blockquote>
+<h2 id="database-creation-and-ear.conf">Database creation and <code>ear.conf</code></h2>
+<p>When running <code>edb_create</code> some tables might not be created, or may have some quirks, depending on some <code>ear.conf</code> settings. The settings and alterations are as follows:</p>
+<ul>
+<li><code>DBReportNodeDetail</code>: if set to 1, <code>edb_create</code> will create two additional columns in the <em>Periodic_metrics</em> table for Temperature (in Celsius) and Frequency (in Hz) accounting.</li>
+<li><code>DBReportSigDetail</code>: if set to 1, <em>Signatures</em> will have additional fields for cycles, instructions, and FLOPS1-8 counters (number of instruction by type).</li>
+<li><code>DBMaxConnections</code>: this will restrict the number of maximum simultaneous commands connections.</li>
+</ul>
+<p>If any of the settings is set to 0, the table will have fewer details but the table’s records will be smaller in stored size.</p>
+<p>Any table with missing columns can be later altered by the admin to include said columns. For a full detail of each table’s columns, run <code>edb_create -o</code> with the desired <code>ear.conf</code> settings.</p>
+<h2 id="information-reported-and-ear.conf">Information reported and <code>ear.conf</code></h2>
+<p>There are various settings in <code>ear.conf</code> that restrict data reported to the database and some errors might occur if the database configuration is different from EARDB’s.</p>
+<ul>
+<li><p><code>DBReportNodeDetail</code>: if set to 1, node managers will report temperature, average frequency, DRAM and PCK energy to the database manager, which will try to insert it to <em>Periodic_metrics</em>. If <em>Periodic_metrics</em> does not have the columns for both metrics, an error will occur and nothing will be inserted. To solve the error, set <code>ReportNodeDetail</code> to 0 or manually update <em>Periodic_metrics</em> in order to have the necessary columns.</p></li>
+<li><p><code>DBReportSigDetail</code>: similarly to <code>ReportNodeDetail</code>, an error will occur if the configuration differs from the one used when creating the database.</p></li>
+<li><p><code>DBReportLoops</code> : if set to 1, EARL detected application loops will be reported to the database, each with its corresponding Signature. Set to 0 to disable this feature. Regardless of the setting, no error should occur.</p></li>
+</ul>
+<p>If <em>Signatures</em> and/or <em>Periodic_metrics</em> have additional columns but their respective settings are set to 0, a NULL will be set in those additional columns, which will make those rows smaller in size (but bigger than if the columns did not exist).</p>
+<p><img src="./images/DB_diagram_no_GPUS.png" align="center" width="700"></p>
+<p>Additionally, if EAR was compiled in a system with GPUs (or with the GPU flag manually enabled), another table to store GPU data will be created. <img src="./images/DB_diagram_GPUS.png" align="center" width="700"></p>
+<h2 id="updating-from-previous-versions">Updating from previous versions</h2>
+<h3 id="from-ear-3.4-to-4.0">From EAR 3.4 to 4.0</h3>
+<p>Several fields have to be added in this update. To do so, run the following commands to the database’s CLI client:</p>
+<pre><code>ALTER TABLE Signatures ADD COLUMN avg_imc_f INT unsigned AFTER avg_f;
+ALTER TABLE Signatures ADD COLUMN perc_MPI FLOAT AFTER time;
+ALTER TABLE Signatures ADD COLUMN IO_MBS FLOAT AFTER GBS;
+
+ALTER TABLE Learning_signatures ADD COLUMN avg_imc_f INT unsigned AFTER avg_f;
+ALTER TABLE Learning_signatures ADD COLUMN perc_MPI FLOAT AFTER time;
+ALTER TABLE Learning_signatures ADD COLUMN IO_MBS FLOAT AFTER GBS;</code></pre>
+<h3 id="from-ear-3.3-to-3.4">From EAR 3.3 to 3.4</h3>
+<p>If no GPUs were used and they will not be used there are no changes necessary.</p>
+<p>If GPUs were being used, type the following commands to the database’s CLI client:</p>
+<pre><code>ALTER TABLE Signatures ADD COLUMN min_GPU_sig_id INT unsigned, ADD COLUMN max_GPU_sig_id INT unsigned;  
+ALTER TABLE Learning_signatures ADD COLUMN min_GPU_sig_id INT unsigned, ADD COLUMN max_GPU_sig_id INT unsigned;  
+CREATE TABLE IF NOT EXISTS GPU_signatures ( id INT unsigned NOT NULL AUTO_INCREMENT, GPU_power FLOAT NOT NULL, GPU_freq INT unsigned NOT NULL, GPU_mem_freq INT unsigned NOT NULL, GPU_util INT unsigned NOT NULL, GPU_mem_util INT unsigned NOT NULL, PRIMARY KEY (id));</code></pre>
+<p>If no GPUs were being used but now are present, use the previous query plus the following one:</p>
+<pre><code> ALTER TABLE Periodic_metrics ADD COLUMN GPU_energy INT;</code></pre>
+<h1 id="architectures-and-schedulers-supported">Architectures and schedulers supported”</h1>
+<h2 id="cpu-models">CPU Models</h2>
+<ul>
+<li>Intel Haswell/Skylake/IceLake monitoring and optimization.</li>
+<li>AMD EPYC Rome monitoring.</li>
+</ul>
+<h2 id="gpu-models">GPU models</h2>
+<ul>
+<li>NVIDIA: Node and application monitoring.</li>
+</ul>
+<h2 id="schedulers">Schedulers</h2>
+<ul>
+<li>EAR offers a SLURM SPANK plugin to be transparently used when using SLURM workload manager. This plug-in allows to be integrated as part of the SLURM submission options. <a href="User%20guide">See the user guide</a>.</li>
+<li>Using the EARD api <strong>new_job</strong>/<strong>end_job</strong> functions EAR can be also be transparently used with other schedulers such as LSF or PBS through the prolog/epilog mechanism.</li>
+</ul>
+<h1 id="changelog">Changelog</h1>
+<h2 id="ear-4.1">EAR 4.1</h2>
+<ul>
+<li>Meta EARGM.</li>
+<li>Support for N jobs in a node.</li>
+<li>CPU power models for N jobs.</li>
+<li>Python apps loaded automatically.</li>
+<li>Support for MPI-Python through environment variable.</li>
+<li>Report plug-ins in EARL, EARD and EARDBD.</li>
+<li>PostgreSQL support.</li>
+<li>Soft cluster powercap.</li>
+<li>New AMD virtual P-states support using max frequency and different P-states.</li>
+<li>New RPC system in EARL-EARD communication (including locks).</li>
+<li>Partial support for different schedulers (PBS).</li>
+<li>New task messages between EARPlug and EARD.</li>
+<li>New DCMI and INM-Freeipmi based energy plug-ins.</li>
+<li>IceLake support.</li>
+<li>Likwid support for IceLake memory bandwidth computation.</li>
+<li>msr_safe</li>
+<li>HEROES plug-in.</li>
+</ul>
+<h2 id="ear-4.0">EAR 4.0</h2>
+<ul>
+<li>AMD virtual p-states support and DF frequency management included</li>
+<li>AMD optimization based on min_energy and min_time</li>
+<li>GPU optimization in low GPU utilization phases</li>
+<li>Application phases IO/MPI/Computation detection included</li>
+<li>Node powercap and cluster powercap implemented: Intel CPU and NVIDIA GPUS tested. Meta EAR-GM not released</li>
+<li>IO, Percentage of MPI and Uncore frequency reported to DB and included in eacct</li>
+<li>econtrol extensions for EAR health-check</li>
+</ul>
+<h2 id="ear-3.4">EAR 3.4</h2>
+<ul>
+<li>Automatic loading of EAR library for MPI applications (already in 3.3), OpenMP, MKL and CUDA applications. Programming model detection is based on dynamic symbols so it could not work if symbols are statically included.</li>
+<li>AMD monitoring support.</li>
+<li>TAGS support included in policies.</li>
+<li>Request dynamic in eard_rapi.</li>
+<li>GPU monitoring support in EAR library for NVIDIA devices.</li>
+<li>Node powercap and cluster power cap under development.</li>
+<li>papi dependency removed.</li>
+</ul>
+<h2 id="ear-3.3">EAR 3.3</h2>
+<ul>
+<li>eacct loop signature reported.</li>
+<li>EAR loader included.</li>
+<li>GPU support migrated to nvml API.</li>
+<li>GPU support in configure.</li>
+<li>TAGS supported in ear.conf.</li>
+<li>Heterogeneous clusters specification supported.</li>
+<li>EARGM energy capping management improved.</li>
+<li>Internal messaging protocol improved.</li>
+<li>Average CPU frequency and Average IMC frequency computation improved.</li>
+</ul>
+<h2 id="ear-3.2">EAR 3.2</h2>
+<ul>
+<li>GPU monitoring based on nvidia-smi command.</li>
+<li>GPU power reported to the DB using NVIDIA commands.</li>
+<li>Postgresql support.</li>
+<li>freeipmi dependence removed.</li>
+</ul>
+<h1 id="faqs-when-using-ear-flags-with-slurm-plugin">FAQS when using EAR flags with SLURM plugin</h1>
+<ol type="1">
+<li><p>How to see EAR configuration and metrics at runtime? use <code>–-ear-verbose=1</code>.</p></li>
+<li><p>User authorized “issues”. The following list of ear flags are only allowed to Authorized users (<code>ear.conf</code>): <code>ear-cpufreq, ear-tag, ear-learning, ear-policy-th</code>.</p></li>
+</ol>
+<p><strong>Action</strong>: Check ear option and user authorization (ear.conf).</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode ini"><code class="sourceCode ini"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="dt">AuthorizedUsers</span><span class="ot">=</span><span class="st">user1,user2</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="dt">AuthorizedAccounts</span><span class="ot">=</span><span class="st">acc1,acc2,acc3</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="dt">AuthorizedGroups</span><span class="ot">=</span><span class="st">xx,yy</span></span></code></pre></div>
+<p>If user is not authorized it means it is the expected result.</p>
+<ol start="3" type="1">
+<li>Why is a different energy policy other than the selected one being applied (validated with <code>--ear-verbose=1</code>)? The selected policy may not be enabled for all users. Energy policies can be configured to be enabled to all users or not.</li>
+</ol>
+<p><strong>Action</strong>: Check policy configuration (ear.conf) and user authorization (ear.conf).</p>
+<div class="sourceCode" id="cb34"><pre class="sourceCode ini"><code class="sourceCode ini"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Enabled to all users</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="dt">Policy</span><span class="ot">=</span><span class="st">monitoring Settings=0 DefaultFreq=2.4 Privileged=0</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a><span class="co">#Enabled to authorized users</span></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="dt">Policy</span><span class="ot">=</span><span class="st">monitoring Settings=0 DefaultFreq=2.4 Privileged=1</span></span></code></pre></div>
+<p>If not enabled or not authorized it is the expected result.</p>
+<ol start="4" type="1">
+<li><p>How to disable EAR library explicitly: use <code>–ear=off</code>.</p></li>
+<li><p>How to apply EAR settings to all <strong>srun</strong>/<strong>mpirun</strong> calls inside a job? Set options in <code>#SBATCH</code> headers.</p></li>
+</ol>
+<div class="sourceCode" id="cb35"><pre class="sourceCode ini"><code class="sourceCode ini"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH -N 1</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="co">#SBATCH –ear-policy=min_time</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="co">#application 1 and 2 will run with min_time</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a><span class="dt">srun application1</span></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a><span class="dt">srun application2</span></span></code></pre></div>
+<ol start="6" type="1">
+<li>How to apply different EAR settings to different <strong>srun</strong>/<strong>mpirun</strong> calls inside a job? Set options for each step id.</li>
+</ol>
+<div class="sourceCode" id="cb36"><pre class="sourceCode ini"><code class="sourceCode ini"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="dt">srun –ear-policy</span><span class="ot">=</span><span class="st">min_time application</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="dt">srun –ear-policy</span><span class="ot">=</span><span class="st">min_energy application</span></span></code></pre></div>
+<ol start="7" type="1">
+<li>How to see which energy policies are installed? <code>srun --help</code></li>
+</ol>
+<p><strong>Comment</strong>: Installed policies, it is possible a user is not allowed to run it.</p>
+<ol start="8" type="1">
+<li>How to set EAR flags with <strong>mpirun (intel)</strong>? Depending on the intel mpi version. Before version 2019, mpirun had 2 parameters to specify slurm options.</li>
+</ol>
+<div class="sourceCode" id="cb37"><pre class="sourceCode ini"><code class="sourceCode ini"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="dt">mpirun –bootstrap</span><span class="ot">=</span><span class="st">slurm -bootstrap-exec-args=”—ear-verbose=1”</span></span></code></pre></div>
+<p>Since version 2019, SLURM options must be specified using environment variables:</p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode ini"><code class="sourceCode ini"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="dt">export I_MPI_HYDRA_BOOTSTRAP</span><span class="ot">=</span><span class="st">slurm</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="dt">export I_MPI_HYDRA_BOOTSTRAP_EXEC_EXTRA_ARGS --ear-verbose</span><span class="ot">=</span><span class="st">1&quot;</span></span></code></pre></div>
+<ol start="9" type="1">
+<li>How to set EAR flags with <strong>mpirun (openmpi)</strong>? OpenMPI needs an extra support when srun is not used. EAR’s <strong>erun</strong> command must be used.</li>
+</ol>
+<div class="sourceCode" id="cb39"><pre class="sourceCode ini"><code class="sourceCode ini"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="dt">mpirun erun –ear-policy</span><span class="ot">=</span><span class="st">min_energy --program=application </span></span></code></pre></div>
+<ol start="10" type="1">
+<li><p>An application is using OpenMPI and it blocks when running with EARL and <strong>mpirun</strong>: Use <strong>erun</strong>.</p></li>
+<li><p>An application works without EAR (–ear=off) and fails with EARL reporting errors related with dynamic libraries:</p></li>
+</ol>
+<p><strong>Action</strong>: Check if the application is using right EAR mpi version. If environment variable is set in mpi modules, it must be automatic. Otherwise, validate whether <code>--ear-mpi-dist</code> is present when needed.</p>
+<ol start="12" type="1">
+<li><p>How to collect more detailed metrics than available in the DB. Use <code>--ear-user-db</code> flag to generate <em>csv</em> files with all EARL collected metrics.</p></li>
+<li><p>How to collect paraver traces? Use the environment variables to enable the trace collection and to specify the path.</p></li>
+</ol>
+<div class="sourceCode" id="cb40"><pre class="sourceCode ini"><code class="sourceCode ini"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="dt">SLURM_EAR_TRACE_PLUGIN$EAR_INSTALL_PATH/lib/plugins/tracer/tracer_paraver.so</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="dt">SLURM_EAR_TRACE_PATH</span><span class="ot">=</span><span class="st">TRACES_PARAVER/</span></span></code></pre></div>
+<ol start="14" type="1">
+<li>User asks for application metrics with <strong>eacct</strong> and NO-EARL appears in some of the columns in the output: This means EARL was not loaded with the application or the application fails before MPI_Finalize, nor reporting application data</li>
+</ol>
+<p><strong>Action</strong>: Check if application was executed with EARL and it didn’t fail.</p>
+<ol start="15" type="1">
+<li>After some time, user asks for an application metrics with <strong>eacct</strong> and application is not reported.</li>
+</ol>
+<p><strong>Action</strong>: Try again after some minutes (applications are not reported immediately).</p>
+<h1 id="known-issues">Known issues</h1>
+<ul>
+<li>If a Python + MPI application is launched with the intention to have EARL loaded, and libear*.so cannot be found, the application will crash.</li>
+</ul>
+</body>
+</html>

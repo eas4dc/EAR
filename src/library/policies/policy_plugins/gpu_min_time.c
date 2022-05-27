@@ -38,14 +38,6 @@ extern unsigned long ext_def_freq;
 #define DEF_FREQ(f) f
 #endif
 
-#if 0
-#define debug(...) \
-{ \
-        dprintf(2, __VA_ARGS__); \
-        dprintf(2, "\n"); \
-}
-#endif
-
 #define LOW_UTIL_GPU_TH 85
 #define MED_UTIL_GPU_TH 95
 #define HIGH_UTIL_GPU_TH 75
@@ -56,13 +48,13 @@ extern unsigned long ext_def_freq;
 static const ulong **gpuf_list;
 static const uint *gpuf_list_items;
 static	ulong *gfreqs;
-extern uint last_earl_gpu_phase_classification;
+extern gpu_state_t last_gpu_state;
 
 state_t policy_init(polctx_t *c)
 {
     int i,j;
     ulong g_freq = 0;
-    char *gpu_freq=getenv(SCHED_EAR_GPU_DEF_FREQ);
+    char *gpu_freq=getenv(FLAG_GPU_DEF_FREQ);
     if ((gpu_freq!=NULL) && (c->app->user_type==AUTHORIZED)){
         g_freq=atol(gpu_freq);
     }
@@ -100,16 +92,18 @@ state_t policy_apply(polctx_t *c,signature_t *my_sig, node_freqs_t *freqs,int *r
     }
 #endif
 
-    for (i=0;i<my_sig->gpu_sig.num_gpus;i++){
+    for (i = 0; i < my_sig->gpu_sig.num_gpus; i++) {
         util = my_sig->gpu_sig.gpu_data[i].GPU_util;
         tutil += util;
-        if (util == 0){		
+        if (util == 0) {
             new_freq[i] = gpuf_list[i][gpuf_list_items[i]-1];
-        }else{
+        } else {
             new_freq[i] = gfreqs[i];
         }
-    }		
-    if ((tutil > 0 ) && (last_earl_gpu_phase_classification == GPU_IDLE)) last_earl_gpu_phase_classification = GPU_COMP;
+    }
+    if (tutil > 0 && (last_gpu_state & _GPU_Idle)) {
+        last_gpu_state = _GPU_Comp;
+    }
 
 #endif
 
@@ -133,7 +127,9 @@ state_t policy_restore_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *fr
             freqs->gpu_freq[i] = gfreqs[i];
         }
     }
-    if ((tutil > 0 ) && (last_earl_gpu_phase_classification == GPU_IDLE)) last_earl_gpu_phase_classification = GPU_COMP;
+    if (tutil > 0) {
+        last_gpu_state = _GPU_Comp;
+    }
 
 #endif
     return EAR_SUCCESS;

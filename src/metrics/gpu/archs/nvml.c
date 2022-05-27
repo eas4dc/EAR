@@ -192,15 +192,25 @@ static int load_test(char *path)
 static int static_load()
 {
 	// Looking for nvidia library in tipical paths.
-	if (load_test(getenv(HACK_FILE_NVML))) return 1;
-	if (load_test(NVML_PATH "/targets/x86_64-linux/lib/libnvidia-ml.so")) return 1;
-	if (load_test(NVML_PATH "/lib64/libnvidia-ml.so")) return 1;
-	if (load_test(NVML_PATH "/lib/libnvidia-ml.so")) return 1;
-	if (load_test("/usr/lib64/libnvidia-ml.so")) return 1;
-	if (load_test("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so")) return 1;
-	if (load_test("/usr/lib32/libnvidia-ml.so")) return 1;
-	if (load_test("/usr/lib/libnvidia-ml.so")) return 1;
+  if (load_test(getenv(HACK_NVML_FILE))) return 1;
+  if (load_test(NVML_PATH "/targets/x86_64-linux/lib/libnvidia-ml.so")) return 1;
+  if (load_test(NVML_PATH "/targets/x86_64-linux/lib/libnvidia-ml.so.1")) return 1;
+  if (load_test(NVML_PATH "/lib64/libnvidia-ml.so")) return 1;
+  if (load_test(NVML_PATH "/lib64/libnvidia-ml.so.1")) return 1;
+  if (load_test(NVML_PATH "/lib/libnvidia-ml.so")) return 1;
+  if (load_test(NVML_PATH "/lib/libnvidia-ml.so.1")) return 1;
+  if (load_test("/usr/lib64/libnvidia-ml.so")) return 1;
+  if (load_test("/usr/lib64/libnvidia-ml.so.1")) return 1;
+  if (load_test("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so")) return 1;
+  if (load_test("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1")) return 1;
+  if (load_test("/usr/lib32/libnvidia-ml.so")) return 1;
+  if (load_test("/usr/lib32/libnvidia-ml.so.1")) return 1;
+  if (load_test("/usr/lib/libnvidia-ml.so")) return 1;
+  if (load_test("/usr/lib/libnvidia-ml.so.1")) return 1;
+
+
 	return 0;
+
 }
 
 state_t nvml_status()
@@ -529,6 +539,30 @@ state_t nvml_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff)
 	#endif
 	return EAR_SUCCESS;
 }
+
+state_t nvml_data_diff_gpus(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int gpus)
+{
+  state_t s;
+  int i;
+  if (!ok_unprivileged) {
+    return_msg(EAR_NOT_INITIALIZED, Error.init_not);
+  }
+  if (data2 == NULL || data1 == NULL || data_diff == NULL) {
+    return_msg(EAR_ERROR, Error.null_data);
+  }
+  if (xtate_fail(s, nvml_data_null(data_diff))) {
+    return s;
+  }
+  for (i = 0; i < gpus; i++) {
+    nvml_read_diff(data2, data1, data_diff, i);
+  }
+  #ifdef SHOW_DEBUGS
+  nvml_data_print(data_diff, debug_channel);
+  #endif
+  return EAR_SUCCESS;
+}
+
+
 
 state_t nvml_data_alloc(gpu_t **data)
 {

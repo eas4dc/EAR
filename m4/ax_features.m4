@@ -28,7 +28,7 @@ AC_DEFUN([X_AC_GET_LD_LIBRARY_PATHS], [
     done
 ])
 
-AC_DEFUN([AX_PRE_OPT_FEATURES],
+AC_DEFUN([AX_BEFORE_FEATURES],
 [
 	#
 	#
@@ -82,25 +82,33 @@ AC_DEFUN([AX_PRE_OPT_FEATURES],
 	#
 	# MPI
 	#
+    AC_ARG_ENABLE([mpi],
+        AS_HELP_STRING([--disable-mpi], [Compiles the non-mpi version of the library.])
+    )
+
 	AC_ARG_VAR([CC_FLAGS],[Adds parameters to C compiler])
 	AC_ARG_VAR([MPICC],[Defines the MPI compiler])
 	AC_ARG_VAR([MPICC_FLAGS],[Appends parameters to MPI compiler])
 	AC_ARG_VAR([MPI_VERSION],[Adds a suffix to the EAR library referring the MPI version used to compile])
 
-	# !I && !O
-	if test -z "$MPICC"; then
-		MPICC=mpicc
-	fi
+    FEAT_MPI_API=1
 
-	if echo "$MPICC" | grep -q "/"; then
-		echo nothing &> /dev/null
-	else
+	if test -z "$MPICC"; then
+		if which mpicc &> /dev/null; then
+			MPICC="`which mpicc`"
+		else
+            FEAT_MPI_API=0
+		fi
+    else
 		if which $MPICC &> /dev/null; then
 			MPICC="`which $MPICC`"
-		else
-			MPICC="mpicc"
-		fi
+        fi
 	fi
+
+	# The disable flag has the priority, so it is computed at the end
+    if test "x$enable_mpi" = "xno"; then
+        FEAT_MPI_API=0
+    fi
 
 	if echo "$CC" | grep -q "/"; then
 		echo nothing &> /dev/null
@@ -142,17 +150,35 @@ AC_DEFUN([AX_PRE_OPT_FEATURES],
 	#
 	AC_ARG_VAR([USER],[Sets the owner user of your installed files])
 	AC_ARG_VAR([GROUP],[Sets the owner group of your installed files])
+
+    #
+    # Makefile name
+    #
+	AC_ARG_VAR([MAKE_NAME],[Add a name to the compilation. It adds an additional Makefile with a suffix.])
 ])
 
-AC_DEFUN([AX_POST_OPT_FEATURES],
+AC_DEFUN([AX_AFTER_FEATURES],
 [
 	if test "x$DB_NAME" = "xpgsql"; then
-		DB_MYSQL=0
-		DB_PGSQL=1
+		FEAT_DB_MYSQL=0
+		FEAT_DB_PGSQL=1
 	else
-		DB_MYSQL=1
-		DB_PGSQL=0
+	    if test "x$DB_NAME" = "xmysql"; then
+		    FEAT_DB_MYSQL=1
+		    FEAT_DB_PGSQL=0
+	    else
+		    FEAT_DB_MYSQL=0
+		    FEAT_DB_PGSQL=0
+        fi
 	fi
+
+    if test "x$SCHED_NAME" = "xSLURM"; then
+        FEAT_SCHED_SLURM=1
+        FEAT_SCHED_PBS=0
+    else
+        FEAT_SCHED_SLURM=0
+        FEAT_SCHED_PBS=1
+    fi
 
 	#IFS='.' read -r -a array_version <<< "$PACKAGE_VERSION" && echo $array_version[0]
 	#column -t -s '\ $PACKAGE_VERSION
@@ -179,11 +205,23 @@ AC_DEFUN([AX_POST_OPT_FEATURES],
 	AC_SUBST(MPI_DIR)
 	AC_SUBST(MPI_CPPFLAGS)
 	AC_SUBST(MPI_VERSION)
+	AC_SUBST(FEAT_MPI_API)
 	AC_SUBST(FEAT_AVX512)
 	AC_SUBST(FEAT_GPUS)
-	AC_SUBST(DB_MYSQL)
-	AC_SUBST(DB_PGSQL)
+	AC_SUBST(FEAT_DB_MYSQL)
+	AC_SUBST(FEAT_DB_PGSQL)
+	AC_SUBST(FEAT_SCHED_SLURM)
+	AC_SUBST(FEAT_SCHED_PBS)
 	AC_SUBST(EAR_TMP)
 	AC_SUBST(VERSION_MAJOR)
 	AC_SUBST(VERSION_MINOR)
+    AC_SUBST(SCHED_DIR)
+    AC_SUBST(SCHED_NAME)
+])
+
+AC_DEFUN([AX_AFTER_OUTPUT],
+[
+	if test -n "$MAKE_NAME"; then
+        cp Makefile Makefile.$MAKE_NAME
+	fi
 ])

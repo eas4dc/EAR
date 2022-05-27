@@ -15,6 +15,8 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+//#define SHOW_DEBUGS 1
+
 #include <math.h>
 #include <errno.h>
 #include <stdio.h>
@@ -86,11 +88,13 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 		ipmb_addr.lun = req->msg.lun;
 		_req.addr = (unsigned char *) &ipmb_addr;
 		_req.addr_len = sizeof(ipmb_addr);
+		debug("IPMB channel %x", ipmb_addr.channel);
 
 	} else {
 		bmc_addr.lun = req->msg.lun;
 		_req.addr = (unsigned char *) &bmc_addr;
 		_req.addr_len = sizeof(bmc_addr);
+		debug("BMC channel %x", bmc_addr.channel);
 	};
 	_req.msgid = curr_seq++;
 
@@ -98,6 +102,9 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	_req.msg.data_len = req->msg.data_len;
 	_req.msg.netfn = req->msg.netfn;
 	_req.msg.cmd = req->msg.cmd;
+
+	debug("Channel %p, bcm %p ipmb %p", _req.addr, &bmc_addr, &ipmb_addr);
+
 
 	if (ioctl(intf->fd, IPMICTL_SEND_COMMAND, &_req) < 0) {
 		debug("Unable to send command\n");

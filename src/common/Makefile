@@ -1,6 +1,9 @@
 include ./Makefile.files
 
 CFLAGS = -fPIC -I$(SRCDIR) $(CONSTANTS) -O2
+ifeq ($(FEAT_RESEARCH), 1)
+	CFLAGS += -DNEW_LB_EFF=1
+endif
 
 ######## FILES
 
@@ -38,6 +41,7 @@ clean: clean.components comm.gclean rclean;
 	@ $(MAKE) -C 'database' 	$* || exit
 	@ $(MAKE) -C 'hardware' 	$* || exit
 	@ $(MAKE) -C 'messaging' 	$* || exit
+	@ $(MAKE) -C 'output'   	$* || exit
 	@ $(MAKE) -C 'system'   	$* || exit
 	@ $(MAKE) -C 'types'    	$* || exit
 	@ $(MAKE) -C 'utils'		$* || exit

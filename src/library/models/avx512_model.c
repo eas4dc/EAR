@@ -17,7 +17,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
+#if !SHOW_DEBUGS
+#define NDEBUG
+#endif
+#include <assert.h>
 #include <common/states.h>
 #include <common/output/verbose.h>
 #include <common/types/signature.h>
@@ -41,7 +45,7 @@ static int valid_range(ulong from,ulong to)
 }
 
 /* This function loads any information needed by the energy model */
-state_t model_init(char *etc,char *tmp,architecture_t *myarch)
+state_t model_init(char *etc, char *tmp, architecture_t *myarch)
 {
   int i, ref;
 
@@ -56,12 +60,15 @@ state_t model_init(char *etc,char *tmp,architecture_t *myarch)
 	debug("Pstate for maximum freq avx512 %lu=%d Pstate for maximum freq avx2 %lu=%d",arch.max_freq_avx512,avx512_pstate,arch.max_freq_avx2,avx2_pstate);
 
   coefficients = (coefficient_t **) malloc(sizeof(coefficient_t *) * num_pstates);
+
+  assert(coefficients != NULL);
   if (coefficients == NULL) {
 		return EAR_ERROR;
   }
   for (i = 0; i < num_pstates; i++)
   {
     coefficients[i] = (coefficient_t *) malloc(sizeof(coefficient_t) * num_pstates);
+    assert(coefficients[i] != NULL);
     if (coefficients[i] == NULL) {
 			return EAR_ERROR;
     }
@@ -80,20 +87,22 @@ state_t model_init(char *etc,char *tmp,architecture_t *myarch)
   get_coeffs_default_path(tmp,coeffs_path);
   num_coeffs=0;
   coefficients_sm=attach_coeffs_default_shared_area(coeffs_path,&num_coeffs);
-  if (num_coeffs>0){
-    num_coeffs=num_coeffs/sizeof(coefficient_t);
-    int ccoeff;
-    for (ccoeff=0;ccoeff<num_coeffs;ccoeff++){
-      ref=frequency_closest_pstate(coefficients_sm[ccoeff].pstate_ref);
-      i=frequency_closest_pstate(coefficients_sm[ccoeff].pstate);
-      if (frequency_is_valid_pstate(ref) && frequency_is_valid_pstate(i)){
-				memcpy(&coefficients[ref][i],&coefficients_sm[ccoeff],sizeof(coefficient_t));
+  if (num_coeffs > 0){
+      num_coeffs = num_coeffs / sizeof(coefficient_t);
+
+      int ccoeff;
+      for (ccoeff=0;ccoeff<num_coeffs;ccoeff++){
+          ref=frequency_closest_pstate(coefficients_sm[ccoeff].pstate_ref);
+          i=frequency_closest_pstate(coefficients_sm[ccoeff].pstate);
+          if (frequency_is_valid_pstate(ref) && frequency_is_valid_pstate(i)){
+              memcpy(&coefficients[ref][i],&coefficients_sm[ccoeff],sizeof(coefficient_t));
+          }
       }
-    }
   }
 	basic_model_init=1;	
 	return EAR_SUCCESS;
 }
+
 double avx512_vpi(signature_t *my_app);
 double proj_cpi(coefficient_t *coeff,signature_t *sign)
 {
@@ -203,5 +212,18 @@ state_t model_projection_available(ulong from,ulong to)
 {
 	if (coefficients[from][to].available) return EAR_SUCCESS;
 	else return EAR_ERROR;
+}
+
+state_t model_projections_available()
+{
+	uint ready = 0;
+	for (uint ps = 0; ps < num_pstates && !ready; ps++){
+		for (uint pt = 0; pt < num_pstates && !ready; pt++){
+			if ((ps != pt) && (model_projection_available(ps, pt) == EAR_SUCCESS)) ready = 1;	
+		}
+	}
+    assert(ready != 0);
+	if (ready) return EAR_SUCCESS;
+	return EAR_ERROR;	
 }
 

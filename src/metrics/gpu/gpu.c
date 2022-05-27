@@ -14,7 +14,7 @@
 * use and EPL-1.0 license for commercial use. Full text of both licenses can be
 * found in COPYING.BSD and COPYING.EPL files.
 */
-
+//#define SHOW_DEBUGS 1
 #include <common/output/debug.h>
 #include <metrics/gpu/gpu.h>
 #include <metrics/gpu/archs/nvml.h>
@@ -46,6 +46,7 @@ state_t gpu_load(gpu_ops_t **_ops, uint model_force, uint *model_used)
 		ops.read_copy	= nvml_read_copy;
 		ops.read_raw	= nvml_read_raw;
 		ops.data_diff	= nvml_data_diff;
+		ops.data_diff_gpus  = nvml_data_diff_gpus;
 		ops.data_merge	= nvml_data_merge;
 		ops.data_alloc	= nvml_data_alloc;
 		ops.data_free	= nvml_data_free;
@@ -67,6 +68,7 @@ state_t gpu_load(gpu_ops_t **_ops, uint model_force, uint *model_used)
 		ops.read_copy	= gpu_dummy_read_copy;
 		ops.read_raw	= gpu_dummy_read_raw;
 		ops.data_diff	= gpu_dummy_data_diff;
+		ops.data_diff_gpus = gpu_dummy_data_diff_gpus;
 		ops.data_merge	= gpu_dummy_data_merge;
 		ops.data_alloc	= gpu_dummy_data_alloc;
 		ops.data_free	= gpu_dummy_data_free;
@@ -123,6 +125,8 @@ state_t gpu_read_copy(ctx_t *c, gpu_t *data2, gpu_t *data1, gpu_t *data_diff)
 	preturn (ops.read_copy, c, data2, data1, data_diff);
 }
 
+
+
 state_t gpu_read_raw(ctx_t *c, gpu_t *data)
 {
 	preturn (ops.read_raw, c, data);
@@ -132,6 +136,12 @@ state_t gpu_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff)
 {
 	preturn (ops.data_diff, data2, data1, data_diff);
 }
+
+state_t gpu_data_diff_gpus(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int gpus)
+{
+  preturn (ops.data_diff_gpus, data2, data1, data_diff, gpus);
+}
+
 
 state_t gpu_data_merge(gpu_t *data_diff, gpu_t *data_merge)
 {

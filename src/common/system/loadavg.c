@@ -28,7 +28,9 @@ state_t loadavg(float *min,float *Vmin,float *XVmin,uint * runnable,uint *total,
   {
 		return EAR_ERROR;
   }
-  fscanf(f,"%f %f %f %u/%u %u",min,Vmin,XVmin,runnable,total,lastpid);
+  if (fscanf(f,"%f %f %f %u/%u %u",min,Vmin,XVmin,runnable,total,lastpid)) {
+      // Just for warning purposes
+  }
   fclose(f);
   return EAR_SUCCESS;
 }

@@ -16,6 +16,7 @@
 */
 
 //#define SHOW_DEBUGS 1
+#include <common/states.h>
 #include <library/api/ear.h>
 #include <library/api/ear_mpi.h>
 #include <library/policies/policy.h>
@@ -48,7 +49,7 @@ void after_mpi(mpi_call call_type)
 void before_finalize()
 {
 	debug("before_finalize");
-	ear_finalize();
+	ear_finalize(EAR_SUCCESS);
 }
 
 void after_finalize()

@@ -42,7 +42,7 @@ state_t temp_amd17_status(topology_t *topo)
 	}
 	while (pthread_mutex_trylock(&lock));
 	if (socket_count == 0) {
-		if (xtate_ok(s, hwmon_find_drivers("k10temp", NULL, NULL))) {
+		if (state_ok(s = hwmon_find_drivers("k10temp", NULL, NULL))) {
 			socket_count = topo->socket_count;
 		}
 	}

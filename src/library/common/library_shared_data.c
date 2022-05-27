@@ -15,6 +15,9 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+// #define SHOW_DEBUGS 1
+#define _GNU_SOURCE
+#include <sched.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
@@ -25,28 +28,43 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+
 #include <common/config.h>
 #include <common/states.h>
-//#define SHOW_DEBUGS 1
+#include <common/hardware/hardware_info.h>
 #include <common/output/verbose.h>
-#include <library/common/externs.h>
+#include <common/types/projection.h>
 #include <common/types/configuration/cluster_conf.h>
+
+#include <metrics/flops/flops.h>
+
+#include <daemon/local_api/node_mgr.h>
+#include <library/common/externs.h>
+#include <library/models/cpu_power_model.h>
 #include <library/common/library_shared_data.h>
 #include <library/common/verbose_lib.h>
 #include <library/common/global_comm.h>
+#include <common/environment.h>
 
+/* Node mgr variables */
+extern ear_njob_t *node_mgr_data;
+extern uint node_mgr_index;
+extern node_mgr_sh_data_t *node_mgr_job_info;
+extern char lib_shared_region_path_jobs[GENERIC_NAME];
+extern char sig_shared_region_path_jobs[GENERIC_NAME];
 static int fd_conf,fd_signatures;
+extern uint exclusive;
 
-int  get_lib_shared_data_path(char *tmp,char *path)
+int  get_lib_shared_data_path(char *tmp, uint ID, char *path)
 {
 	if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
-	sprintf(path,"%s/.ear_lib_shared_data",tmp);
+	sprintf(path,"%s/%u/.ear_lib_shared_data",tmp, ID);
 	return EAR_SUCCESS;	
 }
-int  get_shared_signatures_path(char *tmp,char *path)
+int  get_shared_signatures_path(char *tmp, uint ID, char *path)
 {
 	if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
-	sprintf(path,"%s/.ear_shared_signatures",tmp);
+	sprintf(path,"%s/%u/.ear_shared_signatures",tmp, ID);
 	return EAR_SUCCESS;	
 }
 
@@ -64,13 +82,13 @@ lib_shared_data_t * create_lib_shared_data_area(char * path)
 	return my_area;
 }
 
-lib_shared_data_t * attach_lib_shared_data_area(char * path)
+lib_shared_data_t * attach_lib_shared_data_area(char * path, int *fd)
 {
-    return (lib_shared_data_t *)attach_shared_area(path,sizeof(lib_shared_data_t),O_RDWR,&fd_conf,NULL);
+    return (lib_shared_data_t *)attach_shared_area(path,sizeof(lib_shared_data_t),O_RDWR,fd,NULL);
 }                                
-void dettach_lib_shared_data_area()
+void dettach_lib_shared_data_area(int fd)
 {
-	dettach_shared_area(fd_conf);
+	dettach_shared_area(fd);
 }
 
 void lib_shared_data_area_dispose(char * path)
@@ -98,13 +116,13 @@ shsignature_t * create_shared_signatures_area(char * path, int np)
 	return p2;
 }
 
-shsignature_t * attach_shared_signatures_area(char * path,int np)
+shsignature_t * attach_shared_signatures_area(char * path,int np, int *fd)
 {
-    return (shsignature_t *)attach_shared_area(path,sizeof(shsignature_t)*np,O_RDWR,&fd_signatures,NULL);
+    return (shsignature_t *)attach_shared_area(path,sizeof(shsignature_t)*np,O_RDWR,fd,NULL);
 }                                
-void dettach_shared_signatures_area()
+void dettach_shared_signatures_area(int fd)
 {
-	dettach_shared_area(fd_signatures);
+	dettach_shared_area(fd);
 }
 void shared_signatures_area_dispose(char * path)
 {
@@ -119,87 +137,127 @@ void signature_ready(shsignature_t *sig,int cur_state)
 	sig->app_state = cur_state;
 }
 
-int compute_total_signatures_ready(lib_shared_data_t *data,shsignature_t *sig)
+int all_signatures_initialized(lib_shared_data_t *data,shsignature_t *sig)
 {
 	int i,total=0;
-  for (i=0;i<data->num_processes;i++){ 
-		total = total+sig[i].ready;
-		if (!sig[i].ready) debug(" Process %d not ready",i);
-	}
-	data->num_signatures = total;
-	return total;
+  for (i=0;i<data->num_processes;i++){
+    total += (sig[i].pid > 0 );
+  }
+  return (total == data->num_processes);
+
 }
-int are_signatures_ready(lib_shared_data_t *data,shsignature_t *sig)
+void aggregate_all_the_cpumasks(lib_shared_data_t *data,shsignature_t *sig, cpu_set_t *m)
 {
-	compute_total_signatures_ready(data,sig);
-	debug("There are %d signatures ready from %d",data->num_signatures,data->num_processes);
-	return(data->num_signatures == data->num_processes);
+	CPU_ZERO(m);
+	for (uint p = 0; p < data->num_processes; p++){
+		aggregate_cpus_to_mask(m, &sig[p].cpu_mask);
+	}
 }
+
+
+int compute_total_signatures_ready(lib_shared_data_t *data,shsignature_t *sig)
+{
+    int i,total=0;
+    if (msync(sig, sizeof(shsignature_t)* data->num_processes,MS_SYNC) < 0) verbose_master(2,"Memory sync fails %s",strerror(errno));
+    for (i=0; i<data->num_processes; i++){ 
+        total = total + sig[i].ready;
+        if (!sig[i].ready) {
+            debug(" Process %d not ready",i);
+        }
+    }
+    data->num_signatures = total;
+    return total;
+}
+
+int are_signatures_ready(lib_shared_data_t *data,shsignature_t *sig, uint *num_ready)
+{
+    int total = compute_total_signatures_ready(data, sig);
+		*num_ready = total;
+    debug("There are %d signatures ready from %d",data->num_signatures,data->num_processes);
+    return(total == data->num_processes);
+}
+
+int num_processes_exited(lib_shared_data_t *data,shsignature_t *sig)
+{
+  uint total = 0;
+  for (uint i = 0; i < data->num_processes;i++) total += sig[i].exited;
+  return total;
+}
+
 
 void print_sig_readiness(lib_shared_data_t *data,shsignature_t *sig)
 {
-	int i;
-	for (i=0;i<data->num_processes;i++){
-		debug("P[%d] ready %u ",i,sig[i].ready);
-	}
+    int i;
+    for (i=0;i<data->num_processes;i++){
+        debug("P[%d] ready %u ",i,sig[i].ready);
+    }
 }
 
+void free_node_signatures(lib_shared_data_t *data,shsignature_t *sig)
+{
+    int i;
+    for (i=0;i<data->num_processes;i++){
+        sig[i].ready = 0;
+    }
+    if (msync(sig, sizeof(shsignature_t)* data->num_processes,MS_SYNC) < 0) verbose_master(2,"Memory sync fails %s",strerror(errno));
+}
 void clean_signatures(lib_shared_data_t *data,shsignature_t *sig)
 {
-	int i;
-  for (i=0;i<data->num_processes;i++) sig[i].ready = 0;
+    int i;
+    for (i=0;i<data->num_processes;i++) sig[i].ready = 0;
+    if (msync(sig, sizeof(shsignature_t)* data->num_processes,MS_SYNC) < 0) verbose_master(2,"Memory sync fails %s",strerror(errno));
 }
 
 void clean_mpi_info(lib_shared_data_t *data,shsignature_t *sig)
 {
-  int i;
-  for (i=0;i<data->num_processes;i++){ 
-		sig[i].mpi_info.mpi_time				=	0;
-		sig[i].mpi_info.total_mpi_calls	=	0;
-		sig[i].mpi_info.perc_mpi				=	0;
-		sig[i].mpi_info.exec_time				=	0;
-	}
+    int i;
+    for (i=0;i<data->num_processes;i++){ 
+        sig[i].mpi_info.mpi_time				=	0;
+        sig[i].mpi_info.total_mpi_calls	=	0;
+        sig[i].mpi_info.perc_mpi				=	0;
+        sig[i].mpi_info.exec_time				=	0;
+    }
 }
 
 void clean_my_mpi_info(mpi_information_t *info)
 {
-	info->mpi_time 				= 0;
-	info->total_mpi_calls = 0;
-	info->perc_mpi				= 0;
-	info->exec_time				= 0;
+    info->mpi_time 				= 0;
+    info->total_mpi_calls = 0;
+    info->perc_mpi				= 0;
+    info->exec_time				= 0;
 }
 
 int select_cp(lib_shared_data_t *data,shsignature_t *sig)
 {
-  int i,rank = sig[0].mpi_info.rank;
-	double minp = sig[0].mpi_info.perc_mpi;
-  for (i=1;i<data->num_processes;i++){
-    if (sig[i].mpi_info.perc_mpi<minp){ 
-			rank = sig[i].mpi_info.rank;
-			minp = sig[i].mpi_info.perc_mpi;
-		}
-  }
-	return rank;
+    int i,rank = sig[0].mpi_info.rank;
+    double minp = sig[0].mpi_info.perc_mpi;
+    for (i=1;i<data->num_processes;i++){
+        if (sig[i].mpi_info.perc_mpi<minp){ 
+            rank = sig[i].mpi_info.rank;
+            minp = sig[i].mpi_info.perc_mpi;
+        }
+    }
+    return rank;
 }
 
 double min_perc_mpi_in_node(lib_shared_data_t *data,shsignature_t *sig)
 {
-  int i;
-  double minp =sig[0].mpi_info.perc_mpi;
-  for (i=1;i<data->num_processes;i++){
-    if (sig[i].mpi_info.perc_mpi<minp){
-      minp = sig[i].mpi_info.perc_mpi;
+    int i;
+    double minp =sig[0].mpi_info.perc_mpi;
+    for (i=1;i<data->num_processes;i++){
+        if (sig[i].mpi_info.perc_mpi<minp){
+            minp = sig[i].mpi_info.perc_mpi;
+        }
     }
-  }
-  return minp;
+    return minp;
 }
 
 void compute_avg_sh_signatures(int size,int max,int *ppn,shsignature_t *my_sh_sig,signature_t *sig)
 {
-	signature_t avgs,totals;
-	int i,j;
-	int nums = 0;
-	signature_init(sig);
+    signature_t avgs,totals;
+    int i,j;
+    int nums = 0;
+    signature_init(sig);
 	signature_init(&avgs);
 	signature_init(&totals);
   for (i=0;i<size;i++){
@@ -309,8 +367,9 @@ void print_shared_signatures(lib_shared_data_t *data,shsignature_t *sig)
 }
 void print_ready_shared_signatures(int master_rank,lib_shared_data_t *data,shsignature_t *sig)
 {
+	uint num_ready;
 	if (master_rank < 0) return;
-	if (are_signatures_ready(data,sig)){
+	if (are_signatures_ready(data,sig, &num_ready)){
 		print_shared_signatures(data,sig);
 	}
 }
@@ -365,18 +424,49 @@ void compute_total_node_flops(lib_shared_data_t *data,shsignature_t *sig,ull *fl
 	int i,f;
 	memset(flops,0,FLOPS_EVENTS*sizeof(ull));
 	for (i=0;i<data->num_processes;i++){
-		for (f=0;f<FLOPS_EVENTS;f++) flops[f] += sig[i].sig.FLOPS[f];
+		for (f=0;f<FLOPS_EVENTS;f++) {
+            flops[f] += sig[i].sig.FLOPS[f];
+        }
 	}
+    verbose(3, "######## compute_total_node_flops ");
 }
 
 void compute_total_node_cycles(lib_shared_data_t *data,shsignature_t *sig,ull *t_cycles)
 {
+    int i;
+    *t_cycles = 0;
+    for (i=0;i<data->num_processes;i++){
+        *t_cycles += sig[i].sig.cycles;
+    }
+}
+
+void compute_total_node_L3_misses(lib_shared_data_t *data,shsignature_t *sig,ull *t_L3)
+{
   int i;
-  *t_cycles = 0;
+  *t_L3 = 0;
   for (i=0;i<data->num_processes;i++){
-    *t_cycles += sig[i].sig.cycles;
+    *t_L3 += sig[i].sig.L3_misses;
   }
 }
+
+void compute_total_node_L1_misses(lib_shared_data_t *data,shsignature_t *sig,ull *l1)
+{
+  int i;
+  *l1 = 0;
+  for (i=0;i<data->num_processes;i++){
+    *l1 += sig[i].sig.L1_misses;
+  }
+}
+
+void compute_total_node_L2_misses(lib_shared_data_t *data,shsignature_t *sig,ull *l2)
+{
+  int i;
+  *l2 = 0;
+  for (i=0;i<data->num_processes;i++){
+    *l2 += sig[i].sig.L2_misses;
+  }
+}
+
 
 void compute_total_node_CPI(lib_shared_data_t *data,shsignature_t *sig,double *CPI)
 {
@@ -387,6 +477,18 @@ void compute_total_node_CPI(lib_shared_data_t *data,shsignature_t *sig,double *C
   }
 	*CPI = *CPI/data->num_processes;
 }
+
+void compute_job_cpus(lib_shared_data_t *data,shsignature_t *sig,uint *cpus)
+{
+    int i;
+    *cpus = 0;
+    for (i = 0; i < data->num_processes; i++) {
+        uint lcpus = num_cpus_in_mask(&sig[i].cpu_mask);
+        *cpus += lcpus;
+    }
+    verbose_master(2,"Job %u has %u cpus ",node_mgr_index,*cpus);
+}
+
 
 
 
@@ -445,11 +547,11 @@ void compute_per_node_avg_sig_info(lib_shared_data_t *data,shsignature_t *sig,sh
 
 void load_app_mgr_env()
 {
-	char *cshow_sig=getenv(SCHED_EAR_SHOW_SIGNATURES);
-	char *csh_sig_per_process=getenv(SHARE_INFO_PER_PROCESS);
-	char *csh_sig_per_node=getenv(SHARE_INFO_PER_NODE);
-	char *creport_node_sig=getenv(REPORT_NODE_SIGNATURES);
-	char *creport_all_sig=getenv(REPORT_ALL_SIGNATURES);
+	char *cshow_sig=getenv(FLAG_SHOW_SIGNATURES);
+	char *csh_sig_per_process=getenv(FLAG_SHARE_INFO_PPROC);
+	char *csh_sig_per_node=getenv(FLAG_SHARE_INFO_PNODE);
+	char *creport_node_sig=getenv(FLAG_REPORT_NODE_SIGNATURES);
+	char *creport_all_sig=getenv(FLAG_REPORT_ALL_SIGNATURES);
 
 	if (cshow_sig != NULL) show_signatures = atoi(cshow_sig);
 	if (csh_sig_per_process != NULL) sh_sig_per_proces = atoi(csh_sig_per_process);
@@ -473,7 +575,148 @@ double compute_node_flops(lib_shared_data_t *data,shsignature_t *sig)
 {
 	double total = 0;
 	int i;
-	for (i=0;i<data->num_processes;i++) total += sig[i].sig.Gflops;
+	for (i=0;i<data->num_processes;i++) {
+        total += sig[i].sig.Gflops;
+    }
+    verbose(3, "######## compute_node_flops %0.2lf", total);
 	return total;
 }
 
+void compute_total_node_avx_and_avx_fops(lib_shared_data_t *data,shsignature_t *sig,ullong *avx)
+{
+	ull total = 0;
+	for (uint i=0;i<data->num_processes;i++){	
+		total += sig[i].sig.FLOPS[INDEX_256F];
+		total += sig[i].sig.FLOPS[INDEX_256D];
+		total += sig[i].sig.FLOPS[INDEX_512F];
+		total += sig[i].sig.FLOPS[INDEX_512D];
+	}
+	*avx = total;
+}
+
+/* Node mgr support functions */
+void  init_earl_node_mgr_info()
+{
+  for (uint j = 0;j < MAX_CPUS_SUPPORTED; j++){
+    uint ID;
+    job_id id,sid;
+
+		char *tmp = get_ear_tmp();
+    id = node_mgr_data[j].jid;
+    sid = node_mgr_data[j].sid;
+    if ((id != -1) && (sid != -1)){
+      /* Double validation */
+      if (node_mgr_info_lock() == EAR_SUCCESS){
+        id = node_mgr_data[j].jid;
+        sid = node_mgr_data[j].sid;
+        node_mgr_job_info[j].creation_time = node_mgr_data[j].creation_time;
+        node_mgr_info_unlock();
+      }
+      if ((id != -1) && (sid != -1) && (j != node_mgr_index) ){
+        verbose_master(2,"Job %lu.%lu is sharing the node", id,sid);
+        ID = create_ID(id, sid);
+        if (get_lib_shared_data_path(tmp,ID,lib_shared_region_path_jobs) == EAR_SUCCESS){
+          node_mgr_job_info[j].libsh = attach_lib_shared_data_area(lib_shared_region_path_jobs, &node_mgr_job_info[j].fd_lib);
+        }else{
+          node_mgr_job_info[j].creation_time = 0;
+        }
+				if (get_shared_signatures_path(tmp,ID,sig_shared_region_path_jobs) == EAR_SUCCESS){
+					node_mgr_job_info[j].shsig = attach_shared_signatures_area(sig_shared_region_path_jobs, node_mgr_job_info[j].libsh->num_processes, &node_mgr_job_info[j].fd_sig);
+				}
+      }else if (j == node_mgr_index){
+        node_mgr_job_info[j].libsh =  lib_shared_region;
+				node_mgr_job_info[j].shsig =  sig_shared_region;
+      }
+    }
+  }
+}
+
+void update_earl_node_mgr_info()
+{
+    uint current_jobs_in_node = 0;
+    char *tmp = get_ear_tmp();
+
+    for (uint j = 0; j < MAX_CPUS_SUPPORTED; j++) {
+        job_id jid = node_mgr_data[j].jid;
+        job_id sid = node_mgr_data[j].sid;
+
+        time_t ct = node_mgr_data[j].creation_time;
+        if (ct != node_mgr_job_info[j].creation_time) {
+            while (node_mgr_info_lock() != EAR_SUCCESS);
+            jid = node_mgr_data[j].jid;
+            sid = node_mgr_data[j].sid;
+            ct = node_mgr_data[j].creation_time;
+            node_mgr_info_unlock();
+
+            /* Double validation after getting the lock */
+            if (ct != node_mgr_job_info[j].creation_time){
+                if (ct == 0) {
+                    dettach_lib_shared_data_area(node_mgr_job_info[j].fd_lib);
+                    dettach_shared_signatures_area(node_mgr_job_info[j].fd_sig);
+                    node_mgr_job_info[j].creation_time = 0;
+                } else {
+                    uint ID = create_ID(jid, sid);
+                    get_lib_shared_data_path(tmp, ID, lib_shared_region_path_jobs);
+                    node_mgr_job_info[j].libsh = attach_lib_shared_data_area(lib_shared_region_path_jobs,&node_mgr_job_info[j].fd_lib);
+                    get_shared_signatures_path(tmp, ID, sig_shared_region_path_jobs);
+                    node_mgr_job_info[j].shsig = attach_shared_signatures_area(sig_shared_region_path_jobs, node_mgr_job_info[j].libsh->num_processes, &node_mgr_job_info[j].fd_sig);
+                    node_mgr_job_info[j].creation_time = ct;
+                }
+            }
+        }
+    }
+    nodemgr_get_num_jobs_attached(&current_jobs_in_node);
+    exclusive = exclusive && (current_jobs_in_node == 1);
+
+}
+
+void verbose_jobs_in_node(int vl, ear_njob_t *nmgr_eard, node_mgr_sh_data_t *nmgr_earl)
+{
+    if (verb_level >= vl) {
+        if ((nmgr_eard == NULL) || (nmgr_earl == NULL)) return;
+        verbose_master(vl, "%s--- Jobs in node list ---", COL_BLU);
+        char sig_buff[1024];
+        for (uint i = 0; i < MAX_CPUS_SUPPORTED; i++) {
+            if (nmgr_eard[i].creation_time && nmgr_earl[i].creation_time
+                    && (nmgr_earl[i].libsh != NULL) && (nmgr_earl[i].shsig != NULL)) {
+
+				signature_to_str(&nmgr_earl[i].libsh->job_signature, sig_buff, sizeof(sig_buff));
+                verbose_master(vl,"Job[%u] %lu.%lu %s\nNode [%.2lf GB/s %.2lf W]",
+                        i, nmgr_eard[i].jid, nmgr_eard[i].sid, sig_buff,
+                        nmgr_earl[i].libsh->node_signature.GBS,
+                        nmgr_earl[i].libsh->node_signature.DC_power);
+
+                /*
+				signature_to_str(&nmgr_earl[i].libsh->node_signature, sig_buff, sizeof(sig_buff));
+                verbose_master(vl,"JOB[%u]=%lu.%lu \nNode: %s",i , nmgr_eard[i].jid, nmgr_eard[i].sid, sig_buff);
+                */
+
+            }
+        }
+        verbose_master(vl,"%s",COL_CLR);
+    }
+}
+
+void accum_estimations(lib_shared_data_t *data,shsignature_t *sig)
+{
+	uint p;
+	double time_s;	
+	for (p = 0; p< data->num_processes; p++){
+		time_s = sig_shared_region[p].period;
+		sig_shared_region[p].sig.accum_energy     += sig_shared_region[p].sig.DC_power * time_s;
+		sig_shared_region[p].sig.accum_mem_access += sig_shared_region[p].sig.GBS * 1024 * 1024 * 1024 * time_s;
+		sig_shared_region[p].sig.accum_avg_f      += sig_shared_region[p].sig.avg_f * time_s;
+		sig_shared_region[p].sig.valid_time       += time_s;
+		sig_shared_region[p].sig.accum_dram_energy      += sig_shared_region[p].sig.DRAM_power * time_s;
+		sig_shared_region[p].sig.accum_pack_energy      += sig_shared_region[p].sig.PCK_power  * time_s;
+		verbose_master(3,"Accumulated energy for process %d %lu (%lf x %lf) mem %llu avg %lu (%lu x %lf) dram %lu (%lf) pack %lu (%lf) ", p, sig_shared_region[p].sig.accum_energy, sig_shared_region[p].sig.DC_power, time_s, sig_shared_region[p].sig.accum_mem_access, sig_shared_region[p].sig.accum_avg_f, sig_shared_region[p].sig.avg_f , time_s, sig_shared_region[p].sig.accum_dram_energy, sig_shared_region[p].sig.DRAM_power, sig_shared_region[p].sig.accum_pack_energy, sig_shared_region[p].sig.PCK_power);
+
+	}
+}
+
+
+void estimate_power_and_gbs(lib_shared_data_t *data,shsignature_t *sig, node_mgr_sh_data_t *nmgr)
+{
+	cpu_power_model_project(data, sig, nmgr);
+	return;	
+}

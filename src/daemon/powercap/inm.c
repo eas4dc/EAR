@@ -23,7 +23,7 @@
 #include <errno.h>
 #define _GNU_SOURCE
 #include <pthread.h>
-#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/colors.h>
 #include <common/states.h>
@@ -55,6 +55,8 @@ static uint c_limit;
 static uint policy_enabled=0;
 static uint pc_on=0;
 static ulong c_req_f;
+static suscription_t *sus_inm;
+
 int do_cmd(char *cmd)
 {
   if (strcmp(cmd,"NO_CMD")==0) return 0;
@@ -134,9 +136,20 @@ state_t enable(suscription_t *sus)
     return EAR_ERROR;
   }
   }
+  sus_inm = sus;
   ret=inm_enable_powercap_policies();
 	if (ret==EAR_SUCCESS) policy_enabled=1;
   return ret;
+}
+
+state_t plugin_set_burst()
+{
+    return monitor_burst(sus_inm);
+}
+
+state_t plugin_set_relax()
+{
+    return monitor_relax(sus_inm);
 }
 
 state_t set_powercap_value(uint pid,uint domain,uint limit,uint *cpu_util)
@@ -146,6 +159,7 @@ state_t set_powercap_value(uint pid,uint domain,uint limit,uint *cpu_util)
 	debug("INM:inm_set_powercap_value policy %u limit %u",pid,limit);
 	c_limit=limit;
 	pc_on=1;
+    if (c_limit == POWER_CAP_UNLIMITED) return inm_disable_powercap_policy(pid);
 	sprintf(cmd,INM_ENABLE_POWERCAP_POLICY_CMD,pid,limit);
 	debug(cmd);
 	return execute(cmd);
@@ -203,7 +217,7 @@ uint get_powercap_status(uint *in_target,uint *tbr)
 	ulong c_freq;
 	*in_target = 0;
 	*tbr = 0;
-	if (c_limit == PC_UNLIMITED) return 0;
+	if (c_limit == POWER_CAP_UNLIMITED) return 0;
 	/* If we don't know the req_f we cannot release power */
 	if (c_req_f == 0) return 0;
 	c_freq=frequency_get_cpu_freq(0);

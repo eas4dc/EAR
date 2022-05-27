@@ -34,11 +34,11 @@ struct energy_op
 	state_t (*dc_read)            (void *c, edata_t emj);
 	state_t (*dc_time_read)       (void *c, edata_t emj, ulong *tms);
 	state_t (*ac_read)            (void *c, edata_t em);
-	state_t (*units)							(uint *uints);
-	state_t (*accumulated)				(ulong *e,edata_t init, edata_t end);
-	state_t (*energy_to_str)			(char *str,edata_t end);
-	state_t (*power_limit)				(void *c, ulong limit,ulong target);
-	uint    (*is_null)        		(edata_t end);
+	state_t (*units)			  (uint *uints);
+	state_t (*accumulated)		  (ulong *e,edata_t init, edata_t end);
+	state_t (*energy_to_str)      (char *str,edata_t end);
+	state_t (*power_limit)        (void *c, ulong limit,ulong target);
+	uint    (*is_null)        	  (edata_t end);
 } energy_ops;
 static char energy_objc[SZ_PATH];
 static int  energy_loaded  = 0;

@@ -121,6 +121,7 @@ struct variables_s {
 	varnames_t job_nodn;
 	varnames_t step_nodl;
 	varnames_t step_nodn;
+    varnames_t cpus_nodn;
 	varnames_t task_pid;
 	varnames_t ctx_last;
 	varnames_t was_sbac;
@@ -129,6 +130,7 @@ struct variables_s {
 	varnames_t ld_libr;
 	varnames_t node_num;
 	varnames_t version;
+    varnames_t is_erun;
 //	varnames_t nodes_allowed;
 //	varnames_t nodes_excluded;
 }
@@ -137,16 +139,16 @@ struct variables_s {
 .comp_libr = { .cmp = "SLURM_COMP_LIBRARY" },
 .comp_plug = { .cmp = "SLURM_COMP_PLUGIN"  },
 .comp_verb = { .cmp = "SLURM_COMP_VERBOSE" },
-.hack_load = { .hck =  HACK_FILE_LOAD      },
-.verbose   = { .loc = "SLURM_LOC_VERB",      .ear = VAR_OPT_VERB      },
-.policy    = { .loc = "SLURM_LOC_POLI",      .ear = VAR_OPT_POLI      },
-.policy_th = { .loc = "SLURM_LOC_POTH",      .ear = VAR_OPT_THRA      },
-.frequency = { .loc = "SLURM_LOC_FREQ",      .ear = VAR_OPT_FREQ      },
-.p_state   = { .loc = "SLURM_LOC_PSTA",      .ear = VAR_OPT_PSTA      },
-.learning  = { .loc = "SLURM_LOC_LERN",      .ear = VAR_OPT_LERN      },
-.tag       = { .loc = "SLURM_LOC_ETAG",      .ear = VAR_OPT_ETAG      },
-.path_usdb = { .loc = "SLURM_LOC_USDB",      .ear = VAR_OPT_USDB      },
-.path_trac = { .loc = "SLURM_LOC_TRAC",      .ear = VAR_OPT_TRAC      },
+.hack_load = { .hck =  HACK_LOADER_FILE    },
+.verbose   = { .loc = "SLURM_LOC_VERB",      .ear = VAR_OPT_VERB    },
+.policy    = { .loc = "SLURM_LOC_POLI",      .ear = VAR_OPT_POLI    },
+.policy_th = { .loc = "SLURM_LOC_POTH",      .ear = VAR_OPT_THRA    },
+.frequency = { .loc = "SLURM_LOC_FREQ",      .ear = VAR_OPT_FREQ    },
+.p_state   = { .loc = "SLURM_LOC_PSTA",      .ear = VAR_OPT_PSTA    },
+.learning  = { .loc = "SLURM_LOC_LERN",      .ear = VAR_OPT_LERN    },
+.tag       = { .loc = "SLURM_LOC_ETAG",      .ear = VAR_OPT_ETAG    },
+.path_usdb = { .loc = "SLURM_LOC_USDB",      .ear = VAR_OPT_USDB    },
+.path_trac = { .loc = "SLURM_LOC_TRAC",      .ear = FLAG_TRACE_PATH },
 //.gm_host   = { .loc = "SLURM_LOC_GMHS",      .ear = ""                },
 //.gm_port   = { .loc = "SLURM_LOC_GMPR",      .ear = ""                },
 .gm_secure = { .loc = "SLURM_LOC_GMSC",      .ear = ""                },
@@ -162,6 +164,7 @@ struct variables_s {
 .job_nodn  = { .rem = "SLURM_JOB_NUM_NODES", .ear = "" },
 .step_nodl = { .rem = "SLURM_STEP_NODELIST", .ear = "" },
 .step_nodn = { .rem = "SLURM_STEP_NUM_NODES",.ear = "" },
+.cpus_nodn = { .rem = "SLURM_CPUS_ON_NODE"  ,.ear = "" },
 .task_pid  = { .rem =  FLAG_TASK_PID,        .ear = "" },
 .ctx_last  = { .rem = "SLURM_ERLAST",        .ear = "" },
 .was_sbac  = { .rem = "SLURM_ERSBAC",        .ear = "" },
@@ -169,7 +172,8 @@ struct variables_s {
 .ld_prel   = { .rem = "",                    .ear = "LD_PRELOAD"      },
 .ld_libr   = { .rem = "",                    .ear = "LD_LIBRARY_PATH" },
 .node_num  = { .loc = "SLURM_NNODES",        .ear = "" },
-.version   = { .loc = "SLURM_EAR_MPI_VERSION",     .ear = ""          },
+.version   = { .loc = "SLURM_EAR_MPI_VERSION", .ear = ""              },
+.is_erun   = { .loc = "",                    .ear = SCHED_IS_ERUN     },
 //.nodes_allowed  = { .rem = "SLURM_NODES_ALLOWED",  .ear = ""          },
 //.nodes_excluded = { .rem = "SLURM_NODES_EXCLUDED", .ear = ""          },
 };

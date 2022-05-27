@@ -33,16 +33,38 @@
 #include <metrics/accumulators/power_metrics.h>
 #include <management/cpufreq/frequency.h>
 #include <daemon/node_metrics.h>
+#include <daemon/shared_configuration.h>
 
-typedef struct powermon_app{
-    application_t app;
-    uint job_created;
-    energy_data_t energy_init;
-	governor_t governor;
-	ulong current_freq;
-}powermon_app_t;
+#define MAX_NESTED_LEVELS 16384
 
+typedef struct powermon_app {
+    application_t    app;
+    uint             job_created;
+    uint             is_job;
+    uint             plug_num_cpus;
+    cpu_set_t        plug_mask;
+    uint             earl_num_cpus;
+    uint             local_ids;
+    energy_data_t    energy_init;
+    governor_t       governor;
+    ulong            current_freq;
+    int              sig_reported;
+    settings_conf_t *settings;
+    resched_t       *resched;
+    app_mgt_t       *app_info;
+    pc_app_info_t   *pc_app_info;
+    cpufreq_t       *freq_job1;
+    ulong           *freq_diff;
+    loop_t           last_loop;
+    uint             exclusive;
+    accum_power_sig_t accum_ps;
+} powermon_app_t;
 
+typedef struct job_context{
+	job_id id;
+	uint   numc;
+	uint   num_cpus;
+}job_context_t;
 
 /** Periodically monitors the node power monitoring. 
 *
@@ -57,26 +79,32 @@ void powermon_mpi_init(ehandler_t *eh,application_t *j);
 
 /**  It must be called when EARLib disconnects from EARD 
 */
-void powermon_mpi_finalize(ehandler_t *eh);
+void powermon_mpi_finalize(ehandler_t *eh,ulong jid,ulong sid);
 
 /** It must be called at when job starts 
 */
 
-void powermon_new_job(ehandler_t *eh,application_t *j,uint from_mpi);
+void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *j, uint from_mpi, uint is_job);
 
 /** It must be called at when job ends
 */
-void powermon_end_job(ehandler_t *eh,job_id jid,job_id sid);
+void powermon_end_job(ehandler_t *eh,job_id jid,job_id sid, uint is_job);
 
-/** It must be called at when sbatch starts*/
-void powermon_new_sbatch(application_t *j);
-/** It must be called at when sbatch ends
- * */
-void powermon_end_sbatch(job_id jid);
+/** Called by dynamic_configuration thread when a new task is created */
+void powermon_new_task(new_task_req_t *newtask);
+
 
 /** reports the application signature to the power_monitoring module 
 */
 void powermon_mpi_signature(application_t *application);
+
+/* New loop signature for jid,sid */
+void powermon_loop_signature(job_id jid,job_id sid,loop_t *loops);
+
+/* Creates the idle context */
+state_t powermon_create_idle_context();
+/* After an ear.conf reload, updates configurations */
+void powermon_new_configuration();
 
 /** if application is not mpi, automatically chages the node freq, it is called by dynamic_configuration API */
 void powermon_new_max_freq(ulong maxf);
@@ -84,8 +112,6 @@ void powermon_new_max_freq(ulong maxf);
 /** if application is not mpi, automatically chages the node freq, it is called by dynamic_configuration API */
 void powermon_new_def_freq(uint p_id,ulong def);
 
-/** Reduces, temporally, the current freq (default and max) based on new values. If application is not mpi, automatically chages the node freq if needed */
-void powermon_red_freq(ulong max_freq,ulong def_freq);
 
 /** Sets temporally the default and max frequency to the same value. When application is not mpi, automatically chages the node freq if needed */
 void powermon_set_freq(ulong freq);
@@ -111,7 +137,11 @@ void print_powermon_app(powermon_app_t *app);
 powermon_app_t *get_powermon_app();
 
 void powermon_get_status(status_t *my_status);
-void powermon_get_app_status(app_status_t *my_status);
+void powermon_get_power(uint64_t *power);
+int powermon_get_num_applications(int only_master);
+void powermon_get_app_status(app_status_t *my_status, int num_apps, int only_master);
+void powermon_new_configuration();
+
 
 uint node_energy_lock(uint *tries);
 void node_energy_unlock();
@@ -122,5 +152,7 @@ uint powermon_get_powercap_def();
 uint powermon_get_max_powercap_def();
 
 void powermon_report_event(uint event_type, ulong value);
+
+uint is_job_in_node(job_id id, job_context_t **jc);
 
 #endif

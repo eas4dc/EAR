@@ -1,14 +1,18 @@
 # Features
-# Compiles the MPI EAR library version or non-MPI.
-FEAT_MPI_API  = 1
-# This is automatically generated based on the CPU version detected.
-FEAT_AVX512   = @FEAT_AVX512@
+# Compiles the MPI EAR library version or non-MPI
+FEAT_MPI_API       = @FEAT_MPI_API@
+# This is automatically generated based on the CPU version detected
+FEAT_AVX512        = @FEAT_AVX512@
 # Extend the set of files installed.
-FEAT_RESEARCH = 0
+FEAT_RESEARCH      = 0
 # Enables the installation of GPU optimization policies. If 0, only monitoring is supported.
-FEAT_GPU_OPT  = 1
-# Disables the utilization of virtual PSTATES in AMD and selects OS CPUFreq.
+FEAT_GPU_OPT       = 0
+# Disables the utilization of virtual PSTATES in AMD and selects OS CPUFreq
 FEAT_AMD_OSCPUFREQ = 0
+# Uses mysql API
+FEAT_DB_MYSQL      = @FEAT_DB_MYSQL@
+# Uses Postgress API
+FEAT_DB_PSQL       = @FEAT_DB_PGSQL@
 
 # Compilers
 CC           = @CC@
@@ -17,18 +21,23 @@ MPICC        = @MPICC@
 MPICC_FLAGS  = @MPICC_FLAGS@
 
 # Includes
-MPI_BASE     = @MPI_DIR@
-MPI_CFLAGS   = @MPI_CPPFLAGS@
-MPI_VERSION  = @MPI_VERSION@
-GSL_BASE     = @GSL_DIR@
-GSL_CFLAGS   = @GSL_CPPFLAGS@
-GSL_LDFLAGS  = @GSL_LDFLAGS@ @GSL_LIBS@
-SLURM_BASE   = @SLURM_DIR@
-SLURM_CFLAGS = @SLURM_CPPFLAGS@
-DB_BASE      = @DB_DIR@
-DB_CFLAGS    = @DB_CPPFLAGS@
-DB_LDFLAGS   = @DB_LDFLAGS@ @DB_LIBS@
-CUDA_BASE    = @CUDA_DIR@
+MPI_BASE         = @MPI_DIR@
+MPI_CFLAGS       = @MPI_CPPFLAGS@
+MPI_VERSION      = @MPI_VERSION@
+GSL_BASE         = @GSL_DIR@
+GSL_CFLAGS       = @GSL_CPPFLAGS@
+GSL_LDFLAGS      = @GSL_LDFLAGS@ @GSL_LIBS@
+SLURM_BASE       = @SLURM_DIR@
+SLURM_CFLAGS     = @SLURM_CFLAGS@
+DB_BASE          = @DB_DIR@
+DB_CFLAGS        = @DB_CFLAGS@
+DB_LDFLAGS       = @DB_LDFLAGS@ @DB_LIBS@
+CUDA_BASE        = @CUDA_DIR@
+LIKWID_BASE      = @LIKWID_DIR@
+LIKWID_CFLAGS    = @LIKWID_CFLAGS@
+FREEIPMI_BASE    = @FREEIPMI_DIR@
+FREEIPMI_CFLAGS  = @FREEIPMI_CFLAGS@
+FREEIPMI_LDFLAGS = @FREEIPMI_LDFLAGS@
 
 # Directories
 ROOTDIR      = $(shell pwd)

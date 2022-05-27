@@ -31,17 +31,20 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <linux/limits.h>
+#include <sys/stat.h>
 
 #include <common/config.h>
 #include <common/states.h>
 #include <common/types/job.h>
-#include <common/types/log_eard.h>
-#include <common/types/configuration/cluster_conf.h>
+#include <daemon/log_eard.h>
 #include <common/system/symplug.h>
-#include <management/cpufreq/frequency.h>
-#include <common/messaging/msg_conf.h>
-
 #include <common/output/verbose.h>
+#include <common/messaging/msg_conf.h>
+#include <common/messaging/msg_internals.h>
+#include <common/types/configuration/cluster_conf.h>
+
+#include <management/cpufreq/frequency.h>
+
 
 #include <daemon/remote_api/eard_rapi.h>
 #include <daemon/remote_api/eard_server_api.h>
@@ -50,6 +53,10 @@
 #include <daemon/powercap/powercap_status_conf.h>
 #include <daemon/powercap/powercap.h>
 #include <daemon/shared_configuration.h>
+#include <report/report.h>
+
+/* Defined in eard.c */
+extern report_id_t rid;
 
 
 extern int eard_must_exit;
@@ -58,12 +65,13 @@ extern policy_conf_t default_policy_context;
 extern cluster_conf_t my_cluster_conf;
 extern my_node_conf_t *my_node_conf;
 extern my_node_conf_t my_original_node_conf;
-extern settings_conf_t *dyn_conf;
-extern resched_t *resched_conf;
 static int my_ip;
 extern int *ips;
 extern int self_id;
 extern volatile int init_ips_ready;
+extern powermon_app_t *current_ear_app[MAX_NESTED_LEVELS];
+extern int max_context_created;
+
 
 int eards_remote_socket, eards_client;
 struct sockaddr_in eards_remote_client;
@@ -74,9 +82,6 @@ int last_command = -1;
 int last_dist = -1;
 int last_command_time = -1;
 int node_found = EAR_ERROR;
-#if POWERCAP
-extern app_mgt_t *app_mgt_info;
-#endif
 pthread_t act_conn_th;
 
 
@@ -84,6 +89,10 @@ pthread_t act_conn_th;
 typedef struct eard_policy_symbols {
     state_t (*set_risk) (policy_conf_t *ref_pol,policy_conf_t *node_pol,ulong risk,ulong opt_target,ulong cfreq,ulong *nfreq,ulong *f_list,uint nump);
 } eard_polsym_t;
+
+#define MAX_HISTORIC_COMM 50
+static request_t list_last_commands[MAX_HISTORIC_COMM];
+static int current_pos_last_comm = 0;
 
 static eard_polsym_t *polsyms_fun;
 //static void    *polsyms_obj = NULL;
@@ -147,206 +156,283 @@ static void DC_set_sigusr1() {
 }
 
 ulong max_dyn_freq() {
-    return dyn_conf->max_freq;
+  int i;
+  ulong max = 0;
+  for (i=0; i <= max_context_created;i++){
+    if (current_ear_app[i]->settings->max_freq > max) max = current_ear_app[i]->settings->max_freq;
+  }
+  return max;
+
 }
 
 int dynconf_inc_th(uint p_id, ulong th) {
-    double dth;
-    verbose(VCONF,"Increasing th by  %lu",th);
-    dth=(double)th/100.0;
-    if (dyn_conf->policy==p_id){
-        if (((dyn_conf->settings[0]+dth) > 0 ) && ((dyn_conf->settings[0]+dth) <=1.0) ){
-            dyn_conf->settings[0]=dyn_conf->settings[0]+dth;
-            resched_conf->force_rescheduling=1;
+  double dth;
+  int i;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+  verbose(VCONF,"Increasing th by  %lu",th);
+  dth=(double)th/100.0;
+  for (i=0; i <= max_context_created;i++){
+    if (current_ear_app[i] != NULL){
+      dyn_conf = current_ear_app[i]->settings;
+      resched_conf = current_ear_app[i]->resched;
+      if (dyn_conf->policy == p_id){
+        if (((dyn_conf->settings[0] + dth) > 0 ) && ((dyn_conf->settings[0] + dth) <=1.0) ){
+          dyn_conf->settings[0] = dyn_conf->settings[0] + dth;
+          resched_conf->force_rescheduling = 1;
         }
+      }
     }
+  }
+
     powermon_inc_th(p_id, dth);
     return EAR_SUCCESS;
 
 }
 
 
-int dynconf_max_freq(ulong max_freq) {
-    verbose(VCONF, "Setting max freq to %lu", max_freq);
-    if (is_valid_freq(max_freq, num_f, f_list)) {
-        dyn_conf->max_freq = max_freq;
-        resched_conf->force_rescheduling = 1;
-        powermon_new_max_freq(max_freq);
-        return EAR_SUCCESS;
-    } else {
+int dynconf_max_freq(ulong max_freq) 
+{
+  int i;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+  ulong new_max = 0;
 
-        int freq = lower_valid_freq(max_freq, num_f, f_list);
-        if (freq > 0) {
-            dyn_conf->max_freq = freq;
-            resched_conf->force_rescheduling = 1;
-            powermon_new_max_freq(freq);
-            return EAR_SUCCESS;
-        } else return EAR_ERROR;
+  if (is_valid_freq(max_freq, num_f, f_list)) {
+    new_max = max_freq;
+  }else{
+    new_max = lower_valid_freq(max_freq, num_f, f_list);
+  }
+  verbose(VCONF, "Setting max freq to %lu/%lu", max_freq,new_max);
+  if (new_max == 0) return EAR_ERROR;
+  for (i=0; i <= max_context_created;i++){
+    if (current_ear_app[i] != NULL){
+      dyn_conf = current_ear_app[i]->settings;
+      resched_conf = current_ear_app[i]->resched;
+
+      dyn_conf->max_freq = new_max;
+      resched_conf->force_rescheduling = 1;
     }
+  }
+  powermon_new_max_freq(max_freq);
+	return EAR_SUCCESS;
 }
 
 int dynconf_def_freq(uint p_id, ulong def) {
-    verbose(VCONF, "Setting default freq for pid %u to %lu", p_id, def);
-    if (is_valid_freq(def, num_f, f_list)) {
+  int i;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+  ulong new_def;
+  if (is_valid_freq(def, num_f, f_list)) {
+    new_def = def;
+  }else{
+    new_def = lower_valid_freq(def, num_f, f_list);
+  }
+  verbose(VCONF, "Setting default freq for pid %u to %lu/%lu", p_id, def,new_def);
+  for (i=0; i <= max_context_created;i++){
+      if (current_ear_app[i] != NULL){
+        dyn_conf = current_ear_app[i]->settings;
+        resched_conf = current_ear_app[i]->resched;
+
         if (dyn_conf->policy == p_id) {
-            dyn_conf->def_freq = def;
-            dyn_conf->def_p_state = frequency_closest_pstate(dyn_conf->def_freq);
-            resched_conf->force_rescheduling = 1;
+          dyn_conf->def_freq = new_def;
+          dyn_conf->def_p_state = frequency_closest_pstate(dyn_conf->def_freq);
+          resched_conf->force_rescheduling = 1;
         }
-        powermon_new_def_freq(p_id, def);
-        return EAR_SUCCESS;
-    } else {
-        int freq = lower_valid_freq(def, num_f, f_list);
-        if (freq > 0) {
-            if (dyn_conf->policy == p_id) {
-                dyn_conf->def_freq = freq;
-                dyn_conf->def_p_state = frequency_closest_pstate(dyn_conf->def_freq);
-                resched_conf->force_rescheduling = 1;
-            }
-            powermon_new_def_freq(p_id, freq);
-            return EAR_SUCCESS;
-        } else return EAR_ERROR;
-    }
+      }
+  }
+  powermon_new_def_freq(p_id, def);
+  return EAR_SUCCESS;
+
 
 }
 
 int dynconf_set_freq(ulong freq) {
-    verbose(VCONF, "Setting freq to %lu", freq);
-    if (is_valid_freq(freq, num_f, f_list)) {
-        dyn_conf->max_freq = freq;
-        dyn_conf->def_freq = freq;
+  int i;
+  ulong new_freq;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+  if (is_valid_freq(freq, num_f, f_list))
+  {
+    new_freq = freq;
+  }else{
+    new_freq = lower_valid_freq(freq, num_f, f_list);
+  }
+
+  verbose(VCONF, "Setting freq to %lu/%lu", freq,new_freq);
+  for (i=0; i <= max_context_created;i++){
+      if (current_ear_app[i] != NULL){
+        dyn_conf = current_ear_app[i]->settings;
+        resched_conf = current_ear_app[i]->resched;
+        dyn_conf->max_freq = new_freq;
+        dyn_conf->def_freq = new_freq;
         dyn_conf->def_p_state = frequency_closest_pstate(dyn_conf->def_freq);
         resched_conf->force_rescheduling = 1;
-        powermon_set_freq(freq);
-        return EAR_SUCCESS;
-    } else {
-        int freq2 = lower_valid_freq(freq, num_f, f_list);
-        if (freq2 > 0) {
-            dyn_conf->max_freq = freq2;
-            dyn_conf->def_freq = freq2;
-            dyn_conf->def_p_state = frequency_closest_pstate(dyn_conf->def_freq);
-            resched_conf->force_rescheduling = 1;
-            powermon_set_freq(freq2);
-            return EAR_SUCCESS;
-        } else return EAR_ERROR;
-    }
+      }
+  }
+  powermon_set_freq(new_freq);
+  return EAR_SUCCESS;
 
 
 }
 
 int dyncon_restore_conf() {
-    int pid;
-    policy_conf_t *my_policy;
-    debug("dyncon_restore_conf");
-    /* We copy the original configuration */
-    copy_my_node_conf(my_node_conf,&my_original_node_conf);
-    print_my_node_conf(my_node_conf);
-    pid=dyn_conf->policy;
-    my_policy=get_my_policy_conf(my_node_conf,pid);
-    if (my_policy==NULL){
-        error("Policy %d not detected",pid);
-        return EAR_SUCCESS;
-    }
-    dyn_conf->max_freq=frequency_pstate_to_freq(my_node_conf->max_pstate);
-    dyn_conf->def_freq=frequency_pstate_to_freq(my_policy->p_state);
-    dyn_conf->def_p_state=my_policy->p_state;
-    memcpy(dyn_conf->settings, my_policy->settings, sizeof(double)*MAX_POLICY_SETTINGS);
+  int pid;
+  int i;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+  policy_conf_t *my_policy;
+  debug("dyncon_restore_conf");
+  /* We copy the original configuration */
+  copy_my_node_conf(my_node_conf,&my_original_node_conf);
+  print_my_node_conf(my_node_conf);
+  for (i=0; i <= max_context_created;i++){
+      if (current_ear_app[i] != NULL){
+        dyn_conf = current_ear_app[i]->settings;
+        resched_conf = current_ear_app[i]->resched;
+        pid = dyn_conf->policy;
+        my_policy = get_my_policy_conf(my_node_conf,pid);
+        if (my_policy == NULL){
+          error("Policy %d not detected for job %lu/%lu",pid,current_ear_app[i]->app.job.id,current_ear_app[i]->app.job.step_id);
+          continue;
+        }
+        dyn_conf->max_freq = frequency_pstate_to_freq(my_node_conf->max_pstate);
+        dyn_conf->def_freq = frequency_pstate_to_freq(my_policy->p_state);
+        dyn_conf->def_p_state = my_policy->p_state;
+        memcpy(dyn_conf->settings, my_policy->settings, sizeof(double)*MAX_POLICY_SETTINGS);
+        resched_conf->force_rescheduling=1;
+      }
+  }
+  return EAR_SUCCESS;
 
-    resched_conf->force_rescheduling=1;
-
-    return EAR_SUCCESS;
 }
 
 int dynconf_set_def_pstate(uint p_states,uint p_id)
 {
-    if (p_states>frequency_get_num_pstates()) return EAR_ERROR;
-    if (p_id>my_cluster_conf.num_policies) return EAR_ERROR;
-    my_node_conf->policies[p_id].p_state=p_states;
-    if (dyn_conf->policy==p_id){
-        dyn_conf->def_p_state=p_states;
-        dyn_conf->def_freq=frequency_pstate_to_freq(p_states);
-        resched_conf->force_rescheduling=1;	
-    }
-    return EAR_SUCCESS;
+  int i;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+
+  if (p_states > frequency_get_num_pstates()) return EAR_ERROR;
+  if (p_id > my_cluster_conf.num_policies) return EAR_ERROR;
+  my_node_conf->policies[p_id].p_state = p_states;
+  for (i=0;i<= max_context_created;i++){
+      if (current_ear_app[i] != NULL){
+        dyn_conf = current_ear_app[i]->settings;
+        resched_conf = current_ear_app[i]->resched;
+        if (dyn_conf->policy == p_id){
+          dyn_conf->def_p_state = p_states;
+          dyn_conf->def_freq = frequency_pstate_to_freq(p_states);
+          resched_conf->force_rescheduling = 1;
+        }
+      }
+  }
+  return EAR_SUCCESS;
+
 
 }
 int dynconf_set_max_pstate(uint p_states)
 {
-    ulong new_max_freq;
-    if (p_states>frequency_get_num_pstates()) return EAR_ERROR;
-    new_max_freq=frequency_pstate_to_freq(p_states);
-    /* Update dynamic info */
-    dyn_conf->max_freq = new_max_freq;
-    resched_conf->force_rescheduling = 1;
-    powermon_new_max_freq(new_max_freq);
-    return EAR_SUCCESS;
+  int i;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+  ulong new_max_freq;
+  if (p_states > frequency_get_num_pstates()) return EAR_ERROR;
+  new_max_freq = frequency_pstate_to_freq(p_states);
+  /* Update dynamic info */
+  for (i=0;i<=max_context_created;i++){
+      if (current_ear_app[i] != NULL){
+        dyn_conf = current_ear_app[i]->settings;
+        resched_conf = current_ear_app[i]->resched;
+        dyn_conf->max_freq = new_max_freq;
+        resched_conf->force_rescheduling = 1;
+      }
+  }
+  powermon_new_max_freq(new_max_freq);
+  return EAR_SUCCESS;
+
 }
 
 
 int dynconf_red_pstates(uint p_states) {
-    // Reduces p_states both the maximum and the default
-    ulong i;
-    uint def_pstate, max_pstate;
-    ulong new_def_freq, new_max_freq;
-    int variation=(int)p_states;
-    def_pstate = frequency_closest_pstate(dyn_conf->def_freq);
-    max_pstate = frequency_closest_pstate(dyn_conf->max_freq);
-    /* Reducing means incresing in the vector of pstates */
-    def_pstate = def_pstate + variation;
-    max_pstate = max_pstate + variation;
+  int i;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+  uint def_pstate, max_pstate;
+  ulong new_def_freq, new_max_freq;
+  int variation=(int)p_states;
+  for (i=0;i<=max_context_created;i++){
+      if (current_ear_app[i] != NULL){
+        dyn_conf = current_ear_app[i]->settings;
+        resched_conf = current_ear_app[i]->resched;
+        def_pstate = frequency_closest_pstate(dyn_conf->def_freq);
+        max_pstate = frequency_closest_pstate(dyn_conf->max_freq);
+        /* Reducing means incresing in the vector of pstates */
+        def_pstate = def_pstate + variation;
+        max_pstate = max_pstate + variation;
 
-    new_def_freq = frequency_pstate_to_freq(def_pstate);
-    new_max_freq = frequency_pstate_to_freq(max_pstate);
+        new_def_freq = frequency_pstate_to_freq(def_pstate);
+        new_max_freq = frequency_pstate_to_freq(max_pstate);
 
-
-    /* reducing the maximum freq in N p_states */
-    dyn_conf->max_freq = new_max_freq;
-    dyn_conf->def_freq = new_def_freq;
-    resched_conf->force_rescheduling = 1;
-
-    /* We must update my_node_info */
-
-    for (i = 0; i < my_node_conf->num_policies; i++) {
-        my_node_conf->policies[i].p_state = my_node_conf->policies[i].p_state + variation;
+        /* reducing the maximum freq in N p_states */
+        dyn_conf->max_freq = new_max_freq;
+        dyn_conf->def_freq = new_def_freq;
+        resched_conf->force_rescheduling = 1;
     }
-    powermon_new_max_freq(new_max_freq);
-    return EAR_SUCCESS;
+  }
+
+  /* We must update my_node_info */
+
+  for (i = 0; i < my_node_conf->num_policies; i++) {
+    my_node_conf->policies[i].p_state = my_node_conf->policies[i].p_state + variation;
+  }
+  powermon_new_max_freq(new_max_freq);
+  return EAR_SUCCESS;
+
 }
 
 int dynconf_set_th(ulong p_id, ulong th) {
-    double dth;
-    int s;
-    dth=(double)th/100.0;
-    if ((dth > 0 ) && (dth <=1.0 )){
-        if (dyn_conf->policy==p_id){
-            //currently the first setting is changed, we could pass the setting id by parameter later on
-            dyn_conf->settings[0]=dth;
-            resched_conf->force_rescheduling=1;	
-        }
-        powermon_set_th(p_id, dth);
-        s = EAR_SUCCESS;
-    } else s = EAR_ERROR;
-    return s;
+  double dth;
+  int i;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+
+  dth=(double)th/100.0;
+  if ((dth <0) || (dth > 1.0)) return EAR_ERROR;
+  for (i=0;i<=max_context_created;i++){
+    if (current_ear_app[i] != NULL){
+      dyn_conf = current_ear_app[i]->settings;
+      resched_conf = current_ear_app[i]->resched;
+      if (dyn_conf->policy == p_id){
+        /*currently the first setting is changed, we could pass the setting id by parameter later on*/
+        dyn_conf->settings[0] = dth;
+        resched_conf->force_rescheduling=1; 
+      }
+    }
+  }
+  powermon_set_th(p_id, dth);
+  return EAR_SUCCESS;
+
 }
 
 
 int dyncon_set_policy(new_policy_cont_t *p)
 {
-    state_t s=EAR_SUCCESS;
+    state_t s = EAR_SUCCESS;
     int pid;
-    pid=policy_name_to_nodeid(p->name,my_node_conf);
-    if (pid==EAR_ERROR){ 
+    pid = policy_name_to_nodeid(p->name,my_node_conf);
+    if (pid == EAR_ERROR){ 
         error("Policy %s not found",p->name);
         return EAR_ERROR;
     }
     debug("Policy %s found at id %d",p->name,pid);
     if (frequency_is_valid_frequency(p->def_freq)){
         memcpy(my_cluster_conf.power_policies[pid].settings,p->settings,sizeof(double)*MAX_POLICY_SETTINGS);
-        my_cluster_conf.power_policies[pid].def_freq=p->def_freq;
-        my_cluster_conf.power_policies[pid].p_state=frequency_pstate_to_freq(p->def_freq);
+        my_cluster_conf.power_policies[pid].def_freq = p->def_freq;
+        my_cluster_conf.power_policies[pid].p_state  = frequency_pstate_to_freq(p->def_freq);
     }else{
         error("Invalid frequency %lu for policy %s ",p->def_freq,p->name);
-        s=EAR_ERROR;
+        s = EAR_ERROR;
     }
     return s;
 
@@ -358,26 +444,39 @@ void dyncon_get_app_status(int fd, request_t *command)
     app_status_t *status;
     long int ack;
     send_answer(fd, &ack); //send ack before propagating
-    int num_status = propagate_app_status(command, my_cluster_conf.eard.port, &status);
+    int local_status;
+    local_status = powermon_get_num_applications(command->req == EAR_RC_APP_MASTER_STATUS);
+    verbose(VRAPI,"We have %d local apps in app_status",local_status);
+
+    int num_status = propagate_app_status(command, my_cluster_conf.eard.port, &status, local_status);
     unsigned long return_status = num_status;
-    debug("return_app_tatus %lu status=%p",return_status,status);
+    verbose(VRAPI,"return_app_tatus %lu status=%p",return_status,status);
     if (num_status < 1) {
         error("Panic propagate_app_status returns less than 1 status");
         return_status = 0;
         _write(fd, &return_status, sizeof(return_status));
         return;
     }
-    powermon_get_app_status(&status[num_status - 1]);
+    powermon_get_app_status(&status[num_status - local_status], local_status, command->req == EAR_RC_APP_MASTER_STATUS);
 
     //if no job is present on the current node or we requested the master node and this one isn't, we free its data
+		if (status[num_status - local_status].job_id == 0 )
+    {
+        verbose(VRAPI,"Only default context created, not app_status returned, removing %d items", local_status);
+        num_status -= local_status;
+        status = realloc(status, sizeof(app_status_t)*num_status);
+    }
+		#if 0
     if (status[num_status - 1].job_id < 0 || (command->req == EAR_RC_APP_MASTER_STATUS && status[num_status - 1].master_rank != 0))
     {
         num_status--;
         status = realloc(status, sizeof(app_status_t)*num_status);
     }
+		#endif
 
     send_data(fd, sizeof(app_status_t) * num_status, (char *)status, EAR_TYPE_APP_STATUS);
-    debug("Returning from dyncon_get_app_status");
+    verbose(VRAPI,"Returning from dyncon_get_app_status %d app_status sent",num_status);
+
     free(status);
     debug("app_status released");
 }
@@ -402,7 +501,7 @@ void dyncon_get_status(int fd, request_t *command) {
     free(status);
     debug("status released");
 }
-#if POWERCAP
+
 int dyncon_filter_opt(powercap_opt_t *opt)
 {
     int i;
@@ -424,29 +523,29 @@ void dyncon_power_management(int fd, request_t *command)
             /* command->my_req.pc.type==RELATIVE not implemented */
             event = RED_POWERCAP;
             value = command->my_req.pc.limit;
-            if (command->my_req.pc.type==ABSOLUTE){
-                verbose(1,"Reduce powercap default in %lu watts",command->my_req.pc.limit);
+            if (command->my_req.pc.type == ABSOLUTE){
+                verbose(VRAPI,"Reduce powercap default in %lu watts",command->my_req.pc.limit);
                 powercap_reduce_def_power(command->my_req.pc.limit);
             }
-            if (command->my_req.pc.type==RELATIVE){
-                verbose(0,"Error, reduce relative powercap not implemented");
+            if (command->my_req.pc.type == RELATIVE){
+                verbose(VRAPI,"Error, reduce relative powercap not implemented");
             }
             break;	
         case EAR_RC_SET_POWER:
             event = SET_POWERCAP;
             value = command->my_req.pc.limit;
-            verbose(1,"We must set the power to %lu watts",command->my_req.pc.limit);
+            verbose(VRAPI,"We must set the power to %lu watts",command->my_req.pc.limit);
             powercap_set_powercap(command->my_req.pc.limit);
             break;
         case EAR_RC_INC_POWER:
             event = INC_POWERCAP;
             value = command->my_req.pc.limit;
-            if (command->my_req.pc.type==ABSOLUTE){
-                verbose(1,"Increase powercap default in %lu watts",command->my_req.pc.limit);
+            if (command->my_req.pc.type == ABSOLUTE){
+                verbose(VRAPI,"Increase powercap default in %lu watts",command->my_req.pc.limit);
                 powercap_increase_def_power(command->my_req.pc.limit);
             }
-            if (command->my_req.pc.type==RELATIVE){
-                verbose(0,"Error, increase relative powercap not implemented");
+            if (command->my_req.pc.type == RELATIVE){
+                verbose(VRAPI,"Error, increase relative powercap not implemented");
             }
             break;	
         case EAR_RC_DEF_POWERCAP:
@@ -455,7 +554,7 @@ void dyncon_power_management(int fd, request_t *command)
             value = 0;
             break;
         case EAR_RC_SET_POWERCAP_OPT:
-            verbose(1,"Set powercap options received");
+            verbose(VRAPI,"Set powercap options received");
             id = dyncon_filter_opt(&command->my_req.pc_opt);
             debug("returned filter with id %d", id);
             powercap_set_opt(&command->my_req.pc_opt, id);
@@ -464,26 +563,37 @@ void dyncon_power_management(int fd, request_t *command)
             event = -1;
             break;
         default:
-            verbose(1,"power command received not supported");
+            verbose(VRAPI,"power command received not supported");
             event = -1;
             break;
     }
     if (event > 0) //POWERCAP_OPT has its own event
         powermon_report_event((uint)event, value);
 }
-#endif
 
 void update_current_settings(policy_conf_t *cpolicy_settings)
 {
-    verbose(1,"current policy options: def freq %lu setting[0]=%.2lf def_pstate %u",dyn_conf->def_freq,dyn_conf->settings[0],dyn_conf->def_p_state);
-    dyn_conf->def_freq=frequency_pstate_to_freq(cpolicy_settings->p_state);
-    memcpy(dyn_conf->settings,cpolicy_settings->settings,sizeof(double)*MAX_POLICY_SETTINGS);
-    dyn_conf->def_p_state=cpolicy_settings->p_state;
-    resched_conf->force_rescheduling=1;	
-    verbose(1,"new policy options: def freq %lu setting[0]=%.2lf def_pstate %u",dyn_conf->def_freq,dyn_conf->settings[0],dyn_conf->def_p_state);
+  int i;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+
+  for (i=0;i<=max_context_created;i++){
+    if (current_ear_app[i] != NULL){
+      dyn_conf = current_ear_app[i]->settings;
+      resched_conf = current_ear_app[i]->resched;
+      if (dyn_conf->policy == cpolicy_settings->policy){
+        verbose(VRAPI,"current policy options: def freq %lu setting[0]=%.2lf def_pstate %u",dyn_conf->def_freq,dyn_conf->settings[0],dyn_conf->def_p_state);
+        dyn_conf->def_freq = frequency_pstate_to_freq(cpolicy_settings->p_state);
+        memcpy(dyn_conf->settings,cpolicy_settings->settings,sizeof(double)*MAX_POLICY_SETTINGS);
+        dyn_conf->def_p_state = cpolicy_settings->p_state;
+        resched_conf->force_rescheduling = 1;
+        verbose(VRAPI,"new policy options: def freq %lu setting[0]=%.2lf def_pstate %u",dyn_conf->def_freq,dyn_conf->settings[0],dyn_conf->def_p_state);
+      }
+    }
+  }
+
 }
 
-#if POWERCAP
 void dyncon_release_idle_power(int fd, request_t *command)
 {
     pc_release_data_t rel_data;
@@ -495,7 +605,7 @@ void dyncon_release_idle_power(int fd, request_t *command)
     debug("propagating release_idle_power");
     return_status = propagate_release_idle(command, my_cluster_conf.eard.port, (pc_release_data_t *)&rel_data);
 
-    if (return_status < 1) error("dyncon_get_powerstatus and return status < 1");
+    if (return_status < 1) error("dyncon_release_idle power and return status < 1");
 
     debug("releasing idle power");
     powercap_release_idle_power(&rel_data);
@@ -553,7 +663,7 @@ void dyncon_get_powerstatus(int fd, request_t *command)
     }
     debug("return_status %d status=%p", return_status, status);
 
-    powercap_get_status(&status[return_status - 1], &p_status);
+    powercap_get_status(&status[return_status - 1], &p_status, command->my_req.release_power);
     process_pmgt_status(&status[return_status - 1], &p_status);
 
     status_data = mem_alloc_char_powercap_status(status);
@@ -564,31 +674,72 @@ void dyncon_get_powerstatus(int fd, request_t *command)
     free(status);
     debug("powerstatus released");
 }
-#endif
+
+void dyncon_get_power(int fd, request_t *command)
+{
+    power_check_t *power;
+    uint64_t curr_power = 0;
+    int return_status;
+    long int ack;
+    send_answer(fd, &ack);
+    return_status = propagate_get_power(command, my_cluster_conf.eard.port, (power_check_t **)&power);
+
+    if (return_status < 1) 
+    {
+        //error
+        error("dyncon_get_power and return status < 1 ");
+    }
+    debug("return_status %d power=%lu", return_status, *power);
+
+    powermon_get_power(&curr_power);
+    power->power += curr_power;
+    power->num_nodes++;
+    debug("return_status %d power=%lu current_power=%lu", return_status, power->power, curr_power);
+
+    send_data(fd, sizeof(power_check_t), (char *)power, EAR_TYPE_POWER_CHECK);
+
+    debug("Returning from dyncon_get_powerstatus");
+    free(power);
+    debug("powerstatus released");
+}
 
 void dyncon_set_risk(int fd, request_t *command)
 {
-    int i;
-    unsigned long new_max_freq,c_max,mfreq;
-    c_max=frequency_pstate_to_freq(my_node_conf->max_pstate);
-    mfreq=c_max;
-    for (i=0;i<my_node_conf->num_policies;i++){
-        if (polsyms_fun[i].set_risk!=NULL){
-            verbose(1,"Setting risk level for %s to %lu",my_node_conf->policies[i].name,(unsigned long)command->my_req.risk.level);	
-            polsyms_fun[i].set_risk(&my_original_node_conf.policies[i],&my_node_conf->policies[i],command->my_req.risk.level,command->my_req.risk.target,mfreq,&new_max_freq,f_list,num_f);
-        }
-        if (dyn_conf->policy==i){
-            verbose(1,"Current policy is %d", i);
-            update_current_settings(&my_node_conf->policies[i]);	
-            if (new_max_freq!=dyn_conf->max_freq){
-                dyn_conf->max_freq=new_max_freq;
-                resched_conf->force_rescheduling=1;
-            }
-        }
+  int i;
+  unsigned long new_max_freq,c_max,mfreq,node_max = 0;
+  settings_conf_t *dyn_conf;
+  resched_t *resched_conf;
+
+	/* How that applies when having TAGS en policies ?: PENDING */
+
+  c_max = frequency_pstate_to_freq(my_node_conf->max_pstate);
+  mfreq = c_max;
+  for (i=0;i<my_node_conf->num_policies;i++){
+    if (polsyms_fun[i].set_risk != NULL){
+      verbose(VRAPI,"Setting risk level for %s to %lu",my_node_conf->policies[i].name,(unsigned long)command->my_req.risk.level);
+      polsyms_fun[i].set_risk(&my_original_node_conf.policies[i],&my_node_conf->policies[i],command->my_req.risk.level,command->my_req.risk.target,mfreq,&new_max_freq,f_list,num_f);
     }
-    my_node_conf->max_pstate=frequency_freq_to_pstate(dyn_conf->max_freq);
-    powermon_new_max_freq(dyn_conf->max_freq);
-    verbose(1,"New max frequency is %lu pstate=%lu rescheduling %u",new_max_freq,my_node_conf->max_pstate,resched_conf->force_rescheduling);
+    for (i=0;i<=max_context_created;i++){
+      if (current_ear_app[i] != NULL){
+        dyn_conf = current_ear_app[i]->settings;
+        resched_conf = current_ear_app[i]->resched;
+        if (dyn_conf->policy == i){
+          verbose(VRAPI,"Current policy for job %lu/%lu is %d", current_ear_app[i]->app.job.id,current_ear_app[i]->app.job.step_id,i);
+          update_current_settings(&my_node_conf->policies[i]);
+          if (new_max_freq != dyn_conf->max_freq){
+            dyn_conf->max_freq = new_max_freq;
+            resched_conf->force_rescheduling = 1;
+            if (node_max < new_max_freq) node_max = node_max;
+          }
+        }
+      }
+    }
+  }
+  my_node_conf->max_pstate = frequency_freq_to_pstate(node_max);
+  powermon_new_max_freq(node_max);
+  verbose(VRAPI,"New max frequency is %lu pstate=%lu ",node_max,my_node_conf->max_pstate);
+
+
 }
 
 
@@ -596,9 +747,44 @@ void adap_new_job_req_to_app(application_t *req_app,new_job_req_t *new_job)
 {
     char *sig_start;
     memcpy(req_app,new_job,sizeof(new_job_req_t));
-    sig_start=(char *)req_app+sizeof(new_job_req_t);
+    sig_start = (char *)req_app + sizeof(new_job_req_t);
     memset(sig_start,0,sizeof(application_t)-sizeof(new_job_req_t));
 }
+
+/* Functions to compute if replicated command */
+
+
+static int is_new_command(request_t *comm)
+{
+		if (comm->req == EAR_RC_NEW_JOB || comm->req == EAR_RC_END_JOB || comm->req == EAR_RC_NEW_TASK || comm->req == EAR_RC_STATUS) return 1;
+    // if ((comm->req == last_command) && (comm->time_code == last_command_time)) return 0;
+    for (uint i=0; i < MAX_HISTORIC_COMM ; i++){
+    //    if ((list_last_commands[i].req == comm->req ) && (list_last_commands[i].time_code == comm->time_code)) return 0;
+        if (!memcmp(&list_last_commands[i], comm, sizeof(request_t))) return 0;
+    }
+    return 1;
+}
+
+static void new_command_received(request_t *comm)
+{
+    last_dist     = comm->node_dist;
+    last_command  = comm->req;
+    last_command_time = comm->time_code;
+    memcpy(&list_last_commands[current_pos_last_comm], comm, sizeof(request_t));
+    current_pos_last_comm = (current_pos_last_comm +1) % MAX_HISTORIC_COMM;
+}
+
+#if 0
+static void log_msg_in_file(char *filename, char *txt)
+{
+    mode_t oldm = umask(0);
+    int fd = open(filename,O_WRONLY|O_CREAT|O_APPEND,S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+    if (fd < 0) return;
+    write(fd,txt,strlen(txt));
+    close(fd);
+    umask(oldm);
+}
+#endif
 
 state_t process_remote_requests(int clientfd) {
     request_t command;
@@ -606,40 +792,43 @@ state_t process_remote_requests(int clientfd) {
     long ack = EAR_SUCCESS;
     verbose(VRAPI, "connection received");
     memset(&command,0,sizeof(request_t));
-    command.req=NO_COMMAND;
+    command.req = NO_COMMAND;
     req = (int) read_command(clientfd, &command);
     if (req == EAR_SOCK_DISCONNECTED) return req;
     /* New job and end job are different */
     /* Is it necesary */
-    if (req != EAR_RC_NEW_JOB && req != EAR_RC_END_JOB) {
-        if (req != EAR_RC_STATUS && req == last_command && command.time_code == last_command_time) {
-            verbose(VRAPI + 1, "Recieved repeating command: %u", req);
+    if (!is_new_command(&command)) {
+            verbose(VRAPI, "Recieved repeating command: %u", req);
             ack = EAR_IGNORE;
             send_answer(clientfd, &ack);
-            if ((command.node_dist > 0) && (command.node_dist != last_dist) && node_found != EAR_ERROR) {
-                last_dist = command.node_dist;
-                propagate_req(&command, my_cluster_conf.eard.port);
-            }
             return EAR_SUCCESS;
-        }
     }
-    /**/
-    last_dist = command.node_dist;
-    last_command = req;
-    last_command_time = command.time_code;
+
+    verbose(VRAPI,"New command accepted");
+    new_command_received(&command);
 
     switch (req) {
         case EAR_RC_NEW_JOB:
+        case EAR_RC_NEW_JOB_LIST:
             verbose(VRAPI, "*******************************************");
             verbose(VRAPI, "new_job command received %lu", command.my_req.new_job.job.id);
             application_t req_app;
             adap_new_job_req_to_app(&req_app,&command.my_req.new_job);
-            powermon_new_job(&my_eh_rapi, &req_app, 0);
+            powermon_new_job(NULL, &my_eh_rapi, &req_app, 0, req == EAR_RC_NEW_JOB_LIST);
             break;
         case EAR_RC_END_JOB:
-            powermon_end_job(&my_eh_rapi, command.my_req.end_job.jid, command.my_req.end_job.sid);
+        case EAR_RC_END_JOB_LIST:
+            powermon_end_job(&my_eh_rapi, command.my_req.end_job.jid, command.my_req.end_job.sid, req == EAR_RC_END_JOB_LIST);
             verbose(VRAPI, "end_job command received %lu", command.my_req.end_job.jid);
             verbose(VRAPI, "*******************************************");
+            break;
+        case EAR_RC_NEW_TASK:
+            verbose(VRAPI, "NEW task received");
+            powermon_new_task(&command.my_req.new_task);
+            break;
+        case EAR_RC_END_TASK:
+            verbose(VRAPI, "END task received");
+            //powermon_end_task(&command.my_req.end_task); //pending to implement
             break;
         case EAR_RC_MAX_FREQ:
             verbose(VRAPI, "max_freq command received %lu", command.my_req.ear_conf.max_freq);
@@ -695,7 +884,6 @@ state_t process_remote_requests(int clientfd) {
             dyncon_get_app_status(clientfd, &command);
             return EAR_SUCCESS;
             break;
-#if POWERCAP
         case EAR_RC_RED_POWER:
         case EAR_RC_SET_POWER:
         case EAR_RC_INC_POWER:
@@ -709,13 +897,15 @@ state_t process_remote_requests(int clientfd) {
         case EAR_RC_RELEASE_IDLE:
             dyncon_release_idle_power(clientfd, &command);
             return EAR_SUCCESS;
-#endif
         case EAR_RC_SET_RISK:
-            verbose(1,"set risk command received");
+            verbose(VRAPI,"set risk command received");
             dyncon_set_risk(clientfd, &command);
             break;
+        case EAR_RC_GET_POWER:
+            dyncon_get_power(clientfd, &command);
+            return EAR_SUCCESS;
         default:
-            error("Invalid remote command\n");
+            error("Invalid remote command %d\n",req);
             req = NO_COMMAND;
     }
     send_answer(clientfd, &ack);
@@ -731,13 +921,13 @@ void policy_load()
 {
     char basic_path[SZ_PATH];
     int i;
-    polsyms_fun=(eard_polsym_t *)calloc(my_node_conf->num_policies,sizeof(eard_polsym_t));
-    if (polsyms_fun==NULL){
+    polsyms_fun = (eard_polsym_t *)calloc(my_node_conf->num_policies,sizeof(eard_polsym_t));
+    if (polsyms_fun == NULL){
         error("Allocating memory for policy functions in eard");
     }
-    for (i=0;i<my_node_conf->num_policies;i++){
+    for (i=0; i<my_node_conf->num_policies;i++){
         sprintf(basic_path,"%s/eard_policies/%s_eard.so",my_cluster_conf.install.dir_plug,my_node_conf->policies[i].name);
-        verbose(1,"Loading functions for policy %s",basic_path);
+        verbose(VRAPI,"Loading functions for policy %s",basic_path);
         symplug_open(basic_path, (void **)&polsyms_fun[i], polsyms_nam, polsyms_n);
     }
 }
@@ -775,17 +965,17 @@ void *eard_dynamic_configuration(void *tmp)
     f_list = frequency_get_freq_rank_list();
     print_f_list(num_f, f_list);
     verbose(VRAPI + 2, "We have %u valid p_states", num_f);
-    verbose(0, "Init for ips");
+    verbose(VRAPI, "Init for ips");
     node_found = init_ips(&my_cluster_conf);
-    if (node_found == EAR_ERROR) verbose(0, "Node not found in configuration file");
-    verbose(0,"Init ips ready");
+    if (node_found == EAR_ERROR) verbose(VRAPI, "Node not found in configuration file");
+    verbose(VRAPI,"Init ips ready");
 
 
     verbose(VRAPI, "Creating socket for remote commands");
     eards_remote_socket = create_server_socket(my_cluster_conf.eard.port);
     if (eards_remote_socket < 0) {
         error("Error creating socket, exiting eard_dynamic_configuration thread\n");
-        log_report_eard_init_error(my_cluster_conf.eard.use_mysql,my_cluster_conf.eard.use_eardbd,RCONNECTOR_INIT_ERROR,eards_remote_socket);
+        log_report_eard_init_error(&rid,RCONNECTOR_INIT_ERROR,eards_remote_socket);
         pthread_exit(0);
     }
 

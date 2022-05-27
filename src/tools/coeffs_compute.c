@@ -29,9 +29,17 @@
 #include <common/database/db_helper.h>
 #include <management/cpufreq/cpufreq.h>
 
+#include <library/models/cpu_power_model_default.h>
+#include <metrics/flops/flops.h>
+
+//#define ACCUM_DATA 1
+
 // Temporal buffers
 static char buffer1[SZ_PATH];
 static char buffer2[SZ_PATH];
+static char buffer3[SZ_PATH];
+static char tag_name[GENERIC_NAME];
+static char tag_path[SZ_PATH];
 
 //
 typedef struct matrix_s {
@@ -46,6 +54,26 @@ typedef struct matrix_s {
 	double        *err_power;
 } matrix_t;
 
+intel_skl_t *coeffs_cpu;
+
+
+static state_t write_cpu_model_coefficients(char *tag_path, intel_skl_t *coeffs_cpu, uint pstate_count)
+{
+	int fd;
+	fd = open(tag_path, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+	if (fd < 0 ){
+		close(fd);
+		return EAR_ERROR;
+	}
+	if (write(fd, coeffs_cpu, sizeof(intel_skl_t) * pstate_count) != sizeof(intel_skl_t) * pstate_count){
+		printf("Error writting cpu power coefficients %s\n", strerror(errno));
+		close(fd);
+		return EAR_ERROR;
+	}
+	close(fd);
+	printf("CPU power coefficients succefully written\n");
+	return EAR_SUCCESS;
+}
 static state_t write_coefficients(int fd, matrix_t *matrix, uint matrix_count)
 {
 	int m, c;
@@ -73,6 +101,69 @@ static int find_app(matrix_t *matrix, char *app_name)
 	}
 	return -1;
 }
+
+static state_t compute_cpu_power_coefficients(intel_skl_t **cpu_power_coeffs, application_t *app_list, uint apps_count)
+{
+  int n, a;
+	intel_skl_t *coeff;
+  //
+  n = apps_count;
+	*cpu_power_coeffs = calloc(1, sizeof(intel_skl_t));
+	coeff = *cpu_power_coeffs;
+
+  //
+  gsl_matrix *signature_base = gsl_matrix_calloc(n, 5);
+  gsl_vector *cpu_power_target     = gsl_vector_alloc(n);
+  gsl_vector *coefficients   = gsl_vector_alloc(5);
+  //
+  for (a = 0; a < n; ++a) {
+    // Initializations
+    gsl_vector_set(cpu_power_target, a, 0.0);
+    gsl_matrix_set(signature_base, a, 0, 0.0);
+    gsl_matrix_set(signature_base, a, 1, 0.0);
+    gsl_matrix_set(signature_base, a, 2, 0.0);
+    gsl_matrix_set(signature_base, a, 3, 0.0);
+    gsl_matrix_set(signature_base, a, 4, 0.0);
+
+
+    gsl_vector_set(cpu_power_target, a, app_list[a].signature.DC_power);
+    gsl_matrix_set(signature_base, a, 0, 1.0);
+    gsl_matrix_set(signature_base, a, 1, 1/app_list[a].signature.CPI);
+    gsl_matrix_set(signature_base, a, 2, app_list[a].signature.GBS);
+		//printf("AVGF %lu\n", app_list[a].signature.avg_f);
+		//printf("VPI data %llu %llu %llu %llu instructions %llu\n", app_list[a].signature.FLOPS[INDEX_256F], app_list[a].signature.FLOPS[INDEX_256D], app_list[a].signature.FLOPS[INDEX_512F], app_list[a].signature.FLOPS[INDEX_512D], app_list[a].signature.instructions);
+		double vpi; 
+		vpi = (double)((double)app_list[a].signature.FLOPS[INDEX_256F]/WEIGHT_256F + (double)app_list[a].signature.FLOPS[INDEX_256D]/WEIGHT_256D + (double)app_list[a].signature.FLOPS[INDEX_512F]/WEIGHT_512F + (double)app_list[a].signature.FLOPS[INDEX_512D]/WEIGHT_512D)/(double)app_list[a].signature.instructions;
+    gsl_matrix_set(signature_base, a, 3, vpi);
+    gsl_matrix_set(signature_base, a, 4, (double)app_list[a].signature.avg_f/1000000.0);
+    //printf("Adding IPC %lf GBS %lf VPI %lf F %lf\n", 1/app_list[a].signature.CPI, app_list[a].signature.GBS, vpi, (double)app_list[a].signature.avg_f/1000000.0);
+			
+  }
+  // Linear least squares fitting (SVD algorithm)
+  gsl_multifit_linear_workspace *work = gsl_multifit_linear_alloc(n, 5);
+  // Variance-covariance matrix
+  gsl_matrix *cov = gsl_matrix_alloc(5, 5);
+  // Sum of squares of the residuals from the best-fit
+  double chisq;
+  // Best fit of cpi_target = signature_base*coefficients
+  gsl_multifit_linear(signature_base, cpu_power_target, coefficients, cov, &chisq, work);
+  // Saving coefficient values
+  coeff->ipc = gsl_vector_get(coefficients, 1);
+  coeff->gbs = gsl_vector_get(coefficients, 2);
+	coeff->vpi = gsl_vector_get(coefficients, 3);
+	coeff->f  = gsl_vector_get(coefficients, 4);
+  coeff->inter = gsl_vector_get(coefficients, 0);
+	printf("tag %s: IPC %lf GBS %lf VPI %lf F %lf INTER %lf\n", tag_name, coeff->ipc, coeff->gbs, coeff->vpi, coeff->f, coeff->inter); 
+  // Freeing space
+  gsl_vector_free(cpu_power_target);
+  gsl_vector_free(coefficients);
+  gsl_matrix_free(signature_base);
+  gsl_matrix_free(cov);
+  gsl_multifit_linear_free(work);
+	return EAR_SUCCESS;
+}
+
+
 
 static void compute_cpi(matrix_t *matrix_base, matrix_t *matrix_target)
 {
@@ -339,6 +430,7 @@ static state_t matrix_init(pstate_t *pstate_list, uint pstate_count, matrix_t **
 	return EAR_SUCCESS;
 }
 
+#if ACCUM_DATA
 static void average(signature_t *sig)
 {
 	double samples_count = (double) sig->cycles;
@@ -347,6 +439,9 @@ static void average(signature_t *sig)
 	sig->DC_power = (sig->DC_power / samples_count);
 	sig->CPI      = (sig->CPI  / samples_count);
 	sig->TPI      = (sig->TPI  / samples_count);
+	sig->avg_f    = (sig->avg_f / samples_count);
+	sig->instructions = (sig->instructions / samples_count);
+	for (uint i = 0; i < FLOPS_EVENTS; i++) sig->FLOPS[i] = (sig->FLOPS[i] / samples_count);
 }
 
 static void accum(signature_t *d, signature_t *s)
@@ -357,14 +452,18 @@ static void accum(signature_t *d, signature_t *s)
 	d->DC_power += s->DC_power;
 	d->TPI      += s->TPI;
 	d->CPI      += s->CPI;
+  d->avg_f    += s->avg_f;
+	d->instructions += s->instructions;
+	for (uint i = 0; i < FLOPS_EVENTS; i++) d->FLOPS[i] += s->FLOPS[i];
 }
+#endif
 
 static state_t apps_merge(application_t **apps, uint *apps_count)
 {
 	application_t *apps_o; // Original apps array
 	application_t *apps_n; // Apps by name accumulated
 	uint apps_n_count = 0;
-	int o, b, n;
+	int o, b;
 
 	// This function averages an replicated applications per frequency.
 	apps_o = *apps;
@@ -387,6 +486,7 @@ static state_t apps_merge(application_t **apps, uint *apps_count)
 			apps_n_count += 1;
 		}
 	}
+	#if ACCUM_DATA
 	// Accumulating signature values
 	for(o = 0; o < *apps_count; ++o) {
 		for (n = 0; n < apps_n_count; ++n) {
@@ -401,10 +501,13 @@ static state_t apps_merge(application_t **apps, uint *apps_count)
 	for (n = 0; n < apps_n_count; ++n) {
 		average(&apps_n[n].signature);
 	}
+	*apps_count = apps_n_count;
+	#else
+	memcpy(apps_n, apps_o, sizeof(application_t) * (*apps_count));
+	#endif
 	// Converting apps to apps_n
 	free(*apps);
 	*apps = apps_n;
-	*apps_count = apps_n_count;
 
 	return EAR_SUCCESS;	
 }
@@ -465,6 +568,8 @@ static state_t db_query(int argc, char *argv[], cluster_conf_t *conf, char *host
 	char *p_list = buffer1;
 	char *p_elem = buffer2;
 	int job_list;
+  char *p_apps = buffer3;
+  int app_list;
     int t, a;
     //
     init_db_helper(&conf->database);
@@ -475,8 +580,13 @@ static state_t db_query(int argc, char *argv[], cluster_conf_t *conf, char *host
     if ((*apps_count = db_read_applications(&apps_temp, 1, *apps_count, host_name)) <= 0) {
         return_msg(EAR_ERROR, "while reading applications from database");
     }
+
 	//
 	job_list = strinargs(argc, argv, "job-list:", p_list);
+  if (job_list) printf("Filtering %d jobs\n", job_list);
+  app_list = strinargs(argc, argv, "app-names:", p_apps);
+  if (app_list) printf("Filtering %d apps\n", app_list);
+
     //
     for (t = 0, a = 0; t < *apps_count; t++){
 		if ((apps_temp[t].signature.time == 0) || (apps_temp[t].signature.DC_power == 0)){ 
@@ -490,6 +600,21 @@ static state_t db_query(int argc, char *argv[], cluster_conf_t *conf, char *host
 				continue;
 			} 
 		}
+    if (app_list){
+    	sprintf(buffer2, "%s", apps_temp[t].job.app_id);
+    	if (strinlist(p_apps, ",", p_elem)) {
+    		apps_temp[t].job.id = (ulong) -1L;
+    		continue;
+    	}
+    }
+      #if USE_GPUS
+      uint gpus = apps_temp[t].signature.gpu_sig.num_gpus;
+      double gpup = 0;
+      for (uint gpuid = 0; gpuid < gpus; gpuid++) gpup += apps_temp[t].signature.gpu_sig.gpu_data[gpuid].GPU_power;
+      apps_temp[t].signature.DC_power -= gpup;
+      #endif
+
+
         a += 1;
     }
 	*apps = calloc(a, sizeof(application_t));
@@ -579,6 +704,11 @@ static state_t configuration(int argc, char *argv[], cluster_conf_t *conf, my_no
 	} else {
 		sprintf(buffer1, "%s", getenv("HOME"));
 	}
+    if (strinargs(argc, argv, "tag-name:", tag_name)) {
+    } else {
+      sprintf(tag_name, "default_tag");
+    }
+
 	// Adding island folder.
 	xsprintf(buffer2, "%s/island%d", buffer1, (*node)->island);
 	// Creating island folder.
@@ -587,6 +717,7 @@ static state_t configuration(int argc, char *argv[], cluster_conf_t *conf, my_no
 	}
 	// Setting the complete coefficient file (i was using (*node)->coef_file).
 	xsprintf(buffer1, "%s/coeffs.%s", buffer2, host_name);
+	xsprintf(tag_path, "%s/coeffs.cpumodel.%s", buffer2, tag_name);
 	if ((*fd = open(buffer1, F_WR|F_CR|F_TR, F_UR|F_UW|F_GR|F_GW|F_OR|F_OW)) < 0) {
 		return_print(EAR_ERROR, "failed opening file '%s' (%s)", buffer1, strerror(errno));
 	}
@@ -595,6 +726,7 @@ static state_t configuration(int argc, char *argv[], cluster_conf_t *conf, my_no
 	verbose(0, "host alias:    %s", aux_alias); 
 	verbose(0, "conf file:     %s", path);
 	verbose(0, "coeff file:    %s", buffer1);
+	verbose(0, "cpu coeff file:    %s", tag_path);
     return EAR_SUCCESS;
 }
 
@@ -603,18 +735,22 @@ static state_t usage(int argc, char *argv[])
 	int expected_args = 0;
 	int node_name     = 0;
 	int job_list      = 0;
+	int app_names     = 0;
 	int path          = 0;
 	int help          = 0;
 	int verbose       = 0;
+	int tag           = 0;
 	// More than one means something to process
 	if (argc > 1) {
 		help      = strinargs(argc, argv, "h", NULL);
 		help     |= strinargs(argc, argv, "help", NULL);   
 		job_list  = strinargs(argc, argv, "job-list:", NULL);
+	  app_names = strinargs(argc, argv, "app-names:", NULL);
 		node_name = strinargs(argc, argv, "node-name:", NULL);
 		path      = strinargs(argc, argv, "root-path:", NULL);
+		tag       = strinargs(argc, argv, "tag-name:", NULL);
 		verbose   = strinargs(argc, argv, "verbose", NULL);
-		expected_args = job_list + node_name + path + verbose + 1;
+		expected_args = job_list + node_name + path + verbose + app_names + tag + 1;
 	}
 	// Something happens in the arguments
 	if (argc == expected_args) {
@@ -631,8 +767,10 @@ static state_t usage(int argc, char *argv[])
     verbose(0, "\nOptions:");
     verbose(0, "\t--node-name=<name>\tSets the node to compute its coefficients.");
 	verbose(0, "\t--job-list=<list-ids>\tDiscards jobs not present in <list-ids>.");
+	  verbose(0, "\t--app-names=<list-jobnames>\tDiscards Application names  present in <list-jobnames>.");
     verbose(0, "\t--root-path=<path>\tSets the root directory where coefficients will");
     verbose(0, "\t                  \tbe stored.");
+    verbose(0, "\t--tag-name=<name>\t defines the tag to be used with cpu_power model");
     verbose(0, "\t--verbose\t\tVerbose mode. It includes errors.");
 
     return EAR_ERROR;
@@ -671,7 +809,9 @@ int main(int argc, char *argv[])
 	state_assert(s, matrix_init(pstate_list, pstate_count, &matrix, &matrix_count), return 0);
 	state_assert(s, matrix_fill(app_list, app_count, matrix, matrix_count),         return 0);
 	state_assert(s, compute_coefficients(matrix, matrix_count),                     return 0);
+	state_assert(s, compute_cpu_power_coefficients(&coeffs_cpu, app_list, app_count),return 0);
 	state_assert(s, write_coefficients(fd, matrix, matrix_count),                   return 0);
+	state_assert(s, write_cpu_model_coefficients(tag_path, coeffs_cpu, 1),          return 0);
 
 	return 0;
 }

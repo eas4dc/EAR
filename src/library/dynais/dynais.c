@@ -62,6 +62,7 @@ static int dynais_intel_switch(int model)
 		case MODEL_HASWELL_X:
 		case MODEL_BROADWELL_X:
 		case MODEL_SKYLAKE_X:
+		case MODEL_ICELAKE_X:
 		//case MODEL_CASCADE_LAKE_X:
 		//case MODEL_COOPER_LAKE_X:
 			return 512;

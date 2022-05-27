@@ -34,4 +34,6 @@ state_t folder_close(folder_t *folder);
 
 char *folder_getnext(folder_t *folder, char *prefix, char *suffix);
 
+state_t folder_remove(char *path);
+
 #endif //EAR_PRIVATE_FOLDER_H

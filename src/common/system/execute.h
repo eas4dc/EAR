@@ -17,7 +17,7 @@
 
 #ifndef _EXECUTE_ACTIONS_H
 #define _EXECUTE_ACTIONS_H
-int execute(char *cmd);
+__attribute__ ((used)) int execute(char *cmd);
 int execute_with_fork(char *cmd);
 #endif
 

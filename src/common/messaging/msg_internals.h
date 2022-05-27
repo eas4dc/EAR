@@ -24,8 +24,8 @@
 * 	 Note:All these funcions applies to a single node . Global commands must be applying by sending commands to all nodes. 
 */
 
-#ifndef _REMOTE_CLIENT_API_INTERNALS_H
-#define _REMOTE_CLIENT_API_INTERNALS_H
+#ifndef _REMOTE_CLIENT_API_COMMON_INTERNALS_H
+#define _REMOTE_CLIENT_API_COMMON_INTERNALS_H
 
 #include <netdb.h>
 #include <sys/socket.h>
@@ -47,11 +47,11 @@ int _write(int fd, void *data, size_t ssize);
 *	The sequence must be : connect +  command + disconnect
 * 	@param the nodename to connect with
 */
-int eards_remote_connect(char *nodename,uint port);
+int remote_connect(char *nodename,uint port);
 
-/** Disconnect from the previously connected EARD
+/** Disconnect from the previously connected socket 
 */
-int eards_remote_disconnect();
+int remote_disconnect();
 
 /** Sends the command to the currently connected fd */
 int send_command(request_t *command);
@@ -70,7 +70,6 @@ void correct_error(int target_idx, int total_ips, int *ips, request_t *command, 
 
 request_header_t correct_data_prop(int target_idx, int total_ips, int *ips, request_t *command, uint port, void **data);
 
-#if NODE_PROP
 request_header_t data_nodelist(request_t *command, cluster_conf_t *my_cluster_conf, void **data);
 
 void internal_send_command_nodes(request_t *command, int port, int base_distance, int num_sends);
@@ -82,7 +81,6 @@ void send_command_all(request_t command, cluster_conf_t *my_cluster_conf);
 void correct_error_nodes(request_t *command, int self_ip, uint port);
 
 request_header_t correct_data_prop_nodes(request_t *command, int self_ip, uint port, void **data);
-#endif
 
 /** Recieves data from a previously send command */
 request_header_t receive_data(int fd, void **data);

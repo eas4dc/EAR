@@ -285,82 +285,7 @@ int get_autoincrement(MYSQL *connection, long *acum)
 
 int mysql_insert_application(MYSQL *connection, application_t *app)
 {
-    char is_learning = app->is_learning;
-    char is_mpi = app->is_mpi;
-    MYSQL_STMT *statement = mysql_stmt_init(connection);
-    if (!statement) return EAR_MYSQL_ERROR;
-    
-    if (!is_learning)
-    {
-        if (mysql_stmt_prepare(statement, APPLICATION_MYSQL_QUERY, strlen(APPLICATION_MYSQL_QUERY))) return mysql_statement_error(statement);
-    }
-    else
-    {
-        if (mysql_stmt_prepare(statement, LEARNING_APPLICATION_MYSQL_QUERY, strlen(LEARNING_APPLICATION_MYSQL_QUERY))) return mysql_statement_error(statement);
-    }
-    
-    MYSQL_BIND bind[5];
-    memset(bind, 0, sizeof(bind));
-   
-    mysql_insert_job(connection, &app->job, is_learning);
-    //integer types
-    bind[0].buffer_type = bind[1].buffer_type = bind[3].buffer_type = bind[4].buffer_type = MYSQL_TYPE_LONG;
-    bind[0].is_unsigned = bind[1].is_unsigned = bind[3].is_unsigned = bind[4].is_unsigned = 1;
-
-    int pow_sig_id = 0;
-    int sig_id = 0;
-
-    pow_sig_id = mysql_insert_power_signature(connection, &app->power_sig);
-    
-    if (pow_sig_id < 0)
-    {
-        if (pow_sig_id == EAR_MYSQL_ERROR){
-            verbose(VMYSQL, "MYSQL error when writing power_signature to database.\n");
-        } else if (pow_sig_id == EAR_MYSQL_STMT_ERROR){
-            verbose(VMYSQL, "STMT error when writing power_signature to database.\n");
-        } else verbose(VMYSQL,"Unknown error when writing power_signature to database.\n");
-    }
-
-    if (is_mpi)
-    {
-        sig_id = mysql_insert_signature(connection, &app->signature, is_learning);
-
-        if (sig_id < 0)
-        {
-            if (sig_id == EAR_MYSQL_ERROR){
-                verbose(VMYSQL, "MYSQL error when writing signature to database.\n");
-            } else if (sig_id == EAR_MYSQL_STMT_ERROR){
-                verbose(VMYSQL, "STMT error when writing signature to database.\n");
-            } else verbose(VMYSQL,"Unknown error when writing signature to database.\n");
-        }
-
-    }
-    else 
-    {
-        bind[3].buffer_type = MYSQL_TYPE_NULL;
-        bind[3].is_null = (my_bool*) 1;
-    }
-
-    //string types
-    bind[2].buffer_type = MYSQL_TYPE_STRING;
-    bind[2].buffer_length = strlen(app->node_id);
-
-    //storage variable assignation
-    bind[0].buffer = (char *)&app->job.id;
-    bind[1].buffer = (char *)&app->job.step_id;
-    bind[2].buffer = (char *)&app->node_id;
-    bind[4].buffer = (char *)&pow_sig_id;
-    
-    if (is_mpi) bind[3].buffer = (char *)&sig_id;
-    else bind[3].buffer = (char *) NULL;
-
-    if (mysql_stmt_bind_param(statement, bind)) return mysql_statement_error(statement);
-
-    if (mysql_stmt_execute(statement)) return mysql_statement_error(statement);
-
-    if (mysql_stmt_close(statement)) return EAR_MYSQL_ERROR;
-
-    return EAR_SUCCESS;
+    return mysql_batch_insert_applications(connection, app, 1);
 }
 
 int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int num_apps)
@@ -378,6 +303,7 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
     }
     
     char is_learning = app[0].is_learning;
+    char is_mpi      = app[0].is_mpi;
     
     int i;
 	#if 0
@@ -419,18 +345,21 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
     cont.type = EAR_TYPE_APPLICATION;
     cont.app = app;
 
-    sig_id = mysql_batch_insert_signatures(connection, cont, is_learning, num_apps);
+    if (is_mpi)
+    {
+        sig_id = mysql_batch_insert_signatures(connection, cont, is_learning, num_apps);
 
-    if (sig_id < 0)
-        verbose(VMYSQL,"Unknown error when writing signature to database. (%d)\n",sig_id);
+        if (sig_id < 0)
+            verbose(VMYSQL,"Unknown error when writing signature to database. (%d)\n",sig_id);
 
-    for (i = 0; i < num_apps; i++)
-        sigs_ids[i] = sig_id + i*autoincrement_offset;
-    
+        for (i = 0; i < num_apps; i++)
+            sigs_ids[i] = sig_id + i*autoincrement_offset;
+    }
+
     MYSQL_STMT *statement = mysql_stmt_init(connection);
     if (!statement) {
         free(pow_sigs_ids);
-        free(sigs_ids);
+        if (is_mpi) free(sigs_ids);
         return EAR_MYSQL_ERROR;
     }
 
@@ -453,7 +382,7 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
 
     if (mysql_stmt_prepare(statement, query, strlen(query))) {
         free(pow_sigs_ids);
-        free(sigs_ids);
+        if (is_mpi) free(sigs_ids);
         free(query);
         return mysql_statement_error(statement);
     }
@@ -467,18 +396,24 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
         //integer types
         bind[0+offset].buffer_type = bind[1+offset].buffer_type = bind[3+offset].buffer_type = bind[4+offset].buffer_type = MYSQL_TYPE_LONG;
         bind[0+offset].is_unsigned = bind[1+offset].is_unsigned = bind[3+offset].is_unsigned = bind[4+offset].is_unsigned = 1;
+        if (!is_mpi) {
+            bind[3+offset].buffer_type = MYSQL_TYPE_NULL;
+            bind[3+offset].is_null = (my_bool*) 1;
+        }
 
         //string types
         bind[2+offset].buffer_type = MYSQL_TYPE_VAR_STRING;
-        bind[2+offset].buffer_length = strlen(app->node_id);
-        
+        bind[2+offset].buffer_length = strlen(app[i].node_id);
+
         //storage variable assignation
         bind[0+offset].buffer = (char *)&app[i].job.id;
         bind[1+offset].buffer = (char *)&app[i].job.step_id;
         bind[2+offset].buffer = (char *)&app[i].node_id;
-        bind[3+offset].buffer = (char *)&sigs_ids[i];
+        if (is_mpi) 
+            bind[3+offset].buffer = (char *) &sigs_ids[i];
+        else 
+            bind[3+offset].buffer = (char *) NULL;
         bind[4+offset].buffer = (char *)&pow_sigs_ids[i]; 
-        
 
     }
 
@@ -496,7 +431,7 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
     free(bind);
     free(query);
     free(pow_sigs_ids);
-    free(sigs_ids);
+    if (is_mpi) free(sigs_ids);
 
     return ret;
 }
@@ -537,13 +472,13 @@ int mysql_batch_insert_jobs(MYSQL *connection, application_t *app, int num_apps)
         int offset = i*JOB_ARGS;
 
         bind[0+offset].buffer_type = bind[1+offset].buffer_type = bind[4+offset].buffer_type = bind[5+offset].buffer_type = bind[6+offset].buffer_type
-        = bind[7+offset].buffer_type = bind[10+offset].buffer_type = bind[12+offset].buffer_type = MYSQL_TYPE_LONG;
+            = bind[7+offset].buffer_type = bind[10+offset].buffer_type = bind[12+offset].buffer_type = MYSQL_TYPE_LONG;
 
         bind[0+offset].is_unsigned = bind[10+offset].is_unsigned = bind[1+offset].is_unsigned = 1;
 
         //string types
         bind[2+offset].buffer_type = bind[3+offset].buffer_type = bind[8+offset].buffer_type = 
-        bind[13+offset].buffer_type = bind[14+offset].buffer_type = bind[15+offset].buffer_type = MYSQL_TYPE_STRING;
+            bind[13+offset].buffer_type = bind[14+offset].buffer_type = bind[15+offset].buffer_type = MYSQL_TYPE_STRING;
 
         bind[2+offset].buffer_length = strlen(app[i].job.user_id);
         bind[3+offset].buffer_length = strlen(app[i].job.app_id);
@@ -632,7 +567,7 @@ int mysql_batch_insert_applications_no_mpi(MYSQL *connection, application_t *app
     }
 
     MYSQL_BIND *bind = xcalloc(num_apps*APPLICATION_ARGS, sizeof(MYSQL_BIND));
-   
+
     //job only needs to be inserted once
     mysql_batch_insert_jobs(connection, app, num_apps);
     int pow_sig_id = 0;
@@ -661,7 +596,7 @@ int mysql_batch_insert_applications_no_mpi(MYSQL *connection, application_t *app
 
         //string types
         bind[2+offset].buffer_type = MYSQL_TYPE_STRING;
-        bind[2+offset].buffer_length = strlen(app->node_id);
+        bind[2+offset].buffer_length = strlen(app[i].node_id);
 
         //storage variable assignation
         bind[0+offset].buffer = (char *)&app[i].job.id;
@@ -669,7 +604,7 @@ int mysql_batch_insert_applications_no_mpi(MYSQL *connection, application_t *app
         bind[2+offset].buffer = (char *)&app[i].node_id;
         bind[3+offset].buffer = (char *) NULL;
         bind[4+offset].buffer = (char *)&pow_sigs_ids[i]; 
-        
+
     }
 
     int ret = EAR_SUCCESS;
@@ -761,7 +696,7 @@ int mysql_retrieve_applications(MYSQL *connection, char *query, application_t **
     char is_mpi = 1; //we take mpi as the default type
     if (sig_id < 1 || bind[3].is_null)
         is_mpi = 0;
-    
+
     while (status == 0 || status == MYSQL_DATA_TRUNCATED)
     {
         if (is_learning)
@@ -803,16 +738,16 @@ int mysql_retrieve_applications(MYSQL *connection, char *query, application_t **
             copy_power_signature(&app_aux->power_sig, pow_sig_aux);
             free(pow_sig_aux);
         }
-        
+
         sig_id = 0;
         copy_application(&apps_aux[i], app_aux);
         status = mysql_stmt_fetch(statement);
         i++;
-        
+
         is_mpi = 1;
         if (sig_id < 1 || bind[3].is_null)
             is_mpi = 0;
-    
+
 
     }
     *apps = apps_aux;
@@ -829,47 +764,7 @@ int mysql_retrieve_applications(MYSQL *connection, char *query, application_t **
 
 int mysql_insert_loop(MYSQL *connection, loop_t *loop)
 {
-    MYSQL_STMT *statement = mysql_stmt_init(connection);
-    if (!statement) return EAR_MYSQL_ERROR;
-    int i;
-
-    if (mysql_stmt_prepare(statement, LOOP_MYSQL_QUERY, strlen(LOOP_MYSQL_QUERY))) return mysql_statement_error(statement);
-
-    MYSQL_BIND bind[8];
-    memset(bind, 0, sizeof(bind));
-
-//    mysql_insert_job(connection, loop->job, 0);
-    
-    int sig_id = mysql_insert_signature(connection, &loop->signature, 0);
-
-    //integer types
-    for (i = 0; i < 8; i++)
-    {
-        bind[i].buffer_type = MYSQL_TYPE_LONGLONG;
-        bind[i].is_unsigned = 1;
-    }
-
-    //string types
-    bind[5].buffer_type = MYSQL_TYPE_STRING;
-    bind[5].buffer_length = strlen(loop->node_id);
-
-    //storage variable assignation
-    bind[0].buffer = (char *)&loop->id.event;
-    bind[1].buffer = (char *)&loop->id.size;
-    bind[2].buffer = (char *)&loop->id.level;
-    bind[3].buffer = (char *)&loop->jid;
-    bind[4].buffer = (char *)&loop->step_id;
-    bind[5].buffer = (char *)&loop->node_id;
-    bind[6].buffer = (char *)&loop->total_iterations;
-    bind[7].buffer = (char *)&sig_id;
-
-    if (mysql_stmt_bind_param(statement, bind)) return mysql_statement_error(statement);
-
-    if (mysql_stmt_execute(statement)) return mysql_statement_error(statement);
-
-    if (mysql_stmt_close(statement)) return EAR_MYSQL_ERROR;
-
-    return EAR_SUCCESS;
+    return mysql_batch_insert_loops(connection, loop, 1);
 }
 
 int mysql_batch_insert_loops(MYSQL *connection, loop_t *loop, int num_loops)
@@ -902,18 +797,18 @@ int mysql_batch_insert_loops(MYSQL *connection, loop_t *loop, int num_loops)
     }
 
     MYSQL_BIND *bind = xcalloc(num_loops*LOOP_ARGS, sizeof(MYSQL_BIND));
-    
+
     signature_container_t cont;
     cont.type = EAR_TYPE_LOOP;
     cont.loop = loop;
     int sig_id = mysql_batch_insert_signatures(connection, cont, 0, num_loops);
 
     if (sig_id < 0){
-		verbose(VMYSQL,"Error inserting N=%d loops signatures\n",num_loops);
+        verbose(VMYSQL,"Error inserting N=%d loops signatures\n",num_loops);
         free(query);
         free(bind);
         return EAR_ERROR;
-	}
+    }
 
     long long *sigs_ids = xcalloc(num_loops, sizeof(long long));
 
@@ -967,7 +862,7 @@ int mysql_batch_insert_loops(MYSQL *connection, loop_t *loop, int num_loops)
 
 int mysql_retrieve_loops(MYSQL *connection, char *query, loop_t **loops)
 {
-    
+
     MYSQL_STMT *statement = mysql_stmt_init(connection);
     if (!statement) return EAR_MYSQL_ERROR;
     loop_t *loop_aux = xcalloc(1, sizeof(loop_t));
@@ -1068,69 +963,6 @@ int mysql_retrieve_loops(MYSQL *connection, char *query, loop_t **loops)
 }
 
 
-int mysql_insert_job(MYSQL *connection, job_t *job, char is_learning)
-{
-    MYSQL_STMT *statement = mysql_stmt_init(connection);
-    if (!statement) return EAR_MYSQL_ERROR;
-
-    if (!is_learning)
-    {
-        if (mysql_stmt_prepare(statement, JOB_MYSQL_QUERY, strlen(JOB_MYSQL_QUERY))) return mysql_statement_error(statement);
-    }
-    else
-    {
-        if (mysql_stmt_prepare(statement, LEARNING_JOB_MYSQL_QUERY, strlen(LEARNING_JOB_MYSQL_QUERY))) return mysql_statement_error(statement);
-    }
-
-    MYSQL_BIND bind[16];
-    memset(bind, 0, sizeof(bind));
-
-    //integer types
-    bind[0].buffer_type = bind[4].buffer_type = bind[5].buffer_type = bind[12].buffer_type
-    = bind[6].buffer_type = bind[7].buffer_type = bind[10].buffer_type = bind[1].buffer_type = MYSQL_TYPE_LONG;
-    bind[0].is_unsigned = bind[10].is_unsigned = 1;
-
-    //string types
-    bind[2].buffer_type = bind[3].buffer_type = bind[8].buffer_type = 
-    bind[13].buffer_type = bind[14].buffer_type = bind[15].buffer_type = MYSQL_TYPE_STRING;
-
-    bind[2].buffer_length = strlen(job->user_id);
-    bind[3].buffer_length = strlen(job->app_id);
-    bind[8].buffer_length = strlen(job->policy);
-    bind[13].buffer_length = strlen(job->user_acc);
-    bind[14].buffer_length = strlen(job->group_id);
-    bind[15].buffer_length = strlen(job->energy_tag);
-
-    //double types
-    bind[9].buffer_type = MYSQL_TYPE_DOUBLE;
-
-    //storage variable assignation
-    bind[0].buffer = (char *)&job->id;
-    bind[1].buffer = (char *)&job->step_id;
-    bind[2].buffer = (char *)&job->user_id;
-    bind[3].buffer = (char *)&job->app_id;
-    bind[4].buffer = (char *)&job->start_time;
-    bind[5].buffer = (char *)&job->end_time;
-    bind[6].buffer = (char *)&job->start_mpi_time;
-    bind[7].buffer = (char *)&job->end_mpi_time;
-    bind[8].buffer = (char *)&job->policy;
-    bind[9].buffer = (char *)&job->th;
-    bind[10].buffer = (char *)&job->procs;
-    bind[11].buffer = (char *)&job->type;
-    bind[12].buffer = (char *)&job->def_f;
-    bind[13].buffer = (char *)&job->user_acc;
-    bind[14].buffer = (char *)&job->group_id;
-    bind[15].buffer = (char *)&job->energy_tag;
-
-    if (mysql_stmt_bind_param(statement, bind)) return mysql_statement_error(statement);
-
-    if (mysql_stmt_execute(statement)) return mysql_statement_error(statement);
-
-    if (mysql_stmt_close(statement)) return EAR_MYSQL_ERROR;
-
-    return EAR_SUCCESS;
-}
-
 int mysql_retrieve_jobs(MYSQL *connection, char *query, job_t **jobs)
 {
     MYSQL_STMT *statement = mysql_stmt_init(connection);
@@ -1149,7 +981,7 @@ int mysql_retrieve_jobs(MYSQL *connection, char *query, job_t **jobs)
     memset(bind, 0, sizeof(bind));
     //integer types
     bind[0].buffer_type = bind[4].buffer_type = bind[5].buffer_type = bind[12].buffer_type
-    = bind[6].buffer_type = bind[7].buffer_type = bind[10].buffer_type = bind[1].buffer_type = MYSQL_TYPE_LONGLONG;
+        = bind[6].buffer_type = bind[7].buffer_type = bind[10].buffer_type = bind[1].buffer_type = MYSQL_TYPE_LONGLONG;
     bind[0].is_unsigned = bind[10].is_unsigned = 1;
 
     //string types
@@ -1184,15 +1016,15 @@ int mysql_retrieve_jobs(MYSQL *connection, char *query, job_t **jobs)
 
     int ret = EAR_SUCCESS;
     if (mysql_stmt_bind_result(statement, bind)) ret = mysql_statement_error(statement);
-    
+
     if (ret == EAR_SUCCESS) { 
         if (mysql_stmt_execute(statement)) ret = mysql_statement_error(statement);
     }
-    
+
     if (ret == EAR_SUCCESS) {
         if (mysql_stmt_store_result(statement)) ret = mysql_statement_error(statement);
     }
-    
+
     if (ret != EAR_SUCCESS) {
         free(job_aux);
         return ret;
@@ -1208,7 +1040,7 @@ int mysql_retrieve_jobs(MYSQL *connection, char *query, job_t **jobs)
 
     jobs_aux = (job_t*) xcalloc(num_jobs, sizeof(job_t));
     int i = 0;
-    
+
     //fetching and storing of jobs    
     status = mysql_stmt_fetch(statement);
     while (status == 0 || status == MYSQL_DATA_TRUNCATED)
@@ -1229,105 +1061,6 @@ int mysql_retrieve_jobs(MYSQL *connection, char *query, job_t **jobs)
 
 }
 
-//returns id of the inserted signature
-int mysql_insert_signature(MYSQL *connection, signature_t *sig, char is_learning)
-{
-    MYSQL_STMT *statement = mysql_stmt_init(connection);
-    if (!statement) return EAR_MYSQL_ERROR;
-
-    if (!is_learning)
-    {
-        if (mysql_stmt_prepare(statement, SIGNATURE_MYSQL_QUERY, strlen(SIGNATURE_MYSQL_QUERY))) return mysql_statement_error(statement);
-    }
-    else
-    {
-        if (mysql_stmt_prepare(statement, LEARNING_SIGNATURE_MYSQL_QUERY, strlen(LEARNING_SIGNATURE_MYSQL_QUERY))) return mysql_statement_error(statement);
-    }
-
-    int sig_size;
-    if (full_signature)
-        sig_size = 24;
-    else
-        sig_size = 14;
-
-    MYSQL_BIND *bind = xcalloc(sig_size, sizeof(MYSQL_BIND));
-    int i = 0;
-
-    //double storage
-    for (i = 0; i < 11; i++)
-    {
-        bind[i].buffer_type = MYSQL_TYPE_DOUBLE;
-        bind[i].length = 0;
-        bind[i].is_null = 0;
-    }
-
-    //unsigned long long storage
-    for (i = 11; i < sig_size; i++)
-    {
-        bind[i].buffer_type = MYSQL_TYPE_LONGLONG;
-        bind[i].length = 0;
-        bind[i].is_null = 0;
-        bind[i].is_unsigned = 1;
-    }
-
-    //storage variables assignation
-    bind[0].buffer = (char *)&sig->DC_power;
-    bind[1].buffer = (char *)&sig->DRAM_power;
-    bind[2].buffer = (char *)&sig->PCK_power;
-#if 0
-#if USE_GPUS
-    bind[3].buffer = (char *)&sig->GPU_power;
-#else
-    bind[3].buffer_type = MYSQL_TYPE_NULL;
-    bind[3].is_null = (my_bool*) 1;
-#endif
-#endif
-    bind[3].buffer = (char *)&sig->EDP;
-    bind[4].buffer = (char *)&sig->GBS;
-    bind[5].buffer = (char *)&sig->IO_MBS;
-    bind[6].buffer = (char *)&sig->TPI;
-    bind[7].buffer = (char *)&sig->CPI;
-    bind[8].buffer = (char *)&sig->Gflops;
-    bind[9].buffer = (char *)&sig->time;
-    bind[10].buffer = (char *)&sig->perc_MPI;
-    if (full_signature)
-    {
-        bind[11].buffer = (char *)&sig->FLOPS[0];
-        bind[12].buffer = (char *)&sig->FLOPS[1];
-        bind[13].buffer = (char *)&sig->FLOPS[2];
-        bind[14].buffer = (char *)&sig->FLOPS[3];
-        bind[15].buffer = (char *)&sig->FLOPS[4];
-        bind[16].buffer = (char *)&sig->FLOPS[5];
-        bind[17].buffer = (char *)&sig->FLOPS[6];
-        bind[18].buffer = (char *)&sig->FLOPS[7];
-        bind[19].buffer = (char *)&sig->instructions;
-        bind[20].buffer = (char *)&sig->cycles;
-        bind[21].buffer = (char *)&sig->avg_f;
-        bind[22].buffer = (char *)&sig->avg_imc_f;
-        bind[23].buffer = (char *)&sig->def_f;
-    }
-    else
-    {
-        bind[11].buffer = (char *)&sig->avg_f;
-        bind[12].buffer = (char *)&sig->avg_imc_f;
-        bind[13].buffer = (char *)&sig->def_f;
-    }
-    
-    if (mysql_stmt_bind_param(statement, bind)) return mysql_statement_error(statement);
-
-    if (mysql_stmt_execute(statement)) return mysql_statement_error(statement);
-
-    int id = mysql_stmt_insert_id(statement);
-
-    my_ulonglong affected_rows = mysql_stmt_affected_rows(statement);
-
-    if (affected_rows != 1) verbose(VMYSQL,"ERROR: inserting signature failed.\n");
-
-    if (mysql_stmt_close(statement)) return EAR_MYSQL_ERROR;
-
-    return id;
-}
-
 /*Inserts a new signature for a certain job, computes average if it already exists. */
 int mysql_batch_insert_avg_signatures(MYSQL *connection, application_t *app, int num_sigs)
 {
@@ -1344,14 +1077,14 @@ int mysql_batch_insert_avg_signatures(MYSQL *connection, application_t *app, int
 
     query = xmalloc(strlen(AVG_SIGNATURE_MYSQL_QUERY)+num_sigs*strlen(params)+1+strlen(AVG_SIG_ENDING));
     strcpy(query, AVG_SIGNATURE_MYSQL_QUERY);
-	
+
 
     int i, j;
     for (i = 1; i < num_sigs; i++)
         strcat(query, params);
 
     strcat(query, AVG_SIG_ENDING);
-    
+
     if (mysql_stmt_prepare(statement, query, strlen(query))) return mysql_statement_error(statement);
 
 
@@ -1482,7 +1215,7 @@ int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont,
         query = xmalloc(strlen(LEARNING_SIGNATURE_MYSQL_QUERY)+num_sigs*strlen(params)+1);
         strcpy(query, LEARNING_SIGNATURE_MYSQL_QUERY);
     }
-	
+
     for (i = 1; i < num_sigs; i++)
         strcat(query, params);
 
@@ -1498,7 +1231,7 @@ int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont,
                 gpu_sig = &cont.app[i].signature.gpu_sig;
             else if (cont.type == EAR_TYPE_LOOP)
                 gpu_sig = &cont.loop[i].signature.gpu_sig;
-    
+
             current_gpu_sig_id += gpu_sig->num_gpus;
         }
 
@@ -1522,7 +1255,7 @@ int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont,
         current_gpu_sig_id = 0;
     }
 #endif
-    
+
     if (mysql_stmt_prepare(statement, query, strlen(query))) 
     {
 #if USE_GPUS
@@ -1696,13 +1429,13 @@ int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs
 #endif
 
     MYSQL_BIND *bind = xcalloc(num_params, sizeof(MYSQL_BIND));
-    
+
     MYSQL_STMT *statement = mysql_stmt_init(connection);
     if (!statement) {
         free(sig_aux);
         return EAR_MYSQL_ERROR;
     }
-    
+
     int id = 0;
     if (mysql_stmt_prepare(statement, query, strlen(query))) {
         free(sig_aux);
@@ -1779,7 +1512,7 @@ int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs
         free(sig_aux);
         return mysql_statement_error(statement);
     }
-    
+
     if (mysql_stmt_execute(statement)) 
     {
         free(sig_aux);
@@ -1876,7 +1609,7 @@ int mysql_insert_power_signature(MYSQL *connection, power_signature_t *pow_sig)
     if (mysql_stmt_execute(statement)) return mysql_statement_error(statement);
 
     int id = mysql_stmt_insert_id(statement);
-    
+
     if (mysql_stmt_close(statement)) return EAR_MYSQL_ERROR;
 
     return id;
@@ -1939,9 +1672,9 @@ int mysql_batch_insert_power_signatures(MYSQL *connection, application_t *pow_si
         free(query);
         return mysql_statement_error(statement);
     }
-    
+
     int id = mysql_stmt_insert_id(statement);
-    
+
     free(bind);
     free(query);
 
@@ -1970,7 +1703,10 @@ int mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t c
         else if (cont.type == EAR_TYPE_LOOP)
             gpu_sig = &cont.loop[i].signature.gpu_sig;
 
-        num_gpu_sigs += gpu_sig->num_gpus;
+        if (gpu_sig->num_gpus > MAX_GPUS_SUPPORTED)
+            warning("current GPU signature has more GPUs than supported");
+
+        num_gpu_sigs += ear_min(gpu_sig->num_gpus, MAX_GPUS_SUPPORTED);
     }
 
     verbose(VMYSQL + 1, "total number of gpu_sigs: %d", num_gpu_sigs);
@@ -2012,7 +1748,7 @@ int mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t c
 
             //double types
             bind[0+offset].buffer_type = MYSQL_TYPE_DOUBLE;
-            
+
             //storage variable assignation
             bind[0+offset].buffer = (char *)&gpu_sig->gpu_data[j].GPU_power;
             bind[1+offset].buffer = (char *)&gpu_sig->gpu_data[j].GPU_freq;
@@ -2041,7 +1777,7 @@ int mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t c
         free(query);
         return mysql_statement_error(statement);
     }
-    
+
     int id = mysql_stmt_insert_id(statement);
 
     long long affected_rows = mysql_stmt_affected_rows(statement);
@@ -2107,10 +1843,10 @@ int mysql_retrieve_gpu_signatures(MYSQL *connection, char *query, gpu_signature_
         mysql_stmt_close(statement);
         return EAR_ERROR;
     }
-    
+
     i = 0;
     gpu_sig->num_gpus = num_gpu_sigs;
-    
+
 
     //fetching and storing of power_signatures
     status = mysql_stmt_fetch(statement);
@@ -2192,7 +1928,7 @@ int mysql_retrieve_power_signatures(MYSQL *connection, char *query, power_signat
         free(pow_sig_aux);
         return ret;
     }
-    
+
     pow_sigs_aux = (power_signature_t *) xcalloc(num_pow_sigs, sizeof(power_signature_t));
     i = 0;
 
@@ -2216,84 +1952,6 @@ int mysql_retrieve_power_signatures(MYSQL *connection, char *query, power_signat
 
     return num_pow_sigs;
 
-}
-
-int mysql_insert_periodic_metric(MYSQL *connection, periodic_metric_t *per_met)
-{
-    MYSQL_STMT *statement = mysql_stmt_init(connection);
-    MYSQL_BIND *bind;
-    if (!statement) return EAR_MYSQL_ERROR;
-
-    if (mysql_stmt_prepare(statement, PERIODIC_METRIC_MYSQL_QUERY, strlen(PERIODIC_METRIC_MYSQL_QUERY))) return mysql_statement_error(statement);
-#if USE_GPUS
-    uint gpu_extra = 1;
-#else
-    uint gpu_extra = 0;
-#endif
-
-    if (node_detail)
-        bind = xcalloc(10 + gpu_extra, sizeof(MYSQL_BIND));
-    else
-        bind = xcalloc(6, sizeof(MYSQL_BIND));
-
-    memset(bind, 0, sizeof(MYSQL_BIND));
-
-    //integer types
-    int i;
-    for (i = 0; i < 3; i++)
-    {
-        bind[i].buffer_type = MYSQL_TYPE_LONGLONG;
-        bind[i].is_unsigned = 1;
-    }
-    bind[4].buffer_type = bind[5].buffer_type = MYSQL_TYPE_LONGLONG;
-    bind[4].is_unsigned = bind[5].is_unsigned = 1;
-
-    //varchar types
-    bind[3].buffer_type = MYSQL_TYPE_STRING;
-    bind[3].buffer_length = strlen(per_met->node_id);
-
-    //storage variable assignation
-    bind[0].buffer = (char *)&per_met->start_time;
-    bind[1].buffer = (char *)&per_met->end_time;
-    bind[2].buffer = (char *)&per_met->DC_energy;
-    bind[3].buffer = (char *)&per_met->node_id;
-    bind[4].buffer = (char *)&per_met->job_id;
-    bind[5].buffer = (char *)&per_met->step_id;
-    if (node_detail)
-    {
-        bind[6].buffer_type = MYSQL_TYPE_LONGLONG;
-        bind[6].is_unsigned = 1;
-        bind[6].buffer = (char *)&per_met->avg_f;
-        bind[7].buffer_type = MYSQL_TYPE_LONGLONG;
-        bind[7].is_unsigned = 1;
-        bind[7].buffer = (char *)&per_met->temp;
-        bind[8].buffer_type = bind[9].buffer_type = bind[10].buffer_type = MYSQL_TYPE_LONGLONG;
-        bind[8].is_unsigned = bind[9].is_unsigned = bind[10].is_unsigned = 1;
-        bind[8].buffer = (char *)&per_met->DRAM_energy;
-        bind[9].buffer = (char *)&per_met->PCK_energy;
-#if USE_GPUS
-        bind[10].buffer = (char *)&per_met->GPU_energy;
-#endif
-    }
-        
-    int ret = EAR_SUCCESS;
-
-    if (mysql_stmt_bind_param(statement, bind)) ret = mysql_statement_error(statement);
-
-    if (ret == EAR_SUCCESS) {
-        if (mysql_stmt_execute(statement)) ret = mysql_statement_error(statement);
-    }
-
-    int id = EAR_ERROR;
-    if (ret == EAR_SUCCESS) {
-        id = mysql_stmt_insert_id(statement);
-        if (mysql_stmt_close(statement)) ret = EAR_MYSQL_ERROR;
-    }
-
-    free(bind);
-    if (ret != EAR_SUCCESS) return ret;
-
-    return id;
 }
 
 int mysql_insert_periodic_aggregation(MYSQL *connection, periodic_aggregation_t *per_agg)
@@ -2328,13 +1986,17 @@ int mysql_insert_periodic_aggregation(MYSQL *connection, periodic_aggregation_t 
     if (mysql_stmt_execute(statement)) return mysql_statement_error(statement);
 
     int id = mysql_stmt_insert_id(statement);
-    
+
     if (mysql_stmt_close(statement)) return EAR_MYSQL_ERROR;
 
     return id;
 
 }
 
+int mysql_insert_periodic_metric(MYSQL *connection, periodic_metric_t *per_met) 
+{
+    return mysql_batch_insert_periodic_metrics(connection, per_met, 1);
+}
 int mysql_batch_insert_periodic_metrics(MYSQL *connection, periodic_metric_t *per_mets, int num_mets)
 {
     MYSQL_STMT *statement = mysql_stmt_init(connection);
@@ -2370,7 +2032,7 @@ int mysql_batch_insert_periodic_metrics(MYSQL *connection, periodic_metric_t *pe
         free(query);
         return mysql_statement_error(statement); 
     }
-    
+
 
     MYSQL_BIND *bind = xcalloc(num_mets*num_args, sizeof(MYSQL_BIND));
 
@@ -2402,8 +2064,8 @@ int mysql_batch_insert_periodic_metrics(MYSQL *connection, periodic_metric_t *pe
             bind[8+offset].buffer = (char *)&per_mets[i].DRAM_energy;
             bind[9+offset].buffer = (char *)&per_mets[i].PCK_energy;
 #if USE_GPUS
-            bind[10+offset].buffer_type = MYSQL_TYPE_LONGLONG;
-            bind[10+offset].is_unsigned = 1;
+            bind[10 + offset].buffer_type = MYSQL_TYPE_LONGLONG;
+            bind[10 + offset].is_unsigned = 1;
             bind[10+offset].buffer = (char *)&per_mets[i].GPU_energy;
 #endif
         }
@@ -2526,7 +2188,7 @@ int mysql_insert_ear_event(MYSQL *connection, ear_event_t *ear_ev)
     if (mysql_stmt_execute(statement)) return mysql_statement_error(statement);
 
     int id = mysql_stmt_insert_id(statement);
-    
+
     if (mysql_stmt_close(statement)) return EAR_MYSQL_ERROR;
 
     return id;
@@ -2633,7 +2295,7 @@ int mysql_insert_gm_warning(MYSQL *connection, gm_warning_t *warning)
     bind[7].buffer = (char *)&warning->energy_p1;
     bind[8].buffer = (char *)&warning->energy_p2;
     bind[9].buffer = (char *)&warning->policy;
-    
+
 
     if (mysql_stmt_bind_param(statement, bind)) return mysql_statement_error(statement);
 
@@ -2642,6 +2304,64 @@ int mysql_insert_gm_warning(MYSQL *connection, gm_warning_t *warning)
     if (mysql_stmt_close(statement)) return EAR_MYSQL_ERROR;
 
     return EAR_SUCCESS;
+
+}
+
+
+int mysql_run_query_string_results(MYSQL *connection, char *query, char ****results, int *num_columns)
+{
+    int i, j;
+    int num_rows, num_cols;
+    char ***tmp_res;
+    MYSQL_RES *result;
+    MYSQL_ROW row;
+
+    if (mysql_query(connection, query))
+    {
+        error("Error executing query");
+        return EAR_ERROR;
+    }
+
+    result = mysql_store_result(connection);
+
+    num_rows = mysql_num_rows(result);
+    num_cols = mysql_num_fields(result);
+    if (num_rows < 1 || num_cols < 1) {
+        error("No rows or columns were returned");
+        return EAR_ERROR;
+    }
+
+    tmp_res = calloc(num_rows, sizeof(char **));
+    for (i = 0; i < num_rows; i++)
+    {
+        row = mysql_fetch_row(result);
+        if (row == NULL) { //if no more rows exist we free the remaining memory and return early
+            num_rows = i;
+            tmp_res = realloc(tmp_res, num_rows*sizeof(char **));
+            break;
+        }
+
+        tmp_res[i] = calloc(num_cols, sizeof(char *));
+
+        for (j = 0; j < num_cols; j++)
+        {
+            if (row[i] == NULL)
+            {
+                tmp_res[i][j] = NULL;
+                continue;
+            }
+            tmp_res[i][j] = calloc(strlen(row[i]), sizeof(char));
+            strcpy(tmp_res[i][j], row[i]);
+        }
+
+    }
+
+
+    mysql_free_result(result);
+
+    *results = tmp_res;
+    *num_columns = num_cols;
+    return num_rows;
 
 }
 

@@ -128,10 +128,26 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
         {
             tags[idx].max_powercap = atol(value);
         }
-				else if (!strcmp(key, "GPU_DEF_FREQ"))
-				{
-						tags[idx].gpu_def_freq = atol(value);
-				}
+        else if (!strcmp(key, "GPU_DEF_FREQ"))
+        {
+            tags[idx].gpu_def_freq = atol(value);
+        }
+        else if (!strcmp(key, "CPU_MAX_PSTATE"))
+        {
+            tags[idx].cpu_max_pstate = atol(value);
+        }
+        else if (!strcmp(key, "IMC_MAX_PSTATE"))
+        {
+            tags[idx].imc_max_pstate = atol(value);
+        }
+		else if (!strcmp(key, "IMC_MAX_FREQ"))
+		{
+			tags[idx].imc_max_freq = (ulong)atol(value);
+		}
+		else if (!strcmp(key, "IMC_MIN_FREQ"))
+		{
+			tags[idx].imc_min_freq = (ulong)atol(value);
+		}
         //MODELS
         else if (!strcmp(key, "ENERGY_MODEL"))
         {
@@ -192,7 +208,8 @@ void print_tags_conf(tag_t *tag)
     verbosen(VCCONF, "--> Tag: %s\ttype: %d\tdefault: %d\tpowercap_type: %d\n", tag->id, tag->type, tag->is_default, tag->powercap_type);
     verbosen(VCCONF, "\t\tavx512_freq: %lu\tavx2_freq: %lu\tmax_power: %lu\tmin_power: %lu\terror_power: %lu\t max_powercap: %lu\n", 
                      tag->max_avx512_freq, tag->max_avx2_freq, tag->max_power, tag->min_power, tag->error_power, tag->max_powercap);
-	verbosen(VCCONF, "\t\tgpu_def_freq %lu\n",tag->gpu_def_freq);
+	verbosen(VCCONF, "\t\tgpu_def_freq %lu / cpu_max_pstate %d / imc_max_pstate %d\n", tag->gpu_def_freq, tag->cpu_max_pstate, tag->imc_max_pstate);
+		verbosen(VCCONF, "\t\timc_max_freq %lu imc_min_freq %lu\n", tag->imc_max_freq, tag->imc_min_freq);
     verbosen(VCCONF, "\t\tenergy_model: %s\tenergy_plugin: %s\tpowercap_plugin: %s", tag->energy_model, tag->energy_plugin, tag->powercap_plugin);
 		if (tag->powercap == DEF_POWER_CAP){
 			verbosen(VCCONF,"\t\t powercap set_def\n");

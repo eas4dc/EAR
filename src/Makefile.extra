@@ -8,16 +8,16 @@ rclean:
 
 %.ginstall:
 ifdef REPLACE
-	@ (cd $($*_PATH) && rm -f $($*_BINS))
+	@ (test '$($*_BINS)' && (cd $($*_PATH) && rm -f $($*_BINS)) || true)
 endif
-	@ (cp -f $($*_BINS) $($*_PATH))
+	@ (test '$($*_BINS)' && cp -f $($*_BINS) $($*_PATH) || true)
 ifdef CHOWN_USR
-	@ (cd $($*_PATH) && chown $(CHOWN_USR) $($*_BINS))
+	@ (test '$($*_BINS)' && (cd $($*_PATH) && chown $(CHOWN_USR) $($*_BINS)) || true)
 endif
 ifdef CHOWN_GRP
-	@ (cd $($*_PATH) && chgrp $(CHOWN_GRP) $($*_BINS))
+	@ (test '$($*_BINS)' && (cd $($*_PATH) && chgrp $(CHOWN_GRP) $($*_BINS)) || true)
 endif
-	@ (cd $($*_PATH) && chmod $($*_PERM) $($*_BINS))
+	@ (test '$($*_BINS)' && (cd $($*_PATH) && chmod $($*_PERM) $($*_BINS)) || true)
 
 %.finstall:
 	@ (mkdir -p $($*_PATH))

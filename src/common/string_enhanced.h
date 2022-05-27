@@ -22,6 +22,7 @@
 #include <getopt.h>
 #include <linux/limits.h>
 #include <common/utils/string.h>
+#include <common/output/verbose.h>
 
 #define STR_MAX_COLUMNS		20
 #define STR_SIZE_BUFFER		PIPE_BUF
@@ -38,8 +39,8 @@
 #define STR_MODE_COL		1
 #define STR_MODE_CSV		2
 
-char tprintf_ibuf[STR_SIZE_BUFFER];
-char tprintf_obuf[STR_SIZE_BUFFER];
+char tprintf_ibuf[STR_SIZE_BUFFER] __attribute__((weak));
+char tprintf_obuf[STR_SIZE_BUFFER] __attribute__((weak));
 
 #define tprintf(...) \
 	snprintf(tprintf_ibuf, STR_SIZE_BUFFER-1, __VA_ARGS__); \
@@ -47,6 +48,9 @@ char tprintf_obuf[STR_SIZE_BUFFER];
 
 /** **/
 int tprintf_init(int fd, int mode, char *format);
+
+/** Using this version the output is redirected to verbose. */
+int tprintf_init_v2(int v, int mode, char *format);
 
 /** **/
 int tprintf_format();
@@ -72,4 +76,6 @@ int strinargs(int argc, char *argv[], const char *opt, char *value);
 /** Removes characters c from string s. */
 void remove_chars(char *s, char c);
 
+/* Parses src into a list of char* elements with n num_elements separated by separator in src. */
+void str_cut_list(char *src, char ***elements, int *num_elements, char *separator);
 #endif

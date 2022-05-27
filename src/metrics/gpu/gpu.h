@@ -22,6 +22,7 @@
 #include <common/states.h>
 #include <common/plugins.h>
 #include <common/system/time.h>
+#include <metrics/common/apis.h>
 
 // This is an API to monitorize the GPU devices of the node.
 //
@@ -44,9 +45,9 @@
 //		gpu_data_diff(data2, data1, data_diff);
 //		gpu_dispose(&context);
 
-#define MODEL_NVML			2
-#define MODEL_DUMMY			1
-#define MODEL_UNDEFINED		0
+#define MODEL_NVML			API_NVML
+#define MODEL_DUMMY			API_DUMMY
+#define MODEL_UNDEFINED	API_NONE
 
 typedef struct gpu_s
 {
@@ -80,6 +81,7 @@ typedef struct gpu_ops_s
 	state_t (*read_copy)	(ctx_t *c, gpu_t *data2, gpu_t *data1, gpu_t *data_diff);
 	state_t (*read_raw)		(ctx_t *c, gpu_t *data);
 	state_t (*data_diff)	(gpu_t *data2, gpu_t *data1, gpu_t *data_diff);
+  state_t (*data_diff_gpus) (gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int gpus);
 	state_t (*data_merge)	(gpu_t *data_diff, gpu_t *data_merge);
 	state_t (*data_alloc)	(gpu_t **data);
 	state_t (*data_free)	(gpu_t **data);
@@ -117,6 +119,8 @@ state_t gpu_read_raw(ctx_t *c, gpu_t *data);
 
 // Substracts the elements of the gpu_t array (data_diff = data2 - data1).
 state_t gpu_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff);
+// Substracts the elements of the gpu_t array (data_diff = data2 - data1). num gpus is explicitly set
+state_t gpu_data_diff_gpus(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int gpus);
 
 // Makes an average of all the elements of the data_diff array.
 state_t gpu_data_merge(gpu_t *data_diff, gpu_t *data_merge);

@@ -31,6 +31,11 @@
 #define RAPL_DRAM_EV        0
 #define RAPL_PCK_EV         1
 
+/*Intel® 64 and IA-32 Architectures
+ * Software Developer’s Manual
+ * Volume 3B:
+ * System Programming Guide, Part 2
+ */
 
 /** Opens the necessary fds to read the MSR registers. Returns 0 on success
 * 	and -1 on error. */
@@ -42,6 +47,12 @@ void dispose_rapl_msr(int *fd_map);
 /** Reads rapl counters and stores them in values array. Returns 0 on success 
 *	and -1 on error. */
 int read_rapl_msr(int *fd_map,ullong *_values);
+
+/** Reads the PCK TDP and copy in tdps. Returns EAR_SUCCESS or EAR_ERROR */
+int read_rapl_pck_tdp(int *fd_map, double *tdps);
+/** Reads the DRAM TDP and copy in tdps. Returns EAR_SUCCESS or EAR_ERROR */
+int read_rapl_dram_tdp(int *fd_map, double *tdps);
+
 
 void rapl_msr_energy_to_str(char *b,ullong *values);
 

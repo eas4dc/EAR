@@ -32,7 +32,7 @@ static mgt_imcfreq_ops_t ops;
 static uint sockets_count;
 static uint api;
 
-state_t mgt_imcfreq_load(topology_t *tp, int eard)
+state_t mgt_imcfreq_load(topology_t *tp, int eard, my_node_conf_t *conf)
 {
 	state_t s;
 	while (pthread_mutex_trylock(&lock));
@@ -49,7 +49,7 @@ state_t mgt_imcfreq_load(topology_t *tp, int eard)
 		api = API_AMD17;
 		debug("Loaded AMD17");
 	}
-	if (state_ok(s = mgt_imcfreq_intel63_load(tp, &ops))) {
+	if (state_ok(s = mgt_imcfreq_intel63_load(tp, &ops, conf))) {
 		api = API_INTEL63;
 		debug("Loaded INTEL63");
 	}

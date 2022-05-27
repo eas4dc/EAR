@@ -17,12 +17,13 @@
 
 #ifndef _EAR_BASE_H_
 #define _EAR_BASE_H
+#include <common/types.h>
 
-/** Executed at application start. Reads EAR configuration env. variables */
-void states_begin_job(int my_id,  char *app_name);
+/** Executed at application start. Reads EAR configuration environment variables. */
+void states_begin_job(int my_id, char *app_name);
 
 /** Executed at NEW_LOOP or END_NEW_LOOP DynAIS event */
-void states_begin_period(int my_id, ulong event, ulong size,ulong level);
+void states_begin_period(int my_id, ulong event, ulong size, ulong level);
 
 /** Executed at NEW_ITERATION DynAIS event */
 void states_new_iteration(int my_id, uint size, uint iterations, uint level, ulong event,ulong mpi_calls_iter,uint dynais_used);
@@ -35,8 +36,4 @@ void states_end_job(int my_id, char *app_name);
 
 /** Returns the current EAR state */
 int states_my_state();
-
-/** */
-ulong select_near_freq(ulong avg);
-
 #endif

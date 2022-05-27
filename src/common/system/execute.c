@@ -42,7 +42,7 @@ int execute_with_fork(char *cmd)
       return EAR_ERROR;
     }else return EAR_SUCCESS;
 }
-int execute(char *cmd)
+__attribute__ ((used))int execute(char *cmd)
 {
   int ret;
   ret=system(cmd);

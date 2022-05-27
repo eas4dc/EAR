@@ -31,7 +31,8 @@
 #include <library/common/externs.h>
 #include <library/models/models.h>
 
-
+/* This variable enables/disables the utilization of energy models in power policies */
+extern uint use_energy_models;
 
 state_t init_power_models(uint user_type,conf_install_t *data,architecture_t *arch_desc)
 {
@@ -40,6 +41,7 @@ state_t init_power_models(uint user_type,conf_install_t *data,architecture_t *ar
 	debug("Projections for %d pstates",arch_desc->pstates);
 	projection_create(arch_desc->pstates);
 	projection_reset(arch_desc->pstates);
+	if (projections_available() == EAR_ERROR) use_energy_models = 0;
 	return st;
 }
 

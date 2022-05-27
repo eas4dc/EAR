@@ -15,121 +15,104 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
+#include <pthread.h>
+// #define SHOW_DEBUGS 1
 #include <common/output/debug.h>
 #include <metrics/flops/flops.h>
-#include <metrics/flops/cpu/dummy.h>
-#include <metrics/flops/cpu/amd49.h>
-#include <metrics/flops/cpu/intel63.h>
+#include <metrics/flops/archs/perf.h>
+#include <metrics/flops/archs/dummy.h>
 
-static struct bandwidth_ops {
-	state_t (*init)		(ctx_t *c);
-	state_t (*dispose)	(ctx_t *c);
-	state_t (*count)	(ctx_t *c, uint *count);
-	state_t (*reset)	(ctx_t *c);
-	state_t (*start)	(ctx_t *c);
-	state_t (*stop)		(ctx_t *c, llong *flops, llong *ops);
-	state_t (*read)		(ctx_t *c, llong *flops, llong *ops);
-	state_t (*read_accum) (ctx_t *c, llong *flops);
-	state_t (*weights)	(uint *weights);
-} ops;
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static flops_ops_t ops;
+static uint init;
+static uint api;
 
-static ctx_t context;
-static ctx_t *c = &context;
-static topology_t topo;
-
-int init_flops_metrics()
+state_t flops_load(topology_t *tp, int eard)
 {
-	topology_init(&topo);
-
-	if (state_ok(flops_intel63_status(&topo)))
-	{
-		debug("loaded intel63");
-		ops.init       = flops_intel63_init;
-		ops.dispose    = flops_intel63_dispose;
-		ops.count      = flops_intel63_count;
-		ops.weights    = flops_intel63_weights;
-		ops.reset      = flops_intel63_reset;
-		ops.start      = flops_intel63_start;
-		ops.stop       = flops_intel63_stop;
-		ops.read       = flops_intel63_read;
-		ops.read_accum = flops_intel63_read_accum;
-	} else if (state_ok(flops_amd49_status(&topo)))
-	{
-		debug("loaded amd49");
-		ops.init       = flops_amd49_init;
-		ops.dispose    = flops_amd49_dispose;
-		ops.count      = flops_amd49_count;
-		ops.weights    = flops_amd49_weights;
-		ops.reset      = flops_amd49_reset;
-		ops.start      = flops_amd49_start;
-		ops.stop       = flops_amd49_stop;
-		ops.read       = flops_amd49_read;
-		ops.read_accum = flops_amd49_read_accum;
-	} else {
-		debug("load dummy");
-		ops.init       = flops_dummy_init;
-		ops.dispose    = flops_dummy_dispose;
-		ops.count      = flops_dummy_count;
-		ops.weights    = flops_dummy_weights;
-		ops.reset      = flops_dummy_reset;
-		ops.start      = flops_dummy_start;
-		ops.stop       = flops_dummy_stop;
-		ops.read       = flops_dummy_read;
-		ops.read_accum = flops_dummy_read_accum;
+	while (pthread_mutex_trylock(&lock));
+	// Already initialized
+	if (api != API_NONE) {
+		return EAR_SUCCESS;
 	}
-
-	ops.init(c);
-
-	return 1;
+	api = API_DUMMY;
+	if (state_ok(flops_perf_load(tp, &ops))) {
+		api = API_PERF;
+	}
+	flops_dummy_load(tp, &ops);
+	init = 1;
+	pthread_mutex_unlock(&lock);
+	return EAR_SUCCESS;
 }
 
-void reset_flops_metrics()
+state_t flops_get_api(uint *api_in)
 {
-	if (ops.reset != NULL) {
-		ops.reset(c);
-	}
+	*api_in = api;
+	return EAR_SUCCESS;
 }
 
-void start_flops_metrics()
+state_t flops_init(ctx_t *c)
 {
-	if (ops.start != NULL) {
-		ops.start(c);
-	}
+	while (pthread_mutex_trylock(&lock));
+	state_t s = ops.init(c);
+	pthread_mutex_unlock(&lock);
+	return s;
 }
 
-void read_flops_metrics(llong *flops, llong *_ops)
+state_t flops_dispose(ctx_t *c)
 {
-	if (ops.read != NULL) {
-		ops.read(c, flops, _ops);
-	}
+	return ops.dispose(c);
 }
 
-void stop_flops_metrics(llong *flops, llong *_ops)
+state_t flops_read(ctx_t *c, flops_t *fl)
 {
-	if (ops.stop != NULL) {
-		ops.stop(c, flops, _ops);
-	}
+	return ops.read(c, fl);
 }
 
-int get_number_fops_events()
+// Helpers
+state_t flops_read_diff(ctx_t *c, flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs)
 {
-	int count = 0;
-	if (ops.count != NULL) {
-		ops.count(c, (unsigned int *)&count);
+	state_t s;
+	if (state_fail(s = ops.read(c, fl2))) {
+		return s;
 	}
-	return count;
+	return ops.data_diff(fl2, fl1, flD, gfs);
 }
 
-void get_total_fops(llong *flops)
+state_t flops_read_copy(ctx_t *c, flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs)
 {
-	if (ops.read_accum != NULL) {
-		ops.read_accum(c, flops);
+	state_t s;
+	if (state_fail(s = flops_read_diff(c, fl2, fl1, flD, gfs))) {
+		return s;
 	}
+	return ops.data_copy(fl2, fl1);
 }
 
-void get_weigth_fops_instructions(int *weigths)
+state_t flops_data_diff(flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs)
 {
-	if (ops.weights != NULL) {
-		ops.weights((unsigned int *)weigths);
-	}
+	return ops.data_diff(fl2, fl1, flD, gfs);
+}
+
+state_t flops_data_accum(flops_t *flA, flops_t *flD, double *gfs)
+{
+    return ops.data_accum(flA, flD, gfs);
+}
+
+state_t flops_data_copy(flops_t *dst, flops_t *src)
+{
+	return ops.data_copy(dst, src);
+}
+
+state_t flops_data_print(flops_t *flD, double gfs, int fd)
+{
+	return ops.data_print(flD, gfs, fd);
+}
+
+state_t flops_data_tostr(flops_t *flD, double gfs, char *buffer, size_t length)
+{
+	return ops.data_tostr(flD, gfs, buffer, length);
+}
+
+ullong *flops_help_toold(flops_t *flD, ullong *old_flops)
+{
+    return flops_dummy_help_toold(flD, old_flops);
 }

@@ -20,25 +20,63 @@
 
 #include <common/states.h>
 #include <common/plugins.h>
+#include <common/system/time.h>
 #include <common/hardware/topology.h>
 
-state_t cache_load(topology_t *tp);
+// Compatibility:
+//  ----------------------------------------------------------------------------
+//  | Architecture    | F/M | Comp. | Granularity | Comments                   |
+//  ----------------------------------------------------------------------------
+//  | Intel HASWELL   | 63  | v     | Process     | L1 and L2 no writes        |
+//  | Intel BROADWELL | 79  | v     | Process     | L1 and L2 no writes        |
+//  | Intel SKYLAKE   | 85  | v     | Process     | L1 and L2 no writes        |
+//  | AMD ZEN+/2      | 17h | v     | Process     | L1 no writes, no L2        |
+//  | AMD ZEN3        | 19h | v     | Process     | L1 no writes, no L2        |
+//  ---------------------------------------------------------------------------|
+// Props:
+//  - Thread safe: yes
+//  - Requires root: no
 
-state_t cache_init();
+typedef struct cache_s {
+	timestamp_t time;
+	ullong l1d_misses;
+	ullong l2_misses;
+    ullong l3r_misses;
+    ullong l3w_misses;
+    ullong l3_misses;
+} cache_t;
 
-state_t cache_dispose();
+typedef struct coche_ops_s {
+	state_t (*init)            (ctx_t *c);
+	state_t (*dispose)         (ctx_t *c);
+	state_t (*read)            (ctx_t *c, cache_t *ca);
+	state_t (*data_diff)       (cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs);
+	state_t (*data_copy)       (cache_t *dst, cache_t *src);
+	state_t (*data_print)      (cache_t *ca, double gbs, int fd);
+	state_t (*data_tostr)      (cache_t *ca, double gbs, char *buffer, size_t length);
+} cache_ops_t;
 
-state_t cache_reset();
+state_t cache_load(topology_t *tp, int eard);
 
-state_t cache_start();
+state_t cache_get_api(uint *api);
 
-state_t cache_stop(llong *L1_misses, llong *LL_misses);
+state_t cache_init(ctx_t *c);
 
-state_t cache_read(llong *L1_misses, llong *LL_misses);
+state_t cache_dispose(ctx_t *c);
 
-state_t cache_data_print(llong L1_misses, llong LL_misses);
+state_t cache_read(ctx_t *c, cache_t *ca);
 
-/* This is an obsolete function to make metrics.c compatible. */
-void get_cache_metrics(llong *L1_misses, llong *LL_misses);
+// Helpers
+state_t cache_read_diff(ctx_t *c, cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs);
+
+state_t cache_read_copy(ctx_t *c, cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs);
+
+state_t cache_data_diff(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs);
+
+state_t cache_data_copy(cache_t *dst, cache_t *src);
+
+state_t cache_data_print(cache_t *caD, double gbs, int fd);
+
+state_t cache_data_tostr(cache_t *caD, double gbs, char *buffer, size_t length);
 
 #endif //METRICS_CACHE_H

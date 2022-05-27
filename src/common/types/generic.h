@@ -29,22 +29,22 @@ typedef   signed long long	llong;
 typedef unsigned long		ulong;
 typedef unsigned short		ushort;
 typedef unsigned int		uint;
-typedef long double			ldouble;
+typedef     long double		ldouble;
 
 // Not generic
 typedef uint8_t			job_type;
 typedef ulong			job_id;
 
-#define GENERIC_NAME 		256
-#define SHORT_GENERIC_NAME 		16
-#define	UID_NAME			8
-#define POLICY_NAME 		32
-#define ENERGY_TAG_SIZE		32
-#define MAX_PATH_SIZE		256
-#define NODE_SIZE			256
-#define NAME_SIZE			128
-#define ID_SIZE				64
-#define USER			64
+#define GENERIC_NAME        256
+#define SHORT_GENERIC_NAME  16
+#define	UID_NAME            8
+#define POLICY_NAME         32
+#define ENERGY_TAG_SIZE     32
+#define MAX_PATH_SIZE       256
+#define NODE_SIZE           256
+#define NAME_SIZE           128
+#define ID_SIZE             64
+#define USER                64
 
 #define ear_min(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define ear_max(X, Y) (((X) > (Y)) ? (X) : (Y))

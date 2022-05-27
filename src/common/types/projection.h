@@ -45,6 +45,7 @@ state_t project_time(signature_t *sign, ulong from,ulong to,double *ptime);
 state_t project_power(signature_t *sign, ulong from,ulong to,double *ppower);
 
 state_t projection_available(ulong from,ulong to);
+state_t projections_available();
 
 // Inherited
 /** Allocates memory to contain the projections for the p_states given by

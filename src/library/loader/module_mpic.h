@@ -18,6 +18,6 @@
 #ifndef LIBRARY_LOADER_MPIC_H
 #define LIBRARY_LOADER_MPIC_H
 
-#include <library/api/mpi.h>
+//#include <library/api/mpi.h>
 
 #endif //LIBRARY_LOADER_MPIC_H

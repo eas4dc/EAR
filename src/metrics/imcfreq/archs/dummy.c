@@ -94,6 +94,7 @@ state_t imcfreq_dummy_read(ctx_t *c, imcfreq_t *i)
 
 state_t imcfreq_dummy_data_alloc(imcfreq_t **i, ulong **freq_list)
 {
+		debug("Data alloc %lu bytes",devs_count*sizeof(imcfreq_t));
     if (i != NULL) {
         if ((*i = (imcfreq_t *) calloc(devs_count, sizeof(imcfreq_t))) == NULL) {
             return_msg(EAR_ERROR, strerror(errno));

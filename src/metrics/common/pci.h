@@ -23,7 +23,9 @@
 #include <common/states.h>
 
 typedef struct pci_s {
-	char *path[128];
+	off_t  map_addrs[32];
+	void  *map_ptxs[32];
+	char   path[128];
 	mode_t mode;
 	int fd;
 } pci_t;
@@ -37,5 +39,10 @@ state_t pci_read(pci_t *pci, void *buffer, size_t size, off_t addr);
 state_t pci_write(pci_t *pci, const void *buffer, size_t size, off_t addr);
 
 state_t pci_mwrite32(pci_t *pcis, uint pcis_count, const uint *buffer, off_t *addrs, uint addrs_count);
+
+/* Maps a physical address to the void pointer p. */
+state_t pci_mmio_map(off_t addr, size_t size, void **p);
+
+state_t pci_mmio_unmap(void *p);
 
 #endif //EAR_PCI_H

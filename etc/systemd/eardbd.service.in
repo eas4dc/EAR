@@ -1,6 +1,6 @@
 [Unit]
 Description=EARDBD - Energy Aware Runtime database cache daemon
-ConditionPathExists=@localstatedir@
+#ConditionPathExists=@localstatedir@
 #Wants=req1.service req2.service
 #After=req1.service req2.service
 
@@ -9,7 +9,8 @@ ConditionPathExists=@localstatedir@
 Type=simple
 Environment="EAR_ETC=@sysconfdir@"
 ExecStart=@prefix@/sbin/eardbd
-ExecReload=/bin/kill -HUP $MAINPID
+#ExecStart=@prefix@/sbin/eardbd --server
+#ExecStart=@prefix@/sbin/eardbd --mirror
 ExecStop=/bin/kill -TERM $MAINPID
 #Restart=on-failure
 KillMode=process

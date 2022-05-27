@@ -13,6 +13,9 @@ all: $(libc_OBJS)
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<
 
+stress.o: stress.c stress.h
+	$(CC) $(CFLAGS) -mavx2 -c $<
+
 ######## OPTIONS
 
 install: ;

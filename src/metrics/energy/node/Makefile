@@ -7,13 +7,28 @@ ener_OBJS = \
     energy_rapl.o \
     energy_dcmi.o \
     energy_sd650.o \
-		energy_inm_power.o
+    energy_inm_power.o \
+    energy_SD650N_V2.o \
+    energy_dummy.o
+
+ifdef FREEIPMI_BASE
+ener_OBJS +=\
+		energy_inm_power_freeipmi.o
+endif
+
 ener_BINS = \
     energy_nm.so \
     energy_rapl.so \
     energy_dcmi.so \
     energy_sd650.so \
-		energy_inm_power.so
+    energy_inm_power.so \
+    energy_SD650N_V2.so \
+    energy_dummy.so
+
+ifdef FREEIPMI_BASE
+ener_BINS += \
+		energy_inm_power_freeipmi.so
+endif
 
 ener_PATH = $(DESTDIR)/lib/plugins/energy
 ener_PERM = 0775
@@ -26,6 +41,12 @@ rapl_DEPS = \
 ######## RULES
 
 all: $(ener_BINS)
+
+energy_inm_power_freeipmi.o:energy_inm_power_freeipmi.c
+	$(CC) $(CC_FLAGS) $(CFLAGS) $(FREEIPMI_CFLAGS) -c $<
+
+energy_inm_power_freeipmi.so:energy_inm_power_freeipmi.o
+	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ $(FREEIPMI_LDFLAGS) $(ener_DEPS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<

@@ -65,6 +65,7 @@ static gpu_t *gpu_pc_power_data;
 static ulong gpu_pc_total_util = 0;
 static double *gpu_cons_power;
 static ulong *gpu_freq;
+static suscription_t *sus_gpu;
 
 
 #define MIN_GPU_IDLE_POWER 40
@@ -102,6 +103,8 @@ state_t gpu_pc_thread_main(void *p)
 {
     uint i, j;
     uint gpu_local_util = 0;
+
+    if (current_gpu_pc <= 1) return EAR_SUCCESS;
 
     if (!gpu_pc_enabled) return EAR_SUCCESS;
     if (gpu_read(&gpu_pc_ctx_data,values_gpu_end) != EAR_SUCCESS){
@@ -250,11 +253,22 @@ state_t enable(suscription_t *sus)
     }
     sus->call_main = gpu_pc_thread_main;
     sus->call_init = gpu_pc_thread_init;
-    sus->time_relax = 1000;
+    sus->time_relax = 60000;
     sus->time_burst = 1000;
     sus->suscribe(sus);
+    sus_gpu = sus;
 
     return ret;
+}
+
+state_t plugin_set_burst()
+{
+    return monitor_burst(sus_gpu);
+}
+
+state_t plugin_set_relax()
+{
+    return monitor_relax(sus_gpu);
 }
 
 state_t set_powercap_value(uint pid,uint domain,ulong limit,ulong *gpu_util)
@@ -288,6 +302,16 @@ state_t increase_powercap_allocation(uint increase)
     return int_set_powercap_value(current_gpu_pc, gpu_pc_util);
 }
 
+state_t restore_powercap()
+{
+    int i;
+    for (i = 0; i < gpu_pc_num_gpus; i++)
+    {
+        gpu_pc_curr_power[i] = gpu_pc_max_power[i];
+    }
+    return mgt_gpu_power_cap_set(&gpu_pc_ctx,gpu_pc_curr_power);
+}
+
 static state_t int_set_powercap_value(ulong limit,ulong *gpu_util)
 {
     state_t ret;
@@ -295,6 +319,10 @@ static state_t int_set_powercap_value(ulong limit,ulong *gpu_util)
     float alloc,ualloc;
     ulong gpu_idle=0,gpu_run=0,total_util=0;
     current_gpu_pc=limit;
+
+    if (current_gpu_pc == POWER_CAP_UNLIMITED) {
+        return restore_powercap();
+    }
     /* Set data */
     debug("%s",COL_BLU);
     debug("GPU: set_powercap_value %lu",limit);
@@ -416,7 +444,7 @@ uint get_powercap_status(domain_status_t *status)
     status->stress = 0;
     status->current_pc = current_gpu_pc;
 
-    if (current_gpu_pc == PC_UNLIMITED){
+    if (current_gpu_pc == POWER_CAP_UNLIMITED){
         return 0;
     }
     /* If we are not using th GPU we can release all the power */

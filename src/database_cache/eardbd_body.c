@@ -122,8 +122,10 @@ static void manage_alarms(struct timeval *timeout_slct)
 				peraggr_t *q = (peraggr_t *) &p[samples_index[index_aggrs]];
 
 				if (q->n_samples > 0) {
-					verb_who("completed the aggregation number '%lu' with energy '%lu'",
-						 samples_index[index_aggrs], q->DC_energy);
+                    if (verbosity >= 2) {
+					    verb_who("completed the aggregation number '%lu' with energy '%lu'",
+					        samples_index[index_aggrs], q->DC_energy);
+                    }
 					// Aggregation time done, so new aggregation incoming
 					storage_sample_add(NULL, type_alloc_len[index_aggrs], &samples_index[index_aggrs], NULL, 0, EDB_SYNC_TYPE_AGGRS);
 					// Initializing the new element
@@ -321,7 +323,7 @@ void release()
 		process_pid_file_clean(&proc_mirror);
 	}
 	//
-	log_close();
+	log_close(-1);
 	// End releasing
 	releasing = 0;
 }

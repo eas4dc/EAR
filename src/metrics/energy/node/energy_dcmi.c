@@ -15,8 +15,6 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-//#define SHOW_DEBUGS 1
-
 #include <math.h>
 #include <errno.h>
 #include <stdio.h>
@@ -28,24 +26,33 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/time.h>
-#include <pthread.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
+
+//#define SHOW_DEBUGS 1
+
 #include <common/states.h> 
-#include <common/types/generic.h> 
 #include <common/math_operations.h>
+#include <common/types/generic.h> 
 #include <common/output/verbose.h>
+#include <common/system/monitor.h>
 #include <metrics/energy/node/energy_dcmi.h>
 #include <metrics/energy/node/energy_node.h>
-#include <common/system/monitor.h>
 
-static pthread_mutex_t ompi_lock = PTHREAD_MUTEX_INITIALIZER;
-static ulong dcmi_timeframe;
-static suscription_t *dcmi_sus;
-static ulong dcmi_already_loaded=0;
-static ulong dcmi_accumulated_energy=0;
-static dcmi_power_data_t dcmi_current_power_reading,dcmi_last_power_reading;
-static struct ipmi_intf dcmi_context_for_pool;
+#define MAX_LOCK_TRIES  1000000000
+#define MIN_READ_PERIOD 2000       /*!< The minimum period time to for the periodic thread to read the power. */
+
+static struct ipmi_intf         dcmi_context_for_pool;
+static        dcmi_power_data_t dcmi_current_power_reading;
+static        dcmi_power_data_t dcmi_last_power_reading;
+static        ulong             dcmi_timeframe;
+static        suscription_t    *dcmi_sus;
+
+static int    monitor_done                            = 0;
+static        ulong           dcmi_accumulated_energy = 0;
+static        pthread_mutex_t ompi_lock               = PTHREAD_MUTEX_INITIALIZER;
+
+static state_t dcmi_thread_init(void *p);
 
 static int opendev(struct ipmi_intf *intf)
 {
@@ -301,136 +308,160 @@ state_t dcmi_get_capabilities(struct ipmi_intf *intf, struct ipmi_data *out)
 
 state_t dcmi_power_reading(struct ipmi_intf *intf, struct ipmi_data *out,dcmi_power_data_t *cpower)
 {
-	struct ipmi_rs *rsp;
-	struct ipmi_rq req;
-	uint8_t msg_data[4];
-	uint16_t current_power, min_power,max_power,avg_power;
-	uint16_t *current_powerp, *min_powerp,*max_powerp,*avg_powerp;
-	uint32_t timeframe,timestamp;
-	uint32_t *timeframep,*timestampp;
-	int i;
+    struct ipmi_rs *rsp;
+    struct ipmi_rq req;
+    uint8_t msg_data[4];
+    uint16_t current_power, min_power,max_power,avg_power;
+    uint16_t *current_powerp, *min_powerp,*max_powerp,*avg_powerp;
+    uint32_t timeframe,timestamp;
+    uint32_t *timeframep,*timestampp;
+    int i;
 
-/*
- * NETFN=0x2c 
- * COMMAND=0x02 
- * Group EXTENSSION=0xdc 
- * 0x01=SYTEMPOWER STATSTIC 
- * 0x00 0x00 = RESERVED
- *
- * OUTPUT
- * 1 -> COMP CODE
- * 2 -> GROUP ID =0xDC
- * 3:4 -> POwer in watts
- * 5:6 -> min power
- * 7:8 -> max power
- * 9:10 --> average power (*)
- * 11:14 IPMI Specification based Time Stamp
- * 15:18 Timeframe in milliseconds
- * 19 power reading state
- */
-  memset(&req, 0, sizeof(req));
-  req.msg.netfn = DCMI_NETFN;
-  req.msg.cmd = DCMI_CMD_GET_POWER;
-  msg_data[0] = (uint8_t)DCMI_GROUP_EXT;
-  msg_data[1] = (uint8_t)0x01;
-  msg_data[2] = (uint8_t)0x00;
-  msg_data[3] = (uint8_t)0x00;
-  intf->addr = 0x0;
-  req.msg.data = msg_data;
-  req.msg.data_len = sizeof(msg_data);
+    /*
+     * NETFN=0x2c 
+     * COMMAND=0x02 
+     * Group EXTENSSION=0xdc 
+     * 0x01=SYTEMPOWER STATSTIC 
+     * 0x00 0x00 = RESERVED
+     *
+     * OUTPUT
+     * 1 -> COMP CODE
+     * 2 -> GROUP ID =0xDC
+     * 3:4 -> POwer in watts
+     * 5:6 -> min power
+     * 7:8 -> max power
+     * 9:10 --> average power (*)
+     * 11:14 IPMI Specification based Time Stamp
+     * 15:18 Timeframe in milliseconds
+     * 19 power reading state
+     */
+    memset(&req, 0, sizeof(req));
+    req.msg.netfn = DCMI_NETFN;
+    req.msg.cmd = DCMI_CMD_GET_POWER;
+    msg_data[0] = (uint8_t)DCMI_GROUP_EXT;
+    msg_data[1] = (uint8_t)0x01;
+    msg_data[2] = (uint8_t)0x00;
+    msg_data[3] = (uint8_t)0x00;
+    intf->addr = 0x0;
+    req.msg.data = msg_data;
+    req.msg.data_len = sizeof(msg_data);
 
-  rsp = sendcmd(intf, &req);
-  if (rsp == NULL) {
+    rsp = sendcmd(intf, &req);
+    if (rsp == NULL) {
         out->mode = -1;
-				debug("sendcmd returns NULL");
+        debug("sendcmd returns NULL");
         return EAR_ERROR;
-  };
-  if (rsp->ccode > 0) {
-				debug("Power reading command returned with error 0x%02x",(int)rsp->ccode);
+    };
+    if (rsp->ccode > 0) {
+        debug("Power reading command returned with error 0x%02x",(int)rsp->ccode);
         out->mode = -1;
         return EAR_ERROR;
-        };
+    };
 
-  out->data_len=rsp->data_len;
-  for (i=0;i<rsp->data_len; i++) {
-  	out->data[i] = rsp->data[i];
-		#if 0
-		debug("Byte %d: 0x%02x\n",i,rsp->data[i]);
-		#endif
-  }
-	/*
- *   uint16_t current_power, min_power,max_power,avg_power;
- *     uint32_t timeframe;
- */
-	/*
- *3:4 -> POwer in watts
- *5:6 -> min power
- *7:8 -> max power
- *9:10 --> average power (*)
- *11:14 IPMI Specification based Time Stamp
- *15:18 Timeframe in milliseconds
- */
-	current_powerp = (uint16_t *)&rsp->data[1];
-	current_power  = *current_powerp;
-	min_powerp = (uint16_t *)&rsp->data[3];
-	max_powerp = (uint16_t *)&rsp->data[5];
-	avg_powerp = (uint16_t *)&rsp->data[7];
-	timestampp = (uint32_t *)&rsp->data[9];
-	timeframep = (uint32_t *)&rsp->data[13];
-	min_power = *min_powerp;
-	max_power = *max_powerp;
-	avg_power = *avg_powerp;
-	timeframe = *timeframep;
-	timestamp = *timestampp;
-	#if SHOW_DEBUGS
-	uint8_t power_state,*power_statep;
-	power_statep = (uint8_t *)&rsp->data[17];
-	power_state  = ((*power_statep&0x40) > 0);
-	debug("current power 0x%04x min power 0x%04x max power 0x%04x avg power 0x%04x\n",current_power,min_power,max_power,avg_power);
-	debug("current power %u min power %u max power %u avg power %u\n",(uint)current_power,(uint)min_power,(uint)max_power,(uint)avg_power);
-	debug("timeframe %u timestamp %u\n",timeframe,timestamp);
-	debug("power state %u\n",(uint)power_state);
-	#endif
-	cpower->current_power = (ulong)current_power;
-	cpower->min_power     = (ulong)min_power;
-	cpower->max_power     = (ulong)max_power;
-	cpower->avg_power     = (ulong)avg_power;
-	cpower->timeframe     = (ulong)timeframe;
-	cpower->timestamp     = (ulong)timestamp;
-	
-	return EAR_SUCCESS;
+    out->data_len=rsp->data_len;
+    for (i=0;i<rsp->data_len; i++) {
+        out->data[i] = rsp->data[i];
+#if 0
+        debug("Byte %d: 0x%02x\n",i,rsp->data[i]);
+#endif
+    }
+    /*
+     *   uint16_t current_power, min_power,max_power,avg_power;
+     *     uint32_t timeframe;
+     */
+    /*
+     *3:4 -> POwer in watts
+     *5:6 -> min power
+     *7:8 -> max power
+     *9:10 --> average power (*)
+     *11:14 IPMI Specification based Time Stamp
+     *15:18 Timeframe in milliseconds
+     */
+    current_powerp = (uint16_t *)&rsp->data[1];
+    current_power  = *current_powerp;
+    min_powerp = (uint16_t *)&rsp->data[3];
+    max_powerp = (uint16_t *)&rsp->data[5];
+    avg_powerp = (uint16_t *)&rsp->data[7];
+    timestampp = (uint32_t *)&rsp->data[9];
+    timeframep = (uint32_t *)&rsp->data[13];
+    min_power = *min_powerp;
+    max_power = *max_powerp;
+    avg_power = *avg_powerp;
+    timeframe = *timeframep;
+    timestamp = *timestampp;
+#if SHOW_DEBUGS
+    uint8_t power_state,*power_statep;
+    power_statep = (uint8_t *)&rsp->data[17];
+    power_state  = ((*power_statep&0x40) > 0);
+    debug("current power 0x%04x min power 0x%04x max power 0x%04x avg power 0x%04x\n",current_power,min_power,max_power,avg_power);
+    debug("current power %u min power %u max power %u avg power %u\n",(uint)current_power,(uint)min_power,(uint)max_power,(uint)avg_power);
+    debug("timeframe %u timestamp %u\n",timeframe,timestamp);
+    debug("power state %u\n",(uint)power_state);
+#endif
+    cpower->current_power = (ulong)current_power;
+    cpower->min_power     = (ulong)min_power;
+    cpower->max_power     = (ulong)max_power;
+    cpower->avg_power     = (ulong)avg_power;
+    cpower->timeframe     = (ulong)timeframe;
+    cpower->timestamp     = (ulong)timestamp;
+
+    return EAR_SUCCESS;
 }
 
-/**** These functions are used to accumulate the eneergy */
+/** These functions are used to accumulate the eneergy. */
 state_t dcmi_thread_main(void *p)
 {
-	struct ipmi_data out;
-	ulong current_elapsed,current_energy;
-	dcmi_power_reading(&dcmi_context_for_pool, &out,&dcmi_current_power_reading);
-	if (dcmi_current_power_reading.current_power > 0){
-		current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
-		current_energy = current_elapsed * dcmi_current_power_reading.avg_power;
-		/* Energy is reported in MJ */
-		dcmi_accumulated_energy += (current_energy*1000);
-		debug("AVG power in last %lu ms is %lu",current_elapsed,dcmi_current_power_reading.avg_power);		
-	}else{
-		debug("Current power is 0 in dcmi power reading pool reading");
-		return EAR_ERROR;
-	}
-  memcpy(&dcmi_last_power_reading,&dcmi_current_power_reading,sizeof(dcmi_power_data_t));
-	return EAR_SUCCESS;
+    struct ipmi_data out;
+    state_t st;
+    int etries = 0, lret;
+
+    debug("dcmi_thread_main");
+
+    ulong current_elapsed, current_energy;
+
+    while ((lret = pthread_mutex_trylock(&ompi_lock)) && (etries < MAX_LOCK_TRIES)) {
+        etries++;
+    }
+    if ((etries == MAX_LOCK_TRIES) && lret) {
+        return EAR_ERROR;
+    }
+
+    st = dcmi_power_reading(&dcmi_context_for_pool, &out, &dcmi_current_power_reading);
+    if (st == EAR_ERROR) {
+        debug("dcmi_power_reading fails in dcmi_thread_main");
+        pthread_mutex_unlock(&ompi_lock);
+        return st;
+    }
+
+    if (dcmi_current_power_reading.current_power > 0) {
+        current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
+        current_energy = current_elapsed * dcmi_current_power_reading.avg_power;
+
+        /* Energy is reported in MJ */
+        dcmi_accumulated_energy += (current_energy * 1000);
+        verbose(2,"DCMI AVG power in last %lu sec is %lu", current_elapsed, dcmi_current_power_reading.avg_power);		
+    } else {
+        debug("Current power is 0 in dcmi power reading pool reading, Resetting the context");
+				closedev(&dcmi_context_for_pool);
+				st = dcmi_thread_init(NULL);
+    }
+
+    memcpy(&dcmi_last_power_reading, &dcmi_current_power_reading, sizeof(dcmi_power_data_t));
+    pthread_mutex_unlock(&ompi_lock);
+    return EAR_SUCCESS;
 }
 
 state_t dcmi_thread_init(void *p)
 {
-	int ret;
-	ret	= opendev(&dcmi_context_for_pool);
- 	if (ret < 0){
-		debug("opendev fails in dcmi energy plugin when initializing pool");
-		return EAR_ERROR;
-	} 
-	debug("thread_init for dcmi_power OK");
-	return EAR_SUCCESS;
+    int ret;
+    ret	= opendev(&dcmi_context_for_pool);
+    if (ret < 0){
+        debug("opendev fails in dcmi energy plugin when initializing pool");
+        return EAR_ERROR;
+    } 
+
+    debug("thread_init for dcmi_power OK");
+    return EAR_SUCCESS;
 }
 
 /*
@@ -439,61 +470,88 @@ state_t dcmi_thread_init(void *p)
 
 state_t energy_init(void **c)
 {
-	struct ipmi_data out;
-	state_t st;
-	dcmi_power_data_t my_power;
-	int ret;
+    struct ipmi_data out;
+    state_t st;
+    dcmi_power_data_t my_power;
+    int ret;
+    int etries = 0, lret;
 
-	if (c == NULL) {
-		return_msg(EAR_ERROR, Generr.input_null);
-	}
-	*c = (struct ipmi_intf *) malloc(sizeof(struct ipmi_intf));
-	if (*c == NULL) {
-		return EAR_ERROR;
-	}
-	//
-	pthread_mutex_lock(&ompi_lock);
-	debug("trying opendev\n");
-	ret = opendev((struct ipmi_intf *)*c);
-	if (ret<0){ 
-		pthread_mutex_unlock(&ompi_lock);
-		return_print(EAR_ERROR, "error opening IPMI device (%s)", strerror(errno));
-	}
 
-	if (dcmi_already_loaded == 0){
-		dcmi_already_loaded = 1;
-		st=dcmi_power_reading(*c, &out,&my_power);
-		if (st != EAR_SUCCESS){
-			debug("dcmi_power_reading fails");
-		}else{
-			memcpy(&dcmi_last_power_reading,&my_power,sizeof(dcmi_power_data_t));
-			dcmi_timeframe = my_power.timeframe;
-			dcmi_sus = suscription();
-			dcmi_sus->call_main = dcmi_thread_main;
-			dcmi_sus->call_init = dcmi_thread_init;
-			dcmi_sus->time_relax = dcmi_timeframe;
-			dcmi_sus->time_burst = dcmi_timeframe;
-			dcmi_sus->suscribe(dcmi_sus);
-			debug("dcmi energy plugin suscription initialized with timeframe %lu ms",dcmi_timeframe);
-		}
-	}
-	pthread_mutex_unlock(&ompi_lock);
+    if (c == NULL) {
+        return_msg(EAR_ERROR, Generr.input_null);
+    }
+    *c = (struct ipmi_intf *) malloc(sizeof(struct ipmi_intf));
+    if (*c == NULL) {
+        return EAR_ERROR;
+    }
+    //
+    while ((lret = pthread_mutex_trylock(&ompi_lock)) && (etries < MAX_LOCK_TRIES)) {
+        etries++;
+    }
+    if ((etries == MAX_LOCK_TRIES) && lret) {
+        return EAR_ERROR;
+    }
 
-	return EAR_SUCCESS;
+    debug("trying opendev\n");
+    ret = opendev((struct ipmi_intf *)(*c));
+    if (ret < 0) {
+        pthread_mutex_unlock(&ompi_lock);
+        return_print(EAR_ERROR, "error opening IPMI device (%s)", strerror(errno));
+    }
+
+    // TODO: Check for root?
+
+    st = dcmi_power_reading(*c, &out, &my_power);
+    memcpy(&dcmi_last_power_reading, &my_power, sizeof(dcmi_power_data_t));
+    pthread_mutex_unlock(&ompi_lock);
+    if (st != EAR_SUCCESS) {
+        debug("dcmi_power_reading fails");
+    } else {
+        if (!monitor_done) {
+        		dcmi_timeframe = my_power.timeframe;
+            dcmi_sus = suscription();
+            dcmi_sus->call_main = dcmi_thread_main;
+            dcmi_sus->call_init = dcmi_thread_init;
+            dcmi_sus->time_relax = ear_max(dcmi_timeframe, MIN_READ_PERIOD);
+            dcmi_sus->time_burst = ear_max(dcmi_timeframe, MIN_READ_PERIOD);
+            dcmi_sus->suscribe(dcmi_sus);
+            debug("dcmi energy plugin suscription initialized with timeframe %lu ms", dcmi_timeframe);
+            monitor_done = 1;
+        }
+    }
+		verbose(2, "DCMI Init ok");
+
+    return EAR_SUCCESS;
 }
 
 state_t energy_dispose(void **c) {
-	if ((c == NULL) || (*c == NULL)) return EAR_ERROR;
-	pthread_mutex_lock(&ompi_lock);
-	closedev((struct ipmi_intf *) *c);
-	free(*c);
-	pthread_mutex_unlock(&ompi_lock);
-	return EAR_SUCCESS;
+    if ((c == NULL) || (*c == NULL)){ 
+			verbose(2, "DCMI context is NULL in energy dispose");
+			return EAR_ERROR;
+		}
+
+
+    int etries = 0;
+    int lret;
+
+    while((lret = pthread_mutex_trylock(&ompi_lock)) && (etries < MAX_LOCK_TRIES)) etries++;
+    if ((etries == MAX_LOCK_TRIES) && lret) {
+        return EAR_ERROR;
+    }
+    closedev((struct ipmi_intf *) *c);
+    free(*c);
+
+    pthread_mutex_unlock(&ompi_lock);
+		verbose(2, "DCMI Dispose ok");
+    return EAR_SUCCESS;
 }
+
 state_t energy_datasize(size_t *size)
 {
-	debug("energy_datasize %lu\n",sizeof(unsigned long));
-	*size=sizeof(unsigned long);
+	debug("energy_datasize %lu\n", sizeof(ulong));
+
+	*size = sizeof(ulong);
+
 	return EAR_SUCCESS;
 }
 
@@ -510,14 +568,15 @@ state_t energy_to_str(char *str, edata_t e) {
 
 unsigned long diff_node_energy(ulong init,ulong end)
 {
-  ulong ret=0;
-  if (end>=init){
-    ret=end-init;
-  } else{
-    ret=ulong_diff_overflow(init,end);
+  ulong ret = 0;
+  if (end >= init) {
+    ret = end-init;
+  } else {
+    ret = ulong_diff_overflow(init, end);
   }
   return ret;
 }
+
 state_t energy_units(uint *units) {
   *units = 1000;
   return EAR_SUCCESS;
@@ -526,39 +585,111 @@ state_t energy_units(uint *units) {
 state_t energy_accumulated(unsigned long *e, edata_t init, edata_t end) {
   ulong *pinit = (ulong *) init, *pend = (ulong *) end;
 
-  unsigned long total = diff_node_energy(*pinit, *pend);
+  ulong total = diff_node_energy(*pinit, *pend);
   *e = total;
   return EAR_SUCCESS;
 }
 
+// TODO: re-factor the code along with thread_main and energy_dc_time_read
+state_t energy_dc_read(void *c, edata_t energy_mj)
+{
+    ulong *penergy_mj = (ulong *) energy_mj;
 
+    debug("energy_dc_read");
 
-state_t energy_dc_read(void *c, edata_t energy_mj) {
-	ulong *penergy_mj=(ulong *)energy_mj;
+    // As we are reading the power every 2 seconds, we first read the current power.
+    struct ipmi_data out;
+    state_t st = EAR_SUCCESS;
+    int etries = 0, lret;
 
-  debug("energy_dc_read\n");
+    ulong current_elapsed, current_energy;
 
-  *penergy_mj=dcmi_accumulated_energy;
+    while ((lret = pthread_mutex_trylock(&ompi_lock)) && (etries < MAX_LOCK_TRIES)) {
+        etries++;
+    }
+    if ((etries == MAX_LOCK_TRIES) && lret) {
+        return EAR_ERROR;
+    }
 
-	return EAR_SUCCESS;
+    st = dcmi_power_reading((struct ipmi_intf *)c, &out, &dcmi_current_power_reading);
+    if (st == EAR_ERROR) {
+        debug("dcmi_power_reading fails in energy_dc_read");
+        pthread_mutex_unlock(&ompi_lock);
+        return st;
+    }
+
+    if (dcmi_current_power_reading.current_power > 0) {
+        current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
+        current_energy = current_elapsed * dcmi_current_power_reading.avg_power;
+
+        /* Energy is reported in MJ */
+        dcmi_accumulated_energy += (current_energy * 1000);
+    		memcpy(&dcmi_last_power_reading, &dcmi_current_power_reading, sizeof(dcmi_power_data_t));
+
+        debug("AVG power in last %lu ms is %lu", current_elapsed, dcmi_current_power_reading.avg_power);		
+    } else {
+        debug("Current power is 0 in dcmi power reading pool reading");
+        st = EAR_ERROR;
+    }
+    *penergy_mj = dcmi_accumulated_energy;
+    pthread_mutex_unlock(&ompi_lock);
+
+    return st;
 }
 
 state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms) 
 {
-  ulong *penergy_mj=(ulong *)energy_mj;
+    ulong *penergy_mj=(ulong *)energy_mj;
+		state_t st = EAR_SUCCESS;
 
-  debug("energy_dc_read\n");
+    debug("energy_dc_read\n");
 
-  *penergy_mj = dcmi_accumulated_energy;
-	*time_ms = dcmi_last_power_reading.timestamp*1000;
+    // As we are reading the power every 2 seconds, we first read the current power.
+    struct ipmi_data out;
+    int etries = 0, lret;
 
-  return EAR_SUCCESS;
+    ulong current_elapsed, current_energy;
+
+    while ((lret = pthread_mutex_trylock(&ompi_lock)) && (etries < MAX_LOCK_TRIES)) {
+        etries++;
+    }
+    if ((etries == MAX_LOCK_TRIES) && lret) {
+        return EAR_ERROR;
+    }
+
+    st = dcmi_power_reading((struct ipmi_intf *)c, &out, &dcmi_current_power_reading);
+    if (st == EAR_ERROR) {
+        debug("dcmi_power_reading fails in energy_dc_read");
+        pthread_mutex_unlock(&ompi_lock);
+        return st;
+    }
+
+    if (dcmi_current_power_reading.current_power > 0) {
+        current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
+        current_energy = current_elapsed * dcmi_current_power_reading.avg_power;
+
+        /* Energy is reported in MJ */
+        dcmi_accumulated_energy += (current_energy * 1000);
+
+        debug("AVG power in last %lu ms is %lu", current_elapsed, dcmi_current_power_reading.avg_power);		
+    } else {
+        debug("Current power is 0 in dcmi power reading pool reading");
+        st = EAR_ERROR;
+    }
+
+    memcpy(&dcmi_last_power_reading, &dcmi_current_power_reading, sizeof(dcmi_power_data_t));
+
+    *penergy_mj = dcmi_accumulated_energy;
+    *time_ms = dcmi_last_power_reading.timestamp*1000;
+    pthread_mutex_unlock(&ompi_lock);
+
+    return st;
 
 }
 uint energy_data_is_null(edata_t e)  
 {
-  ulong *pe=(ulong *)e;
-  return (*pe == 0);
+    ulong *pe=(ulong *)e;
+    return (*pe == 0);
 
 }
 

@@ -30,48 +30,46 @@
 #include <common/types/configuration/cluster_conf.h>
 #include <common/types/coefficient.h>
 
-#ifdef POWERCAP
 #include <daemon/powercap/powercap.h>
 #include <daemon/app_mgt.h>
 #include <common/types/pc_app_info.h>
-#endif
 
 typedef struct services_conf{
-		eard_conf_t     eard;
+	eard_conf_t     eard;
     eargm_conf_t    eargmd;
-		db_conf_t 		db;
+	db_conf_t 		db;
     eardb_conf_t 	eardbd;
-		char net_ext[ID_SIZE];
-}services_conf_t;
+	char net_ext[ID_SIZE];
+} services_conf_t;
 
 typedef struct settings_conf{
-	uint 	id;
-	uint 	user_type;
-	uint 	learning;
-	uint 	lib_enabled;
-	uint 	policy;
-	ulong 	max_freq;
-	ulong	def_freq;
-	uint	def_p_state;
-	double 	settings[MAX_POLICY_SETTINGS];
-  char    policy_name[64];
-	earlib_conf_t lib_info;
-	double min_sig_power;
-	double max_sig_power;
-	double max_power_cap;
-	uint report_loops;
-	conf_install_t 	installation;
-	ulong   max_avx512_freq;
-  ulong   max_avx2_freq;
-#if POWERCAP
+	uint 	            id;
+	uint 	            user_type;
+	uint 	            learning;
+	uint 	            lib_enabled;
+	uint 	            policy;
+	ulong 	            max_freq;
+	ulong	            def_freq;
+	uint	            def_p_state;
+	double 	            settings[MAX_POLICY_SETTINGS];
+    char                policy_name[64];
+	earlib_conf_t       lib_info;
+	double              min_sig_power;
+	double              max_sig_power;
+	double              max_power_cap;
+	uint                report_loops;
+	conf_install_t      installation;
+	ulong               max_avx512_freq;
+    ulong               max_avx2_freq;
 	node_powercap_opt_t pc_opt;
-#endif
+	uint                island;   
+	char                tag[GENERIC_NAME];
+  int                 cpu_max_pstate;
+  int                 imc_max_pstate;
 } settings_conf_t;
 
-
-
 typedef struct resched{
-	int 	force_rescheduling;
+	int	force_rescheduling;
 }resched_t;
 
 /*********** SETTINGS configuration *******************/
@@ -79,7 +77,7 @@ typedef struct resched{
 /** Sets in path the filename for the shared memory area between EARD and EARL
  * @param path (output)
  */
-int get_settings_conf_path(char *tmp,char *path);
+int get_settings_conf_path(char *tmp, uint ID, char *path);
 
 /** Creates the shared mmemory. It is used by EARD (server)
 *	@param ear_conf_path specifies the path (folder) to create the file used by mmap
@@ -88,12 +86,11 @@ int get_settings_conf_path(char *tmp,char *path);
 settings_conf_t * create_settings_conf_shared_area(char * path);
 
 /** Connects with a previously created shared memory region. It is used by EARLib (client)
-*	@param ear_conf_path specifies the path (folder) where the mapped file were created
+*	@param path specifies the path (folder) where the mapped file were created
 */
 settings_conf_t * attach_settings_conf_shared_area(char * path);
 
-/** Disconnect from a previously connected shared memory region. It is used by EARLib (client)
-*/
+/** Disconnect from a previously connected shared memory region. It is used by EARLib (client) */
 void dettach_settings_conf_shared_area();
 
 /** Releases a shared memory area previously created. It is used by EARD (server)
@@ -108,7 +105,7 @@ void print_settings_conf(settings_conf_t *setting);
 /** Sets in path the filename for the shared memory area between EARD and EARL
  *  * @param path (output)
  *   */
-int get_resched_path(char *tmp,char *path);
+int get_resched_path(char *tmp, uint ID, char *path);
 
 /** Creates the shared mmemory. It is used by EARD (server)
  * *   @param ear_conf_path specifies the path (folder) to create the file used by mmap
@@ -129,13 +126,12 @@ void dettach_resched_shared_area();
  * */
 void resched_shared_area_dispose(char * path);
 
-#if POWERCAP
 /****************** APP AREA ***************/
 
 /** Sets in path the filename for the shared memory area app_area between EARD and EARL
 * @param path (output)
 */
-int get_app_mgt_path(char *tmp,char *path);
+int get_app_mgt_path(char *tmp, uint ID, char *path);
 
 /** Creates the shared mmemory. It is used by EARD and APP. App puts information here
  *  * *   @param ear_conf_path specifies the path (folder) to create the file used by mmap
@@ -155,7 +151,6 @@ void dettach_app_mgt_shared_area();
 /** Releases a shared memory area previously created. It is used by EARD (server)
  *  * */
 void app_mgt_shared_area_dispose(char * path);
-#endif
 
 
 /***************** COEFFICIENTS **********/
@@ -215,14 +210,19 @@ void frequencies_shared_area_dispose(char * path);
 /** Unmmaps the shared memory for the list of frequencies */
 void dettach_frequencies_shared_area();
 
-#if POWERCAP
 /************** PC_APP_INFO_T ****************/
-int get_pc_app_info_path(char *tmp,char *path);
+int get_pc_app_info_path(char *tmp, uint ID, char *path);
 pc_app_info_t  * create_pc_app_info_shared_area(char *path);
 pc_app_info_t * attach_pc_app_info_shared_area(char * path);
 void dettach_pc_app_info_shared_area();
 void pc_app_info_shared_area_dispose(char * path);
-#endif
+
+/******************** ear conf ****************************/
+int get_ser_cluster_conf_path(char *tmp, char *path);
+char  * create_ser_cluster_conf_shared_area(char *path, char *cconf, size_t size);
+char * attach_ser_cluster_conf_shared_area(char * path, size_t *size);
+void dettach_ser_cluster_conf_shared_area();
+void ser_cluster_conf_shared_area_dispose(char * path);
 
 
 

@@ -1,5 +1,10 @@
 CFLAGS = $(CC_FLAGS) -fPIC -I$(SRCDIR) $(CONSTANTS)
 
+ifeq ($(FEAT_RESEARCH), 1)
+	CFLAGS += -DNEW_APP_SUMMARY=1
+endif
+
+
 ######## FILES
 
 type_OBJS = $(patsubst %.c, %.o, $(shell find -maxdepth 1 -type f -name '*.c'))

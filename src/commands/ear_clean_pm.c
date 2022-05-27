@@ -67,7 +67,7 @@ int main(int argc,char *argv[])
         t.c_lflag |= ECHO;
         tcsetattr(STDIN_FILENO, TCSANOW, &t);
         strclean(passw, '\n');
-        verbose(0, " ");
+        printf("\n");
     }
     else
         strcpy(passw, "");
@@ -75,14 +75,14 @@ int main(int argc,char *argv[])
     num_days = atoi(argv[1]);
     if (num_days < 0 || num_days > 365)
     {
-        verbose(0, "Invalid number of days."); //error
+        printf("Invalid number of days.\n"); //error
     }
 
     cluster_conf_t my_cluster;
     char ear_path[256];
     if (get_ear_conf_path(ear_path) == EAR_ERROR)
     {
-        verbose(0, "Error getting ear.conf path"); //error
+        printf("Error getting ear.conf path\n"); //error
         exit(0);
     }
 
@@ -100,7 +100,7 @@ int main(int argc,char *argv[])
 
     free_cluster_conf(&my_cluster);
 
-    verbose(0, "Database successfully cleaned.");
+    printf("Database successfully cleaned.\n");
 
     exit(1);
 }

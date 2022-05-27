@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 	VERB_SET_LV(5);
-	size = file_size(argv[1]);
+	size = ear_file_size(argv[1]);
 
 	if (size < 0) {
 		error("invalid coeffs path %s (%s)", argv[1], intern_error_str);
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
     }
 
     /* The program reports coefficients in stdout and csv file */
-	state = file_read(argv[1], (char *) coeffs, size);
+	state = ear_file_read(argv[1], (char *) coeffs, size);
 
 	if (state_fail(state)) {
 		error("state id: %d (%s)", state, state_msg);

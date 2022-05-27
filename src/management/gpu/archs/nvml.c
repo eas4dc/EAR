@@ -195,12 +195,22 @@ static int load_test(char *path)
 
 static int static_load()
 {
-	if (load_test(getenv(HACK_FILE_NVML))) return 1;
-	if (load_test(NVML_PATH "/targets/x86_64-linux/lib/libnvidia-ml.so")) return 1;
-	if (load_test(NVML_PATH "/lib64/libnvidia-ml.so")) return 1;
-	if (load_test(NVML_PATH "/lib/libnvidia-ml.so")) return 1;
-	if (load_test("/lib64/libnvidia-ml.so")) return 1;
-	if (load_test("/usr/lib64/libnvidia-ml.so")) return 1;
+  if (load_test(getenv(HACK_NVML_FILE))) return 1;
+  if (load_test(NVML_PATH "/targets/x86_64-linux/lib/libnvidia-ml.so")) return 1;
+  if (load_test(NVML_PATH "/targets/x86_64-linux/lib/libnvidia-ml.so.1")) return 1;
+  if (load_test(NVML_PATH "/lib64/libnvidia-ml.so")) return 1;
+  if (load_test(NVML_PATH "/lib64/libnvidia-ml.so.1")) return 1;
+  if (load_test(NVML_PATH "/lib/libnvidia-ml.so")) return 1;
+  if (load_test(NVML_PATH "/lib/libnvidia-ml.so.1")) return 1;
+  if (load_test("/usr/lib64/libnvidia-ml.so")) return 1;
+  if (load_test("/usr/lib64/libnvidia-ml.so.1")) return 1;
+  if (load_test("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so")) return 1;
+  if (load_test("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1")) return 1;
+  if (load_test("/usr/lib32/libnvidia-ml.so")) return 1;
+  if (load_test("/usr/lib32/libnvidia-ml.so.1")) return 1;
+  if (load_test("/usr/lib/libnvidia-ml.so")) return 1;
+  if (load_test("/usr/lib/libnvidia-ml.so.1")) return 1;
+
 	return 0;
 }
 

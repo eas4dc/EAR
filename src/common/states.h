@@ -28,22 +28,22 @@
 #define EAR_SUCCESS              0
 #define EAR_ERROR               -1
 #define EAR_WARNING             -2
-#define EAR_NO_PERMISSIONS		-6
-#define EAR_INITIALIZED			-7
 #define EAR_NOT_INITIALIZED		-8
 #define EAR_BAD_ARGUMENT		-13
 #define EAR_SYSCALL_ERROR		-18
 #define EAR_TIMEOUT				-21
 #define EAR_UNDEFINED			-24
+#define EAR_CANCELLED           -25
 
 /* error buffer */
-char state_buffer[SZ_BUFFER];
+char state_buffer[SZ_BUFFER] __attribute__((weak));
 
 /* type & functions */
 typedef int state_t;
 
 /* global data */
-char *state_msg;
+char *state_msg __attribute__((weak));
+int state_no    __attribute__((weak));
 
 #define state_ok(state) \
 	((state) == EAR_SUCCESS)
@@ -53,7 +53,13 @@ char *state_msg;
 
 #define state_is(state1, state2) \
 	(state1 == state2)
-	
+
+#define serror(str) \
+  error("%s: %s (%d)", str, state_msg, state_no);
+
+#define sserror(format, ...) \
+	error(format ": %s (%d)", __VA_ARGS__, state_msg, state_no);
+
 #define return_msg(no, msg) { \
 	state_msg = msg; \
 	return no; \
@@ -64,14 +70,6 @@ char *state_msg;
 	xsnprintf(state_buffer, sizeof(state_buffer), __VA_ARGS__); \
 	return no; \
 	}
-
-// error(#func " returned %d (%s)", s, state_msg);
-
-#define state_assert(s, func, cons) \
-    if (xtate_fail(s, func)) { \
-        error("returned %d, %s (%s:%d)", s, state_msg, __FILE__, __LINE__); \
-        cons; \
-    }
 
 struct generr_s {
 	char *api_undefined;
@@ -118,7 +116,6 @@ struct generr_s {
 #define EAR_BUSY                -10
 #define EAR_MYSQL_ERROR         -14
 #define EAR_MYSQL_STMT_ERROR    -15
-#define EAR_ADDR_NOT_FOUND      -17 //*
 #define EAR_SOCK_OP_ERROR       -18
 #define EAR_SOCK_DISCONNECTED   -20
 #define EAR_NO_RESOURCES        -22 //*
@@ -131,7 +128,7 @@ struct generr_s {
 #define PERIODIC_MODE_OFF   0
 
 #define intern_error_str state_msg
-int intern_error_num;
+int intern_error_num __attribute__((weak));
 
 #define state_return(state) \
 	return state;
@@ -146,7 +143,14 @@ int intern_error_num;
 #define xtate_fail(s, function) \
 	((s = function) != EAR_SUCCESS)
 
-#define xtate_ok(s, function) \
-	((s = function) == EAR_SUCCESS)
+#define sassert(function, consecuence) \
+	if (state_fail(function)) { \
+		consecuence; \
+	}
+
+#define state_assert(s, func, cons) \
+    if (state_fail(s = func)) { \
+        cons; \
+    }
 
 #endif //STATES_H

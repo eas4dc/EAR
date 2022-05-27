@@ -43,6 +43,7 @@ typedef struct job
     ulong       def_f;
 } job_t;
 */
+
 typedef struct job
 {
 	job_id 	id;

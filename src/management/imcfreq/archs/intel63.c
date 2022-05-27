@@ -15,12 +15,15 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-#define SHOW_DEBUGS 0
+//#define SHOW_DEBUGS 1
 
 #include <stdlib.h>
 #include <metrics/common/msr.h>
+#include <common/output/debug.h>
+#include <common/utils/keeper.h>
 #include <management/imcfreq/archs/intel63.h>
 
+// TODO
 #define U_MSR_UNCORE_RATIO_LIMIT    0x000620
 #define U_MSR_UNCORE_RL_MASK_MAX    0x00007F
 #define U_MSR_UNCORE_RL_MASK_MIN    0x007F00
@@ -49,43 +52,74 @@ static state_t intel63_read(uint cpu, ullong *max, ullong *min)
 	*min = (aux & U_MSR_UNCORE_RL_MASK_MIN) >> 8;
 	*max = *max * HUNDRED_MHZ;
 	*min = *min * HUNDRED_MHZ;
-	debug("Read values: %llu, min_khz: %llu", *max, *min);
+	debug("IMC%d read values: %llu - %llu MHz", cpu, *max, *min);
 
 	return EAR_SUCCESS;
 }
 
-static state_t mgt_imcfreq_intel63_build_list()
+static state_t mgt_imcfreq_intel63_build_list(my_node_conf_t *conf)
 {
-	ullong max_khz_aux = 0;
-	ullong min_khz_aux = 0;
 	ullong aux = 0;
 	state_t s;
 	int i;
 
-	// First scan, getting the maximum and the minimum.
+	// [1] scan, getting the maximum and the minimum.
 	for (i = 0; i < tp_static.cpu_count; ++i) {
 		// Opening
-		if (state_fail(s = msr_open(tp_static.cpus[i].id))) {
+		if (state_fail(s = msr_open(tp_static.cpus[i].id, MSR_WR))) {
 			return s;
 		}
 		// Reading
-		if (state_fail(s = intel63_read(tp_static.cpus[i].id, &max_khz_aux, &min_khz_aux))) {
+		if (state_fail(s = intel63_read(tp_static.cpus[i].id, &max_khz, &min_khz))) {
 			debug("Failed during IMC read: %s (%d)", state_msg, s);
 		}
-		// Saving general maximum and minimum
-		if (max_khz == 0 || max_khz_aux > max_khz) {
-			max_khz = max_khz_aux;
-		}
-		if ((min_khz == 0 || min_khz_aux < min_khz) && min_khz_aux != 0) {
-			min_khz = min_khz_aux;
-		}
 	}
-	if (max_khz == 0 || min_khz == 0) {
-		return_msg(EAR_ERROR, "Can't build a frequency list");
-	}
-	// Hardcoding the values
-	max_khz = 24 * HUNDRED_MHZ;
-	min_khz = 12 * HUNDRED_MHZ;
+    // [2.1] Saving what found in MAX FREQ
+    if (!keeper_load_uint64("ImcFreqMax", &max_khz)) {
+        if (max_khz > 0) {
+            keeper_save_uint64("ImcFreqMax", max_khz);
+            debug("Keeper saved ImcFreqMax %llu", max_khz);
+        }
+    }
+    #if SHOW_DEBUGS
+    else {
+        debug("Keeper read ImcFreqMax %llu", max_khz);
+    }
+    #endif
+    // [2.2] Saving what found in MIN FREQ
+    if (!keeper_load_uint64("ImcFreqMin", &min_khz)) {
+        if (min_khz > 0) {
+            keeper_save_uint64("ImcFreqMin", min_khz);
+            debug("Saved ImcFreqMin %llu", min_khz);
+        }
+    }
+    #if SHOW_DEBUGS
+    else {
+        debug("Loaded ImcFreqMin %llu", min_khz);
+    }
+    #endif
+    // [3] Replace by the data in the conf
+    if (conf != NULL) {
+        debug("conf->imc_max_freq %lu", conf->imc_max_freq);
+        debug("conf->imc_min_freq %lu", conf->imc_min_freq);
+        if(conf->imc_max_freq > 0) {
+            max_khz = (ullong) conf->imc_max_freq;
+        }
+        if(conf->imc_min_freq > 0) {
+            min_khz = (ullong) conf->imc_min_freq;
+        }
+    }
+    // [4] We can't build a list with 0s
+    if (max_khz < 1000000LLU || min_khz == 0LLU) {
+        return_msg(EAR_ERROR, "Can't build a frequency list");
+    }
+    // [5] Hardcode case based in experience
+    if (max_khz == 6300000) {
+        max_khz = 2400000;
+    }
+    // [6] Printing final data
+    debug("Final build MAX %llu KHz", max_khz);
+    debug("Final build MIN %llu KHz", min_khz);
 	// Building the list
 	available_count = (max_khz / HUNDRED_MHZ) - (min_khz / HUNDRED_MHZ) + 1;
 	available_list = calloc(available_count, sizeof(pstate_t));
@@ -94,12 +128,13 @@ static state_t mgt_imcfreq_intel63_build_list()
 	for (i = 0, aux = 0LLU; i < available_count; ++i, aux += HUNDRED_MHZ) {
 		available_list[i].idx = i;
 		available_list[i].khz = max_khz - aux;
+        debug("PS%d: %llu KHz", i, available_list[i].khz);
 	}
 
 	return EAR_SUCCESS;
 }
 
-state_t mgt_imcfreq_intel63_load(topology_t *tp, mgt_imcfreq_ops_t *ops)
+state_t mgt_imcfreq_intel63_load(topology_t *tp, mgt_imcfreq_ops_t *ops, my_node_conf_t *conf)
 {
 	state_t s;
 	if (max_khz != 0) {
@@ -108,13 +143,13 @@ state_t mgt_imcfreq_intel63_load(topology_t *tp, mgt_imcfreq_ops_t *ops)
 	if (tp->vendor != VENDOR_INTEL || tp->model < MODEL_HASWELL_X) {
 		return_msg(EAR_ERROR, Generr.api_incompatible);
 	}
-	if (state_fail(s = msr_test(tp))) {
+	if (state_fail(s = msr_test(tp, MSR_WR))) {
 		return s;
 	}
 	if (state_fail(s = topology_select(tp, &tp_static, TPSelect.socket, TPGroup.merge, 0))) {
 		return s;
 	}
-	if (state_fail(s = mgt_imcfreq_intel63_build_list())) {
+	if (state_fail(s = mgt_imcfreq_intel63_build_list(conf))) {
 		return s;
 	}
 	replace_ops(ops->init,               mgt_imcfreq_intel63_init);
@@ -136,7 +171,6 @@ state_t mgt_imcfreq_intel63_init(ctx_t *c)
 
 state_t mgt_imcfreq_intel63_dispose(ctx_t *c)
 {
-    c->context = NULL;
     return EAR_SUCCESS;
 }
 
@@ -183,12 +217,12 @@ state_t get_current_list(pstate_t *max_list, pstate_t *min_list)
 		if (max_list != NULL) {	
 			max_list[i].idx = khz_to_idx(max_khz_aux);
 			max_list[i].khz = available_list[max_list[i].idx].khz;
-			debug("DEV%d read MAX PS%u (%llu KHz)", i, max_list[i].idx, max_list[i].khz);
+			debug("IMC%d copied MAX PS%u (%llu KHz)", i, max_list[i].idx, max_list[i].khz);
 		}
 		if (min_list != NULL) {
 			min_list[i].idx = khz_to_idx(min_khz_aux);
 			min_list[i].khz = available_list[min_list[i].idx].khz;
-			debug("DEV%d read MIN PS%u (%llu KHz)", i, min_list[i].idx, min_list[i].khz);
+			debug("IMC%d copied MIN PS%u (%llu KHz)", i, min_list[i].idx, min_list[i].khz);
 		}
 	}
 	return EAR_SUCCESS;
@@ -238,9 +272,6 @@ static state_t set_current_list(uint *max_list, uint *min_list)
 	}
 	for (i = 0; i < tp_static.cpu_count; ++i)
 	{
-		debug("-- Device %d -------------------------------", i);
-		debug("Max/min target : %u/%u", max_list[i], min_list[i]);
-		debug("Max/min current: %u/%u", buffer_max[i].khz, buffer_min[i].khz);
 		// Valid ranks
 		if (max_list != NULL) max_valid = (max_list[i] < available_count);  
 		if (min_list != NULL) min_valid = (min_list[i] < available_count);  
@@ -254,12 +285,12 @@ static state_t set_current_list(uint *max_list, uint *min_list)
 		if      (min_list    == NULL)       aux_min = buffer_min[i].khz;
 		else if (min_list[i] == ps_nothing) aux_min = buffer_min[i].khz;
 		else if (min_valid)                 aux_min = available_list[min_list[i]].khz;
+		debug("IMC%d, setting frequency to (%llu, %llu)",
+            i, aux_max, aux_min);
 		// Converting to MHZ
 		aux_max = aux_max / HUNDRED_MHZ;
 		aux_min = aux_min / HUNDRED_MHZ;
 		// Combining both values in the register
-		debug("DEV%d write MAX %llu KHz", i, aux_max);
-		debug("DEV%d write MIN %llu KHz", i, aux_min);
 		set0 = (aux_min << 8) & U_MSR_UNCORE_RL_MASK_MIN;
 		set1 = (aux_max << 0) & U_MSR_UNCORE_RL_MASK_MAX;
 		set0 = set0 | set1;
@@ -303,5 +334,12 @@ state_t mgt_imcfreq_intel63_get_current_ranged_list(ctx_t *c, pstate_t *ps_min_l
 
 state_t mgt_imcfreq_intel63_set_current_ranged_list(ctx_t *c, uint *id_min_list, uint *id_max_list)
 {
+    #if SHOW_DEBUGS
+    int i;
+    for (i = 0; i < tp_static.cpu_count; ++i) {
+        debug("IMC%d: setting frequency from %u to %u",
+            i, id_min_list[i], id_max_list[i]);
+    }
+    #endif
 	return set_current_list(id_min_list, id_max_list);
 }

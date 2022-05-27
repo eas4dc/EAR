@@ -25,10 +25,10 @@
 	(void)(var)
 
 #define xsnprintf(buffer, size, ...) \
-    snprintf(buffer, xsnsize(size), __VA_ARGS__);
+    snprintf(xsnbuffer(buffer), xsnsize(size), __VA_ARGS__);
 
 #define xsprintf(buffer, ...) \
-    snprintf(buffer, xsnsize(sizeof(buffer)), __VA_ARGS__);
+    snprintf(xsnbuffer(buffer), xsnsize(sizeof(buffer)), __VA_ARGS__); \
 
 #define xstrncpy(dst, src, size) \
     strncpy(dst, src, xsnsize(size));
@@ -37,5 +37,9 @@
 	strncat(dst, src, xsnsize(size));
 
 size_t xsnsize(size_t size);
+
+char *xsnbuffer(char *buffer);
+
+int appenv(const char *var, const char *string);
 
 #endif

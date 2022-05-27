@@ -34,12 +34,18 @@ static mpif_t next_mpif;
 mpic_t ear_mpic;
 mpif_t ear_mpif;
 
-void (*func_con) (void);
-void (*func_des) (void);
+static void (*func_con) (void);
+static void (*func_des) (void);
 
 static uint mpi_on = 0;
 static uint intelmpi = 0;
 static uint openmpi = 0;
+
+static char *load_mpi_version = NULL;
+uint MPI_Get_library_version_detected = 0;
+static int (*my_MPI_Get_library_version)(char *version, int *resultlen);
+
+uint force_mpi_load = 0;
 
 int is_mpi_enabled()
 {
@@ -77,14 +83,20 @@ static void module_mpi_get_libear(char *path_lib_so,char *libhack,char *path_so,
 	if (libhack != NULL) verbose(2,"LOADER  using HACK %s",libhack);
 
 	// Getting the library version
-	MPI_Get_library_version(buffer, &len);
+	if (MPI_Get_library_version_detected) my_MPI_Get_library_version(buffer, &len);
+  else if (load_mpi_version != NULL){
+    strcpy(buffer,load_mpi_version);
+  }else{
+    return ;
+  }
+
 	// Passing to lowercase
 	strtolow(buffer);
 
 	if (strstr(buffer, "intel") != NULL) {
 		fndi = 1;
 		intelmpi = 1;
-	} else if (strstr(buffer, "open mpi") != NULL) {
+	} else if ((strstr(buffer, "open mpi") != NULL) || (strstr(buffer, "ompi") != NULL)) {
 		fndo = 1;
 		openmpi = 1;
 	} else if (strstr(buffer, "mvapich") != NULL) {
@@ -104,7 +116,7 @@ static void module_mpi_get_libear(char *path_lib_so,char *libhack,char *path_so,
 		extension = OPENMPI_EXT;
 	}
 
-	if ((vers = getenv(FLAG_NAME_LIBR)) != NULL) {
+	if ((vers = getenv(HACK_MPI_VERSION)) != NULL) {
 		if (strlen(vers) > 0) {
 			xsnprintf(buffer,sizeof(buffer), "%s.so", vers);		
 			extension = buffer;
@@ -147,10 +159,23 @@ static int module_mpi_dlsym(char *path_so, int lang_c, int lang_f)
 	verbose(2, "LOADER: module_mpi_dlsym loading library %s (c: %d, f: %d)",
 		path_so, lang_c, lang_f);
 
-	symplug_join(RTLD_NEXT, (void **) &next_mpic, mpic_names, MPIC_N);
-	symplug_join(RTLD_NEXT, (void **) &next_mpif, mpif_names, MPIF_N);
-	verbose(3, "LOADER: MPI (C) next symbols loaded, Init address is %p", next_mpic.Init);
-	verbose(3, "LOADER: MPI (F) next symbols loaded, Init address is %p", next_mpif.init);
+	if (MPI_Get_library_version_detected){
+		symplug_join(RTLD_NEXT, (void **) &next_mpic, mpic_names, MPIC_N);
+		symplug_join(RTLD_NEXT, (void **) &next_mpif, mpif_names, MPIF_N);
+		verbose(3, "LOADER: MPI (C) next symbols loaded, Init address is %p", next_mpic.Init);
+		verbose(3, "LOADER: MPI (F) next symbols loaded, Init address is %p", next_mpif.init);
+    if (next_mpif.init == NULL){
+      void *Initf = dlsym(RTLD_NEXT, "mpi_init_");
+      if (Initf != NULL){
+        verbose(3, "LOADER: MPI (F_) mpi_init returns %p, loading again ", Initf);
+        symplug_join(RTLD_NEXT, (void **) &next_mpif, mpif_names_, MPIF_N);
+        if (next_mpif.init != NULL){
+          verbose(3, "LOADER: MPI (F_) next symbols loaded, Init address is %p", next_mpif.init);
+        }
+      }
+    }
+
+	}
 
 	//
 	libear = dlopen(path_so, RTLD_NOW | RTLD_GLOBAL);
@@ -203,8 +228,8 @@ static int module_mpi_dlsym(char *path_so, int lang_c, int lang_f)
 		return 0;
 	}
 	
-	if (ear_mpic_setnext != NULL) ear_mpic_setnext(&next_mpic);
-	if (ear_mpif_setnext != NULL) ear_mpif_setnext(&next_mpif);
+	if (ear_mpic_setnext != NULL && MPI_Get_library_version_detected) ear_mpic_setnext(&next_mpic);
+	if (ear_mpif_setnext != NULL && MPI_Get_library_version_detected) ear_mpif_setnext(&next_mpif);
 	func_con = dlsym(libear, "ear_constructor");
 	func_des = dlsym(libear, "ear_destructor");
 	verbose(3, "LOADER: function constructor %p", func_con);
@@ -215,7 +240,39 @@ static int module_mpi_dlsym(char *path_so, int lang_c, int lang_f)
 
 static int module_mpi_is()
 {
-	return !(dlsym(RTLD_DEFAULT, "MPI_Get_library_version") == NULL);
+  uint is_mpi = 0;
+	load_mpi_version = NULL;
+	/* We use the default approach of looking for the MPI symbol */
+	my_MPI_Get_library_version = dlsym(RTLD_DEFAULT, "PMPI_Get_library_version");
+  if (my_MPI_Get_library_version != NULL){
+    MPI_Get_library_version_detected = 1;
+    verbose(2,"MPI_Get_library_version detected");
+    return 1;
+	}
+  verbose(2,"MPI_Get_library_version NOT detected");
+
+	/* We check the env var only for MPI+Python */
+	if (strstr(program_invocation_name,"python") != NULL){
+    // The env var oversubscribes the library version detected.
+    load_mpi_version = getenv(FLAG_LOAD_MPI_VERSION);
+    if (load_mpi_version != NULL){ 
+        verbose(2, " %s defined = %s", FLAG_LOAD_MPI_VERSION, load_mpi_version);
+				return 1;
+    } 
+    // TODO: This check is for the transition to the new environment variables.
+    // It will be removed when SCHED_LOAD_MPI_VERSION will be removed, on the next release.
+    load_mpi_version = getenv(SCHED_LOAD_MPI_VERSION);            
+    if (load_mpi_version != NULL) { 
+    verbose(1, "LOADER: %sWARNING%s %s will be removed on the next EAR release. "
+                    "Please, change it by %s in your submission scripts.",
+                    COL_RED, COL_CLR, SCHED_LOAD_MPI_VERSION, FLAG_LOAD_MPI_VERSION);
+    	verbose(2, " %s = %s", FLAG_LOAD_MPI_VERSION, load_mpi_version);
+			return 1;
+    }
+	}
+
+	return is_mpi;
+
 }
 
 int module_mpi(char *path_lib_so,char *libhack)
@@ -223,14 +280,20 @@ int module_mpi(char *path_lib_so,char *libhack)
 	static char path_so[4096];
 	int lang_c;
 	int lang_f;
-	int is_mpi = 1;
+	int is_mpi ;
 
 	verbose(3, "LOADER: loading module MPI");
 
-	if (!module_mpi_is()) {
-		verbose(3, "LOADER: no MPI detected");
+	is_mpi = module_mpi_is();
+
+	if (!is_mpi) {
+		verbose(2, "LOADER: no MPI detected");
 		return 0;
 	}
+
+	/* If we have not detected the symbol and the load is not force, we just return 1 to mark is an mpi application */
+	/* force_mpi_load is set to 1 in the MPI_Init or MPI_Init_thread function since we cannot postpone the load there */
+	if (is_mpi && !MPI_Get_library_version_detected && !force_mpi_load) return 1;
 
 	//
 	module_mpi_get_libear(path_lib_so,libhack,path_so, sizeof(path_so), &lang_c, &lang_f);

@@ -39,18 +39,18 @@ static int fd_app_mgt,fd_pc_app_info;
 /** These functions created path names, just to avoid problems if changing the path name in the future */
 /** This functions creates the name of the file mapping the shared memory for the dynamic power settings, it is placed at TMP 
  */
-int  get_settings_conf_path(char *tmp,char *path)
+int  get_settings_conf_path(char *tmp, uint ID, char *path)
 {
 	if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
-	sprintf(path,"%s/.ear_settings_conf",tmp);
+	sprintf(path,"%s/%u/.ear_settings_conf",tmp, ID);
 	return EAR_SUCCESS;	
 }
 /** This functions creates the name of the file mapping the shared memory for the resched flag, it is placed at TMP 
  */
-int  get_resched_path(char *tmp,char *path)
+int  get_resched_path(char *tmp, uint ID,char *path)
 {
 	if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
-	sprintf(path,"%s/.ear_resched",tmp);
+	sprintf(path,"%s/%u/.ear_resched",tmp, ID);
 	return EAR_SUCCESS;	
 }
 
@@ -99,12 +99,17 @@ void settings_conf_shared_area_dispose(char * path)
 
 void print_settings_conf(settings_conf_t *setting)
 {
-	verbose(VCONF,"settings: user_type(0=NORMAL,1=AUTH,2=ENERGY) %u learning %u lib_enabled %d policy(0=min_energy, 1=min_time,2=monitoring) %u \n",
-	setting->user_type,setting->learning,setting->lib_enabled,setting->policy);
-	verbose(VCONF,"\tmax_freq %lu def_freq %lu def_p_state %u th %.2lf\n",setting->max_freq,setting->def_freq,setting->def_p_state,setting->settings[0]);
-	print_earlib_conf(&setting->lib_info);	
-	verbose(VCONF,"\tmin_sig_power %.0lf",setting->min_sig_power);
+	verbose(VCONF,"Settings\n--------\n\tUser type --- NORMAL(0)/AUTH(1)/ENERGY(2) --- %u\n"
+            "\tLearning: %u\n\tLibrary enabled: %d\n"
+            "\tPolicy --- min_energy(0)/min_time(1)/monitoring(2) --- %u\n",
+            setting->user_type, setting->learning, setting->lib_enabled, setting->policy);
+	verbose(VCONF,"\tMax. CPU freq.: %lu / Def. CPU freq.: %lu / Def. P-State: %u"
+            " / CPU policy th.: %.2lf / CPU max. P-State: %d\n", setting->max_freq, setting->def_freq,
+            setting->def_p_state, setting->settings[0], setting->cpu_max_pstate);
 
+	print_earlib_conf(&setting->lib_info);
+
+	verbose(VCONF,"\tMin. sign. power: %.0lf\n--------", setting->min_sig_power);
 }
 
 /// RESCHED
@@ -132,16 +137,15 @@ void resched_shared_area_dispose(char * path)
 }
 
 
-#if POWERCAP
 /************* APP_MGT
  *
  * Sets in path the filename for the shared memory area app_area between EARD and EARL
  * * @param path (output)
  * */
-int get_app_mgt_path(char *tmp,char *path)
+int get_app_mgt_path(char *tmp, uint ID,char *path)
 {
   if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
-  sprintf(path,"%s/.ear_app_mgt",tmp);
+  sprintf(path,"%s/%u/.ear_app_mgt",tmp,ID);
   return EAR_SUCCESS;
 }
 
@@ -181,10 +185,10 @@ void app_mgt_shared_area_dispose(char * path)
 }
 
 /****************************** PC_APP_INFO REGION *******************/
-int get_pc_app_info_path(char *tmp,char *path)
+int get_pc_app_info_path(char *tmp,uint ID,char *path)
 {
   if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
-  sprintf(path,"%s/.ear_pc_app_info",tmp);
+  sprintf(path,"%s/%u/.ear_pc_app_info",tmp, ID);
   return EAR_SUCCESS;
 }
 pc_app_info_t  * create_pc_app_info_shared_area(char *path)
@@ -206,7 +210,6 @@ void pc_app_info_shared_area_dispose(char * path)
 	dispose_shared_area(path,fd_pc_app_info);
 }
 
-#endif
 
 
 /* COEFFS */
@@ -316,5 +319,33 @@ void frequencies_shared_area_dispose(char * path)
 void dettach_frequencies_shared_area()
 {
 	dettach_shared_area(fd_freq);
+}
+
+
+/******************** ear conf ****************************/
+int get_ser_cluster_conf_path(char *tmp, char *path)
+{
+  if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
+  sprintf(path,"%s/.cluster_conf",tmp);
+  return EAR_SUCCESS;
+}
+int fd_cconf;
+char  * create_ser_cluster_conf_shared_area(char *path, char *cconf, size_t size)
+{
+    return (char *)create_shared_area(path,(char *)cconf,size,&fd_cconf,0);
+}
+char * attach_ser_cluster_conf_shared_area(char * path, size_t *size)
+{
+	    return (char *)attach_shared_area(path,0,O_RDONLY,&fd_cconf,(int *)size);
+}
+void dettach_ser_cluster_conf_shared_area()
+{
+	dettach_shared_area(fd_cconf);
+}
+void cluster_ser_conf_shared_area_dispose(char * path)
+{
+	if (path==NULL) return;
+  dispose_shared_area(path,fd_cconf);
+
 }
 

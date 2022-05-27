@@ -75,11 +75,14 @@ void copy_loop(loop_t *destiny, loop_t *source);
 // REPORTING
 /** Appends in a file a loop in CSV format. The returned integer is one
 *   of the following states: EAR_SUCCESS or EAR_ERROR. */
-int append_loop_text_file(char *path, loop_t *loop,job_t *job);
+int append_loop_text_file(char *path, loop_t *loop,job_t *job, int add_heder, int single_column, char sep);
 /* Same as previous one but without job information */
-int append_loop_text_file_no_job(char *path, loop_t *loop);
+int append_loop_text_file_no_job(char *path, loop_t *loop, int add_header, int single_column, char sep);
 /* Adds the ts to the output */
-int append_loop_text_file_no_job_with_ts(char *path, loop_t *loop,ullong currtime);
+int append_loop_text_file_no_job_with_ts(char *path, loop_t *loop,ullong currtime, int add_header, int single_column, char sep);
+
+/* Creates the header in a csv loop file . It must be called only when the file doesn't exist. It adds the header at the beginning of the loop header */
+int create_loop_header(char * header, char *path, int ts, uint num_gpus, int single_column);
 
 /** Given a loop_t and a file descriptor, outputs the contents of said loop to the fd.*/
 void print_loop_fd(int fd, loop_t *loop);

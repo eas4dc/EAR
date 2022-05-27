@@ -79,11 +79,12 @@ state_t wait_for_data(MPI_Request *req)
 state_t check_node_signatures(masters_info_t *mi,lib_shared_data_t *data,shsignature_t *sig)
 {
 		state_t ret=EAR_NOT_READY;
+		uint num_ready;
 
 
     /* If the master signature is ready we check the others */
   if ((mi->my_master_rank >= 0) && sig[0].ready){
-    if (are_signatures_ready(data,sig)){
+    if (are_signatures_ready(data,sig, &num_ready)){
 			return EAR_SUCCESS;
 		}
 	}

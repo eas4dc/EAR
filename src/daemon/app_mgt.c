@@ -36,7 +36,7 @@ void print_app_mgt_data(app_mgt_t *a)
 {
 	if (a==NULL) return;
 
-	verbose(1,"App_info:master_rank %u ppn %u nodes %u total_processes %u max_ppn %u",a->master_rank,a->ppn,a->nodes,a->total_processes,a->max_ppn);
+	verbose(VEARD_NMGR,"App_info:master_rank %u ppn %u nodes %u total_processes %u max_ppn %u",a->master_rank,a->ppn,a->nodes,a->total_processes,a->max_ppn);
 }
 uint is_app_master(app_mgt_t *a)
 {

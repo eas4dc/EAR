@@ -27,28 +27,29 @@
 // More information about CPUFreq fies
 //	https://www.kernel.org/doc/html/v4.14/admin-guide/pm/cpufreq.html
 
-state_t cpufreq_linux_status(topology_t *tp);
+/* Drivers can load without permissions to set frequency/governor. */
+state_t mgt_cpufreq_linux_load(topology_t *tp, mgt_ps_driver_ops_t *ops);
 
-state_t cpufreq_linux_init(ctx_t *c);
+state_t mgt_cpufreq_linux_init(ctx_t *c);
 
-state_t cpufreq_linux_dispose(ctx_t *c);
+state_t mgt_cpufreq_linux_dispose(ctx_t *c);
 
-/** Getters **/
-state_t cpufreq_linux_get_available_list(ctx_t *c, const ullong **freq_list, uint *freq_count);
+// Getters
+state_t mgt_cpufreq_linux_get_available_list(ctx_t *c, const ullong **freq_list, uint *freq_count);
 
-state_t cpufreq_linux_get_current_list(ctx_t *c, const ullong **freq_list);
+state_t mgt_cpufreq_linux_get_current_list(ctx_t *c, const ullong **freq_list);
 
-state_t cpufreq_linux_get_boost(ctx_t *c, uint *boost_enabled);
+state_t mgt_cpufreq_linux_get_boost(ctx_t *c, uint *boost_enabled);
 
-state_t cpufreq_linux_get_governor(ctx_t *c, uint *governor);
+state_t mgt_cpufreq_linux_get_governor(ctx_t *c, uint *governor);
 
-/** Setters **/
-state_t cpufreq_linux_set_current_list(ctx_t *c, uint *freq_index);
+// Setters
+state_t mgt_cpufreq_linux_set_current_list(ctx_t *c, uint *freq_index);
 
-//Sets a frequency in a specified CPU. Use all_cpus to set that P_STATE in all CPUs.
-state_t cpufreq_linux_set_current(ctx_t *c, uint freq_index, int cpu);
+/* Sets a frequency in a specified CPU. Use all_cpus to set that P_STATE in all CPUs. */
+state_t mgt_cpufreq_linux_set_current(ctx_t *c, uint freq_index, int cpu);
 
-//You can recover the governor (and its frequency) by setting Governor.last and Governor.init.
-state_t cpufreq_linux_set_governor(ctx_t *c, uint governor);
+/* You can recover the governor (and its frequency) by setting Governor.last and Governor.init. */
+state_t mgt_cpufreq_linux_set_governor(ctx_t *c, uint governor);
 
 #endif //MANAGEMENT_CPUFREQ_DRIVERS_LINUX_CPUFREQ

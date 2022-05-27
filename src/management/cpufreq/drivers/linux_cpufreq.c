@@ -23,7 +23,7 @@
 #include <string.h>
 #include <common/sizes.h>
 #include <common/output/debug.h>
-#include <metrics/frequency/cpufreq_base.h>
+#include <metrics/cpufreq/cpufreq_base.h>
 #include <management/cpufreq/drivers/linux_cpufreq.h>
 
 #define N_FREQS 128
@@ -112,26 +112,30 @@ static state_t write_multi(int *fds, char *word, int line_break)
 	return EAR_SUCCESS;
 }
 
-state_t cpufreq_linux_status(topology_t *tp_in)
+state_t mgt_cpufreq_linux_load(topology_t *tp_in, mgt_ps_driver_ops_t *ops)
 {
 	char data[SZ_NAME_SHORT];
 	int found_userspace = 0;
+	int set_frequency = 0;
+	int set_governor = 0;
 	state_t s;
 
 	if (f != NULL) {
-		return EAR_SUCCESS;
+		return_msg(EAR_ERROR, Generr.api_initialized);
 	}	
-	//
+	// We are assuming that all files are at least readable
 	debug("testing ACPI-CPUFreq driver status");
 	int fd = open("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors", O_RDONLY);
 	if (fd < 0) {
 		return_msg(EAR_ERROR, strerror(errno));
 	}
 	#if 0
+	// Fails without acpi-cpufreq
 	if (strncmp(data, "acpi-cpufreq", 12) != 0) {
-		return_msg(EAR_ERROR, "driver not found");
+		return_msg(EAR_ERROR, "Driver not found");
 	}
 	#else
+	// Fails without userspace governor
 	while (!found_userspace && !state_fail(s = read_word(fd, data, 0))) {
 		found_userspace = (strncmp(data, "userspace", 9) == 0);
 		debug("read the word '%s' (found %d)", data, found_userspace);
@@ -141,17 +145,44 @@ state_t cpufreq_linux_status(topology_t *tp_in)
 		return_msg(EAR_ERROR, "Current driver does not have userspace governor.");
 	}
 	#endif
+	// Testing set frequency file
+	if ((fd = open("/sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed", O_RDWR)) >= 0) {
+		debug("Opened 'scaling_setspeed' in write mode");
+		set_frequency = 1;
+		close(fd);
+	}
+	// Testing set governor file
+	if ((fd = open("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", O_RDWR)) >= 0) {
+		debug("Opened 'scaling_governor' in write mode");
+		set_governor = 1;
+		close(fd);
+	}
 	if (tp.cpu_count == 0) {
 		if(xtate_fail(s, topology_copy(&tp, tp_in))) {
 			return EAR_ERROR;
 		}
 	}
+	// Driver references
+	replace_ops(ops->init,             mgt_cpufreq_linux_init);
+	replace_ops(ops->dispose,          mgt_cpufreq_linux_dispose);
+	replace_ops(ops->get_available_list, mgt_cpufreq_linux_get_available_list);
+	replace_ops(ops->get_current_list, mgt_cpufreq_linux_get_current_list);
+	replace_ops(ops->get_boost,        mgt_cpufreq_linux_get_boost);
+	replace_ops(ops->get_governor,     mgt_cpufreq_linux_get_governor);
+	if (set_frequency) {
+	replace_ops(ops->set_current_list, mgt_cpufreq_linux_set_current_list);
+	replace_ops(ops->set_current,      mgt_cpufreq_linux_set_current);
+	}
+	if (set_governor) {
+	replace_ops(ops->set_governor,     mgt_cpufreq_linux_set_governor);
+	}
+
 	return EAR_SUCCESS;
 }
 
 static state_t static_dispose(ctx_t *c, state_t s, char *msg)
 {
-	int cpu;	
+	int cpu;
 	
 	for (cpu = 0; cpu < tp.cpu_count; ++cpu) {
 		if (f->fds_freq != NULL && f->fds_freq[cpu] >= 0) {
@@ -163,10 +194,8 @@ static state_t static_dispose(ctx_t *c, state_t s, char *msg)
 			close(f->fds_govr[cpu]);
 		}
 	}
-	if (f->fds_freq != NULL)
-		free(f->fds_freq);
-	if (f->fds_govr != NULL)
-		free(f->fds_govr);
+	if (f->fds_freq != NULL) free(f->fds_freq);
+	if (f->fds_govr != NULL) free(f->fds_govr);
 	free(f);
 	c->context = NULL;
 	f = NULL;
@@ -231,7 +260,7 @@ static state_t cpufreq_linux_init_frequencies()
 		if((fd = open("/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq", O_RDONLY)) >= 0) {
 			if (state_ok(read_word(fd, data, 0))) {
 				aux = (ullong) atoll(data);
-				debug("Min CPU frequency detected as %lu",aux);
+				debug("Min CPU frequency detected as %llu", aux);
 			}
 			close(fd);
 		}
@@ -252,10 +281,11 @@ static state_t cpufreq_linux_init_frequencies()
 	if (f->freqs_count == 0) {
 		return_msg(EAR_ERROR, "no frequencies available");
 	}
+
 	return EAR_SUCCESS;
 }
 
-state_t cpufreq_linux_init(ctx_t *c)
+state_t mgt_cpufreq_linux_init(ctx_t *c)
 {
 	char path[SZ_PATH];
 	int cpu, aux;
@@ -326,13 +356,13 @@ state_t cpufreq_linux_init(ctx_t *c)
 	return EAR_SUCCESS;
 }
 
-state_t cpufreq_linux_dispose(ctx_t *c)
+state_t mgt_cpufreq_linux_dispose(ctx_t *c)
 {
 	return static_dispose(c, EAR_SUCCESS, "");
 }
 
 /* Getters */
-state_t cpufreq_linux_get_available_list(ctx_t *c, const ullong **freq_list, uint *freq_count)
+state_t mgt_cpufreq_linux_get_available_list(ctx_t *c, const ullong **freq_list, uint *freq_count)
 {
 	debug("cpufreq_linux_get_available_list");
 	if (freq_list  != NULL) *freq_list  = f->freqs_avail;
@@ -340,7 +370,7 @@ state_t cpufreq_linux_get_available_list(ctx_t *c, const ullong **freq_list, uin
 	return EAR_SUCCESS;
 }
 
-state_t cpufreq_linux_get_current_list(ctx_t *c, const ullong **freq_list)
+state_t mgt_cpufreq_linux_get_current_list(ctx_t *c, const ullong **freq_list)
 {
 	char data[SZ_NAME_SHORT];
 	state_t s2 = EAR_SUCCESS;
@@ -360,7 +390,7 @@ state_t cpufreq_linux_get_current_list(ctx_t *c, const ullong **freq_list)
 	return s2;
 }
 
-state_t cpufreq_linux_get_boost(ctx_t *c, uint *boost_enabled)
+state_t mgt_cpufreq_linux_get_boost(ctx_t *c, uint *boost_enabled)
 {
 	if (boost_enabled != NULL) {
 		*boost_enabled = f->boost_enabled;
@@ -368,7 +398,7 @@ state_t cpufreq_linux_get_boost(ctx_t *c, uint *boost_enabled)
 	return EAR_SUCCESS;
 }
 
-state_t cpufreq_linux_get_governor(ctx_t *c, uint *governor)
+state_t mgt_cpufreq_linux_get_governor(ctx_t *c, uint *governor)
 {
 	char data[SZ_NAME_SHORT];
 	state_t s = EAR_SUCCESS;
@@ -381,7 +411,7 @@ state_t cpufreq_linux_get_governor(ctx_t *c, uint *governor)
 }
 
 /** Setters */
-state_t cpufreq_linux_set_current_list(ctx_t *c, uint *freqs_index)
+state_t mgt_cpufreq_linux_set_current_list(ctx_t *c, uint *freqs_index)
 {
 	char data[SZ_NAME_SHORT];
 	state_t s2 = EAR_SUCCESS;
@@ -391,13 +421,15 @@ state_t cpufreq_linux_set_current_list(ctx_t *c, uint *freqs_index)
 	// Adding a line break
 	for (cpu = 0; cpu < tp.cpu_count; ++cpu)
 	{
+		if (freqs_index[cpu] == ps_nothing) {
+			continue;
+		}
 		if (freqs_index[cpu] > f->freqs_count) {
 			freqs_index[cpu] = f->freqs_count-1;
 		}
 		sprintf(data, "%llu", f->freqs_avail[freqs_index[cpu]]);
 		s1 = write_word(f->fds_freq[cpu], data, strlen(data), 1);
 		//debug("writing a word '%s' returned %d", data, s1);
-
 		if (state_fail(s1)) {
 			s2 = s1;
 		}
@@ -405,7 +437,7 @@ state_t cpufreq_linux_set_current_list(ctx_t *c, uint *freqs_index)
 	return s2;
 }
 
-state_t cpufreq_linux_set_current(ctx_t *c, uint freq_index, int cpu)
+state_t mgt_cpufreq_linux_set_current(ctx_t *c, uint freq_index, int cpu)
 {
 	char data[SZ_NAME_SHORT];
 	
@@ -430,7 +462,7 @@ state_t cpufreq_linux_set_current(ctx_t *c, uint freq_index, int cpu)
 	return_msg(EAR_ERROR, Generr.cpu_invalid);
 }
 
-state_t cpufreq_linux_set_governor(ctx_t *c, uint governor)
+state_t mgt_cpufreq_linux_set_governor(ctx_t *c, uint governor)
 {
 	char govr_aux[SZ_NAME_SHORT];
 	char freq_aux[SZ_NAME_SHORT];
@@ -438,8 +470,7 @@ state_t cpufreq_linux_set_governor(ctx_t *c, uint governor)
 	uint current;
 	state_t s;
 
-	debug("cpufreq_linux_set_governor ");
-	if (xtate_fail(s, cpufreq_linux_get_governor(c, &current))) {
+	if (state_fail(s = mgt_cpufreq_linux_get_governor(c, &current))) {
 		return s;
 	}
 	if (governor == current) {
@@ -457,11 +488,11 @@ state_t cpufreq_linux_set_governor(ctx_t *c, uint governor)
 	if (governor == Governor.init) {
 		sprintf(govr_aux, "%s", f->govr_init);
 		sprintf(freq_aux, "%s", f->freq_init);	
-		set_freq = 1;
+		set_freq = mgt_governor_is(f->govr_init, Governor.userspace);
 	} else if (governor == Governor.last) {
-		set_freq = 1;
+		set_freq = mgt_governor_is(f->govr_last, Governor.userspace);
 	} else {
-		if (xtate_fail(s, mgt_governor_tostr(governor, govr_aux))) {
+		if (state_fail(s = mgt_governor_tostr(governor, govr_aux))) {
 			return s;
 		}
 	}

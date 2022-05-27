@@ -21,8 +21,31 @@
 #include <common/types.h>
 #include <common/states.h>
 #include <common/plugins.h>
+#include <common/types/configuration/cluster_conf.h>
 #include <common/hardware/topology.h>
 #include <metrics/common/pstate.h>
+
+// The API
+//
+// This API is designed to set the frequency in the of the uncore or integrated
+// memory controllers of the system.
+//
+// Props:
+// 	- Thread safe: yes.
+//	- Daemon bypass: yes.
+//  - Dummy API: yes.
+//
+// Compatibility:
+//  --------------------------------------------------------
+//  | Architecture    | F/M | Comp. | Granularity | System |
+//  --------------------------------------------------------
+//  | Intel HASWELL   | 63  | v     | Socket      | MSR    |
+//  | Intel BROADWELL | 79  | v     | Socket      | MSR    |
+//  | Intel SKYLAKE   | 85  | v     | Socket      | MSR    |
+//  | Intel ICELAKE   | 106 | v     | Socket      | MSR    |
+//  | AMD ZEN+/2      | 17h | v     | Socket      | HSMP   |
+//  | AMD ZEN3        | 19h | v     | Socket      | HSMP   |
+//  -------------------------------------------------------
 
 #define all_sockets all_devs
 
@@ -42,7 +65,7 @@ typedef struct mgt_imcfreq_ops_s
 } mgt_imcfreq_ops_t;
 
 /** */
-state_t mgt_imcfreq_load(topology_t *c, int eard);
+state_t mgt_imcfreq_load(topology_t *c, int eard, my_node_conf_t *conf);
 /** Returns the loaded API. */
 state_t mgt_imcfreq_get_api(uint *api);
 /** */

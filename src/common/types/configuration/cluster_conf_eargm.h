@@ -31,23 +31,32 @@
 
 #define DECON_LIMITS  3
 
+typedef struct eargm_def
+{
+    int id;
+    uint port;
+    long energy;
+    long power;
+    char node[GENERIC_NAME];
+    int num_subs;
+    int *subs; //eargms under that meta_eargm
+} eargm_def_t;
+
 typedef struct eargm_conf
 {
   uint  verbose;    /* default 1 */
   uint  use_aggregation; /* Use aggregated metrics.Default 1 */
   ulong t1;       /* default 60 seconds */
   ulong t2;       /* default 600 seconds */
-  ulong   energy;     /* mandatory */
+  long   energy;     /* mandatory */
   /* PowerCap */
-  #if POWERCAP
-  ulong power;
+  long power;
   ulong t1_power;
   ulong powercap_mode;  /* 1=auto by default, 0=monitoring_only */
   ulong defcon_power_limit;   /* Percentages from the maximum to execute the action (0..100)*/
   ulong defcon_power_lower;   /* Percentages from the maximum to execute the restore (0..100)*/
   char powercap_limit_action[GENERIC_NAME]; /* Script file for powercap actions */
   char powercap_lower_action[GENERIC_NAME]; /* Script file for powercap actions */
-  #endif
   /****/
   uint  units;      /* 0=J, 1=KJ=default, 2=MJ, or Watts when using Power */
   uint  policy;     /* 0=MaxEnergy (default), 1=MaxPower ( not yet implemented) */
@@ -58,12 +67,18 @@ typedef struct eargm_conf
   char  mail[GENERIC_NAME];
   char  host[GENERIC_NAME];
   char  energycap_action[GENERIC_NAME]; /* This action is execute in any WARNING level */
+  char  plugins[SZ_PATH_INCOMPLETE];
   uint  use_log;
+
+  /* Specific EARGM definitions */
+  int num_eargms;
+  eargm_def_t *eargms;
 } eargm_conf_t;
 
 
 state_t EARGM_token(char *token);
 state_t EARGM_parse_token(eargm_conf_t *conf,char *token);
+void check_cluster_conf_eargm(eargm_conf_t *conf);
 void copy_eargmd_conf(eargm_conf_t *dest,eargm_conf_t *src);
 void set_default_eargm_conf(eargm_conf_t *eargmc);
 void print_eargm_conf(eargm_conf_t *conf);

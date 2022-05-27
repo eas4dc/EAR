@@ -22,9 +22,10 @@
 #include <common/config/config_dev.h>
 #include <common/types/types.h>
 typedef struct pc_app_info{
+	uint  powercap;
 	uint  cpu_mode;
 	ulong req_f[MAX_CPUS_SUPPORTED];
-	ulong imc_f[MAX_CPUS_SUPPORTED];
+	ulong imc_f[MAX_SOCKETS_SUPPORTED];
 	ulong req_power;
 	uint  pc_status;
 	#if USE_GPUS

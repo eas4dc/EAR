@@ -55,6 +55,7 @@ typedef struct plug_user {
 
 typedef struct plug_job {
 	new_job_req_t app;
+    new_task_req_t task;
 	plug_user_t user;
 	char **nodes_list;
 	uint nodes_count;
@@ -101,6 +102,7 @@ typedef struct plug_subject {
 	char host[SZ_NAME_MEDIUM];
 	int context_local;
 	int exit_status;
+    int is_task_master;
 	int is_master;
 } plug_subject_t;
 

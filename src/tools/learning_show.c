@@ -33,7 +33,7 @@ void usage(int argc, char *argv[])
 	if (argc < 2)
 	{
 		verbose(0, "Usage: %s node.id [OPTIONS]\n", argv[0]);
-		verbose(0, "  The node.id of the node to display the information.");
+		verbose(0, "  The node.id of the node to display the information.Use \"all\" to show all the nodes");
 		verbose(0, "\nOptions:");
 		verbose(0, "\t-P <num>\tPrints the output with a different color,");
 		verbose(0, "\t\tcan be used when displaying different batch of");
@@ -65,12 +65,15 @@ int main(int argc,char *argv[])
 	int total_apps = 0;
 	int num_apps = 0;
 	int i;
+	double VPI;
 
 	//
 	usage(argc, argv);
 
 	//
 	node_name = argv[1];
+
+	if (strcmp(argv[1], "all") == 0) node_name = NULL;	
 
 	if (get_ear_conf_path(buffer) == EAR_ERROR) {
 		printf("ERROR while getting ear.conf path\n");
@@ -90,12 +93,12 @@ int main(int argc,char *argv[])
 
 	//
 	if (!opt_c) {
-		tprintf_init(fdout, STR_MODE_COL, "17 7 17 10 10 8 8 8 8");
+		tprintf_init(fdout, STR_MODE_COL, "17 7 17 10 10 8 8 8 8 8");
 
-		tprintf("Node name||JID||App name||Def. F.||Avg. F.||Seconds||Watts||GBS||CPI");
-		tprintf("---------||---||--------||-------||-------||-------||-----||---||---");
+		tprintf("Node name||JID||App name||Def. F.||Avg. F.||Seconds||Watts||GBS||CPI||VPI");
+		tprintf("---------||---||--------||-------||-------||-------||-----||---||---||---");
 	} else {
-		verbose(0, "Node name;JID;App name;Def. F.;Avg. F.;Seconds;Watts;GBS;CPI");
+		verbose(0, "Node name;JID;App name;Def. F.;Avg. F.;Seconds;Watts;GBS;CPI;VPI");
 	}
 
 
@@ -113,16 +116,17 @@ int main(int argc,char *argv[])
 				apps[i].node_id[15] = '\0';
 			}
 
+			compute_vpi(&VPI , &apps[i].signature);
 			if (opt_c) {
-				verbose(0, "%s;%lu;%s;%lu;%lu;%0.2lf;%0.2lf;%0.2lf;%0.2lf",
+				verbose(0, "%s;%lu;%s;%lu;%lu;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf",
                     apps[i].node_id, apps[i].job.id,apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
                     apps[i].signature.time, apps[i].signature.DC_power,
-                    apps[i].signature.GBS, apps[i].signature.CPI);
+                    apps[i].signature.GBS, apps[i].signature.CPI, VPI);
 			} else {
-				tprintf("%s%s||%lu||%s||%lu||%lu||%0.2lf||%0.2lf||%0.2lf||%0.2lf", paint[opt_p],
+				tprintf("%s%s||%lu||%s||%lu||%lu||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf", paint[opt_p],
 					apps[i].node_id,apps[i].job.id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
 					apps[i].signature.time, apps[i].signature.DC_power,
-					apps[i].signature.GBS, apps[i].signature.CPI);
+					apps[i].signature.GBS, apps[i].signature.CPI, VPI);
 			}
 
 	    }

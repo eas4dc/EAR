@@ -63,7 +63,7 @@ static ulong policy_freq;
 static uint tries_current_loop=0;
 static uint tries_current_loop_same_freq=0;
 
-static ulong perf_accuracy_min_time = 1000000;
+ulong perf_accuracy_min_time = 1000000;
 static uint perf_count_period = 100,loop_perf_count_period,perf_count_period_10p;
 uint EAR_STATE = NO_PERIOD;
 uint current_earl_state = NO_PERIOD;
@@ -75,8 +75,17 @@ static uint total_th;
 static uint signatures_stables = 0;
 static signature_t /* cpu_sel_signature, */ policy_sel_signature;
 static node_freqs_t nf;
+static float MAX_DYNAIS_OVERHEAD_DYN = MAX_DYNAIS_OVERHEAD;
 uint waiting_for_node_signatures = 0;
 
+/* Defined in ear.c */
+extern report_id_t rep_id;
+extern cluster_conf_t cconf;
+
+#if 0
+/* Aux to print signatures */
+static char sig_buff[1024];
+#endif
 
 
 #define DYNAIS_CUTOFF	1
@@ -84,19 +93,6 @@ uint waiting_for_node_signatures = 0;
 #if EAR_OVERHEAD_CONTROL
 extern uint check_periodic_mode;
 #endif
-
-
-
-/** This funcion must be policy dependent */
-ulong select_near_freq(ulong avg)
-{
-    ulong near;
-    ulong norm;
-    norm=avg/100000;
-    near=norm*100000;
-    return near;
-}
-
 
 /* This function check is this application is going to be affected or not (an estimation based on CPI and GBS) by DynIAS */
 static void check_dynais_on(signature_t *A, signature_t *B)
@@ -117,7 +113,7 @@ static void check_dynais_off(ulong mpi_calls_iter,uint period, uint level, ulong
     dynais_overhead_usec = mpi_calls_iter;
     if (loop_signature.signature.time > 0){
         dynais_overhead_perc = ((float)dynais_overhead_usec/(float)1000000)*(float)100/loop_signature.signature.time;
-        if (dynais_overhead_perc>MAX_DYNAIS_OVERHEAD){
+        if (dynais_overhead_perc>MAX_DYNAIS_OVERHEAD_DYN){
             // Disable dynais : API is still pending
 #if DYNAIS_CUTOFF
             dynais_enabled = DYNAIS_DISABLED;
@@ -125,7 +121,7 @@ static void check_dynais_off(ulong mpi_calls_iter,uint period, uint level, ulong
             if (masters_info.my_master_rank>=0) log_report_dynais_off(application.job.id,application.job.step_id);
         }
         if (dynais_enabled == DYNAIS_DISABLED){
-            debug("DYNAIS_DISABLED: Total time %lf (s) dynais overhead %lu usec in %lu mpi calls(%lf percent), event=%lu min_time=%lu",
+            verbose_master(3,"DYNAIS_DISABLED: Total time %lf (s) dynais overhead %lu usec in %lu mpi calls(%lf percent), event=%lu min_time=%lu",
                     loop_signature.signature.time,dynais_overhead_usec,mpi_calls_iter,dynais_overhead_perc,event,perf_accuracy_min_time);
         }
     }
@@ -160,20 +156,24 @@ static void print_loop_signature(char *title, signature_t *loop)
 
 
 void states_new_iteration(int my_id, uint period, uint iterations, uint level, ulong event, ulong mpi_calls_iter,uint dynais_used);
+timestamp_t time_last_signature;
+uint signature_reported = 0;
+
 static void report_loop_signature(uint iterations,loop_t *my_loop,job_t *job)
 {
     my_loop->total_iterations = iterations;
     my_loop->jid 							= job->id;
     my_loop->step_id 					= job->step_id;
-#if 0
-    append_loop_text_file(loop_summary_path, my_loop,job);
-#endif
+
+		/* EAR uses this timestamp to switch to periodic mode (or not ) */
+    timestamp_getfast(&time_last_signature);
+    signature_reported = 1;
+
+
     if (masters_info.my_master_rank>=0){
         clean_db_loop(my_loop, system_conf->max_sig_power);
-#if 0
-        eards_write_loop_signature(my_loop);
-#endif
-        if (report_loops(my_loop,1) != EAR_SUCCESS){
+				application.power_sig.max_DC_power = ear_max(application.power_sig.max_DC_power, my_loop->signature.DC_power);
+        if (report_loops(&rep_id,my_loop,1) != EAR_SUCCESS){
             verbose_master(0,"Error reporting Loop");
         }
 
@@ -183,19 +183,17 @@ static void report_loop_signature(uint iterations,loop_t *my_loop,job_t *job)
 
 /* End auxiliary functions */
 
-/* This function is executed at application end */
-void states_end_job(int my_id,  char *app_name)
-{
-    debug("EAR(%s) Ends execution. ", app_name);
-    end_log();
-}
-
-
-/* This function is executed at application init */
+/** Executed at application start. Reads EAR configuration environment variables. */
+#define MAX_SIG_TIME 10000000
 void states_begin_job(int my_id,  char *app_name)
 {
-    ulong	architecture_min_perf_accuracy_time;
+    ulong architecture_min_perf_accuracy_time;
     int i;
+
+		char *max_dyn_ov = getenv("EAR_MAX_DYNAIS_OVERHEAD");
+		if (max_dyn_ov != NULL){
+			MAX_DYNAIS_OVERHEAD_DYN = atof(max_dyn_ov);
+		}
 
     node_freqs_alloc(&nf);
     signatures=(application_t *) calloc(frequency_get_num_pstates(),sizeof(application_t));
@@ -212,12 +210,16 @@ void states_begin_job(int my_id,  char *app_name)
     /* LOOP WAS CREATED HERE BEFORE */
 
     perf_accuracy_min_time = get_ear_performance_accuracy();
-    if (masters_info.my_master_rank>=0){
-        architecture_min_perf_accuracy_time=eards_node_energy_frequency();
+		verbose_master(2, "perf_accuracy_min_time default %lu", perf_accuracy_min_time);
+    if (masters_info.my_master_rank>=0 && eards_connected()){
+        architecture_min_perf_accuracy_time = eards_node_energy_frequency();
+				if (architecture_min_perf_accuracy_time == (ulong) EAR_ERROR) architecture_min_perf_accuracy_time = perf_accuracy_min_time;
+				verbose_master(2, "eard perf_accuracy_min_time default %lu", architecture_min_perf_accuracy_time);
     }else{
         architecture_min_perf_accuracy_time=1000000;
     }
-    if (architecture_min_perf_accuracy_time>perf_accuracy_min_time) perf_accuracy_min_time=architecture_min_perf_accuracy_time;
+    if ((architecture_min_perf_accuracy_time > perf_accuracy_min_time) && (architecture_min_perf_accuracy_time < MAX_SIG_TIME)) perf_accuracy_min_time = architecture_min_perf_accuracy_time;
+		verbose_master(2, "perf_accuracy_min_time %lu", perf_accuracy_min_time);
 
     EAR_STATE = NO_PERIOD;
     policy_freq = EAR_default_frequency;
@@ -225,6 +227,13 @@ void states_begin_job(int my_id,  char *app_name)
     pst=policy_max_tries(&MAX_POLICY_TRIES);
     total_th =  get_total_resources();
     debug("Using %u total_threads",total_th);
+}
+
+/* This function is executed at application end */
+void states_end_job(int my_id,  char *app_name)
+{
+    debug("EAR(%s) Ends execution. ", app_name);
+    end_log();
 }
 
 
@@ -268,10 +277,7 @@ void states_end_period(uint iterations)
         if (system_conf->report_loops){
             if (masters_info.my_master_rank>=0){
                 clean_db_loop(&loop, system_conf->max_sig_power);
-#if 0
-                eards_write_loop_signature(&loop);
-#endif
-                if (report_loops(&loop,1) != EAR_SUCCESS){
+                if (report_loops(&rep_id,&loop,1) != EAR_SUCCESS){
                     verbose_master(0,"Error reporting loop");
                 }
             }
@@ -282,6 +288,28 @@ void states_end_period(uint iterations)
     policy_loop_end(&loop.id);
 }
 
+static void accumulate_energy_savins(signature_t *loops, signature_t *apps)
+{
+	sig_ext_t *lsig_ext = loops->sig_ext;	
+	sig_ext_t *asig_ext;
+
+	if (lsig_ext == NULL) return;
+	if (apps->sig_ext == NULL){
+		apps->sig_ext = (void *) calloc(1, sizeof(sig_ext_t));
+	}
+	asig_ext = apps->sig_ext;
+
+	if (lsig_ext->saving == 0) return;
+	asig_ext->saving  += lsig_ext->saving;
+	asig_ext->psaving += lsig_ext->psaving;
+	asig_ext->telapsed += lsig_ext->elapsed;
+	asig_ext->tpenalty+= lsig_ext->tpenalty;
+
+	verbose_master(2,"loop (%.2lf, %.2f, %.2f, %.2lf) App (%.2lf, %.2f, %.2f, %.2lf)", 
+		lsig_ext->saving, lsig_ext->psaving, lsig_ext->tpenalty, lsig_ext->elapsed, 
+		asig_ext->saving, asig_ext->psaving, asig_ext->tpenalty, asig_ext->telapsed);
+
+}
 
 /* This is the main function when used DynAIS. It applies the EAR state diagram that drives the internal behaviour */
 void states_new_iteration(int my_id, uint period, uint iterations, uint level, ulong event,ulong mpi_calls_iter,uint dynais_used)
@@ -300,17 +328,18 @@ void states_new_iteration(int my_id, uint period, uint iterations, uint level, u
     /***************************************************************************************************/
     /**** This function can potentially include data sharing between masters, depends on the policy ****/
     /***************************************************************************************************/
+
     sig_shared_region[my_node_id].iterations++;
     if (metrics_new_iteration(&check_signature) == EAR_SUCCESS){
-    	pst = policy_new_iteration(&check_signature);
-    	if (pst != EAR_SUCCESS){
-        	verbose_master(2,"%sNew Phase detected%s",COL_BLU,COL_CLR);
-        	policy_set_default_freq(NULL);
-        	comp_N_begin = metrics_time();
-        	EAR_STATE = FIRST_ITERATION;
-        	return;
-    	}
-		}
+        pst = policy_new_iteration(&check_signature);
+        if (pst != EAR_SUCCESS){
+            verbose_master(2, "%sNew Phase detected%s",COL_BLU,COL_CLR);
+            policy_set_default_freq(NULL);
+            comp_N_begin = metrics_time();
+            EAR_STATE = FIRST_ITERATION;
+            return;
+        }
+    }
 
     prev_f = ear_frequency;
     curr_pstate=frequency_closest_pstate(ear_frequency);
@@ -362,11 +391,12 @@ void states_new_iteration(int my_id, uint period, uint iterations, uint level, u
             } else {
                 perf_count_period = 1;
             }
-            loop_perf_count_period=perf_count_period;
+            loop_perf_count_period = perf_count_period;
             /* Included to accelerate the signature computation */
-            perf_count_period_10p=perf_count_period/10;
-            if (perf_count_period_10p==0) perf_count_period_10p=1;
+            perf_count_period_10p = perf_count_period/10;
+            if (perf_count_period_10p == 0) perf_count_period_10p = 1;
             /**/
+
 
             /* Once min iterations is computed for performance accuracy we start computing application signature */
             EAR_STATE = EVALUATING_LOCAL_SIGNATURE;
@@ -424,6 +454,7 @@ void states_new_iteration(int my_id, uint period, uint iterations, uint level, u
         case EVALUATING_LOCAL_SIGNATURE: /********* EVALUATING_LOCAL_SIGNATURE **********/
             /* We check from time to time if the signature is ready */
             /* Included to accelerate the signature computation */
+            verbose_master(4,"%s--- EVALUATING LOCAL SIGNATURE ---%s", COL_YLW, COL_CLR);
             if (!lib_shared_region->master_ready){
                 if (!dynais_used && (((iterations % mpi_calls_iter) != 0))) return;
                 /* Only when using dynais we consider the 'N' */
@@ -455,7 +486,9 @@ void states_new_iteration(int my_id, uint period, uint iterations, uint level, u
             {
                 if (!lib_shared_region->master_ready) perf_count_period++;
                 return;
-            } 
+            }
+						/* At this point, signatures for all the process in the node are ready. lib_shared_region->job_signature includes the job signature */ 
+						compute_per_process_and_job_metrics(&loop_signature.signature);
 
             /* Included for dynais test */
 #ifdef SHOW_DEBUGS
@@ -486,12 +519,30 @@ void states_new_iteration(int my_id, uint period, uint iterations, uint level, u
             /****** We mark our local signature as ready ************ Moved to metrics*/
             //signature_ready(&sig_shared_region[my_node_id],EVALUATING_LOCAL_SIGNATURE);
 
-            /* This function executes the energy policy */
+						/* This function takes into account if we are using or not the whole node */
             adapt_signature_to_node(&app_signature,&loop_signature.signature,ratio_PPN);
+
+            /* This function executes the energy policy . app_signature is the local process signature, the 
+ 						 * policy will compute the average if needed */
+
             pst=policy_node_apply(&app_signature,&policy_freq,&ready);
 
             /* For no masters, ready will be 0, pending */
             EAR_POLICY_STATE = ready;
+
+						/* Now we compute the JOB signature for reporting */
+
+						if (masters_info.my_master_rank >= 0){
+							metrics_node_signature(&lib_shared_region->job_signature, &loop.signature);
+							signature_copy(&lib_shared_region->job_signature, &loop.signature);
+							#if 0
+							signature_to_str(&lib_shared_region->job_signature, sig_buff, sizeof(sig_buff));
+							verbose_master(2, "job sig: %s", sig_buff);
+							signature_to_str(&loop.signature, sig_buff, sizeof(sig_buff));
+							verbose_master(2, "loop sig: %s", sig_buff);
+							#endif
+						}
+						/* At this point loop and job_signature are the JOB signature with accumulated per process and global metrics */
 
             /* State check */
             /* When the policy is ready to be evaluated, we go to the next state */
@@ -504,69 +555,118 @@ void states_new_iteration(int my_id, uint period, uint iterations, uint level, u
                     comp_N_begin = metrics_time();
                     EAR_STATE = RECOMPUTING_N;
                 } else {
-                    signature_copy(&policy_sel_signature, &loop_signature.signature);
-                    EAR_STATE = SIGNATURE_STABLE; }
+                    //signature_copy(&policy_sel_signature, &loop_signature.signature);
+                    EAR_STATE = SIGNATURE_STABLE; 
+								}
+                signature_copy(&policy_sel_signature, &lib_shared_region->job_signature);
             }
             if (EAR_POLICY_STATE == EAR_POLICY_GLOBAL_EV){ EAR_STATE = EVALUATING_GLOBAL_SIGNATURE; }
             begin_iter = iterations;
             //signature_copy(&loop.signature, &loop_signature.signature);
-            metrics_node_signature(&loop_signature.signature,&loop.signature);
-            report_loop_signature(iterations,&loop,&loop_signature.job);
+
+            /* TODO: To be removed */
+			signature_copy(&loop.signature, &lib_shared_region->job_signature);
+
+            report_loop_signature(iterations, &loop,&loop_signature.job); // report plugin
+
             policy_get_current_freq(&nf);
             lavg = node_freqs_avgcpufreq(nf.cpu_freq);	
-            if (lavg > 0 ) loop_signature.signature.def_f = lavg;
+
+            if (lavg > 0 ) {
+                loop_signature.signature.def_f = lavg;
+            }
 
             /* VERBOSE */
-            state_report_traces(masters_info.my_master_rank,ear_my_rank, my_id,&loop,policy_freq,EAR_STATE);
-            if (dynais_used) sprintf(use_case,"D");
-            else sprintf(use_case,"P");
-            state_verbose_signature(&loop,masters_info.my_master_rank,show_signatures,ear_app_name,application.node_id,iterations,prev_f,policy_freq,use_case);
+            state_report_traces(masters_info.my_master_rank, ear_my_rank, my_id, &loop, policy_freq,EAR_STATE); // tracer plugin
 
-            /* END VERBOSE */
-            break;
+            // The reported signature will show whether the Library is using DynAIS
+            if (dynais_used) {
+                sprintf(use_case, "D");
+            } else {
+                sprintf(use_case, "P");
+            }
+            
+            // Verbose loop signature
+            state_verbose_signature(&loop, masters_info.my_master_rank, show_signatures,
+                    ear_app_name, application.node_id, iterations, prev_f, policy_freq, use_case);
+
+            break; // EVALUATING_LOCAL_SIGNATURE
+
         case EVALUATING_GLOBAL_SIGNATURE:
-            //if (masters_info.my_master_rank>=0) verbose(1,"EVALUATING_GLOBAL_SIGNATURE");
-            /* st =  */policy_app_apply(&policy_freq,&ready);
-            /* State validation */
+
+            policy_app_apply(&policy_freq, &ready);
+
+            // Select the next state
             if (ready == EAR_POLICY_READY){
                 EAR_STATE = EVALUATING_LOCAL_SIGNATURE;
             }
+
             break;
 
-            /* If the policy is ok, we are in stable state and we increase the numbers of iterations to compute the signature */
+        /* If the policy is ok, we are in stable state and we increase
+         * the number of iterations to compute the signature. */
         case SIGNATURE_STABLE:
-            if (!lib_shared_region->master_ready){
 
-                if (!dynais_used && ((iterations % mpi_calls_iter) != 0)) return;
+            if (!lib_shared_region->master_ready) {
+                if (!dynais_used && ((iterations % mpi_calls_iter) != 0)) {
+                    return;
+                }
+
                 // I have executed N iterations more with a new frequency, we must check the signature
-                if (dynais_used &&  ((iterations - 1) % perf_count_period) ) return;
+                if (dynais_used && ((iterations - 1) % perf_count_period)) {
+                    return;
+                }
             }
+
 #if SHOW_DEBUGS
-            if (lib_shared_region->master_ready){
+            if (lib_shared_region->master_ready) {
                 if (masters_info.my_master_rank >= 0){
-                    debug(" Master: master ready waiting for slaves stable");
-                }else{
-                    debug("Slave: going to compute signature because master is ready stable");
+                    debug("(Stable) Master ready and waiting for slaves");
+                } else {
+                    debug("(Stable) Slave going to compute signature because master is ready");
                 }
             }
 #endif
             /* We can compute the signature */
             N_iter = iterations - begin_iter;
+
             result = metrics_compute_signature_finish(&loop_signature.signature, N_iter, perf_accuracy_min_time, total_th);
             if (result == EAR_NOT_READY)
             {
-                if (!lib_shared_region->master_ready) perf_count_period++;
+                if (!lib_shared_region->master_ready) {
+                    perf_count_period++;
+                }
                 return;
             }
 
-
-            /* Marked in metrics */
+            /* Commented because marked in metrics */
             //signature_ready(&sig_shared_region[my_node_id],SIGNATURE_STABLE);
 
             /*print_loop_signature("signature refreshed", &loop_signature.signature);*/
 
             //signature_copy(&loop.signature, &loop_signature.signature);
-            metrics_node_signature(&loop_signature.signature,&loop.signature);
+            //metrics_node_signature(&loop_signature.signature,&loop.signature);
+						/* At this point, signatures are ready */
+
+						/* This function uses cpu power model and accumulates global metrics (GBS, Power etc) */
+            compute_per_process_and_job_metrics(&loop.signature);
+					
+						/* This function accumulates per procecss metrics in loop.signature, so loop.signature is the job
+ 						* signature */	 	
+						if (masters_info.my_master_rank >= 0){
+							metrics_node_signature(&lib_shared_region->job_signature, &loop.signature);
+							signature_copy(&loop_signature.signature, &loop.signature);
+							signature_copy(&lib_shared_region->job_signature, &loop.signature);
+							#if 0
+							signature_to_str(&lib_shared_region->job_signature, sig_buff, sizeof(sig_buff));
+							verbose_master(2, "job sig: %s", sig_buff);
+							signature_to_str(&loop.signature, sig_buff, sizeof(sig_buff));
+							verbose_master(2, "loop sig: %s", sig_buff);
+							#endif
+						}
+						/* At this point loop, loop_signature and job_signature are the JOB signature with accumulated per process and global metrics */
+
+
             report_loop_signature(iterations,&loop,&loop_signature.job);
 
             /* VERBOSE */
@@ -595,6 +695,12 @@ void states_new_iteration(int my_id, uint period, uint iterations, uint level, u
                 return;
             }
             pst = policy_ok(&loop_signature.signature, l_sig,&pok);
+						
+						/* Accumulate Energy savings */
+						accumulate_energy_savins(&loop_signature.signature, &application.signature);
+						
+						//accumulate_energy_savins(&lib_shared_region->job_signature, &application.signature);
+
             ok_clr = COL_GRE;
             if (pok){
                 /* When collecting traces, we maintain the period */
@@ -647,6 +753,7 @@ void states_new_iteration(int my_id, uint period, uint iterations, uint level, u
             }
             break;
         case PROJECTION_ERROR:
+            verbose(2, "%s--- PROJECTION ERROR ---%s", COL_YLW, COL_CLR);
             if (masters_info.my_master_rank>=0 && traces_are_on()){
                 /* We compute the signature just in case EAR_GUI is on */
                 if (((iterations - 1) % perf_count_period) ) return;

@@ -6,11 +6,11 @@
 # -qpl        query + package + list, list all the files in RPM
 
 # Var definitions
-%define __requires_exclude libmpi*.*$|libpapi.so.*|libgsl*
+%define __requires_exclude libmpi*.*$|libgsl*
 
 %define name    ear
 %define release   4
-%define version   4.0
+%define version   4.1
 
 # Information
 # Prefix  Just for when missing any prefix
@@ -18,7 +18,7 @@ Summary:  EAR package
 Group:    System
 Packager: EAR Team
 URL:    https://github.com/BarcelonaSupercomputingCenter/ear_private
-License:  GPL 2.1
+License:  BSD-3 license for individual/non-commercial use and EPL-1.0 license for commercial use
 Name:   %{name}
 Version:  %{version}%{?dist}
 Release:  %{release}

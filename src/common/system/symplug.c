@@ -14,7 +14,7 @@
 * use and EPL-1.0 license for commercial use. Full text of both licenses can be
 * found in COPYING.BSD and COPYING.EPL files.
 */
-
+//#define SHOW_DEBUGS 1
 #include <common/includes.h>
 #include <common/system/symplug.h>
 
@@ -42,6 +42,7 @@ static state_t load(char *path, void *calls[], const char *names[], uint n, int 
 {
 	void *handle = dlopen(path, flags);
 	if (handle == NULL) {
+		debug("dlopen fails %s", dlerror());
 		return_msg(EAR_ERROR, dlerror());
 	}
 	return symplug_join(handle, calls, names, n);

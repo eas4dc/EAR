@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <common/config.h>
+#include <common/utils/string.h>
 #include <library/loader/loader.h>
 #include <library/loader/module_default.h>
 
@@ -31,22 +32,22 @@ static int module_file_exists(char *path)
 	return (access(path, X_OK) == 0);
 }
 
-static int module_constructor_dlsym(char *path_so)
+static int module_constructor_dlsym(char *path_lib_so,char *libhack,char *path_so, size_t path_so_size)
 {
-	void *libear;
-	char *hack;
 
-	// Last chance to force a concrete library file.
-	if ((hack = getenv(HACK_FILE_LIBR)) != NULL) {
-		sprintf(path_so, "%s", hack);
-	} else if ((hack = getenv(HACK_PATH_LIBR)) != NULL) {
-		sprintf(path_so, "%s/%s.%s", hack, REL_NAME_LIBR,DEF_EXT);
-	} else if ((hack = getenv(VAR_INS_PATH)) != NULL) {
-		sprintf(path_so, "%s/%s/%s.%s", hack, REL_PATH_LIBR, REL_NAME_LIBR,DEF_EXT);
-	} else {
-		verbose(2, "LOADER: installation path not found");
-		return 0;
-	}
+  void *libear;
+
+  if ((path_lib_so == NULL) && (libhack == NULL)){
+    verbose(2,"EARL cannot be loaded because paths are not defined");
+    return 0;
+  }
+
+  if (libhack == NULL){
+    xsnprintf(path_so, path_so_size, "%s/%s.%s", path_lib_so, REL_NAME_LIBR, DEF_EXT);
+  }else{
+    xsnprintf(path_so, path_so_size, "%s", libhack);
+  }
+
 
 	verbose(2, "LOADER: loading library %s", path_so);
 
@@ -78,13 +79,13 @@ static int module_constructor_dlsym(char *path_so)
 	return 1;
 }
 
-int module_constructor()
+int module_constructor(char *path_lib_so,char *libhack)
 {
 	static char path_so[4096];
 
 	verbose(3, "LOADER: loading module default (constructor)");
 
-	if (!module_constructor_dlsym(path_so)) {
+	if (!module_constructor_dlsym(path_lib_so,libhack,path_so, sizeof(path_so))) {
 		return 0;
 	}
 	if (atexit(module_destructor) != 0) {

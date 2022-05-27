@@ -1,20 +1,21 @@
 /*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
-*/
+ *
+ * This program is part of the EAR software.
+ *
+ * EAR provides a dynamic, transparent and ligth-weigth solution for
+ * Energy management. It has been developed in the context of the
+ * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+ *
+ * Copyright © 2017-present BSC-Lenovo
+ * BSC Contact   mailto:ear-support@bsc.es
+ * Lenovo contact  mailto:hpchelp@lenovo.com
+ *
+ * This file is licensed under both the BSD-3 license for individual/non-commercial
+ * use and EPL-1.0 license for commercial use. Full text of both licenses can be
+ * found in COPYING.BSD and COPYING.EPL files.
+ */
 
+//#define SHOW_DEBUGS 1
 #include <netdb.h>
 #include <errno.h>
 #include <stdio.h>
@@ -24,6 +25,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <common/states.h>
 #include <common/output/verbose.h>
@@ -35,64 +38,143 @@
 static int eargm_sfd;
 static uint eargm_remote_connected=0;
 
-// based on getaddrinfo  man page
-int eargm_connect(char *nodename,uint use_port)
+
+int eargm_get_all_status(cluster_conf_t *conf, eargm_status_t **status, int eargm_idx)
 {
-    struct addrinfo hints;
-    struct addrinfo *result, *rp;
-		char port_number[50]; 	// that size needs to be validated
-    int sfd, s;
+    int i, j, rc, ret, port, num_status = 0;
+    eargm_status_t *aux_status, *final_status = NULL;
+    char *tmp_eargm = NULL;
+    debug("entering eargm_get_all_status");
 
-		if (eargm_remote_connected) return eargm_sfd;
-   	memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
-    hints.ai_socktype = SOCK_STREAM; /* STREAM socket */
-    hints.ai_flags = 0;
-    hints.ai_protocol = 0;          /* Any protocol */
-
-		sprintf(port_number,"%u",use_port);
-   	s = getaddrinfo(nodename, port_number, &hints, &result);
-    if (s != 0) {
-		#if DEBUG
-		verbose(0, "getaddrinfo failt for %s and %s", nodename, port_number);
-		#endif
-		return EAR_ERROR;
-    }
-
-   	for (rp = result; rp != NULL; rp = rp->ai_next) {
-        sfd = socket(rp->ai_family, rp->ai_socktype,
-                     rp->ai_protocol);
-        if (sfd == -1) // if we can not create the socket we continue
+    for (i = 0; i < conf->eargm.eargms[eargm_idx].num_subs; i++)
+    {
+        //debug("contacting node %d", i);
+        for (j = 0; j < conf->eargm.num_eargms; j++) {
+            if (conf->eargm.eargms[j].id == conf->eargm.eargms[eargm_idx].subs[i]) {
+                tmp_eargm = conf->eargm.eargms[j].node;
+                port = conf->eargm.eargms[j].port;
+                //debug("Found node on %s on port %u", tmp_eargm, port);
+            }
+        }
+        if (tmp_eargm == NULL) {
+            debug("node not found, skipping");
             continue;
+        }
+        rc = remote_connect(tmp_eargm, port);
+        if (rc < 0) {
+            error("Error connecting to %s:%u", tmp_eargm, port);
+            continue;
+        }
 
-       if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
-            break;                  /* Success */
-
-       close(sfd);
+        ret = eargm_get_status(rc, &aux_status);
+        debug("Received %d eargm status", ret);
+        if (ret > 0)
+        {
+            num_status += ret;
+            final_status = realloc(final_status, sizeof(eargm_status_t)*num_status);
+            memcpy(&final_status[num_status-1], aux_status, ret*sizeof(eargm_status_t));
+            free(aux_status);
+        }
+        tmp_eargm = NULL; //reset the var
+        remote_disconnect();
     }
 
-   	if (rp == NULL) {               /* No address succeeded */
-		#if DEBUG
-		verbose(0, "Failing in connecting to remote erds");
-		#endif
-		return EAR_ERROR;
+    *status = final_status;
+
+    return num_status;
+
+}
+
+int eargm_get_status(int fd, eargm_status_t **status)
+{
+    request_t command;
+
+    request_header_t head;
+    eargm_status_t *aux_status;
+
+    memset(&command, 0, sizeof(request_t));
+
+    //set command
+    command.req = EARGM_STATUS;
+
+    //send command
+    send_command(&command);
+
+    //receive data
+    head = receive_data(fd, (void **)&aux_status);
+    debug("received header with size %u and type %d", head.size, head.type);
+    debug("size of eargm_status_t %lu", sizeof(eargm_status_t));
+    if (head.size < sizeof(eargm_status_t) || head.type != EAR_TYPE_EARGM_STATUS)
+    {
+        debug("Error getting eargm status");
+        if (head.size > 0) free(status);
+        return 0;
     }
 
-   	freeaddrinfo(result);           /* No longer needed */
-	eargm_remote_connected=1;
-	eargm_sfd=sfd;
-	return sfd;
+    *status = aux_status;
 
+    int num_status = head.size/sizeof(eargm_status_t);
+
+    return num_status;
+}
+
+int eargm_send_table_commands(eargm_table_t *egm_table)
+{
+    int i, rc, count = 0;
+    char tmp_eargm[256];
+    struct sockaddr_in temp; 
+    for (i = 0; i < egm_table->num_eargms; i++)
+    {
+        count++;
+        if (egm_table->actions[i] == NO_COMMAND)  continue; //nothing to do there
+
+
+        temp.sin_addr.s_addr = egm_table->eargm_ips[i];
+        strcpy(tmp_eargm, inet_ntoa(temp.sin_addr));
+        rc = remote_connect(tmp_eargm, egm_table->eargm_ports[i]);
+        if (rc < 0) {
+            error("Error connecting to node %s", tmp_eargm);
+            continue;
+        }
+        switch(egm_table->actions[i])
+        {
+            case EARGM_INC_PC:
+                if (!eargm_inc_powercap(egm_table->action_values[i])) {
+                    error("Error sending powercap increase to %s", tmp_eargm);
+                    count--; //this is not great, but easy enough
+                }
+                break;
+            case EARGM_RED_PC:
+                if (!eargm_red_powercap(egm_table->action_values[i])) {
+                    error("Error sending powercap increase to %s", tmp_eargm);
+                    count--;
+                }
+                break;
+            case EARGM_RESET_PC:
+                if (!eargm_reset_powercap()) {
+                    error("Error sending powercap increase to %s", tmp_eargm);
+                    count--;
+                }
+                break;
+            default:
+                error("Unknown command in EARGM table");
+                count--;
+                break;
+        }
+        remote_disconnect();
+
+    }
+    return count;
 }
 
 int eargm_new_job(uint num_nodes)
 {
-	request_t command;
+    request_t command;
     memset(&command, 0, sizeof(request_t));
-	command.req=EARGM_NEW_JOB;
-	command.my_req.eargm_data.num_nodes=num_nodes;
-	verbose(2,"command %u num_nodes %u\n",command.req,command.my_req.eargm_data.num_nodes);
-	return send_command(&command);
+    command.req=EARGM_NEW_JOB;
+    command.my_req.eargm_data.num_nodes=num_nodes;
+    verbose(2,"command %u num_nodes %u\n", command.req, command.my_req.eargm_data.num_nodes);
+    return send_command(&command);
 }
 
 int eargm_end_job(uint num_nodes)
@@ -100,14 +182,43 @@ int eargm_end_job(uint num_nodes)
     request_t command;
     memset(&command, 0, sizeof(request_t));
     command.req=EARGM_END_JOB;
-	command.my_req.eargm_data.num_nodes=num_nodes;
-	verbose(2,"command %u num_nodes %u\n",command.req,command.my_req.eargm_data.num_nodes);
-	return send_command(&command);
+    command.my_req.eargm_data.num_nodes=num_nodes;
+    verbose(2,"command %u num_nodes %u\n", command.req, command.my_req.eargm_data.num_nodes);
+    return send_command(&command);
+}
+
+int eargm_inc_powercap(uint increase)
+{
+    request_t command;
+    memset(&command, 0, sizeof(request_t));
+    command.req=EARGM_INC_PC;
+    command.my_req.eargm_data.pc_change=increase;
+    verbose(2,"command %u pc_change %u\n", command.req, command.my_req.eargm_data.pc_change);
+    return send_command(&command);
+}
+
+int eargm_red_powercap(uint decrease)
+{
+    request_t command;
+    memset(&command, 0, sizeof(request_t));
+    command.req=EARGM_RED_PC;
+    command.my_req.eargm_data.pc_change=decrease;
+    verbose(2,"command %u pc_change %u\n", command.req, command.my_req.eargm_data.pc_change);
+    return send_command(&command);
+}
+
+int eargm_reset_powercap()
+{
+    request_t command;
+    memset(&command, 0, sizeof(request_t));
+    command.req=EARGM_RESET_PC;
+    verbose(2,"command %u\n",command.req);
+    return send_command(&command);
 }
 
 int eargm_disconnect()
 {
-	eargm_remote_connected=0;
-	close(eargm_sfd);
-	return EAR_SUCCESS;
+    eargm_remote_connected=0;
+    close(eargm_sfd);
+    return EAR_SUCCESS;
 }

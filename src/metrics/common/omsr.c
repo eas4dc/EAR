@@ -98,10 +98,12 @@ state_t omsr_open(uint cpu, int *fd)
 	sprintf(msr_file_name, "/dev/cpu/%d/msr", cpu);
 	*fd = open(msr_file_name, O_RDWR);
 	
-	if (fd < 0)
+	if (*fd < 0)
 	{
-		*fd = -1;
-		debug("Error when opening %s: %s",msr_file_name,strerror(errno));
+		char msr_safe_file_name[SZ_PATH_KERNEL];
+		sprintf(msr_safe_file_name, "/dev/cpu/%d/msr_safe", cpu);
+		*fd = open(msr_safe_file_name, O_RDWR);
+		debug("Error when opening %s/%: %s",msr_file_name,msr_safe_file_name, strerror(errno));
 		return EAR_OPEN_ERROR;
 	}
 	msr_initialised++;

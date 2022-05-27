@@ -15,7 +15,7 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #define FIRST_SIGNIFICANT_BYTE 3
 #define POWER_PERIOD 5
@@ -34,13 +34,14 @@
 #include <pthread.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
-#include <common/states.h> 
-#include <common/types/generic.h> 
+#include <common/states.h>
+#include <common/types/generic.h>
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
 #include <metrics/energy/node/energy_inm_power.h>
 #include <metrics/energy/node/energy_node.h>
 #include <common/system/monitor.h>
+
 
 static pthread_mutex_t ompi_lock = PTHREAD_MUTEX_INITIALIZER;
 static suscription_t *inm_power_sus;
@@ -49,6 +50,8 @@ static ulong inm_power_timeframe;
 static ulong inm_power_accumulated_energy=0;
 static inm_power_data_t inm_current_power_reading,inm_last_power_reading;
 static struct ipmi_intf inm_context_for_pool;
+
+extern int bmc_channel;
 
 static int opendev(struct ipmi_intf *intf)
 {
@@ -77,7 +80,7 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	struct ipmi_addr addr;
 	struct ipmi_system_interface_addr bmc_addr = {
 			addr_type:    IPMI_SYSTEM_INTERFACE_ADDR_TYPE,
-			channel:    IPMI_BMC_CHANNEL,
+			channel:    (short)bmc_channel,
 	};
 	struct ipmi_ipmb_addr ipmb_addr = {
 			addr_type:    IPMI_IPMB_ADDR_TYPE,
@@ -87,6 +90,9 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	uint8_t *data = NULL;
 	static int curr_seq = 0;
 	fd_set rset;
+
+	bmc_addr.channel = (short) bmc_channel;
+	//printf("Using channel %d \n", (int)bmc_addr.channel);
 
 	if (intf == NULL || req == NULL)
 		return NULL;
@@ -336,7 +342,7 @@ state_t energy_init(void **c)
 	int ret;
 
 	if (c == NULL) {
-		return_msg(EAR_ERROR, Generr.input_null);
+		return EAR_ERROR;
 	}
 	*c = (struct ipmi_intf *) malloc(sizeof(struct ipmi_intf));
 	if (*c == NULL) {
@@ -348,7 +354,7 @@ state_t energy_init(void **c)
 	ret = opendev((struct ipmi_intf *)*c);
 	if (ret<0){ 
 		pthread_mutex_unlock(&ompi_lock);
-		return_print(EAR_ERROR, "error opening IPMI device (%s)", strerror(errno));
+		return EAR_ERROR;
 	}
 
 	if (inm_power_already_loaded == 0){

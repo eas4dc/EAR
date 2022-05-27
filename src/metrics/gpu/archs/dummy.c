@@ -96,6 +96,16 @@ state_t gpu_dummy_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff)
 	return gpu_dummy_data_null(data_diff);
 }
 
+state_t gpu_dummy_data_diff_gpus(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int gpus)
+{
+  if (data2 == NULL || data1 == NULL || data_diff == NULL) {
+    debug("some pointer in data_diff is null");
+    return_msg(EAR_ERROR, Error.null_data);
+  }
+  return gpu_dummy_data_null(data_diff);
+}
+
+
 state_t gpu_dummy_data_merge(gpu_t *data_diff, gpu_t *data_merge)
 {
 	if (data_diff == NULL || data_merge == NULL) {

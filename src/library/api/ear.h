@@ -17,8 +17,9 @@
 
 #ifndef _EAR_API_H_
 #define _EAR_API_H_
-
+#if MPI
 #include <library/api/mpi.h>
+#endif
 #include <library/common/global_comm.h>
 
 /** Initializes all the elements of the library as well as connecting to the daemon. */
@@ -31,7 +32,7 @@ void ear_mpi_call(mpi_call call_type, p2i buf, p2i dest);
 
 /** Finalizes the processes, closing and registering metrics and traces, as well as
 *   closing the connection to the daemon and releasing the memory from DynAIS. */
-void ear_finalize();
+void ear_finalize(int exit_status);
 
 /***** API for manual application modification *********/
 void ear_new_iteration(unsigned long loop_id);

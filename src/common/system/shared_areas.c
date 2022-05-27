@@ -28,7 +28,7 @@
 #include <common/config.h>
 #include <common/states.h>
 //#define SHOW_DEBUGS 1
-#include <common/output/verbose.h>
+#include <common/output/debug.h>
 #include <common/system/shared_areas.h>
 
 
@@ -49,25 +49,26 @@ void *create_shared_area(char *path,char *data,int area_size,int *shared_fd,int 
 	}
 	my_mask=umask(0);
 	strcpy(buff,path);
-	verbose(VCONF+2,"creating file %s for shared memory\n",buff);
+	debug("creating file %s for shared memory",buff);
 	fd=open(buff,O_CREAT|O_RDWR|O_TRUNC,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 	if (fd<0){
 		//error("error creating sharing memory (%s)\n",strerror(errno));
 		umask(my_mask);
 		return NULL;
 	}
-	verbose(VCONF+2,"shared file for mmap created\n");
+	chmod(buff,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+	debug("shared file for mmap created");
 	umask(my_mask);
 	// Default values
 	if (must_clean) bzero(data,area_size);
-	verbose(VCONF+2,"writting default values\n");
+	debug("writting default values");
 	ret=write(fd,data,area_size);
 	if (ret<0){
 		//error("error creating sharing memory (%s)\n",strerror(errno));
 		close(fd);
 		return NULL;
 	}
-	verbose(VCONF+2,"mapping shared memory\n");
+	debug(,"mapping shared memory");
 	my_shared_region= mmap(NULL, area_size,PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);                                     
 	if ((my_shared_region == MAP_FAILED) || (my_shared_region == NULL)){
 		error(" error creating sharing memory (%s)\n",strerror(errno));

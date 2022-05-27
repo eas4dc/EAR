@@ -14,7 +14,7 @@ all: all.components $(flop_OBJS)
 ######## SUBFOLDERS
 
 %.components:
-	@ $(MAKE) -C 'cpu' $* || exit
+	@ $(MAKE) -C 'archs' $* || exit
 
 ######## OPTIONS
 

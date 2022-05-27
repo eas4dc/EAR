@@ -33,6 +33,8 @@
 #include <common/types/configuration/policy_conf.h>
 #include <common/types/configuration/cluster_conf.h>
 
+#define EAR_DEBUG 0
+
 extern char *conf_ear_tmp;
 char *conf_ear_user_db_pathname=NULL;
 char *conf_ear_gui_pathname=NULL;
@@ -263,6 +265,7 @@ int getenv_ear_num_nodes()
 
 	if (my_num_nodes == NULL)
 	{ 
+        // TODO: This call should be placed by SCHED_STEP_NUM_NODES
 		my_num_nodes = getenv("SLURM_STEP_NUM_NODES");
 
 		if (my_num_nodes == NULL) conf_ear_num_nodes=1;
@@ -451,8 +454,8 @@ void ear_print_lib_environment()
 	write(fd,var,strlen(var));
 	sprintf(var,"EAR_VERBOSE=%d\n",get_ear_verbose());
 	write(fd,var,strlen(var));
-	sprintf(var,"EAR_DB_PATHNAME=%s\n",get_ear_db_pathname());
-	write(fd,var,strlen(var));
+	// sprintf(var,"EAR_DB_PATHNAME=%s\n",get_ear_db_pathname());
+	// write(fd,var,strlen(var));
 	sprintf(var,"EAR_USER_DB_PATHNAME=%s\n",get_ear_user_db_pathname());
 	write(fd,var,strlen(var));
 	sprintf(var,"EAR_COEFF_DB_PATHNAME=%s\n",get_ear_coeff_db_pathname());
@@ -532,9 +535,11 @@ int get_total_resources()
 	return procs_per_node*get_num_threads();
 }
 
-state_t read_config_env(char *var, const char* sched_env_var){
-    var = getenv(sched_env_var);
-    if (var != NULL){
+state_t read_config_env(char **var, const char* sched_env_var){
+		*var = NULL;
+		char *loc = getenv(sched_env_var);
+    if (loc != NULL){
+				*var = loc;
         return EAR_SUCCESS;
     }
     return EAR_UNDEFINED;

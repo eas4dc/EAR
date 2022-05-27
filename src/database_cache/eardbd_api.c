@@ -14,7 +14,7 @@
 * use and EPL-1.0 license for commercial use. Full text of both licenses can be
 * found in COPYING.BSD and COPYING.EPL files.
 */
-
+//#define SHOW_DEBUGS 1
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,10 +48,16 @@ int eardbd_is_initialized()
 
 static state_t state_global()
 {
-	if (state_fail(server_s)) {
+    if (server_enabled && state_ok(server_s)) {
+        return_msg(server_s, server_err);
+    }
+    if (mirror_enabled && state_ok(mirror_s)) {
+        return_msg(mirror_s, mirror_err);
+    }
+	if (server_enabled && state_fail(server_s)) {
 		return_msg(server_s, server_err);
 	}
-	if (state_fail(mirror_s)) {
+	if (mirror_enabled && state_fail(mirror_s)) {
 		return_msg(mirror_s, mirror_err);
 	}
 	return EAR_SUCCESS;

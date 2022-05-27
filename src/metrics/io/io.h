@@ -51,6 +51,7 @@ state_t io_diff(io_data_t *diff,io_data_t *iodata_init,io_data_t *iodata_end);
 state_t io_copy(io_data_t *dst,io_data_t *src);
 /** Releases the context previously opened with io_init */
 state_t io_dispose(ctx_t *c);
-
-
+/** Accumulate data from \p src to \p dst. The
+ * context \p c is for design purposes, but not used. */
+state_t io_accum(ctx_t *c, io_data_t *dst, io_data_t *src);
 #endif

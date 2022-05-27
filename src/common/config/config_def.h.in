@@ -46,7 +46,13 @@
 #define MAX_TEMP							150
 #define MAX_POWER_CAP					0
 #define DEF_POWER_CAP					-1
+#define POWER_CAP_UNLIMITED             1
 #define POWER_CAP_TYPE				"node"
+
+#define MAX_CPUF_PSTATE 5
+#define MAX_IMCF_PSTATE 5
+#define MAX_IMCF_FREQ   0
+#define MIN_IMCF_FREQ   0
 
 /* When set to 1, powercap events will be reported to database */
 #define REPORT_POWERCAP             0
@@ -127,12 +133,16 @@
 
 
 /* IMC Management and Phases management default options */
-#define  EAR_eUFS   					1
+#define  EAR_eUFS   					0
 #define  EAR_IMC_TH 					0.02
 #define  EAR_USE_PHASES 			1
 #define  EAR_USE_LB           1
 #define  EAR_USE_TURBO_CP     1
+#if NEW_LB_EFF
+#define  EAR_LB_TH						0.8
+#else
 #define  EAR_LB_TH						15.0
+#endif
 
 
 

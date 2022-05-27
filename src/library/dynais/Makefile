@@ -1,4 +1,6 @@
-CFLAGS = -fPIC -O3 -I$(SRCDIR)
+CFLAGS        = -fPIC -O3 -I$(SRCDIR)
+CFLAGS_AVX2   = $(CFLAGS) -march=haswell
+CFLAGS_AVX512 = $(CFLAGS) -march=skylake-avx512
 
 ######## FILES
 
@@ -24,18 +26,18 @@ endif
 all: dynais.a
 
 avx512/dynais_core.o: avx512/dynais_core.c avx512/dynais_core.h
-	$(CC) $(CC_FLAGS) $(CFLAGS) -march=native -march=skylake-avx512 -DDYN_CORE_N -o avx512/dynais_core_n.o -c $<
-	$(CC) $(CC_FLAGS) $(CFLAGS) -march=native -march=skylake-avx512 -DDYN_CORE_0 -o avx512/dynais_core_0.o -c $<
+	$(CC) $(CC_FLAGS) $(CFLAGS_AVX512) -DDYN_CORE_N -o avx512/dynais_core_n.o -c $<
+	$(CC) $(CC_FLAGS) $(CFLAGS_AVX512) -DDYN_CORE_0 -o avx512/dynais_core_0.o -c $<
 
 avx2/dynais_core.o: avx2/dynais_core.c avx2/dynais_core.h
-	$(CC) $(CC_FLAGS) $(CFLAGS) -mavx2 -DDYN_CORE_N -o avx2/dynais_core_n.o -c $<
-	$(CC) $(CC_FLAGS) $(CFLAGS) -mavx2 -DDYN_CORE_0 -o avx2/dynais_core_0.o -c $<
+	$(CC) $(CC_FLAGS) $(CFLAGS_AVX2) -DDYN_CORE_N -o avx2/dynais_core_n.o -c $<
+	$(CC) $(CC_FLAGS) $(CFLAGS_AVX2) -DDYN_CORE_0 -o avx2/dynais_core_0.o -c $<
 
 avx512/dynais.o: avx512/dynais.c avx512/dynais.h
-	$(CC) $(CC_FLAGS) $(CFLAGS) -march=native -o avx512/dynais.o -c $<
+	$(CC) $(CC_FLAGS) $(CFLAGS_AVX512) -o avx512/dynais.o -c $<
 
 avx2/dynais.o: avx2/dynais.c avx2/dynais.h
-	$(CC) $(CC_FLAGS) $(CFLAGS) -mavx2 -o avx2/dynais.o -c $<
+	$(CC) $(CC_FLAGS) $(CFLAGS_AVX2) -o avx2/dynais.o -c $<
 
 dynais.o: dynais.c dynais.h
 	$(CC) $(CC_FLAGS) $(CFLAGS) -mavx2 $(DEFI) -o dynais.o -c $<

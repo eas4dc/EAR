@@ -30,6 +30,7 @@ typedef struct earlib_conf
 	uint dynais_timeout;
 	uint lib_period;
 	uint check_every;
+    char plugins[SZ_PATH_INCOMPLETE];
 } earlib_conf_t;
 
 

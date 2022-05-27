@@ -15,7 +15,7 @@
  * found in COPYING.BSD and COPYING.EPL files.
  */
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <errno.h>
 #include <fcntl.h>
@@ -129,14 +129,22 @@ uint must_decrease_imc(imc_data_t *my_imc_data,uint cpu_pstate,uint my_imc_pstat
     double gbs_ref = my_imc_data[ref_cpu_pstate*NUM_UNC_FREQ+ref_imc_pstate].GBS;
     double gbs_curr = sig->GBS;
 
-    ulong ref_imc_freq;
-    if (state_fail(pstate_to_freq((pstate_t *)imc_pstates, imc_num_pstates, ref_imc_pstate,&ref_imc_freq))){
-        verbose_master(2, "%sIMC pstates invalid %d%s", COL_RED, ref_imc_pstate, COL_CLR);
+    // This control checks whether the ref imc_data does not exist, due to "not controlled by ear"
+    // change of the reference cpu pstate, which is the current mesured by the library.
+    if (time_ref == 0 && cpi_ref == 0 && gbs_ref == 0) {
+        // the reference imc data does not exist. Use the current as reference.
+        copy_imc_data_from_signature(my_imc_data, ref_cpu_pstate, ref_imc_pstate, sig);
+        return 0;
+    }
+
+    ullong ref_imc_freq;
+    if (state_fail(pstate_pstofreq((pstate_t *)imc_pstates, imc_num_pstates, ref_imc_pstate, &ref_imc_freq))){
+        verbose_master(2, "%sERROR%s IMC pstate invalid: %d", COL_RED, COL_CLR, ref_imc_pstate);
         return 1;
     }
     double freq_ref = (double)ref_imc_freq;
     pstate_t ps;
-    avgfreq_to_pstate((pstate_t *)imc_pstates, imc_num_pstates, sig->avg_imc_f, &ps);
+    pstate_freqtops_upper((pstate_t *)imc_pstates, imc_num_pstates, sig->avg_imc_f, &ps);
     double freq_curr = (double)imc_pstates[ps.idx].khz;
 
     debug("TIME ref %lf curr %lf CPI ref %lf curr %lf GBS ref %lf curr %lf IMC FREQ ref %lf curr %lf EFF_GAIN_TH %lf", 
@@ -158,9 +166,9 @@ uint must_decrease_imc(imc_data_t *my_imc_data,uint cpu_pstate,uint my_imc_pstat
 
 
     // We get the normalized imc frequency that corresponds with the avg imc freq
-    avgfreq_to_pstate((pstate_t *)imc_pstates, imc_num_pstates, sig->avg_imc_f, &ps);
+    pstate_freqtops_upper((pstate_t *)imc_pstates, imc_num_pstates, sig->avg_imc_f, &ps);
     ulong curr_imc_freq = imc_pstates[ps.idx].khz;
-    if (pstate_to_freq((pstate_t *)imc_pstates, imc_num_pstates, ref_imc_pstate,&ref_imc_freq) != EAR_SUCCESS){
+    if (pstate_pstofreq((pstate_t *)imc_pstates, imc_num_pstates, ref_imc_pstate,&ref_imc_freq) != EAR_SUCCESS){
         debug("IMC pstates invalid %d",ref_imc_pstate);
     }
     debug("Current IMC freq %s%lu%s | Ref IMC freq %s%lu%s", COL_GRE, curr_imc_freq, COL_CLR, COL_GRE, ref_imc_freq, COL_CLR);
@@ -204,7 +212,8 @@ void copy_imc_data_from_signature(imc_data_t *my_imc_data,uint cpu_pstate,uint m
 #if SHOW_DEBUGS
     float flops = 0;
     flops = (float)tfops/(s->time*1000000000.0);
-    debug("IMC data: time %.3lf power %2.lf GBS %.2lf I/s %.2f flops %.2f",
+    debug("IMC data [CPU %u, IMC %u]: time %.3lf power %2.lf GBS %.2lf I/s %.2f flops %.2f",
+            cpu_pstate, my_imc_pstate,
             my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].time,
             my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].power,
             my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].GBS,s->instructions/(s->time*1000000000.0),

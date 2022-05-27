@@ -28,11 +28,6 @@
 #include <sys/utsname.h>
 #include <metrics/proc/stat.h>
 
-#define sassert(func) \
-	if (state_fail(s = func)) { \
-        error("returned %d, %s (%s:%d)", s, state_msg, __FILE__, __LINE__); \
-		return 0; \
-    }
 
 typedef struct psctx_s {
 	pid_t pid;

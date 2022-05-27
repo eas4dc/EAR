@@ -15,7 +15,6 @@
  * found in COPYING.BSD and COPYING.EPL files.
  */
 
-//#define SHOW_DEBUGS 1
 #define _GNU_SOURCE
 #include <sched.h>
 
@@ -25,39 +24,28 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <math.h>
+
+// #define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/states.h>
 #include <common/math_operations.h>
-
 #include <common/output/verbose.h>
-
 #include <common/hardware/topology.h>
-#include <management/cpufreq/frequency.h>
 #include <common/types/projection.h>
+
+#include <management/cpufreq/frequency.h>
+
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
-#include <library/policies/policy_ctx.h>
 #include <library/api/clasify.h>
+#include <library/policies/policy_ctx.h>
 #include <library/policies/common/cpu_support.h>
 #include <library/policies/common/mpi_stats_support.h>
 #include <library/policies/common/imc_policy_support.h>
+
 extern uint dyn_unc;
 extern polctx_t my_pol_ctx;
-
-void process_avg_cpu_freq(cpu_set_t *aff,ulong *cpuflist,ulong *avgcpu)
-{
-    int i = 0;
-    ulong cpuftotal = 0;
-    int total = 0;
-    for (i=0; i<mtopo.cpu_count;i++){
-        if (CPU_ISSET(i,aff)){ 
-            total ++;
-            cpuftotal += cpuflist[i];
-        }
-    }
-    *avgcpu = cpuftotal / total; 
-
-}
 
 state_t compute_reference(polctx_t *c,signature_t *my_app,ulong *curr_freq,ulong *def_freq,ulong *freq_ref,double *time_ref,
         double *power_ref)
@@ -71,6 +59,7 @@ state_t compute_reference(polctx_t *c,signature_t *my_app,ulong *curr_freq,ulong
         debug("curr_freq[0] != def_freq[0] %lu != %lu", curr_freq[0], def_freq[0]);
         if (projection_available(curr_pstate,def_pstate)==EAR_SUCCESS)
         {
+						verbose_master(3, "Using projections for references");
             project_power(my_app,curr_pstate,def_pstate,power_ref);
             project_time(my_app,curr_pstate,def_pstate,time_ref);
             freq_ref[0] = def_freq[0];
@@ -233,16 +222,10 @@ int signatures_different(signature_t *s1, signature_t *s2,float p)
     }
 
 #if USE_GPUS
-#if 0
-    for (i = 0; i< s1->gpu_sig.num_gpus; i ++){
-        verbose_master(2,"s1(%lu/%lu) s2(%lu/%lu)",s1->gpu_sig.gpu_data[i].GPU_util,s1->gpu_sig.gpu_data[i].GPU_mem_util,s2->gpu_sig.gpu_data[i].GPU_util,s2->gpu_sig.gpu_data[i].GPU_mem_util);
-    }
-#endif
     for (i = 0; i< s1->gpu_sig.num_gpus; i ++){
         if (!equal_with_th_ul(s1->gpu_sig.gpu_data[i].GPU_util, s2->gpu_sig.gpu_data[i].GPU_util,p)) return 1;
         if (!equal_with_th_ul(s1->gpu_sig.gpu_data[i].GPU_mem_util, s2->gpu_sig.gpu_data[i].GPU_mem_util,p)) return 1;
     }
-
 #endif
     return 0;
 }
@@ -366,4 +349,14 @@ ulong node_freqs_avgcpufreq(ulong *f)
 	}
 	//verbose_master(2,"Computing a total of %lu cpus and f = %lu, avg %lu",ctotal,ftotal, ftotal/ctotal);
 	return ftotal / ctotal;
+}
+
+ulong avg_to_khz(ulong freq_khz)
+{
+    ulong newf;
+    float ff;
+
+    ff = roundf((float) freq_khz / 100000.0);
+    newf = (ulong) ((ff / 10.0) * 1000000);
+    return newf;
 }

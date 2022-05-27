@@ -22,8 +22,16 @@
 #include <string.h>
 #include <common/output/error.h>
 #include <common/output/debug.h>
-#include <common/output/timestamp.h>
 #include <common/output/output_conf.h>
+
+// Dependencies:
+//  -------------          -------          -----------
+// | timestamp.h | <----- | log.h | <----- | verbose.h |
+//  -------------          -------     |    -----------
+//                                     |
+//  ---------                          |    ---------
+// | debug.h |                         --- | error.h |
+//  ---------                               ---------
 
 #define fdout	STDOUT_FILENO
 #define fderr	STDERR_FILENO
@@ -34,25 +42,39 @@ int verb_enabled	__attribute__((weak)) = 1;
 int warn_channel	__attribute__((weak)) = 2;
 
 // Set
-#define WARN_SET_FD(fd)	warn_channel = fd;
-#define VERB_SET_FD(fd)	verb_channel = fd;
-#define VERB_SET_EN(en)	verb_enabled = en;
-#define VERB_SET_LV(lv)	verb_level   = lv;
+#define WARN_SET_FD(fd)	  warn_channel = fd;
+#define VERB_SET_FD(fd)	  verb_channel = fd;
+#define VERB_SET_EN(en)	  verb_enabled = en;
+#define VERB_SET_LV(lv)	  verb_level   = lv;
 
 #define verbose(v, ...) \
+	{ \
 	if (verb_enabled && v <= verb_level) \
 	{ \
-		timestamp(verb_channel); \
-		dprintf(verb_channel, __VA_ARGS__); \
-		dprintf(verb_channel, "\n"); \
+		if (!log_bypass) { \
+			timestamp(verb_channel); \
+			dprintf(verb_channel, __VA_ARGS__); \
+			dprintf(verb_channel, "\n"); \
+		} else { \
+			vlog(__VA_ARGS__); \
+		} \
+	} \
 	}
+
+#define VERB_ON(v) \
+	(verb_enabled && (v <= verb_level))
 
 // No new line version
 #define verbosen(v, ...) \
+	{\
 	if (verb_enabled && v <= verb_level) \
 	{ \
-		timestamp(verb_channel); \
-        dprintf(verb_channel, __VA_ARGS__); \
+		if (!log_bypass) { \
+            dprintf(verb_channel, __VA_ARGS__); \
+        } else { \
+			vlog(__VA_ARGS__); \
+		} \
+	}\
 	}
 
 // Warnings

@@ -20,60 +20,81 @@
 #include <metrics/common/hsmp.h>
 #include <management/imcfreq/archs/amd17.h>
 
+// Used 7.4 HSMP Functions in Preliminary Processor Programming Reference (PPR)
+// for AMD Family 19h Model 01h, Revision B1 Processors, Volume 2 of 2.
 static char *err1 = "Incorrect result when asking for frequency by HSMP";
 static ullong freqs_khz[4];
 static ullong freqs_mhz[4];
 static uint sockets_count;
 static uint pstate_count;
 
+static uint test_ps(uint ps, uint intent)
+{
+	struct timespec ten_ms = { 0, 1000 * 1000 * 30};
+	uint reps[3] = {  0,  0, -1 };
+	uint args[2] = {  0, -1 };
+	state_t s;
+	
+    // Arg0 is the P_STATE for the APBDisable function (0x0d).
+	args[0] = ps;
+	// Function APBDisable (0x0d).
+	if (state_fail(s = hsmp_send(0, 0x0d, &args[0], &reps[2]))) {
+		debug("error while sending HSMP: %s", state_msg);
+	}
+	// Waiting 10 miliseconds to change the frequency
+	nanosleep(&ten_ms, NULL);
+	//
+	debug("Sending HSMP Mail of PS%d (intent %d)", args[0], intent);
+	// Function ReadCurrentFclkMemclk (0x0f).
+	if (state_fail(s = hsmp_send(0, 0x0f, &args[1], &reps[0]))) {
+		debug("error while sending HSMP: %s", state_msg);
+	}
+   
+    return reps[0]; 
+}
+
 state_t mgt_imcfreq_amd17_load(topology_t *tp, mgt_imcfreq_ops_t *ops)
 {
-	struct timespec ten_ms = { 0, 1000 * 1000 * 10};
 	state_t s;
 	int i, j;
 
+    debug("Detecting AMD17 HSMP mailboxes.");
 	// Already loaded
 	if (state_fail(s = hsmp_scan(tp))) {
 		return s;
 	}
 	// Getting the list of available frequencies
-	uint args[2] = {  0, -1 };
-	uint reps[3] = {  0,  0, -1 };
-
+    uint ps1;
+    uint ps2;
+    uint ps3;
+        
 	for (i = j = 0; i < 4; ++i, ++j) {
-		// Arg0 is the P_STATE for the APBDisable function (0x0d).
-		args[0] = i;
-		// Function APBDisable (0x0d).
-		// Function ReadCurrentFclkMemclk (0x0f).
-		if (state_fail(s = hsmp_send(0, 0x0d, &args[0], &reps[2]))) {
-			debug("error while sending HSMP: %s", state_msg);
-		}
-		// Waiting 10 miliseconds to change the frequency
-		nanosleep(&ten_ms, NULL);
-		//
-		if (state_fail(s = hsmp_send(0, 0x0f, &args[1], &reps[0]))) {
-			debug("error while sending HSMP: %s", state_msg);
-		}
-		// Try again until the answer is different
-		if (j >= 10000) {
+        ps1 = test_ps(i, j);
+        ps2 = test_ps(i, j);
+        ps3 = test_ps(i, j);
+	    debug("Read PS%d: %u %u %u", i, ps1, ps2, ps3);
+    	// Try again until the answer is different
+		if (j >= 10) {
 			// Out of intents
 			break;
-		} else if (i > 0 && reps[0] == (uint) freqs_mhz[i-1]) {
+		} else if (i > 0 && (ps1 != ps2 || ps2 != ps3)) {
 			--i;
 		} else {
-			debug("PS%d: answered %u/%u (%u intents)", i, reps[0], reps[1], j);
+			debug("PS%d: answered %u (%u intents)", i, ps1, j);
 			// If its a weird number...
-			if ((reps[0] == 0) || (reps[0] == -1)) {
+			if ((ps1 == 0) || (ps1 == -1)) {
 				return_msg(EAR_ERROR, err1);
 			}
-			freqs_mhz[i] = ((ullong) reps[0]);
+			freqs_mhz[i] = ((ullong) ps1);
 			freqs_khz[i] = freqs_mhz[i] * 1000LLU;
 			j = 0;
 		}
 	}
 	pstate_count = i;
 	// Setting auto
-	hsmp_send(0, 0x0e, &args[1], &reps[2]);
+	uint args[1] = { -1 };
+	uint reps[1] = { -1 };
+	hsmp_send(0, 0x0e, &args[0], &reps[0]);
 	//
 	replace_ops(ops->init,             mgt_imcfreq_amd17_init);
 	replace_ops(ops->dispose,          mgt_imcfreq_amd17_dispose);

@@ -42,6 +42,8 @@ state_t nvml_read_copy(ctx_t *c, gpu_t *data2, gpu_t *data1, gpu_t *data_diff);
 state_t nvml_read_raw(ctx_t *c, gpu_t *data);
 
 state_t nvml_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff);
+state_t nvml_data_diff_gpus(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int gpus);
+
 
 /* Computes the average/accum. between all the devices (data_avg length is 1). */
 state_t nvml_data_merge(gpu_t *data_diff, gpu_t *data_merge);

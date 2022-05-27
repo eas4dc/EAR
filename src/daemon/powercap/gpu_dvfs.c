@@ -78,6 +78,7 @@ static uint gpu_dvfs_status = PC_STATUS_OK;
 static uint gpu_dvfs_ask_def = 0;
 static uint gpu_dvfs_monitor_initialized = 0;
 static uint gpu_dvfs_util = 0;
+static suscription_t *sus_gpu;
 
 static state_t int_set_powercap_value(ulong limit,ulong *gpu_util);
 
@@ -211,7 +212,7 @@ state_t gpu_dvfs_pc_thread_main(void *p)
     }
 
     gpu_dvfs_greedy = 0;
-    if ((current_gpu_pc <= 0) || (c_status != PC_STATUS_RUN)){
+    if ((current_gpu_pc <= 1) || (c_status != PC_STATUS_RUN)){
         return EAR_SUCCESS;
     }
 
@@ -318,7 +319,7 @@ state_t enable(suscription_t *sus)
     }
     sus->call_main = gpu_dvfs_pc_thread_main;
     sus->call_init = gpu_dvfs_pc_thread_init;
-    sus->time_relax = 1000;
+    sus->time_relax = 60000;
     sus->time_burst = 1000;
     /* Init data */
     debug("GPU_DVFS: power cap  enable");
@@ -384,9 +385,31 @@ state_t enable(suscription_t *sus)
         gpu_data_alloc(&values_gpu_idle);
     }
     sus->suscribe(sus);
+    sus_gpu = sus;
     debug("GPU-DVFS Subscription done");
     return ret;
 
+}
+
+state_t plugin_set_burst()
+{
+    return monitor_burst(sus_gpu);
+}
+
+state_t plugin_set_relax()
+{
+    return monitor_relax(sus_gpu);
+}
+
+void restore_frequency()
+{
+    int i;
+    pmgt_get_app_req_freq(DOMAIN_GPU, t_freq, gpu_pc_num_gpus);
+    for (i = 0; i < gpu_pc_num_gpus; i++) {
+        if (t_freq[i] == 0) t_freq[i] = gpu_freq_list[i][0]; //set the nominal if no GPU freq was specified
+        n_freq[i] = t_freq[i];
+    }
+    mgt_gpu_freq_limit_set(&gpu_metric_ctx,n_freq);
 }
 
 state_t set_powercap_value(uint pid,uint domain,ulong limit,ulong *gpu_util)
@@ -430,6 +453,10 @@ static state_t int_set_powercap_value(ulong limit,ulong *gpu_util)
     /* Set data */
     current_gpu_pc = limit;
     debug("%sGPU-DVFS:set_powercap_value %lu%s",COL_BLU,limit,COL_CLR);
+    if (current_gpu_pc == POWER_CAP_UNLIMITED) {
+        restore_frequency();
+        return EAR_SUCCESS;
+    }
 
     if (gpu_read_raw(&gpu_metric_ctx,values_gpu_idle)!=EAR_SUCCESS){
         debug("Error in gpu_read_raw gpu_dvfs_pc (int_set_powercap)");
@@ -563,7 +590,7 @@ uint get_powercap_status(domain_status_t *status)
 
     // debug("GPU_DVFS: get_powercap_status");
     if (!gpu_dvfs_monitor_initialized) return 0;
-    if (current_gpu_pc == PC_UNLIMITED){
+    if (current_gpu_pc == POWER_CAP_UNLIMITED){
         return 0;
     }
     /* We need the released power */

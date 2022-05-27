@@ -47,6 +47,7 @@ typedef struct node_range
     int sec_ip;
     int *specific_tags;
     int num_tags;
+    int eargm_id;
 } node_range_t;
 
 
@@ -61,30 +62,35 @@ typedef struct node_conf
 
 typedef struct my_node_conf
 {
-    uint cpus;
-    uint island;
-    ulong max_pstate;
-    char db_ip[NODE_PREFIX];
-    char db_sec_ip[NODE_PREFIX];
-    char *coef_file;
-    char *energy_plugin;
-    char *energy_model;
-    char *powercap_plugin;
-    char *powercap_gpu_plugin;
-    uint num_policies;
+    uint           cpus;
+    uint           island;
+    ulong          max_pstate;
+    char           db_ip[NODE_PREFIX];
+    char           db_sec_ip[NODE_PREFIX];
+    char          *coef_file;
+    char          *energy_plugin;
+    char          *energy_model;
+    char          *powercap_plugin;
+    char          *powercap_gpu_plugin;
+    uint           num_policies;
     policy_conf_t *policies;
-    double  min_sig_power;
-    double  max_sig_power;
-    double  max_error_power;
-    ulong   max_temp;
-    ulong   max_avx512_freq;
-    ulong   max_avx2_freq;
-    long    max_powercap;
-    long    powercap;
-    char    powercap_type;
-		ulong   gpu_def_freq;
-    uint 	use_log;
-}my_node_conf_t;
+    double         min_sig_power;
+    double         max_sig_power;
+    double         max_error_power;
+    ulong          max_temp;
+    ulong          max_avx512_freq;
+    ulong          max_avx2_freq;
+    long           max_powercap;
+    long           powercap;
+    char           powercap_type;
+	ulong          gpu_def_freq;
+    int            cpu_max_pstate; /* Used by policies as lower limit */
+    int            imc_max_pstate; /* Used by policies as lower limit */
+		ulong 				 imc_max_freq;   /* Used to create the imcf list */
+		ulong          imc_min_freq;   /* Used to create the imcf list */
+    uint           use_log;
+	char           tag[GENERIC_NAME];
+} my_node_conf_t;
 
 
 typedef struct node_island
@@ -117,7 +123,6 @@ typedef struct node_island
 
 char range_conf_contains_node(node_conf_t *node, char *nodename);
 char island_range_conf_contains_node(node_island_t *node, char *nodename);
-
 
 /** Copies dest=src */
 void copy_my_node_conf(my_node_conf_t *dest,my_node_conf_t *src);

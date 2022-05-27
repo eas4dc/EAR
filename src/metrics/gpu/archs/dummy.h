@@ -37,6 +37,8 @@ state_t gpu_dummy_read_raw(ctx_t *c, gpu_t *data);
 state_t gpu_dummy_read_copy(ctx_t *c, gpu_t *data2, gpu_t *data1, gpu_t *data_diff);
 
 state_t gpu_dummy_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff);
+state_t gpu_dummy_data_diff_gpus(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int gpus);
+
 
 state_t gpu_dummy_data_merge(gpu_t *data_diff, gpu_t *data_merge);
 

@@ -59,6 +59,16 @@ state_t enable(suscription_t *sus)
 	return EAR_SUCCESS;
 }
 
+state_t plugin_set_relax()
+{
+    return EAR_SUCCESS;
+}
+
+state_t plugin_set_burst()
+{
+    return EAR_SUCCESS;
+}
+
 state_t set_powercap_value(uint pid,uint domain,uint limit,uint *gpu_util)
 {
 	int i;

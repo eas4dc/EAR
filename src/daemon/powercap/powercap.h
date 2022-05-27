@@ -26,9 +26,9 @@
 int powercap_init();
 void powercap_end();
 //void get_powercap_status(powercap_status_t *my_status);
-void powercap_get_status(powercap_status_t *my_status, pmgt_status_t *status);
+void powercap_get_status(powercap_status_t *my_status, pmgt_status_t *status, int release_power);
 void powercap_set_opt(powercap_opt_t *opt, int id);
-uint powercat_get_value();
+uint powercap_get_value();
 int is_powercap_set();
 void print_powercap_opt(powercap_opt_t *opt);
 int powercap_idle_to_run();
@@ -43,12 +43,13 @@ void set_powercapstatus_mode(uint mode);
 void copy_node_powercap_opt(node_powercap_opt_t *dst);
 uint powercap_get_cpu_strategy();
 uint powercap_get_gpu_strategy();
-void powercap_set_app_req_freq(pc_app_info_t *pc_app);
+void powercap_set_app_req_freq();
 void powercap_release_idle_power(pc_release_data_t *release);
 void powercap_reset_default_power();
 void powercap_reduce_def_power(uint power);
 void powercap_increase_def_power(uint power);
 void powercap_set_powercap(uint power);
+ulong powercap_elapsed_last_powercap();
 
 void powercap_new_job();
 void powercap_end_job();

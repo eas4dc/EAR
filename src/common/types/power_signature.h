@@ -34,6 +34,17 @@ typedef struct power_signature
     ulong def_f;
 } power_signature_t;
 
+typedef struct accum_power_sig{
+	ulong DC_energy;
+	ulong DRAM_energy;
+	ulong PCK_energy;
+	ulong avg_f;
+	double max, min;
+#if USE_GPUS
+	ulong GPU_energy;
+#endif
+}accum_power_sig_t;
+
 
 // Function declarations
 

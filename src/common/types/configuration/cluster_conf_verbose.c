@@ -48,16 +48,16 @@ void print_islands_conf(node_island_t *conf)
 	{
        
         if (conf->ranges[i].db_ip < 0){
-		    verbosen(VCCONF, "---->prefix: %s\tstart: %u\tend: %u\n",
-                conf->ranges[i].prefix, conf->ranges[i].start, conf->ranges[i].end);
+		    verbosen(VCCONF, "---->prefix: %s\tstart: %u\tend: %u eargm: %d\n",
+                conf->ranges[i].prefix, conf->ranges[i].start, conf->ranges[i].end, conf->ranges[i].eargm_id);
 
         }else if (conf->ranges[i].sec_ip < 0){
-		    verbosen(VCCONF, "---->prefix: %s\tstart: %u\tend: %u\tip: %s\n",
-                conf->ranges[i].prefix, conf->ranges[i].start, conf->ranges[i].end, conf->db_ips[conf->ranges[i].db_ip]);
+		    verbosen(VCCONF, "---->prefix: %s\tstart: %u\tend: %u\tip: %s eargm: %d\n",
+                conf->ranges[i].prefix, conf->ranges[i].start, conf->ranges[i].end, conf->db_ips[conf->ranges[i].db_ip], conf->ranges[i].eargm_id);
     
         }else{
-		    verbosen(VCCONF, "---->prefix: %s\tstart: %u\tend: %u\tip: %s\tbackup: %s\n",
-                conf->ranges[i].prefix, conf->ranges[i].start, conf->ranges[i].end, conf->db_ips[conf->ranges[i].db_ip], conf->backup_ips[conf->ranges[i].sec_ip]);
+		    verbosen(VCCONF, "---->prefix: %s\tstart: %u\tend: %u\tip: %s\tbackup: %s eargm: %d\n",
+                conf->ranges[i].prefix, conf->ranges[i].start, conf->ranges[i].end, conf->db_ips[conf->ranges[i].db_ip], conf->backup_ips[conf->ranges[i].sec_ip], conf->ranges[i].eargm_id);
 		}
         if (conf->ranges[i].num_tags > 0) {
             verbosen(VCCONF, "\t----tags: ");
@@ -121,7 +121,9 @@ void print_cluster_conf(cluster_conf_t *conf)
 	
     verbosen(VCCONF, "\nGENERAL TAGS\n");
     for (i = 0; i < conf->num_tags; i++)
+		{
         print_tags_conf(&conf->tags[i]);
+		}
 
 	verbosen(VCCONF, "\nENERGY TAGS\n");
 	for (i = 0; i < conf->num_etags; i++)

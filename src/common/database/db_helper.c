@@ -26,9 +26,11 @@
 #include <common/output/verbose.h>
 #include <common/string_enhanced.h>
 #include <common/database/db_helper.h>
+#include <common/database/db_io_common.h>
 #if DB_MYSQL
 #include <common/database/mysql_io_functions.h>
-#elif DB_PSQL
+#endif
+#if DB_PSQL
 #include <common/database/postgresql_io_functions.h>
 #endif
 
@@ -36,18 +38,6 @@ db_conf_t *db_config = NULL;
 int current_step_id = -1;
 int current_job_id = 0;
 
-#define _MAX(X,Y)			(X > Y ? X : Y)
-#define _MMAAXX(W,X,Y,Z) 	(_MAX(W,X) > _MAX(Y,Z) ? _MAX(W,X) : _MAX(Y,Z))
-#define _BULK_ELMS(V)		USHRT_MAX / V
-#define _BULK_SETS(T,V)		T / V
-#define APP_VARS	        APPLICATION_ARGS
-#define PSI_VARS	        POWER_SIGNATURE_ARGS
-#define NSI_VARS	        SIGNATURE_ARGS
-#define JOB_VARS	        JOB_ARGS
-#define PER_VARS	        PERIODIC_METRIC_ARGS
-#define LOO_VARS			LOOP_ARGS
-#define AGG_VARS			PERIODIC_AGGREGATION_ARGS
-#define EVE_VARS			EAR_EVENTS_ARGS
 #define IS_SIG_FULL_QUERY   "SELECT COUNT(*) FROM information_schema.columns where TABLE_NAME='Signatures' AND TABLE_SCHEMA='%s'"
 #define IS_NODE_FULL_QUERY  "SELECT COUNT(*) FROM information_schema.columns where TABLE_NAME='Periodic_metrics' AND TABLE_SCHEMA='%s'"
 
@@ -57,6 +47,73 @@ int current_job_id = 0;
 	verbose(VDBH, "Bulk elements %d", bulk_elms); \
 	verbose(VDBH, "Bulk sets %d", bulk_sets)
 
+#if DB_MYSQL
+static MYSQL *mysql_create_connection()
+{
+    MYSQL *connection = mysql_init(NULL);
+
+    if (connection == NULL)
+    {
+        verbose(VDBH, "ERROR creating MYSQL object.");
+        return NULL;
+    }
+
+    if (db_config == NULL)
+    {
+        verbose(VDBH, "Database configuration not initialized.");
+        return NULL;
+    }
+
+    if (!mysql_real_connect(connection, db_config->ip, db_config->user, db_config->pass, db_config->database, db_config->port, NULL, 0))
+    {
+        error("ERROR connecting to the database: %s", mysql_error(connection));
+        mysql_close(connection);
+        return NULL;
+    }
+
+    return connection;
+}
+#endif
+
+#if DB_PSQL
+PGconn *postgresql_create_connection()
+{
+    char temp[32];
+    char **keys, **values;
+    PGconn *connection;
+
+    sprintf(temp, "%d", db_config->port);
+    strtolow(db_config->database);
+
+    keys = calloc(4, sizeof(char *));
+    values = calloc(4, sizeof(char*));
+
+    keys[0] = "dbname";
+    keys[1] = "user";
+    keys[2] = "password";
+    keys[3] = "host";
+
+    values[0] = db_config->database;
+    values[1] = db_config->user;
+    values[2] = db_config->pass;
+    values[3] = db_config->ip;
+
+    connection = PQconnectdbParams((const char * const *)keys, (const char * const *)values, 0);
+
+    free(keys);
+    free(values);
+
+    if (PQstatus(connection) != CONNECTION_OK)
+    {
+        verbose(VDBH, "ERROR connecting to the database: %s", PQerrorMessage(connection));
+        PQfinish(connection);
+        return NULL;
+    }
+
+    return connection;
+
+}
+#endif
 void init_db_helper(db_conf_t *conf)
 {
     db_config = conf;
@@ -186,82 +243,6 @@ int get_num_rows(PGconn *connection, char *query)
 }
 #endif
 
-#if DB_MYSQL
-MYSQL *mysql_create_connection()
-{
-    MYSQL *connection = mysql_init(NULL);
-
-    if (connection == NULL)
-    {
-        verbose(VDBH, "ERROR creating MYSQL object.");
-        return NULL;
-    }
-
-    if (db_config == NULL)
-    {
-        verbose(VDBH, "Database configuration not initialized.");
-        return NULL;
-    }
-
-    unsigned int time_out = 20;
-    mysql_options(connection,MYSQL_OPT_CONNECT_TIMEOUT,(char*)&time_out);
-    if (!mysql_real_connect(connection, db_config->ip, db_config->user, db_config->pass, db_config->database, db_config->port, NULL, 0))
-    {
-        verbose(VDBH, "ERROR connecting to the database: %s", mysql_error(connection));
-        mysql_close(connection);
-        return NULL;
-    }
-
-    return connection;
-}
-#endif
-
-#if DB_PSQL
-PGconn *postgresql_create_connection()
-{
-    char temp[32];
-    char **keys, **values;
-    PGconn *connection;
-
-    sprintf(temp, "%d", db_config->port);
-    strtolow(db_config->database);
-
-    keys = calloc(4, sizeof(char *));
-    values = calloc(4, sizeof(char*));
-
-    keys[0] = "dbname";
-    keys[1] = "user";
-    keys[2] = "password";
-    keys[3] = "host";
-
-    values[0] = db_config->database;
-    values[1] = db_config->user;
-    values[2] = db_config->pass;
-    values[3] = db_config->ip;
-
-#if 0
-    if (db_config->port > 0)
-        connection = PQsetdbLogin(db_config->ip, temp, NULL,NULL, db_config->database, db_config->user, db_config->pass);
-    else
-        connection = PQsetdbLogin(db_config->ip, NULL, NULL,NULL, db_config->database, db_config->user, db_config->pass);
-#endif
-
-    connection = PQconnectdbParams((const char * const *)keys, (const char * const *)values, 0);
-
-    free(keys);
-    free(values);
-
-    if (PQstatus(connection) != CONNECTION_OK)
-    {
-        verbose(VDBH, "ERROR connecting to the database: %s", PQerrorMessage(connection));
-        PQfinish(connection);
-        return NULL;
-    }
-
-    return connection;
-
-}
-#endif
 
 int db_insert_application(application_t *application)
 {
@@ -1401,6 +1382,7 @@ int db_run_query(char *query, char *user, char *passw)
         exit(1);
     }
 
+
     if (!mysql_real_connect(connection, db_config->ip, user, passw, db_config->database, db_config->port, NULL, 0))
     {
         verbose(VDBH, "Error connecting to the database(%d):%s\n", mysql_errno(connection), mysql_error(connection));
@@ -1705,6 +1687,21 @@ float get_max_dc_power(char is_max, char *app_name, ulong freq)
     return run_query_float_result(query);
 #else
     warning("Method not implemented for current database library");
+    return 0;
+#endif
+}
+
+int db_run_query_string_results(char *query, char ****results, int *num_columns)
+{
+
+#if DB_MYSQL
+    MYSQL *connection = mysql_create_connection();
+
+    if (connection == NULL) {
+        return EAR_ERROR;
+    }
+    return mysql_run_query_string_results(connection, query, results, num_columns);
+#else
     return 0;
 #endif
 }

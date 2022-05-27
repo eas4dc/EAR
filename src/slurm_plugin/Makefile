@@ -22,6 +22,7 @@ erun_SRCS = \
 
 plug_OBJS = \
         $(SRCDIR)/daemon/remote_api/eard_rapi.o \
+        $(SRCDIR)/daemon/remote_api/eard_rapi_internals.o \
         $(SRCDIR)/daemon/shared_configuration.o \
         $(SRCDIR)/global_manager/eargm_rapi.o \
         $(SRCDIR)/common/libcommon.a 

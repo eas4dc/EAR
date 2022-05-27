@@ -17,7 +17,27 @@
 
 #include <slurm_plugin/slurm_plugin_rcom.h>
 
-static int plug_rcom_eard_sbatch(spank_t sp, plug_serialization_t *sd, int new_job)
+static int plug_rcom_eard_connect(spank_t sp, plug_serialization_t *sd, char *by)
+{
+	int port = sd->pack.eard.servs.eard.port;
+	char *node = sd->subject.host;
+	
+    if (remote_connect(node, port) < 0) {
+		plug_verbose(sp, 2, "connecting to EARD: '%s:%d': FAILED (by %s)", node, port, by);
+		return ESPANK_ERROR;
+	}
+	plug_verbose(sp, 2, "connected to EARD: '%s:%d': OK (by %s)", node, port, by);
+
+    return ESPANK_SUCCESS;
+}
+
+static int plug_rcom_eard_disconnect(spank_t sp, plug_serialization_t *sd, char *by)
+{
+	remote_disconnect();
+	return ESPANK_SUCCESS;
+}
+
+static int plug_rcom_eard_job_sbatch(spank_t sp, plug_serialization_t *sd, int new_job)
 {
 	plug_verbose(sp, 2, "function plug_rcom_eard_sbatch");
 
@@ -35,36 +55,31 @@ static int plug_rcom_eard_sbatch(spank_t sp, plug_serialization_t *sd, int new_j
 		++i;
 	}
 	if (new_job) {
-		eards_new_job_nodelist(&sd->job.app, port, net_ext,
+		ear_nodelist_ear_node_new_job(&sd->job.app, port, net_ext,
 			sd->job.nodes_list, sd->job.nodes_count);
 	} else {
-		eards_end_job_nodelist(sd->job.app.job.id, sd->job.app.job.step_id, port, net_ext,
+		ear_nodelist_ear_node_end_job(sd->job.app.job.id, sd->job.app.job.step_id, port, net_ext,
 			sd->job.nodes_list, sd->job.nodes_count);
 	}
 	return ESPANK_SUCCESS;
 }
 
-static int plug_rcom_eard(spank_t sp, plug_serialization_t *sd, int new_job)
+static int plug_rcom_eard_job_srun(spank_t sp, plug_serialization_t *sd, int new_job)
 {
-	int port = sd->pack.eard.servs.eard.port;
-	char *node = sd->subject.host;
-
 	// Hostlist get
 	sd->pack.eard.connected = 1;
-	//
-	if (eards_remote_connect(node, port) < 0) {
-		plug_verbose(sp, 2, "connecting to EARD: '%s:%d': FAILED (by SRUN)", node, port);
+    if (plug_rcom_eard_connect(sp, sd, "SRUN") == ESPANK_ERROR) {
 		sd->pack.eard.connected = 0;
 		return ESPANK_ERROR;
-	}
+    }
+	//
 	if (new_job) {
-		eards_new_job(&sd->job.app);
+		ear_node_new_job(&sd->job.app);
 		plug_print_application(sp, &sd->job.app);
 	} else {
-		eards_end_job(sd->job.app.job.id, sd->job.app.job.step_id);
+		ear_node_end_job(sd->job.app.job.id, sd->job.app.job.step_id);
 	}
-	plug_verbose(sp, 2, "connecting to EARD: '%s:%d': OK (by SRUN)", node, port);
-	eards_remote_disconnect();
+    plug_rcom_eard_disconnect(sp, sd, "SRUN");
 
 	return ESPANK_SUCCESS;
 }
@@ -73,9 +88,9 @@ int plug_rcom_eard_job_start(spank_t sp, plug_serialization_t *sd)
 {
 	plug_verbose(sp, 2, "function plug_rcom_eard_job_start");
 	if (plug_context_was(sd, Context.srun)) {
-		return plug_rcom_eard(sp, sd, 1);
+		return plug_rcom_eard_job_srun(sp, sd, 1);
 	} else {
-		return plug_rcom_eard_sbatch(sp, sd, 1);
+		return plug_rcom_eard_job_sbatch(sp, sd, 1);
 	}
 }
 
@@ -83,8 +98,29 @@ int plug_rcom_eard_job_finish(spank_t sp, plug_serialization_t *sd)
 {
 	plug_verbose(sp, 2, "function plug_rcom_eard_job_finish");
 	if (plug_context_was(sd, Context.srun)) {
-		return plug_rcom_eard(sp, sd, 0);
+		return plug_rcom_eard_job_srun(sp, sd, 0);
 	} else {
-		return plug_rcom_eard_sbatch(sp, sd, 0);
+		return plug_rcom_eard_job_sbatch(sp, sd, 0);
 	}
+}
+
+int plug_rcom_eard_task_start(spank_t sp, plug_serialization_t *sd)
+{
+	plug_verbose(sp, 2, "function plug_rcom_eard_task_start");
+	
+    if (plug_rcom_eard_connect(sp, sd, "TASK") == ESPANK_ERROR) {
+		return ESPANK_ERROR;
+    }
+    // 1: OK, 0: KO
+    if (!ear_node_new_task(&sd->job.task)) {
+		plug_verbose(sp, 2, "EARD communication error on task: %d", sd->job.task.pid);
+    }
+    plug_rcom_eard_disconnect(sp, sd, "TASK");
+	return ESPANK_SUCCESS;
+}
+
+int plug_rcom_eard_task_finish(spank_t sp, plug_serialization_t *sd)
+{
+	plug_verbose(sp, 2, "function plug_rcom_eard_task_finish");
+	return ESPANK_SUCCESS;
 }

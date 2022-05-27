@@ -1,25 +1,27 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(CONSTANTS) 
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -fPIC $(CONSTANTS) -g
 
 ######## INSTALLATION
 
-
 ######## FILES
 
-local_api_OBJS = \
-	eard_api.o
+lapi_OBJS = \
+	eard_api.o \
+	eard_api_rpc.o \
+	node_mgr.o
 
 ######## RULES
 
-all: $(local_api_OBJS) all.others
-eard_api.o: eard_api.c eard_api.h
-	$(CC) $(CFLAGS) -fPIC -c $<
+all: libeard.a
 
+%.o: %.c %.h
+	$(CC) $(CFLAGS) -c $<
 
+libeard.a: $(lapi_OBJS)
+	$(AR) rvs $@ $(lapi_OBJS)
 
 ######## OPTIONS
 
-
-clean: local_api.gclean rclean;
+clean: lapi.gclean rclean;
 
 ######## SUBFOLDERS
 
@@ -28,6 +30,7 @@ clean: local_api.gclean rclean;
 ######## DEPENDENCIES
 
 install:
+
 %.install: ;
 
 depend: depend.others
@@ -36,3 +39,4 @@ depend-clean:  depend-clean.others
 
 include $(SRCDIR)/Makefile.depend
 include $(SRCDIR)/Makefile.extra
+

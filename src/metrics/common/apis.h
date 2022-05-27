@@ -25,18 +25,44 @@
 #define API_DUMMY        1
 #define API_EARD         2
 #define API_BYPASS       3
-#define API_OS_CPUFREQ   4
+#define API_DEFAULT      4
 #define API_INTEL63      5
 #define API_AMD17        6
 #define API_NVML         7
+#define API_PERF         8
+#define API_INTEL106     9
+#define API_LIKWID      10
 // Load EARD API or not
 #define EARD             1
 #define NO_EARD          0
+#define no_ctx           NULL
+//
+#define GRANULARITY_NONE       0
+#define GRANULARITY_PROCESS    1
+#define GRANULARITY_THREAD     2
+#define GRANULARITY_CORE       3
+#define GRANULARITY_CCX        4
+#define GRANULARITY_CCD        5
+#define GRANULARITY_L3_SLICE   6
+#define GRANULARITY_IMC        7
+#define GRANULARITY_SOCKET     8
+#define GRANULARITY_NODE       9
 
-#define replace_ops(p1, p2) \
-	if (p1 == NULL) { \
-		p1 = p2; \
-	}
+typedef struct ctx_s {
+    void *context;
+} ctx_t;
+
+typedef struct metrics_s {
+    ctx_t c;
+    uint  api;
+    uint  ok;
+    uint  granularity;
+    uint  devs_count;
+    void *avail_list;
+    uint  avail_count;
+    void *current_list;
+    void *set_list;
+} metrics_t;
 
 /* Replaces the function of the operation if its NULL. */
 #define apis_put(op, func) \
@@ -61,6 +87,12 @@ void apis_append(void **op, void *func);
 
 void apis_print(uint api, char *prefix);
 
-void apis_tostr(uint api, char *buff,size_t size);
+void apis_tostr(uint api, char *buffer, size_t size);
+
+/* Obsolete, remove it. */
+#define replace_ops(p1, p2) \
+	if (p1 == NULL) { \
+		p1 = p2; \
+	}
 
 #endif

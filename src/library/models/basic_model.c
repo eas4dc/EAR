@@ -145,3 +145,15 @@ state_t model_projection_available(ulong from,ulong to)
 	else return EAR_ERROR;
 }
 
+state_t model_projections_available()
+{
+  uint ready = 0;
+  for (uint ps = 0; ps < num_pstates && !ready; ps++){
+    for (uint pt = 0; pt < num_pstates && !ready; pt++){
+      if ((ps != pt) && (model_projection_available(ps, pt) == EAR_SUCCESS)) ready = 1;
+    }
+  }
+  if (ready) return EAR_SUCCESS;
+  return EAR_ERROR;
+}
+

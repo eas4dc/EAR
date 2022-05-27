@@ -41,7 +41,6 @@
 #include <common/types/configuration/cluster_conf_eardbd.h>
 #include <common/types/configuration/cluster_conf_earlib.h>
 
-
 #define NORMAL 		0
 #define AUTHORIZED	1
 #define ENERGY_TAG	2
@@ -52,22 +51,15 @@
  *
  */
 
-
 #define POWERCAP_TYPE_NODE  0 
 #define POWERCAP_TYPE_APP   1
 #define TAG_TYPE_ARCH       0 
-
-
-
 
 typedef struct communication_node
 {
     char name[GENERIC_NAME];
     int  distance;
 } communication_node_t;
-
-
-
 
 typedef struct conf_install {
 	char dir_temp[SZ_PATH_INCOMPLETE];
@@ -78,43 +70,48 @@ typedef struct conf_install {
 	char obj_power_model[SZ_PATH_SHORT];
 } conf_install_t;
 
+/** Stores information about EAR installation. */
 typedef struct cluster_conf
 {
-	// Library & common conf
-	char DB_pathname[GENERIC_NAME];
-  char net_ext[ID_SIZE];
-	uint verbose;
-	uint cluster_num_nodes;
-	eard_conf_t		eard;
-	eargm_conf_t 	eargm;
-	// List of policies	
-	uint num_policies;
-	policy_conf_t *power_policies;
-	uint default_policy;			// selecs one of the power_policies
-	// Lis of autorized users
-	uint num_priv_users;
-	char **priv_users;
-	uint num_priv_groups;
-	char **priv_groups;
-	uint num_acc;
-	char **priv_acc;
-	// Special cases
-	uint min_time_perf_acc;
-	// List of nodes
-	uint num_nodes;
-	node_conf_t *nodes;
-	db_conf_t database;
-	eardb_conf_t db_manager;
-    uint num_tags;
-    tag_t *tags;
-	uint num_etags;
-	energy_tag_t *e_tags;
-	uint num_islands;
-	node_island_t *islands;
+    /**@{ Library & common configuration. */
+    char         DB_pathname[GENERIC_NAME];
+    char         net_ext[ID_SIZE];
+    uint         verbose;
+    uint         cluster_num_nodes;
+    eard_conf_t	 eard;
+    eargm_conf_t eargm;
+    /**@}*/
+    /**@{ List of policies. */
+    uint           num_policies;
+    policy_conf_t *power_policies;
+    uint           default_policy;
+    /**@}*/
+    /**@{ List of authorized users. */
+    uint   num_priv_users;
+    char **priv_users;
+    uint   num_priv_groups;
+    char **priv_groups;
+    uint   num_acc;
+    char **priv_acc;
+    /**@}*/
+    /**@{ Special cases. */
+    uint min_time_perf_acc;
+    /**@}*/
+    /**@{ List of nodes. */
+    uint         num_nodes;
+    node_conf_t *nodes;
+    /**@}*/
+    /**@{ Installation (other). */
+    db_conf_t    database;
+    eardb_conf_t db_manager;
+    uint         num_tags;
+    tag_t       *tags;
+    uint         num_etags;
+    energy_tag_t *e_tags;
+    uint num_islands;
+    node_island_t *islands;
     earlib_conf_t earlib;
-    communication_node_t *comm_nodes;
-    uint num_comm_nodes;
-	conf_install_t install;
+    conf_install_t install;
 } cluster_conf_t;
 
 /*
@@ -145,6 +142,10 @@ int read_eardbd_conf(char *conf_path,char *username,char *pass);
 
 /** frees a cluster_conf_t */
 void free_cluster_conf(cluster_conf_t *conf);
+
+
+void set_ear_conf_default(cluster_conf_t *my_conf);
+
 
 // Cluster configuration verbose
 
@@ -232,4 +233,24 @@ int policy_id_to_name(int policy_id,char *my_policy, cluster_conf_t *conf);
  *  The function implementation can be found in policy_conf.c*/
 int get_default_policies(cluster_conf_t *conf, policy_conf_t **policies, int tag_id);
 
+/** Given a hostname, returns the eargm definition of that nodename. If no configuration is found, returns NULL */
+eargm_def_t *get_eargm_conf(cluster_conf_t *conf, char *host);
+
+/** Given a EARGM definition, removes all islands that do not have said EARGM id */
+void remove_extra_islands(cluster_conf_t *conf, eargm_def_t *e_def);
+
+/** Given a cluster_conf, checks if all node tags have their powercap set to 1 (unlimited) */
+uint tags_are_unlimited(cluster_conf_t *conf);
+
+/** It serializes conf and stores in ear_conf_buf. Memory is internally allocated */
+state_t serialize_cluster_conf(cluster_conf_t *conf, char **ear_conf_buf, size_t *conf_size);
+
+/** ear_conf_buf points to a serialized region. conf is the output. Memory is not internally allocated for it */
+state_t deserialize_cluster_conf(cluster_conf_t *conf, char *ear_conf_buf, size_t conf_size);
+
+/** Checks if a tag with a given name is defined in ear.conf and returns its id if it exists */
+int tag_id_exists(cluster_conf_t *conf, char *tag);
+
+
+void generate_node_ranges(node_island_t *island, char *nodelist);
 #endif
