@@ -69,7 +69,7 @@ extern unsigned long ext_def_freq;
 #endif
 
 // TODO remove after reinstalling on Lenox
-#define COMPATIBLE_SHARED_MEM 0
+#define COMPATIBLE_SHARED_MEM 1
 
 extern masters_info_t masters_info;
 
