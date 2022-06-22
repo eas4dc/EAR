@@ -191,7 +191,7 @@ AuthorizedGroups=grp1,grp2
 #
 #
 Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=500 min_power=50 error_power=600 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so 
-Tag=6148_GPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=800 min_power=150 error_power=1000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so
+Tag=6148_GPU  max_avx512=2.2 max_avx2=2.6 max_power=800 min_power=150 error_power=1000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so
 
 #---------------------------------------------------------------------------------------------------
 ## Power policies
