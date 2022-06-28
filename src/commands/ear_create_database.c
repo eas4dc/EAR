@@ -1,17 +1,19 @@
-/* This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+/*
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #include <stdio.h>
 #include <string.h>
@@ -207,275 +209,275 @@ void create_indexes(void *connection)
 void create_tables(void *connection)
 {
 	char query[1024];
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Applications (\
-		job_id INT unsigned NOT NULL, \
-			step_id INT unsigned NOT NULL, \
-			node_id VARCHAR(64), \
-			signature_id INT unsigned, \
-			power_signature_id INT unsigned, \
-			PRIMARY KEY(job_id, step_id, node_id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Applications ("
+			"job_id INT unsigned NOT NULL, "
+			"step_id INT unsigned NOT NULL, "
+			"node_id VARCHAR(64), "
+			"signature_id INT unsigned, "
+			"power_signature_id INT unsigned, "
+			"PRIMARY KEY(job_id, step_id, node_id))");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Loops ( \
-		event INT unsigned NOT NULL, \
-			size INT unsigned NOT NULL, \
-			level INT unsigned NOT NULL, \
-			job_id INT unsigned NOT NULL, \
-			step_id INT unsigned NOT NULL, \
-			node_id VARCHAR(64), \
-			total_iterations INT unsigned, \
-			signature_id INT unsigned)");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Loops ("
+		"event INT unsigned NOT NULL, "
+			"size INT unsigned NOT NULL, "
+			"level INT unsigned NOT NULL, "
+			"job_id INT unsigned NOT NULL, "
+			"step_id INT unsigned NOT NULL, "
+			"node_id VARCHAR(64), "
+			"total_iterations INT unsigned, "
+			"signature_id INT unsigned)");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Jobs (\
-		id INT unsigned NOT NULL,\
-			step_id INT unsigned NOT NULL, \
-			user_id VARCHAR(128),\
-			app_id VARCHAR(128),\
-			start_time INT NOT NULL,\
-			end_time INT NOT NULL,\
-			start_mpi_time INT NOT NULL,\
-			end_mpi_time INT NOT NULL,\
-			policy VARCHAR(256) NOT NULL,\
-			threshold FLOAT NOT NULL,\
-			procs INT unsigned NOT NULL,\
-			job_type SMALLINT unsigned NOT NULL,\
-			def_f INT unsigned, \
-			user_acc VARCHAR(256), \
-			user_group VARCHAR(256), \
-			e_tag VARCHAR(256), \
-			PRIMARY KEY(id, step_id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Jobs ("
+		"id INT unsigned NOT NULL, "
+			"step_id INT unsigned NOT NULL, "
+			"user_id VARCHAR(128), "
+			"app_id VARCHAR(128), "
+			"start_time INT NOT NULL, "
+			"end_time INT NOT NULL, "
+			"start_mpi_time INT NOT NULL, "
+			"end_mpi_time INT NOT NULL, "
+			"policy VARCHAR(256) NOT NULL, "
+			"threshold FLOAT NOT NULL, "
+			"procs INT unsigned NOT NULL, "
+			"job_type SMALLINT unsigned NOT NULL, "
+			"def_f INT unsigned, "
+			"user_acc VARCHAR(256), "
+			"user_group VARCHAR(256), "
+			"e_tag VARCHAR(256), "
+			"PRIMARY KEY(id, step_id))");
 	run_query(connection, query);
 
 	if (signature_detail)
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Signatures (\
-			id INT unsigned NOT NULL AUTO_INCREMENT,\
-				DC_power FLOAT,\
-				DRAM_power FLOAT,\
-				PCK_power FLOAT,\
-				EDP FLOAT,\
-				GBS FLOAT,\
-				IO_MBS FLOAT,\
-				TPI FLOAT,\
-				CPI FLOAT,\
-				Gflops FLOAT,\
-				time FLOAT,\
-				perc_MPI FLOAT,\
-				FLOPS1 BIGINT unsigned,\
-				FLOPS2 BIGINT unsigned,\
-				FLOPS3 BIGINT unsigned,\
-				FLOPS4 BIGINT unsigned,\
-				FLOPS5 BIGINT unsigned,\
-				FLOPS6 BIGINT unsigned,\
-				FLOPS7 BIGINT unsigned,\
-				FLOPS8 BIGINT unsigned,\
-				instructions BIGINT unsigned, \
-				cycles BIGINT unsigned,\
-				avg_f INT unsigned,\
-				avg_imc_f INT unsigned,\
-				def_f INT unsigned, "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Signatures ("
+				"id INT unsigned NOT NULL AUTO_INCREMENT, "
+				"DC_power FLOAT, "
+				"DRAM_power FLOAT, "
+				"PCK_power FLOAT, "
+				"EDP FLOAT, "
+				"GBS FLOAT, "
+				"IO_MBS FLOAT, "
+				"TPI FLOAT, "
+				"CPI FLOAT, "
+				"Gflops FLOAT, "
+				"time FLOAT, "
+				"perc_MPI FLOAT, "
+				"FLOPS1 BIGINT unsigned, "
+				"FLOPS2 BIGINT unsigned, "
+				"FLOPS3 BIGINT unsigned, "
+				"FLOPS4 BIGINT unsigned, "
+				"FLOPS5 BIGINT unsigned, "
+				"FLOPS6 BIGINT unsigned, "
+				"FLOPS7 BIGINT unsigned, "
+				"FLOPS8 BIGINT unsigned, "
+				"instructions BIGINT unsigned, "
+				"cycles BIGINT unsigned, "
+				"avg_f INT unsigned, "
+				"avg_imc_f INT unsigned, "
+				"def_f INT unsigned, "
 #if USE_GPUS
-				"min_GPU_sig_id INT unsigned, \
-				max_GPU_sig_id INT unsigned, "
+				"min_GPU_sig_id INT unsigned, "
+				"max_GPU_sig_id INT unsigned, "
 #endif
 				"PRIMARY KEY (id))");
 	else
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Signatures (\
-			id INT unsigned NOT NULL AUTO_INCREMENT,\
-				DC_power FLOAT,\
-				DRAM_power FLOAT,\
-				PCK_power FLOAT,\
-				EDP FLOAT,\
-				GBS FLOAT,\
-				IO_MBS FLOAT,\
-				TPI FLOAT,\
-				CPI FLOAT,\
-				Gflops FLOAT,\
-				time FLOAT,\
-				perc_MPI FLOAT,\
-				avg_f INT unsigned,\
-				avg_imc_f INT unsigned,\
-				def_f INT unsigned, "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Signatures ("
+				"id INT unsigned NOT NULL AUTO_INCREMENT, "
+				"DC_power FLOAT, "
+				"DRAM_power FLOAT, "
+				"PCK_power FLOAT, "
+				"EDP FLOAT, "
+				"GBS FLOAT, "
+				"IO_MBS FLOAT, "
+				"TPI FLOAT, "
+				"CPI FLOAT, "
+				"Gflops FLOAT, "
+				"time FLOAT, "
+				"perc_MPI FLOAT, "
+				"avg_f INT unsigned, "
+				"avg_imc_f INT unsigned, "
+				"def_f INT unsigned, "
 #if USE_GPUS
-				"min_GPU_sig_id INT unsigned, \
-				max_GPU_sig_id INT unsigned, "
+				"min_GPU_sig_id INT unsigned, "
+				"max_GPU_sig_id INT unsigned, "
 #endif
 				"PRIMARY KEY (id))");
 	run_query(connection, query);
 
 #if USE_GPUS
-	sprintf(query, "CREATE TABLE IF NOT EXISTS GPU_signatures ( \
-		id INT unsigned NOT NULL AUTO_INCREMENT, \
-			GPU_power FLOAT NOT NULL, \
-			GPU_freq INT unsigned NOT NULL, \
-			GPU_mem_freq INT unsigned NOT NULL, \
-			GPU_util INT unsigned NOT NULL, \
-			GPU_mem_util INT unsigned NOT NULL, "
+	sprintf(query, "CREATE TABLE IF NOT EXISTS GPU_signatures ("
+			"id INT unsigned NOT NULL AUTO_INCREMENT, "
+			"GPU_power FLOAT NOT NULL, "
+			"GPU_freq INT unsigned NOT NULL, "
+			"GPU_mem_freq INT unsigned NOT NULL, "
+			"GPU_util INT unsigned NOT NULL, "
+			"GPU_mem_util INT unsigned NOT NULL, "
 			"PRIMARY KEY (id))");
 	run_query(connection, query);
 #endif
 
 	if (db_node_detail){
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_metrics ( \
-			id INT unsigned NOT NULL AUTO_INCREMENT, \
-				start_time INT NOT NULL, \
-				end_time INT NOT NULL, \
-				DC_energy INT unsigned NOT NULL, \
-				node_id VARCHAR(64) NOT NULL, \
-				job_id INT unsigned NOT NULL, \
-				step_id INT unsigned NOT NULL, \
-				avg_f INT, \
-				temp INT, \
-				DRAM_energy INT, \
-				PCK_energy INT, "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_metrics ("
+				"id INT unsigned NOT NULL AUTO_INCREMENT, "
+				"start_time INT NOT NULL, "
+				"end_time INT NOT NULL, "
+				"DC_energy INT unsigned NOT NULL, "
+				"node_id VARCHAR(64) NOT NULL, "
+				"job_id INT unsigned NOT NULL, "
+				"step_id INT unsigned NOT NULL, "
+				"avg_f INT, "
+				"temp INT, "
+				"DRAM_energy INT, "
+				"PCK_energy INT, "
 #if USE_GPUS
 				"GPU_energy INT, "
 #endif
 				"PRIMARY KEY (id))");
 	}else{
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_metrics ( \
-			id INT unsigned NOT NULL AUTO_INCREMENT, \
-				start_time INT NOT NULL, \
-				end_time INT NOT NULL, \
-				DC_energy INT unsigned NOT NULL, \
-				node_id VARCHAR(64) NOT NULL, \
-				job_id INT unsigned NOT NULL, \
-				step_id INT unsigned NOT NULL, "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_metrics ("
+				"id INT unsigned NOT NULL AUTO_INCREMENT, "
+				"start_time INT NOT NULL, "
+				"end_time INT NOT NULL, "
+				"DC_energy INT unsigned NOT NULL, "
+				"node_id VARCHAR(64) NOT NULL, "
+				"job_id INT unsigned NOT NULL, "
+				"step_id INT unsigned NOT NULL, "
 				"PRIMARY KEY (id))");
 	}
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Power_signatures (  \
-		id INT unsigned NOT NULL AUTO_INCREMENT, \
-			DC_power FLOAT NOT NULL, \
-			DRAM_power FLOAT NOT NULL, \
-			PCK_power FLOAT NOT NULL, \
-			EDP FLOAT NOT NULL, \
-			max_DC_power FLOAT NOT NULL, \
-			min_DC_power FLOAT NOT NULL, \
-			time FLOAT NOT NULL, \
-			avg_f INT unsigned NOT NULL, \
-			def_f INT unsigned NOT NULL, \
-			PRIMARY KEY (id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Power_signatures ("
+			"id INT unsigned NOT NULL AUTO_INCREMENT, "
+			"DC_power FLOAT NOT NULL, "
+			"DRAM_power FLOAT NOT NULL, "
+			"PCK_power FLOAT NOT NULL, "
+			"EDP FLOAT NOT NULL, "
+			"max_DC_power FLOAT NOT NULL, "
+			"min_DC_power FLOAT NOT NULL, "
+			"time FLOAT NOT NULL, "
+			"avg_f INT unsigned NOT NULL, "
+			"def_f INT unsigned NOT NULL, "
+			"PRIMARY KEY (id))");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Events ( \
-		id INT unsigned NOT NULL AUTO_INCREMENT, \
-			timestamp INT NOT NULL, \
-			event_type INT NOT NULL, \
-			job_id INT unsigned NOT NULL, \
-			step_id INT unsigned NOT NULL, \
-			freq INT unsigned NOT NULL, \
-			node_id VARCHAR(64), \
-			PRIMARY KEY (id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Events ("
+			"id INT unsigned NOT NULL AUTO_INCREMENT, "
+			"timestamp INT NOT NULL, "
+			"event_type INT NOT NULL, "
+			"job_id INT unsigned NOT NULL, "
+			"step_id INT unsigned NOT NULL, "
+			"freq INT unsigned NOT NULL, "
+			"node_id VARCHAR(64), "
+			"PRIMARY KEY (id))");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Global_energy ( \
-		energy_percent FLOAT, \
-			warning_level INT UNSIGNED NOT NULL, \
-			time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, \
-			inc_th FLOAT, \
-			p_state INT, \
-			GlobEnergyConsumedT1 INT UNSIGNED, \
-			GlobEnergyConsumedT2 INT UNSIGNED, \
-			GlobEnergyLimit INT UNSIGNED, \
-			GlobEnergyPeriodT1 INT UNSIGNED, \
-			GlobEnergyPeriodT2 INT UNSIGNED, \
-			GlobEnergyPolicy VARCHAR(64), \
-			PRIMARY KEY (time))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Global_energy ("
+			"energy_percent FLOAT, "
+			"warning_level INT UNSIGNED NOT NULL, "
+			"time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+			"inc_th FLOAT, "
+			"p_state INT, "
+			"GlobEnergyConsumedT1 INT UNSIGNED, "
+			"GlobEnergyConsumedT2 INT UNSIGNED, "
+			"GlobEnergyLimit INT UNSIGNED, "
+			"GlobEnergyPeriodT1 INT UNSIGNED, "
+			"GlobEnergyPeriodT2 INT UNSIGNED, "
+			"GlobEnergyPolicy VARCHAR(64), "
+			"PRIMARY KEY (time))");
 	run_query(connection, query);
 
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_applications (\
-		job_id INT unsigned NOT NULL, \
-			step_id INT unsigned NOT NULL, \
-			node_id VARCHAR(64), \
-			signature_id INT unsigned,\
-			power_signature_id INT unsigned, \
-			PRIMARY KEY(job_id, step_id, node_id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_applications ("
+			"job_id INT unsigned NOT NULL, "
+			"step_id INT unsigned NOT NULL, "
+			"node_id VARCHAR(64), "
+			"signature_id INT unsigned, "
+			"power_signature_id INT unsigned, "
+			"PRIMARY KEY(job_id, step_id, node_id))");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_jobs (\
-		id INT unsigned NOT NULL,\
-			step_id INT unsigned NOT NULL, \
-			user_id VARCHAR(256),\
-			app_id VARCHAR(256),\
-			start_time INT NOT NULL,\
-			end_time INT NOT NULL,\
-			start_mpi_time INT NOT NULL,\
-			end_mpi_time INT NOT NULL,\
-			policy VARCHAR(256) NOT NULL,\
-			threshold FLOAT NOT NULL,\
-			procs INT unsigned NOT NULL,\
-			job_type SMALLINT unsigned NOT NULL,\
-			def_f INT unsigned, \
-			user_acc VARCHAR(256) NOT NULL, \
-			user_group VARCHAR(256), \
-			e_tag VARCHAR(256), \
-			PRIMARY KEY(id, step_id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_jobs ("
+			"id INT unsigned NOT NULL, "
+			"step_id INT unsigned NOT NULL, "
+			"user_id VARCHAR(256), "
+			"app_id VARCHAR(256), "
+			"start_time INT NOT NULL, "
+			"end_time INT NOT NULL, "
+			"start_mpi_time INT NOT NULL, "
+			"end_mpi_time INT NOT NULL, "
+			"policy VARCHAR(256) NOT NULL, "
+			"threshold FLOAT NOT NULL, "
+			"procs INT unsigned NOT NULL, "
+			"job_type SMALLINT unsigned NOT NULL, "
+			"def_f INT unsigned, "
+			"user_acc VARCHAR(256) NOT NULL, "
+			"user_group VARCHAR(256), "
+			"e_tag VARCHAR(256), "
+			"PRIMARY KEY(id, step_id))");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_aggregations (\
-		id INT unsigned NOT NULL AUTO_INCREMENT,\
-			start_time INT,\
-			end_time INT,\
-			DC_energy INT unsigned, \
-			eardbd_host VARCHAR(64), \
-			PRIMARY KEY(id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_aggregations ("
+			"id INT unsigned NOT NULL AUTO_INCREMENT, "
+			"start_time INT, "
+			"end_time INT, "
+			"DC_energy INT unsigned, "
+			"eardbd_host VARCHAR(64), "
+			"PRIMARY KEY(id))");
 	run_query(connection, query);
 
 	if (signature_detail)
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_signatures (\
-			id INT unsigned NOT NULL AUTO_INCREMENT,\
-				DC_power FLOAT,\
-				DRAM_power FLOAT,\
-				PCK_power FLOAT,\
-				EDP FLOAT,\
-				GBS FLOAT,\
-				IO_MBS FLOAT,\
-				TPI FLOAT,\
-				CPI FLOAT,\
-				Gflops FLOAT,\
-				time FLOAT,\
-				perc_MPI FLOAT,\
-				FLOPS1 BIGINT unsigned,\
-				FLOPS2 BIGINT unsigned,\
-				FLOPS3 BIGINT unsigned,\
-				FLOPS4 BIGINT unsigned,\
-				FLOPS5 BIGINT unsigned,\
-				FLOPS6 BIGINT unsigned,\
-				FLOPS7 BIGINT unsigned,\
-				FLOPS8 BIGINT unsigned,\
-				instructions BIGINT unsigned, \
-				cycles BIGINT unsigned,\
-				avg_f INT unsigned,\
-				avg_imc_f INT unsigned,\
-				def_f INT unsigned, "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_signatures ("
+				"id INT unsigned NOT NULL AUTO_INCREMENT, "
+				"DC_power FLOAT, "
+				"DRAM_power FLOAT, "
+				"PCK_power FLOAT, "
+				"EDP FLOAT, "
+				"GBS FLOAT, "
+				"IO_MBS FLOAT, "
+				"TPI FLOAT, "
+				"CPI FLOAT, "
+				"Gflops FLOAT, "
+				"time FLOAT, "
+				"perc_MPI FLOAT, "
+				"FLOPS1 BIGINT unsigned, "
+				"FLOPS2 BIGINT unsigned, "
+				"FLOPS3 BIGINT unsigned, "
+				"FLOPS4 BIGINT unsigned, "
+				"FLOPS5 BIGINT unsigned, "
+				"FLOPS6 BIGINT unsigned, "
+				"FLOPS7 BIGINT unsigned, "
+				"FLOPS8 BIGINT unsigned, "
+				"instructions BIGINT unsigned, "
+				"cycles BIGINT unsigned, "
+				"avg_f INT unsigned, "
+				"avg_imc_f INT unsigned, "
+				"def_f INT unsigned, "
 #if USE_GPUS
-				"min_GPU_sig_id INT unsigned, \
-				max_GPU_sig_id INT unsigned, "
+				"min_GPU_sig_id INT unsigned, "
+				"max_GPU_sig_id INT unsigned, "
 #endif
 				"PRIMARY KEY (id))");
 	else
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_signatures (\
-			id INT unsigned NOT NULL AUTO_INCREMENT,\
-				DC_power FLOAT,\
-				DRAM_power FLOAT,\
-				PCK_power FLOAT,\
-				EDP FLOAT,\
-				GBS FLOAT,\
-				IO_MBS FLOAT,\
-				TPI FLOAT,\
-				CPI FLOAT,\
-				Gflops FLOAT,\
-				time FLOAT,\
-				perc_MPI FLOAT,\
-				avg_f INT unsigned,\
-				avg_imc_f INT unsigned,\
-				def_f INT unsigned, "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_signatures ("
+				"id INT unsigned NOT NULL AUTO_INCREMENT, "
+				"DC_power FLOAT, "
+				"DRAM_power FLOAT, "
+				"PCK_power FLOAT, "
+				"EDP FLOAT, "
+				"GBS FLOAT, "
+				"IO_MBS FLOAT, "
+				"TPI FLOAT, "
+				"CPI FLOAT, "
+				"Gflops FLOAT, "
+				"time FLOAT, "
+				"perc_MPI FLOAT, "
+				"avg_f INT unsigned, "
+				"avg_imc_f INT unsigned, "
+				"def_f INT unsigned, "
 #if USE_GPUS
-				"min_GPU_sig_id INT unsigned, \
-				max_GPU_sig_id INT unsigned, "
+				"min_GPU_sig_id INT unsigned, "
+				"max_GPU_sig_id INT unsigned, "
 #endif
 				"PRIMARY KEY (id))");
 
@@ -488,280 +490,280 @@ void create_tables(void *connection)
 void create_tables(void *connection)
 {
 	char query[1024];
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Applications (\
-		job_id INT  NOT NULL, \
-			step_id INT  NOT NULL, \
-			node_id VARCHAR(64), \
-			signature_id INT , \
-			power_signature_id INT , \
-			PRIMARY KEY(job_id, step_id, node_id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Applications ("
+			"job_id INT  NOT NULL, "
+			"step_id INT  NOT NULL, "
+			"node_id VARCHAR(64), "
+			"signature_id INT , "
+			"power_signature_id INT , "
+			"PRIMARY KEY(job_id, step_id, node_id))");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Loops ( \
-		event INT  NOT NULL, \
-			size INT  NOT NULL, \
-			level INT  NOT NULL, \
-			job_id INT  NOT NULL, \
-			step_id INT  NOT NULL, \
-			node_id VARCHAR(64), \
-			total_iterations INT , \
-			signature_id INT )");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Loops ("
+			"event INT  NOT NULL, "
+			"size INT  NOT NULL, "
+			"level INT  NOT NULL, "
+			"job_id INT  NOT NULL, "
+			"step_id INT  NOT NULL, "
+			"node_id VARCHAR(64), "
+			"total_iterations INT , "
+			"signature_id INT )");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Jobs (\
-		id INT  NOT NULL,\
-			step_id INT  NOT NULL, \
-			user_id VARCHAR(128),\
-			app_id VARCHAR(128),\
-			start_time INT NOT NULL,\
-			end_time INT NOT NULL,\
-			start_mpi_time INT NOT NULL,\
-			end_mpi_time INT NOT NULL,\
-			policy VARCHAR(256) NOT NULL,\
-			threshold FLOAT NOT NULL,\
-			procs INT  NOT NULL,\
-			job_type SMALLINT  NOT NULL,\
-			def_f INT , \
-			user_acc VARCHAR(256), \
-			user_group VARCHAR(256), \
-			e_tag VARCHAR(256), \
-			PRIMARY KEY(id, step_id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Jobs ("
+			"id INT  NOT NULL, "
+			"step_id INT  NOT NULL, "
+			"user_id VARCHAR(128), "
+			"app_id VARCHAR(128), "
+			"start_time INT NOT NULL, "
+			"end_time INT NOT NULL, "
+			"start_mpi_time INT NOT NULL, "
+			"end_mpi_time INT NOT NULL, "
+			"policy VARCHAR(256) NOT NULL, "
+			"threshold FLOAT NOT NULL, "
+			"procs INT  NOT NULL, "
+			"job_type SMALLINT  NOT NULL, "
+			"def_f INT , "
+			"user_acc VARCHAR(256), "
+			"user_group VARCHAR(256), "
+			"e_tag VARCHAR(256), "
+			"PRIMARY KEY(id, step_id))");
 	run_query(connection, query);
 
 	if (signature_detail)
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Signatures (\
-			id SERIAL NOT NULL,\
-				DC_power FLOAT,\
-				DRAM_power FLOAT,\
-				PCK_power FLOAT,\
-				EDP FLOAT,\
-				GBS FLOAT,\
-				IO_MBS FLOAT,\
-				TPI FLOAT,\
-				CPI FLOAT,\
-				Gflops FLOAT,\
-				time FLOAT,\
-				perc_MPI FLOAT,\
-				FLOPS1 BIGINT ,\
-				FLOPS2 BIGINT ,\
-				FLOPS3 BIGINT ,\
-				FLOPS4 BIGINT ,\
-				FLOPS5 BIGINT ,\
-				FLOPS6 BIGINT ,\
-				FLOPS7 BIGINT ,\
-				FLOPS8 BIGINT ,\
-				instructions BIGINT , \
-				cycles BIGINT ,\
-				avg_f INT ,\
-				avg_imc_f INT ,\
-				def_f INT , "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Signatures ("
+				"id SERIAL NOT NULL, "
+				"DC_power FLOAT, "
+				"DRAM_power FLOAT, "
+				"PCK_power FLOAT, "
+				"EDP FLOAT, "
+				"GBS FLOAT, "
+				"IO_MBS FLOAT, "
+				"TPI FLOAT, "
+				"CPI FLOAT, "
+				"Gflops FLOAT, "
+				"time FLOAT, "
+				"perc_MPI FLOAT, "
+				"FLOPS1 BIGINT , "
+				"FLOPS2 BIGINT , "
+				"FLOPS3 BIGINT , "
+				"FLOPS4 BIGINT , "
+				"FLOPS5 BIGINT , "
+				"FLOPS6 BIGINT , "
+				"FLOPS7 BIGINT , "
+				"FLOPS8 BIGINT , "
+				"instructions BIGINT , "
+				"cycles BIGINT , "
+				"avg_f INT , "
+				"avg_imc_f INT , "
+				"def_f INT , "
 #if USE_GPUS
-				"min_GPU_sig_id INT, \
-				max_GPU_sig_id INT, "
+				"min_GPU_sig_id INT, "
+				"max_GPU_sig_id INT, "
 #endif
 				"PRIMARY KEY (id))");
 	else
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Signatures (\
-			id SERIAL NOT NULL,\
-				DC_power FLOAT,\
-				DRAM_power FLOAT,\
-				PCK_power FLOAT,\
-				EDP FLOAT,\
-				GBS FLOAT,\
-				IO_MBS FLOAT,\
-				TPI FLOAT,\
-				CPI FLOAT,\
-				Gflops FLOAT,\
-				time FLOAT,\
-				perc_MPI FLOAT,\
-				avg_f INT ,\
-				avg_imc_f INT ,\
-				def_f INT , "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Signatures ("
+				"id SERIAL NOT NULL, "
+				"DC_power FLOAT, "
+				"DRAM_power FLOAT, "
+				"PCK_power FLOAT, "
+				"EDP FLOAT, "
+				"GBS FLOAT, "
+				"IO_MBS FLOAT, "
+				"TPI FLOAT, "
+				"CPI FLOAT, "
+				"Gflops FLOAT, "
+				"time FLOAT, "
+				"perc_MPI FLOAT, "
+				"avg_f INT , "
+				"avg_imc_f INT , "
+				"def_f INT , "
 #if USE_GPUS
-				"min_GPU_sig_id INT, \
-				max_GPU_sig_id INT, "
+				"min_GPU_sig_id INT, "
+				"max_GPU_sig_id INT, "
 #endif
 				"PRIMARY KEY (id))");
 	run_query(connection, query);
 
 #if USE_GPUS
-	sprintf(query, "CREATE TABLE IF NOT EXISTS GPU_signatures ( \
-		id SERIAL NOT NULL, \
-			GPU_power FLOAT, \
-			GPU_freq INT, \
-			GPU_mem_freq INT, \
-			GPU_util INT, \
-			GPU_mem_util INT, "
+	sprintf(query, "CREATE TABLE IF NOT EXISTS GPU_signatures ("
+			"id SERIAL NOT NULL, "
+			"GPU_power FLOAT, "
+			"GPU_freq INT, "
+			"GPU_mem_freq INT, "
+			"GPU_util INT, "
+			"GPU_mem_util INT, "
 			"PRIMARY KEY (id))");
 	run_query(connection, query);
 #endif
 	if (db_node_detail){
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_metrics ( \
-			id SERIAL NOT NULL, \
-				start_time INT NOT NULL, \
-				end_time INT NOT NULL, \
-				DC_energy INT  NOT NULL, \
-				node_id VARCHAR(64) NOT NULL, \
-				job_id INT  NOT NULL, \
-				step_id INT  NOT NULL, \
-				avg_f INT, \
-				temp INT, \
-				DRAM_energy INT, \
-				PCK_energy INT, "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_metrics ("
+				"id SERIAL NOT NULL, "
+				"start_time INT NOT NULL, "
+				"end_time INT NOT NULL, "
+				"DC_energy INT  NOT NULL, "
+				"node_id VARCHAR(64) NOT NULL, "
+				"job_id INT  NOT NULL, "
+				"step_id INT  NOT NULL, "
+				"avg_f INT, "
+				"temp INT, "
+				"DRAM_energy INT, "
+				"PCK_energy INT, "
 #if USE_GPUS
 				"GPU_energy INT, "
 #endif
 				"PRIMARY KEY (id))");
 	}else{
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_metrics ( \
-			id SERIAL NOT NULL, \
-				start_time INT NOT NULL, \
-				end_time INT NOT NULL, \
-				DC_energy INT  NOT NULL, \
-				node_id VARCHAR(64) NOT NULL, \
-				job_id INT  NOT NULL, \
-				step_id INT  NOT NULL, "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_metrics ("
+				"id SERIAL NOT NULL, "
+				"start_time INT NOT NULL, "
+				"end_time INT NOT NULL, "
+				"DC_energy INT  NOT NULL, "
+				"node_id VARCHAR(64) NOT NULL, "
+				"job_id INT  NOT NULL, "
+				"step_id INT  NOT NULL, "
 				"PRIMARY KEY (id))");
 	}
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Power_signatures (  \
-		id SERIAL NOT NULL, \
-			DC_power FLOAT NOT NULL, \
-			DRAM_power FLOAT NOT NULL, \
-			PCK_power FLOAT NOT NULL, \
-			EDP FLOAT NOT NULL, \
-			max_DC_power FLOAT NOT NULL, \
-			min_DC_power FLOAT NOT NULL, \
-			time FLOAT NOT NULL, \
-			avg_f INT  NOT NULL, \
-			def_f INT  NOT NULL, \
-			PRIMARY KEY (id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Power_signatures (  "
+			"id SERIAL NOT NULL, "
+			"DC_power FLOAT NOT NULL, "
+			"DRAM_power FLOAT NOT NULL, "
+			"PCK_power FLOAT NOT NULL, "
+			"EDP FLOAT NOT NULL, "
+			"max_DC_power FLOAT NOT NULL, "
+			"min_DC_power FLOAT NOT NULL, "
+			"time FLOAT NOT NULL, "
+			"avg_f INT  NOT NULL, "
+			"def_f INT  NOT NULL, "
+			"PRIMARY KEY (id))");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Events ( \
-		id SERIAL NOT NULL, \
-			timestamp INT NOT NULL, \
-			event_type INT NOT NULL, \
-			job_id INT  NOT NULL, \
-			step_id INT  NOT NULL, \
-			freq INT  NOT NULL, \
-			node_id VARCHAR(64), \
-			PRIMARY KEY (id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Events ("
+			"id SERIAL NOT NULL, "
+			"timestamp INT NOT NULL, "
+			"event_type INT NOT NULL, "
+			"job_id INT  NOT NULL, "
+			"step_id INT  NOT NULL, "
+			"freq INT  NOT NULL, "
+			"node_id VARCHAR(64), "
+			"PRIMARY KEY (id))");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Global_energy ( \
-		energy_percent FLOAT, \
-			warning_level INT NOT NULL, \
-			time INT, \
-			inc_th FLOAT, \
-			p_state INT, \
-			GlobEnergyConsumedT1 INT, \
-			GlobEnergyConsumedT2 INT, \
-			GlobEnergyLimit INT, \
-			GlobEnergyPeriodT1 INT, \
-			GlobEnergyPeriodT2 INT, \
-			GlobEnergyPolicy VARCHAR(64), \
-			PRIMARY KEY (time))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Global_energy ("
+			"energy_percent FLOAT, "
+			"warning_level INT NOT NULL, "
+			"time INT, "
+			"inc_th FLOAT, "
+			"p_state INT, "
+			"GlobEnergyConsumedT1 INT, "
+			"GlobEnergyConsumedT2 INT, "
+			"GlobEnergyLimit INT, "
+			"GlobEnergyPeriodT1 INT, "
+			"GlobEnergyPeriodT2 INT, "
+			"GlobEnergyPolicy VARCHAR(64), "
+			"PRIMARY KEY (time))");
 	run_query(connection, query);
 
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_applications (\
-		job_id INT  NOT NULL, \
-			step_id INT  NOT NULL, \
-			node_id VARCHAR(64), \
-			signature_id INT ,\
-			power_signature_id INT , \
-			PRIMARY KEY(job_id, step_id, node_id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_applications ("
+			"job_id INT  NOT NULL, "
+			"step_id INT  NOT NULL, "
+			"node_id VARCHAR(64), "
+			"signature_id INT , "
+			"power_signature_id INT , "
+			"PRIMARY KEY(job_id, step_id, node_id))");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_jobs (\
-		id INT  NOT NULL,\
-			step_id INT  NOT NULL, \
-			user_id VARCHAR(256),\
-			app_id VARCHAR(256),\
-			start_time INT NOT NULL,\
-			end_time INT NOT NULL,\
-			start_mpi_time INT NOT NULL,\
-			end_mpi_time INT NOT NULL,\
-			policy VARCHAR(256) NOT NULL,\
-			threshold FLOAT NOT NULL,\
-			procs INT  NOT NULL,\
-			job_type SMALLINT  NOT NULL,\
-			def_f INT , \
-			user_acc VARCHAR(256) NOT NULL, \
-			user_group VARCHAR(256), \
-			e_tag VARCHAR(256), \
-			PRIMARY KEY(id, step_id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_jobs ("
+			"id INT  NOT NULL, "
+			"step_id INT  NOT NULL, "
+			"user_id VARCHAR(256), "
+			"app_id VARCHAR(256), "
+			"start_time INT NOT NULL, "
+			"end_time INT NOT NULL, "
+			"start_mpi_time INT NOT NULL, "
+			"end_mpi_time INT NOT NULL, "
+			"policy VARCHAR(256) NOT NULL, "
+			"threshold FLOAT NOT NULL, "
+			"procs INT  NOT NULL, "
+			"job_type SMALLINT  NOT NULL, "
+			"def_f INT , "
+			"user_acc VARCHAR(256) NOT NULL, "
+			"user_group VARCHAR(256), "
+			"e_tag VARCHAR(256), "
+			"PRIMARY KEY(id, step_id))");
 	run_query(connection, query);
 
-	sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_aggregations (\
-		id SERIAL NOT NULL,\
-			start_time INT,\
-			end_time INT,\
-			DC_energy INT , \
-			eardbd_host VARCHAR(64), \
-			PRIMARY KEY(id))");
+	sprintf(query, "CREATE TABLE IF NOT EXISTS Periodic_aggregations ("
+			"id SERIAL NOT NULL, "
+			"start_time INT, "
+			"end_time INT, "
+			"DC_energy INT , "
+			"eardbd_host VARCHAR(64), "
+			"PRIMARY KEY(id))");
 	run_query(connection, query);
 
 	if (signature_detail)
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_signatures (\
-			id SERIAL NOT NULL,\
-				DC_power FLOAT,\
-				DRAM_power FLOAT,\
-				PCK_power FLOAT,\
-				EDP FLOAT,\
-				GBS FLOAT,\
-				TPI FLOAT,\
-				CPI FLOAT,\
-				Gflops FLOAT,\
-				time FLOAT,\
-				FLOPS1 BIGINT ,\
-				FLOPS2 BIGINT ,\
-				FLOPS3 BIGINT ,\
-				FLOPS4 BIGINT ,\
-				FLOPS5 BIGINT ,\
-				FLOPS6 BIGINT ,\
-				FLOPS7 BIGINT ,\
-				FLOPS8 BIGINT ,\
-				instructions BIGINT , \
-				cycles BIGINT ,\
-				avg_f INT ,\
-				def_f INT , "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_signatures ("
+				"id SERIAL NOT NULL, "
+				"DC_power FLOAT, "
+				"DRAM_power FLOAT, "
+				"PCK_power FLOAT, "
+				"EDP FLOAT, "
+				"GBS FLOAT, "
+				"TPI FLOAT, "
+				"CPI FLOAT, "
+				"Gflops FLOAT, "
+				"time FLOAT, "
+				"FLOPS1 BIGINT , "
+				"FLOPS2 BIGINT , "
+				"FLOPS3 BIGINT , "
+				"FLOPS4 BIGINT , "
+				"FLOPS5 BIGINT , "
+				"FLOPS6 BIGINT , "
+				"FLOPS7 BIGINT , "
+				"FLOPS8 BIGINT , "
+				"instructions BIGINT , "
+				"cycles BIGINT , "
+				"avg_f INT , "
+				"def_f INT , "
 #if USE_GPUS
-				"min_GPU_sig_id INT, \
-				max_GPU_sig_id INT, "
+				"min_GPU_sig_id INT, "
+				"max_GPU_sig_id INT, "
 #endif
 				"PRIMARY KEY (id))");
 	else
-		sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_signatures (\
-			id SERIAL NOT NULL,\
-				DC_power FLOAT,\
-				DRAM_power FLOAT,\
-				PCK_power FLOAT,\
-				EDP FLOAT,\
-				GBS FLOAT,\
-				TPI FLOAT,\
-				CPI FLOAT,\
-				Gflops FLOAT,\
-				time FLOAT,\
-				avg_f INT ,\
-				def_f INT , "
+		sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_signatures ("
+				"id SERIAL NOT NULL, "
+				"DC_power FLOAT, "
+				"DRAM_power FLOAT, "
+				"PCK_power FLOAT, "
+				"EDP FLOAT, "
+				"GBS FLOAT, "
+				"TPI FLOAT, "
+				"CPI FLOAT, "
+				"Gflops FLOAT, "
+				"time FLOAT, "
+				"avg_f INT , "
+				"def_f INT , "
 #if USE_GPUS
-				"min_GPU_sig_id INT, \
-				max_GPU_sig_id INT, "
+				"min_GPU_sig_id INT, "
+				"max_GPU_sig_id INT, "
 #endif
 				"PRIMARY KEY (id))");
 
 	run_query(connection, query);
 
-	sprintf(query, "CREATE OR REPLACE FUNCTION update_time_column() \n\
-			RETURNS TRIGGER AS $$\n\
-			BEGIN\n\
-			NEW.time = now(); \n\
-			RETURN NEW;\n\
-			END;\n\
-			$$ language 'plpgsql'");
+	sprintf(query, "CREATE OR REPLACE FUNCTION update_time_column() \n"
+			"RETURNS TRIGGER AS $$\n"
+			"BEGIN\n"
+			"NEW.time = now(); \n"
+			"RETURN NEW;\n"
+			"END;\n"
+			"$$ language 'plpgsql'");
 	run_query(connection, query);
 
 	sprintf(query, "CREATE TRIGGER update_table_timestamp BEFORE UPDATE ON global_energy FOR EACH ROW EXECUTE PROCEDURE update_time_column()");
