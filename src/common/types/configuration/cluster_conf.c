@@ -1045,7 +1045,7 @@ state_t serialize_cluster_conf(cluster_conf_t *conf, char **ear_conf_buf, size_t
     }
 
     /* Priv accounts */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->priv_acc, sizeof(conf->priv_acc));
+    serial_add_elem(&ear_conf_serial, (char *)&conf->num_acc, sizeof(conf->num_acc));
     for (uint auth = 0; auth < conf->num_acc; auth ++){
         uint size_auth = strlen(conf->priv_acc[auth]);
         serial_add_elem(&ear_conf_serial, (char *)&size_auth, sizeof(size_auth));
@@ -1159,7 +1159,7 @@ state_t deserialize_cluster_conf(cluster_conf_t *conf, char *ear_conf_buf, size_
     }
 
     /* Priv accounts */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->priv_acc, NULL);
+    serial_copy_elem(&ear_conf_serial, (char *)&conf->num_acc, NULL);
     if (conf->priv_acc){
         conf->priv_acc = calloc(sizeof(char *), conf->num_acc);
         for (uint auth = 0; auth < conf->num_acc; auth ++){
