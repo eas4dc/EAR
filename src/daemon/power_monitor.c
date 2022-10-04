@@ -34,6 +34,7 @@
 #include <common/colors.h>
 
 #include <common/config.h>
+#include <common/config/config_sched.h>
 #include <common/system/sockets.h>
 #include <common/system/folder.h>
 #include <common/messaging/msg_conf.h>
@@ -233,6 +234,48 @@ int find_context_for_job(job_id id, job_id sid) {
   }
   return pos;
 }
+
+int mark_contexts_to_finish_by_pid() 
+{
+	int i = 0, found_contexts = 0;
+	char pid_file[SHORT_NAME];
+	struct stat tmp;
+	debug("marking_contexts_to_finish_by_pid");
+	for (i = 0; i <= max_context_created; i++) {
+		if (current_ear_app[i]->master_pid == 0) continue;
+		sprintf(pid_file, "/proc/%d", current_ear_app[i]->master_pid);
+		if (stat(pid_file, &tmp)) {
+			current_ear_app[i]->state = APP_FINISHED;
+			found_contexts++;
+		}
+	}
+	return found_contexts;
+}
+
+int mark_contexts_to_finish_by_jobid(job_id id, job_id step_id) 
+{
+	int i = 0, found_contexts = 0;
+	if (step_id != BATCH_STEP) return 0; //only batch steps need to check this
+	debug("marking_contexts_to_finish %lu %lu", id, step_id);
+	for (i = 0; i <= max_context_created; i++) {
+		if ((current_ear_app[i] != NULL) && (current_ear_app[i]->app.job.id == id)) {
+			current_ear_app[i]->state = APP_FINISHED;
+			found_contexts++;
+		}
+	}
+	return found_contexts;
+}
+
+void finish_pending_contexts(ehandler_t *eh)
+{
+	int i;
+	for (i = 0; i <= max_context_created; i++) {
+		if ((current_ear_app[i] != NULL) && (current_ear_app[i]->state == APP_FINISHED)) {
+			powermon_end_job(eh, current_ear_app[i]->app.job.id, current_ear_app[i]->app.job.step_id, 0);
+		}
+	}
+}
+
 /* This function is called at job or step end */
 void end_context(int cc)
 {
