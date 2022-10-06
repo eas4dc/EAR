@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <fcntl.h>
@@ -30,6 +30,16 @@
 
 
 //#define __OLD__CONF__
+
+//checks if small is one number shorter
+int is_smaller_unit(int small, int big)
+{
+	while (small) {
+		small /= 10;
+		big /= 10;
+	}
+	return big; //big will be > 0 if it's a bigger unit
+}
 
 char range_conf_contains_node(node_conf_t *node, char *nodename)
 {
@@ -49,9 +59,9 @@ char range_conf_contains_node(node_conf_t *node, char *nodename)
             if (!strcmp(aux_name, nodename)) return 1;
             else continue;
         }
-        for (j = node->range[i].end; j >= node->range[i].start && j > 0; j--)
+        for (j = node->range[i].end; j >= node->range[i].start && j >= 0; j--)
         {
-            if (j < 10 && node->range[i].end > 10)
+            if (is_smaller_unit(j, node->range[i].end))
                 sprintf(aux_name, "%s0%u", node->range[i].prefix, j);
             else
                 sprintf(aux_name, "%s%u", node->range[i].prefix, j);
@@ -80,9 +90,9 @@ char island_range_conf_contains_node(node_island_t *node, char *nodename)
             if (!strcmp(aux_name, nodename)) return i;
             else continue;
         }
-        for (j = node->ranges[i].end; j >= node->ranges[i].start && j > 0; j--)
+        for (j = node->ranges[i].end; j >= node->ranges[i].start && j >= 0; j--)
         {
-            if (j < 10 && node->ranges[i].end > 10)
+            if (is_smaller_unit(j, node->ranges[i].end))
                 sprintf(aux_name, "%s0%u", node->ranges[i].prefix, j);
             else
                 sprintf(aux_name, "%s%u", node->ranges[i].prefix, j);
@@ -178,14 +188,14 @@ void print_my_node_conf(my_node_conf_t *my_node_conf)
         for (i=0;i<my_node_conf->num_policies;i++){
             print_policy_conf(&my_node_conf->policies[i]);
         }
-    }
-	verbose(VCCONF, "max_sig_power %.0lf min_sig_power %.0lf error_power %.0lf\nmax_temp %lu powercap"
+	      verbose(VCCONF, "max_sig_power %.0lf min_sig_power %.0lf error_power %.0lf\nmax_temp %lu powercap"
             " %ld max_powercap %ld powercap_type %d\ngpu_def_freq %lu / cpu_max_pstate %d / imc_max_pstate %d\n",
             my_node_conf->max_sig_power, my_node_conf->min_sig_power,
             my_node_conf->max_error_power, my_node_conf->max_temp, my_node_conf->powercap,
             my_node_conf->max_powercap, my_node_conf->powercap_type,
             my_node_conf->gpu_def_freq, my_node_conf->cpu_max_pstate, my_node_conf->imc_max_pstate);
-	verbose(VCCONF, "imc_max_freq %lu imc_min_freq %lu", my_node_conf->imc_max_freq, my_node_conf->imc_min_freq);
+	      verbose(VCCONF, "imc_max_freq %lu imc_min_freq %lu", my_node_conf->imc_max_freq, my_node_conf->imc_min_freq);
+    }
 }
 
 /** Converts from policy name to policy_id . Returns EAR_ERROR if error*/
