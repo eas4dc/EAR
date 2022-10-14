@@ -644,7 +644,7 @@ static void metrics_global_stop()
 	}
 
     // New metrics
-    bwidth_read_diff(no_ctx, bwidth_read2[APP], bwidth_read1[APP], NULL, NULL, NULL);
+    bwidth_read_diff(no_ctx, bwidth_read2[APP], bwidth_read1[APP], NULL, &bwidth_cas[APP], NULL);
      flops_read_diff(no_ctx, &flops_read2[APP], &flops_read1[APP], NULL, NULL);
      cache_read_diff(no_ctx, &cache_read2[APP], &cache_read1[APP], &cache_diff[APP], &cache_avrg[APP]);
        cpi_read_diff(no_ctx,   &cpi_read2[APP],   &cpi_read1[APP],   &cpi_diff[APP],   &cpi_avrg[APP]);
@@ -928,7 +928,7 @@ static int metrics_partial_stop(uint where)
     } //master_rank (metrics collected by node_master)
 
 	// New metrics
-    bwidth_read_diff(no_ctx, bwidth_read2[LOO], bwidth_read1[LOO], bwidth_diff[LOO], NULL, NULL);
+    bwidth_read_diff(no_ctx, bwidth_read2[LOO], bwidth_read1[LOO], bwidth_diff[LOO], &bwidth_cas[LOO], NULL);
      flops_read_diff(no_ctx, &flops_read2[LOO], &flops_read1[LOO], &flops_diff[LOO], NULL);
      cache_read_diff(no_ctx, &cache_read2[LOO], &cache_read1[LOO], &cache_diff[LOO], &cache_avrg[LOO]);
        cpi_read_diff(no_ctx,   &cpi_read2[LOO],   &cpi_read1[LOO],   &cpi_diff[LOO],   &cpi_avrg[LOO]);
@@ -936,7 +936,6 @@ static int metrics_partial_stop(uint where)
     // New accumulations: by now these application metrics are taken accumulating loop values.
     // Not sure if required this way in the future, is just because if there are too long apps
     // that could overflow these metric counters.
-    bwidth_data_accum(bwidth_diff[APP], bwidth_diff[LOO], NULL, NULL);
      flops_data_accum(&flops_diff[APP], &flops_diff[LOO], NULL);
 
 	return EAR_SUCCESS;
@@ -957,6 +956,8 @@ void copy_node_data(signature_t *dest,signature_t *src)
     dest->PCK_power	=	src->PCK_power;
     dest->avg_f			= src->avg_f;
     dest->avg_imc_f = src->avg_imc_f;
+	dest->GBS       = src->GBS;
+	dest->TPI       = src->TPI;
 #if USE_GPUS
     memcpy(&dest->gpu_sig,&src->gpu_sig,sizeof(gpu_signature_t));
 #endif
@@ -1014,9 +1015,11 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
 
 				/* TPI and Memory bandwith */
                 if (master) {
-                    bwidth_data_accum(bwidth_diff[APP], NULL, &bwidth_cas[sign_app_loop_idx], &metrics->GBS);
+                    bwidth_data_accum(bwidth_diff[APP], bwidth_diff[LOO], NULL, NULL);
                     verbose_master(INFO_METRICS + 1, "%sCOMPUTE SIGNATURE DATA%s GBS[%d]: %0.2lf", COL_BLU, COL_CLR, sign_app_loop_idx, metrics->GBS);
-                    lib_shared_region->cas_counters = (double) bwidth_cas[sign_app_loop_idx];
+					metrics->TPI = bwidth_help_castotpi(bwidth_cas[sign_app_loop_idx],
+										metrics->instructions);
+				 	metrics->GBS = bwidth_help_castogbs(bwidth_cas[sign_app_loop_idx], time_s);
                 } else {
                     bwidth_cas[sign_app_loop_idx] = (ullong) lib_shared_region->cas_counters;
                     metrics->GBS = bwidth_help_castogbs(bwidth_cas[sign_app_loop_idx], time_s);
@@ -1624,13 +1627,14 @@ long long metrics_usecs_diff(long long end, long long init)
 
 void metrics_app_node_signature(signature_t *master,signature_t *ns)
 {
-  ullong inst;
+  ullong inst, max_inst = 0;
   ullong cycles;
   ullong FLOPS[FLOPS_EVENTS];
   sig_ext_t *se;
   int i;
 	double valid_period;
 	ullong L1, L2, L3;
+	ullong accesses = 0;
 
   se = (sig_ext_t *)master->sig_ext;
   signature_copy(ns,master);
@@ -1675,15 +1679,18 @@ void metrics_app_node_signature(signature_t *master,signature_t *ns)
   if (master){
 		for (uint lp = 0; lp < lib_shared_region->num_processes; lp ++){
 			valid_period    = sig_shared_region[lp].sig.valid_time;
+			max_inst        = ear_max(max_inst, sig_shared_region[lp].sig.instructions);
 			ns->DC_power   += sig_shared_region[lp].sig.accum_energy / valid_period;
 			ns->DRAM_power += sig_shared_region[lp].sig.accum_dram_energy / valid_period;
 			ns->PCK_power  += sig_shared_region[lp].sig.accum_pack_energy / valid_period;
 			ns->GBS        += sig_shared_region[lp].sig.accum_mem_access / (valid_period * B_TO_GB);
 			ns->avg_f      += (sig_shared_region[lp].sig.accum_avg_f * sig_shared_region[lp].num_cpus) / (ulong)valid_period;
 			tcpus          += sig_shared_region[lp].num_cpus;
+			accesses       += sig_shared_region[lp].sig.accum_mem_access;
 			verbose_master(2," p[%u]: Power %lf GBs %lf avg_f %lu dram %lf pck %lf  period %lf", lp, (double)(sig_shared_region[lp].sig.accum_energy / valid_period), (double)(sig_shared_region[lp].sig.accum_mem_access/ (valid_period * 1024 * 1024 * 1024)), sig_shared_region[lp].sig.accum_avg_f/(ulong)valid_period, ns->DRAM_power, ns->PCK_power, valid_period);
 		}
-		ns->avg_f /= tcpus;
+		ns->avg_f /= (double)tcpus;
+		ns->TPI = (double)accesses / (double)max_inst;
 		verbose_master(2,"AVG  %lu", ns->avg_f);
   }
   signature_copy(&lib_shared_region->node_signature,ns);

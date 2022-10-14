@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -60,25 +60,31 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data,shsignature_t *sig,
 	double dram_power[MAX_CPUS_SUPPORTED];
 	double pck_power[MAX_CPUS_SUPPORTED];
 	double gbs[MAX_CPUS_SUPPORTED];
+	double tpi[MAX_CPUS_SUPPORTED];
+  ullong inst[MAX_CPUS_SUPPORTED];
 	ulong  f[MAX_CPUS_SUPPORTED];
 	ull    L3[MAX_CPUS_SUPPORTED];
 	uint   job_in_process[MAX_CPUS_SUPPORTED];
 	double job_power_ratio, process_power_ratio[MAX_CPUS_SUPPORTED];;
 	uint   node_process = 0;
 	signature_t *lsig = &data->node_signature;
-	double my_job_GBS, my_job_DRAM_power;
+	double my_job_GBS, my_job_DRAM_power, my_job_TPI;
 	uint used_cpus = 0;
 
 
 
 
 	memset(process_power_ratio,0,sizeof(double)*MAX_CPUS_SUPPORTED);
-	memset(gbs,0,sizeof(double)*MAX_CPUS_SUPPORTED);
+	memset(gbs, 0, sizeof(double)*MAX_CPUS_SUPPORTED);
+  memset(tpi, 0, sizeof(double)*MAX_CPUS_SUPPORTED);
 	memset(f,0,sizeof(ulong)*MAX_CPUS_SUPPORTED);
 	memset(L3,0,sizeof(ull)*MAX_CPUS_SUPPORTED);
 	memset(power_estimations,0,sizeof(double)*MAX_CPUS_SUPPORTED);
 	memset(dram_power,0,sizeof(double)*MAX_CPUS_SUPPORTED);
 	memset(pck_power,0,sizeof(double)*MAX_CPUS_SUPPORTED);
+  memset(inst, 0, sizeof(ullong)*MAX_CPUS_SUPPORTED);
+
+  verbose(2, "CPU power model dummy ...............");
 
 
 	if ((lsig == NULL) || (data == NULL) || (sig == NULL) || (nmgr == NULL)) return EAR_SUCCESS;
@@ -105,33 +111,41 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data,shsignature_t *sig,
 	uint lp = 0;
 	int cj = 0;
 	my_job_GBS = 0;
+  my_job_TPI = 0;
 	my_job_DRAM_power = 0;
 	for (uint j = 0; j < node_process; j ++){
     /* GBs is per-node, we can use our own GBs */
     if (node_L3){
-      gbs[j] = ((double)L3[j]/(double)node_L3)*lsig->GBS;
-      dram_power[j] = ((double)L3[j]/(double)node_L3)*lsig->DRAM_power;
+      float mem_ratio = (float)L3[j]/(float)node_L3;
+      gbs[j] = mem_ratio * lsig->GBS;
+      tpi[j] = (double)(mem_ratio * (double)data->cas_counters) / (double)inst[j];
+      dram_power[j] = mem_ratio * lsig->DRAM_power;
     }else{
       /* If there is no cache misses, we distribute the GBs proportionally to the number of cpus, naive approach */
       cj = job_in_process[j];
-      gbs[j] = lsig->GBS * (nmgr[cj].libsh->num_cpus/used_cpus)/nmgr[cj].libsh->num_processes;
+      float mem_ratio = ((float)nmgr[cj].libsh->num_cpus/(float)used_cpus)/(float)nmgr[cj].libsh->num_processes;
+      gbs[j] = lsig->GBS * mem_ratio;
+      tpi[j] = lsig->TPI * mem_ratio;
       dram_power[j] = (gbs[j]/lsig->GBS) * lsig->DRAM_power;
     }
     if ((L3[j] || gbs[j])  && (job_in_process[j] == node_mgr_index)){
 
 				my_job_GBS        += gbs[j];
+        my_job_TPI        += tpi[j];
 				my_job_DRAM_power += dram_power[j];
 				sig[lp].sig.GBS = gbs[j];	
+				sig[lp].sig.TPI = tpi[j];	
 				sig[lp].sig.DRAM_power = dram_power[j];	
-				debug("Process %d/%d GBS %lf L3 %llu", job_in_process[j], lp, sig[lp].sig.GBS, L3[j]);
+				debug("Process %d/%d GBS %.2lf TPI %.2lfL3 %llu", job_in_process[j], lp, sig[lp].sig.GBS, sig[lp].sig.TPI, L3[j]);
 				lp++;
     }
   }
 	data->job_signature.GBS = my_job_GBS;
 	data->job_signature.DRAM_power = my_job_DRAM_power;
+  data->job_signature.TPI = my_job_TPI;
 
 
-	debug("My job[%d] GB/s is %.2lf DRAM %lf", node_mgr_index, data->job_signature.GBS, data->job_signature.DRAM_power);
+	debug("My job[%d] GB/s is %.2lf, TPI %.2lf DRAM %lf", node_mgr_index, data->job_signature.GBS, data->job_signature.TPI, data->job_signature.DRAM_power);
 
 
 	/* Power : Power is estimated based on CPU activity and Memory activity. Less CPI means more CPU activity and more L3 means more Mem actitivy */
@@ -180,6 +194,7 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data,shsignature_t *sig,
 	}
 	data->job_signature.DC_power = (CPU_power	* job_power_ratio) + GPU_power;
 	data->job_signature.PCK_power = job_power_ratio * lsig->PCK_power;
+
 	debug("My job[%d] power is %lf (node (CPU %lf + GPU %lf) x ratio %lf) PCK %lf", node_mgr_index, data->job_signature.DC_power, CPU_power, GPU_power, job_power_ratio, data->job_signature.PCK_power);
 
 	return EAR_SUCCESS;

@@ -428,6 +428,10 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
 
         }
     }
+	for (i = 0; i < my_conf->num_policies; i++) { //check for the default policy, change the id if we find it
+		if (!strcmp(my_conf->power_policies[my_conf->default_policy].name, n->policies[i].name))
+			my_conf->default_policy = n->policies[i].policy;
+	}
     /* Automatic computation of powercap */
     /* If node powercap is -1, and there is a global powercap, power is equally distributed */
     if (n->powercap == DEF_POWER_CAP){
