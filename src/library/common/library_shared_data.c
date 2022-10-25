@@ -99,7 +99,7 @@ void lib_shared_data_area_dispose(char * path)
 
 void print_lib_shared_data(lib_shared_data_t *sh_data)
 {
-	fprintf(stderr,"sh_data num_processes %d signatures %d cas_counters %lf\n",sh_data->num_processes,sh_data->num_signatures,sh_data->cas_counters);
+	fprintf(stderr,"sh_data num_processes %d signatures %d cas_counters %llu\n",sh_data->num_processes,sh_data->num_signatures,sh_data->cas_counters);
 
 }
 
@@ -718,5 +718,11 @@ void accum_estimations(lib_shared_data_t *data,shsignature_t *sig)
 void estimate_power_and_gbs(lib_shared_data_t *data,shsignature_t *sig, node_mgr_sh_data_t *nmgr)
 {
 	cpu_power_model_project(data, sig, nmgr);
+	int p;
+	for (p = 0; p < data->num_processes; p++) {
+		verbose_master(2, "LP[%d] Power %.2lf GB/s %.2lf TPI %.2lf", p,
+						sig_shared_region[p].sig.DC_power, sig_shared_region[p].sig.GBS, sig_shared_region[p].sig.TPI);
+
+	}
 	return;	
 }
