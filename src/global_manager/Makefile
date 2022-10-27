@@ -1,4 +1,4 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -pthread
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -pthread $(DB_CFLAGS)
 LDFLAGS = $(DB_LDFLAGS) -lpthread -lm -ldl
 
 ######## INSTALLATION
@@ -32,7 +32,7 @@ endif
 all: $(eargmd_OBJS) $(eargmd_BINS)
 
 eargmd: eargm.c $(comm_BINS) $(eargmd_OBJS)
-	$(CC) $(CFLAGS) $(DB_CFLAGS) -o $@ $< $(eargmd_OBJS) $(comm_BINS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $< $(eargmd_OBJS) $(comm_BINS) $(LDFLAGS)
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -fPIC -c $<

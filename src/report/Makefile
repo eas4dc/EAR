@@ -1,4 +1,4 @@
-CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC $(CONSTANTS)
+CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC $(CONSTANTS) $(DB_CFLAGS)
 
 ######## FILES
 
@@ -45,10 +45,10 @@ eardbd.so: eardbd.c $(SRCDIR)/database_cache/eardbd_api.c $(repo_DEPS)
 	$(CC) $(CFLAGS) -shared -o $@ $^
 
 mysql.so: mysql.c $(repo_DEPS)
-	$(CC) $(CFLAGS) $(DB_CFLAGS) -shared -o $@ $^ $(DB_LDFLAGS)
+	$(CC) $(CFLAGS) -shared -o $@ $^ $(DB_LDFLAGS)
 
 psql.so: psql.c $(repo_DEPS)
-	$(CC) $(CFLAGS) $(DB_CFLAGS) -shared -o $@ $^ $(DB_LDFLAGS)
+	$(CC) $(CFLAGS) -shared -o $@ $^ $(DB_LDFLAGS)
 
 ######## SUBFOLDERS
 

@@ -1,4 +1,4 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(CONSTANTS) -Wall
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(CONSTANTS) -Wall $(DB_CFLAGS)
 LDFLAGS = $(DB_LDFLAGS) -lm -pthread -ldl -rdynamic 
 
 ######## INSTALLATION
