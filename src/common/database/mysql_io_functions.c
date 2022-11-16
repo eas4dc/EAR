@@ -350,7 +350,7 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
         sig_id = mysql_batch_insert_signatures(connection, cont, is_learning, num_apps);
 
         if (sig_id < 0)
-            verbose(VMYSQL,"Unknown error when writing signature to database. (%d)\n",sig_id);
+            verbose(VMYSQL,"Unknown error when writing signature to database. (%ld)\n",sig_id);
 
         for (i = 0; i < num_apps; i++)
             sigs_ids[i] = sig_id + i*autoincrement_offset;
