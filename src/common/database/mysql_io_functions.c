@@ -315,8 +315,8 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
     //job only needs to be inserted once
     mysql_batch_insert_jobs(connection, app, num_apps);
     
-    int pow_sig_id = 0;
-    int sig_id = 0;
+    long long pow_sig_id = 0;
+    long long sig_id = 0;
     long long *pow_sigs_ids = xcalloc(num_apps, sizeof(long long));
     long long *sigs_ids = xcalloc(num_apps, sizeof(long long));
     
@@ -570,7 +570,7 @@ int mysql_batch_insert_applications_no_mpi(MYSQL *connection, application_t *app
 
     //job only needs to be inserted once
     mysql_batch_insert_jobs(connection, app, num_apps);
-    int pow_sig_id = 0;
+    long long pow_sig_id = 0;
     long long *pow_sigs_ids = xcalloc(num_apps, sizeof(long long));
 
     //inserting all powersignatures (always present)
@@ -637,7 +637,7 @@ int mysql_retrieve_applications(MYSQL *connection, char *query, application_t **
     if (mysql_stmt_prepare(statement, query, strlen(query))) return mysql_statement_error(statement);
     MYSQL_BIND bind[5];
     unsigned long job_id, step_id, pow_sig_id;
-    long sig_id = 0; 
+    long long sig_id = 0; 
     int num_apps;
     memset(bind, 0, sizeof(bind));
 
@@ -801,7 +801,7 @@ int mysql_batch_insert_loops(MYSQL *connection, loop_t *loop, int num_loops)
     signature_container_t cont;
     cont.type = EAR_TYPE_LOOP;
     cont.loop = loop;
-    int sig_id = mysql_batch_insert_signatures(connection, cont, 0, num_loops);
+    long long sig_id = mysql_batch_insert_signatures(connection, cont, 0, num_loops);
 
     if (sig_id < 0){
         verbose(VMYSQL,"Error inserting N=%d loops signatures\n",num_loops);
