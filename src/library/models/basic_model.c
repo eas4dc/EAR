@@ -10,16 +10,18 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdio.h>
 #include <stdlib.h>
+// #define SHOW_DEBUGS 1
 #include <common/states.h>
 #include <common/output/debug.h>
 #include <common/types/signature.h>
+#include <common/types/coefficient.h>
 #include <common/hardware/architecture.h>
 #include <management/cpufreq/frequency.h>
 #include <daemon/shared_configuration.h>
@@ -41,6 +43,7 @@ static int valid_range(ulong from,ulong to)
 /* This function loads any information needed by the energy model */
 state_t model_init(char *etc,char *tmp,architecture_t *myarch)
 {
+  char *hack_file = getenv(HACK_EARL_COEFF_FILE);
   int i, ref;
 
 	debug("Using basic_model\n");
@@ -69,9 +72,32 @@ state_t model_init(char *etc,char *tmp,architecture_t *myarch)
 
 
   char coeffs_path[GENERIC_NAME];
+  #if 0
   get_coeffs_default_path(tmp,coeffs_path);
   num_coeffs=0;
   coefficients_sm=attach_coeffs_default_shared_area(coeffs_path,&num_coeffs);
+  #endif
+  if (hack_file == NULL){
+    get_coeffs_default_path(tmp,coeffs_path);
+    num_coeffs=0;
+    debug("Using shared memory coefficients");
+    coefficients_sm=attach_coeffs_default_shared_area(coeffs_path,&num_coeffs);
+  }else{
+    int cfile_size;
+    strcpy(coeffs_path,hack_file);
+    debug("Using hck coefficients path %s", coeffs_path);
+    cfile_size = coeff_file_size(coeffs_path);
+    if (cfile_size == 0) num_coeffs = 0;
+    else{
+      int num_coeffs_in_file = cfile_size / sizeof(coefficient_t);
+      num_coeffs = cfile_size ;
+      debug("%d coefficients found in file", num_coeffs_in_file);
+      coefficients_sm = (coefficient_t *) calloc(num_coeffs_in_file, sizeof(coefficient_t));
+      coeff_file_read_no_alloc(coeffs_path, coefficients_sm, cfile_size);
+      debug("Coefficients read from file");
+    }
+  }
+
   if (num_coeffs>0){
     num_coeffs=num_coeffs/sizeof(coefficient_t);
     int ccoeff;
@@ -85,11 +111,13 @@ state_t model_init(char *etc,char *tmp,architecture_t *myarch)
     }
   }
 	basic_model_init=1;	
+#if SHOW_DEBUGS
     for (ref = 0; ref < num_pstates; ref++)
     {
         for (i = 0; i < num_pstates; i++)
                 debug("coefficient from ref: %d i: %d available: %d\n", ref, i, coefficients[ref][i].available);
     }
+#endif
 	return EAR_SUCCESS;
 }
 

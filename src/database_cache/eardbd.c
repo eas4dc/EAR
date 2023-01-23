@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -50,11 +50,7 @@ uint                    sockets_unrecognized;
 uint                    sockets_timeout;
 // Descriptors
 struct sockaddr_storage addr_new;
-fd_set                  fds_incoming;
-fd_set                  fds_active;
-int                     fd_new;
-int                     fd_min;
-int                     fd_max;
+afd_set_t               fds_active;
 long                    fd_hosts[FD_SETSIZE]; // Saving host IPs
 // Nomenclature:
 // 	- Server: main buffer of the gathered metrics. Inserts buffered metrics in
@@ -484,27 +480,14 @@ static void init_process_configuration(int argc, char **argv, cluster_conf_t *co
 		// Destroying main sockets
 		sockets_dispose(socket_server);
 		sockets_dispose(socket_sync01);
-		// Keep track of the biggest file descriptor
-		fd_max = socket_mirror->fd;
-		fd_min = socket_mirror->fd;
 		//
-		FD_SET(socket_mirror->fd, &fds_active);
+		AFD_SET(socket_mirror->fd, &fds_active);
 	} else {
 		// Destroying mirror soockets
 		sockets_dispose(socket_mirror);
-		// Keep track of the biggest file descriptor
-		fd_max = socket_sync01->fd;
-		fd_min = socket_sync01->fd;
 		//
-		if (socket_server->fd > fd_max) {
-			fd_max = socket_server->fd;
-		}
-		if (socket_server->fd < fd_min) {
-			fd_min = socket_server->fd;
-		}
-		//
-		FD_SET(socket_server->fd, &fds_active);
-		FD_SET(socket_sync01->fd, &fds_active);
+		AFD_SET(socket_server->fd, &fds_active);
+		AFD_SET(socket_sync01->fd, &fds_active);
 	}
 
 	// Ok, all here is done

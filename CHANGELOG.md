@@ -1,3 +1,6 @@
+### EAR4.1.1
+- Select replaced by poll to support bigger nodes
+- Minor changes in edb_create and FP exceptions fixes
 ### EAR4.1
 - Meta EARGM
 - Support for N jobs in node

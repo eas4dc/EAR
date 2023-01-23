@@ -43,6 +43,7 @@ AC_DEFUN([X_AC_SLURM],
         AS_HELP_STRING(--with-slurm=PATH,Specify path to SLURM installation),
         [
 			_x_ac_slurm_dirs_root="$withval"
+            _x_ac_slurm_aux="$withval"
 			_x_ac_slurm_custom="yes"
 		]
     )
@@ -53,6 +54,9 @@ AC_DEFUN([X_AC_SLURM],
         [
 			X_AC_SLURM_FIND_ROOT_DIR([])
 
+                # If not found the SLURM dir in dirs provided by 
+                # top definition or by --with-slurm, then use
+                # the LD_LIBRARY_PATH dirs
 				if test -z "$_cv_slurm_dir_root"; then
 					_x_ac_slurm_dirs_root="${_ax_ld_dirs_root}"
 					_x_ac_slurm_custom="yes"
@@ -62,9 +66,9 @@ AC_DEFUN([X_AC_SLURM],
         ]
     )
 
-    # Force custom
+    # Force custom (if custom = yes but dir (not dirs) root is empty)
     if test "x$_x_ac_slurm_custom" = "xyes" && test -z "$_cv_slurm_dir_root"; then
-        _cv_slurm_dir_root="$withval"
+        _cv_slurm_dir_root="$_x_ac_slurm_aux"
 	fi
 
     if test -z "$_cv_slurm_dir_root"; then

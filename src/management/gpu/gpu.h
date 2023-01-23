@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef MANAGEMENT_GPU
@@ -22,6 +22,7 @@
 #include <common/states.h>
 #include <common/plugins.h>
 #include <common/system/time.h>
+#include <metrics/gpu/gpu.h>
 
 // The API
 //
@@ -54,21 +55,21 @@
 // Flags
 #define FREQ_TOP	0
 #define FREQ_BOTTOM	1
+// APIs
 
-typedef struct mgt_gpu_ops_s
-{
-	state_t (*init)                   (ctx_t *c);
-	state_t (*init_unprivileged)      (ctx_t *c);
-	state_t (*dispose)                (ctx_t *c);
-	state_t (*count)                  (ctx_t *c, uint *dev_count);
+typedef struct mgt_gpu_ops_s {
+
+    void    (*get_api)                (uint *api);
+    state_t (*init[4])                (ctx_t *c);
+	state_t (*dispose[4])             (ctx_t *c);
+    state_t (*get_devices)            (ctx_t *c, gpu_devs_t **devs, uint *devs_count);
+	state_t (*count_devices)          (ctx_t *c, uint *dev_count);
 	state_t (*alloc_array)            (ctx_t *c, ulong **list, uint *dev_count);
 	state_t (*freq_limit_get_current) (ctx_t *c, ulong *freq_list);
 	state_t (*freq_limit_get_default) (ctx_t *c, ulong *freq_list);
 	state_t (*freq_limit_get_max)     (ctx_t *c, ulong *freq_list);
 	state_t (*freq_limit_reset)       (ctx_t *c);
 	state_t (*freq_limit_set)         (ctx_t *c, ulong *freq_list);
-	state_t (*freq_get_valid)         (ctx_t *c, uint d, ulong freq_ref, ulong *freq_near);
-	state_t (*freq_get_next)          (ctx_t *c, uint d, ulong freq_ref, uint *freq_idx, uint flag);
 	state_t (*freq_list)              (ctx_t *c, const ulong ***freq_list, const uint **len_list);
 	state_t (*power_cap_get_current)  (ctx_t *c, ulong *watt_list);
 	state_t (*power_cap_get_default)  (ctx_t *c, ulong *watt_list);
@@ -78,21 +79,20 @@ typedef struct mgt_gpu_ops_s
 } mgt_gpu_ops_t;
 
 // Discovers the low level API. Returns function pointers, but is not required.
-state_t mgt_gpu_load(mgt_gpu_ops_t **ops);
+void mgt_gpu_load(int eard);
+
+void mgt_gpu_get_api(uint *api);
 
 // Initializes the context.
 state_t mgt_gpu_init(ctx_t *c);
 
-// Initializes the context to use unprivileged functions only.
-state_t mgt_gpu_init_unprivileged(ctx_t *c);
-
 state_t mgt_gpu_dispose(ctx_t *c);
 
-// Counts the number of GPUs (devices) in the node.
-state_t mgt_gpu_count(ctx_t *c, uint *dev_count);
+// Information about devices
+state_t mgt_gpu_get_devices(ctx_t *c, gpu_devs_t **devs, uint *devs_count);
 
-// Allocates an array of watts or clocks (one per device).
-state_t mgt_gpu_alloc_array(ctx_t *c, ulong **list, uint *dev_count);
+// Counts the number of GPUs (devices) in the node.
+state_t mgt_gpu_count_devices(ctx_t *c, uint *dev_count);
 
 // Gets the current clock cap for each GPU in the node (in KHz).
 state_t mgt_gpu_freq_limit_get_current(ctx_t *c, ulong *freq_list);
@@ -116,7 +116,7 @@ state_t mgt_gpu_freq_get_valid(ctx_t *c, uint dev, ulong freq_ref, ulong *freq_n
 state_t mgt_gpu_freq_get_next(ctx_t *c, uint dev, ulong freq_ref, uint *freq_idx, uint flag);
 
 // Gets a list of clocks and list length per device.
-state_t mgt_gpu_freq_list(ctx_t *c, const ulong ***freq_list, const uint **len_list);
+state_t mgt_gpu_freq_get_available(ctx_t *c, const ulong ***freq_list, const uint **len_list);
 
 // Gets the current power cap for each GPU in the node.
 state_t mgt_gpu_power_cap_get_current(ctx_t *c, ulong *watt_list);
@@ -132,5 +132,17 @@ state_t mgt_gpu_power_cap_reset(ctx_t *c);
 
 // Sets the current power cap on each GPU (one value per GPU in the watts array).
 state_t mgt_gpu_power_cap_set(ctx_t *c, ulong *watt_list);
+
+// Allocates an array of watts or clocks (one per device).
+state_t mgt_gpu_data_alloc(ulong **list);
+
+state_t mgt_gpu_data_free(ulong **list);
+
+state_t mgt_gpu_data_null(ulong *list);
+
+int mgt_gpu_is_supported();
+
+// Renamed functions
+#define mgt_gpu_freq_list mgt_gpu_freq_get_available
 
 #endif

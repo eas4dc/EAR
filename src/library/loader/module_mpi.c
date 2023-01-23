@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #define _GNU_SOURCE
@@ -160,15 +160,46 @@ static int module_mpi_dlsym(char *path_so, int lang_c, int lang_f)
 		path_so, lang_c, lang_f);
 
 	if (MPI_Get_library_version_detected){
-		symplug_join(RTLD_NEXT, (void **) &next_mpic, mpic_names, MPIC_N);
-		symplug_join(RTLD_NEXT, (void **) &next_mpif, mpif_names, MPIF_N);
+  #if USE_CNTD
+    #ifdef COUNTDOWN_BASE
+    char *disable_cntd = getenv(FLAG_DISABLE_CNTD);
+    static char buffer[4096];
+    snprintf(buffer, 4096, "%s/libcntd.so",COUNTDOWN_BASE);
+    verbose(0, "Using countdown library path %s", buffer);
+    //if ((disable_cntd != NULL) || state_fail(symplug_open(buffer, (void **) &next_mpic, mpic_names, MPIC_N))){
+		if ((disable_cntd != NULL) || state_fail(symplug_open_flags(buffer, (void **) &next_mpic, mpic_names, MPIC_N, RTLD_GLOBAL | RTLD_LAZY))){
+      if (disable_cntd == NULL){
+        verbose(1, "Warning, countdown C symbols cannot be loaded, using NEXT symbols");
+      }else {
+        verbose(1, "CNTD disabled");
+      }
+		plug_join(RTLD_NEXT, (void **) &next_mpic, mpic_names, MPIC_N);
+    }
+    //if ((disable_cntd != NULL) || state_fail(symplug_open(buffer, (void **) &next_mpif, mpif_names, MPIF_N ))){
+		if ((disable_cntd != NULL) || state_fail(symplug_open_flags(buffer, (void **) &next_mpif, mpif_names, MPIF_N, RTLD_GLOBAL | RTLD_LAZY))){
+      if (disable_cntd == NULL){
+        verbose(1, "Warning, countdown F symbols cannot be loaded, using NEXT symbols");
+      }else{
+        verbose(1, "CNTD disabled");
+      }
+		plug_join(RTLD_NEXT, (void **) &next_mpif, mpif_names, MPIF_N);
+    }
+    #else
+	plug_join(RTLD_NEXT, (void **) &next_mpic, mpic_names, MPIC_N);
+	plug_join(RTLD_NEXT, (void **) &next_mpif, mpif_names, MPIF_N);
+    #endif
+
+  #else
+		plug_join(RTLD_NEXT, (void **) &next_mpic, mpic_names, MPIC_N);
+		plug_join(RTLD_NEXT, (void **) &next_mpif, mpif_names, MPIF_N);
+  #endif
 		verbose(3, "LOADER: MPI (C) next symbols loaded, Init address is %p", next_mpic.Init);
 		verbose(3, "LOADER: MPI (F) next symbols loaded, Init address is %p", next_mpif.init);
     if (next_mpif.init == NULL){
       void *Initf = dlsym(RTLD_NEXT, "mpi_init_");
       if (Initf != NULL){
         verbose(3, "LOADER: MPI (F_) mpi_init returns %p, loading again ", Initf);
-        symplug_join(RTLD_NEXT, (void **) &next_mpif, mpif_names_, MPIF_N);
+        plug_join(RTLD_NEXT, (void **) &next_mpif, mpif_names_, MPIF_N);
         if (next_mpif.init != NULL){
           verbose(3, "LOADER: MPI (F_) next symbols loaded, Init address is %p", next_mpif.init);
         }
@@ -206,8 +237,8 @@ static int module_mpi_dlsym(char *path_so, int lang_c, int lang_f)
 		}
 	}
 
-	if (libear != NULL && lang_c) symplug_join(libear, (void **) &ear_mpic, ear_mpic_names, MPIC_N);
-	if (libear != NULL && lang_f) symplug_join(libear, (void **) &ear_mpif, ear_mpif_names, MPIF_N);
+	if (libear != NULL && lang_c) plug_join(libear, (void **) &ear_mpic, ear_mpic_names, MPIC_N);
+	if (libear != NULL && lang_f) plug_join(libear, (void **) &ear_mpif, ear_mpif_names, MPIF_N);
 
 	//
 	for(i = 0; i < MPIC_N; ++i)

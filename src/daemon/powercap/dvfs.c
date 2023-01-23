@@ -1,19 +1,22 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
+
+#define _GNU_SOURCE
+//#define SHOW_DEBUGS 1
 
 #include <errno.h>
 #include <stdio.h>
@@ -22,23 +25,26 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include <limits.h>
-#define _GNU_SOURCE
-// #define SHOW_DEBUGS 1
-#include <pthread.h>
-#include <common/config.h>
 #include <signal.h>
+#include <limits.h>
+#include <pthread.h>
+
+#include <common/config.h>
 #include <common/colors.h>
 #include <common/states.h>
 #include <common/output/verbose.h>
 #include <common/system/execute.h>
-#include <metrics/energy/cpu.h>
-#include <management/cpufreq/frequency.h>
-#include <common/hardware/hardware_info.h>
-#include <daemon/powercap/powercap_status_conf.h>
-#include <daemon/powercap/powercap_status.h>
-#include <daemon/powercap/powercap_mgt.h>
 #include <common/system/monitor.h>
+#include <common/hardware/hardware_info.h>
+
+#include <management/cpufreq/frequency.h>
+
+#include <metrics/energy/cpu.h>
+#include <metrics/energy_cpu/energy_cpu.h>
+
+#include <daemon/powercap/powercap_mgt.h>
+#include <daemon/powercap/powercap_status.h>
+#include <daemon/powercap/powercap_status_conf.h>
 
 
 #define RAPL_VS_NODE_POWER 1
@@ -47,7 +53,8 @@
 
 #define DVFS_PERIOD 0.5
 #define DVFS_BURST_DURATION 1000
-#define DVFS_RELAX_DURATION 60000
+#define DVFS_RELAX_DURATION 1000
+//#define DVFS_RELAX_DURATION 60000
 
 #define MAX_DVFS_TRIES 3
 
@@ -68,7 +75,6 @@ static suscription_t *sus_dvfs;
 /* This  subscription will take care automatically of the power monitoring */
 static uint dvfs_pc_secs=0, num_packs;
 static  unsigned long long *values_rapl_init,*values_rapl_end,*values_diff;
-static int *fd_rapl;
 static float power_rapl,my_limit;
 static uint *prev_pstate;
 static int32_t prev_counter;
@@ -80,6 +86,7 @@ static uint dvfs_ask_def = 0;
 static uint dvfs_monitor_initialized = 0;
 static timestamp_t last_dvfs_time;
 
+static domain_settings_t settings = { .node_ratio = 0.1, .security_range= 0.05};
 
 extern ulong pmgt_idle_def_freq;
 
@@ -220,28 +227,24 @@ state_t dvfs_pc_thread_init(void *p)
         pthread_exit(NULL);
     }
     debug("DVFS:Num pcks detected in dvfs_pc thread %u",num_packs);
-    values_rapl_init=(unsigned long long*)calloc(num_packs*RAPL_POWER_EVS,sizeof(unsigned long long));
-    values_rapl_end=(unsigned long long*)calloc(num_packs*RAPL_POWER_EVS,sizeof(unsigned long long));
-    values_diff=(unsigned long long*)calloc(num_packs*RAPL_POWER_EVS,sizeof(unsigned long long));
+
+	// Init energy_cpu and alloc data
+	if (energy_cpu_init(NULL)) {
+		error("cannot initialize energy_cpu layer in dvfs_pc thread initialization");
+		pthread_exit(NULL);
+	}
+	energy_cpu_data_alloc(NULL, &values_rapl_init, &num_packs);
+	energy_cpu_data_alloc(NULL, &values_rapl_end,  &num_packs);
+	energy_cpu_data_alloc(NULL, &values_diff, &num_packs);
     if ((values_rapl_init==NULL) || (values_rapl_end==NULL) || (values_diff==NULL))
     {
         error("values_rapl returns NULL in dvfs_pc thread initialization");
         pthread_exit(NULL);
     }
-    fd_rapl=(int*)calloc(sizeof(int),num_packs);
-    if (fd_rapl==NULL){
-        error("fd_rapl cannot be allocated in dvfs_pc thread initialization");
-        pthread_exit(NULL);
-    }
-    debug("DVFS:Initializing RAPL in dvfs_pc");
-    if (init_rapl_msr(fd_rapl)<0){
-        error("Error initializing rapl in dvfs_pc thread initialization");
-        pthread_exit(NULL);
-    }
-    dvfs_pc_enabled=1;
-    verbose(1,"Power measurement initialized in dvfs_pc thread initialization");
-    /* RAPL is initialized */
-    read_rapl_msr(fd_rapl,values_rapl_init);
+
+
+	// read initial values
+	energy_cpu_read(NULL, values_rapl_init);
     dvfs_monitor_initialized = 1;
     return EAR_SUCCESS;
 }
@@ -272,15 +275,16 @@ state_t dvfs_pc_thread_main(void *p)
 		//verbose_frequencies(node_size, c_req_f);
 
     dvfs_pc_secs=(dvfs_pc_secs+1)%DEBUG_PERIOD;
-    read_rapl_msr(fd_rapl,values_rapl_end);
+	energy_cpu_read(NULL, values_rapl_end);
     /* Calculate power */
-    diff_rapl_msr_energy(values_diff,values_rapl_end,values_rapl_init);
+	energy_cpu_data_diff(NULL, values_rapl_init, values_rapl_end, values_diff);
 
     /* Copy init=end */
-    memcpy(values_rapl_init, values_rapl_end, num_packs * RAPL_POWER_EVS * sizeof(unsigned long long));
+	energy_cpu_data_copy(NULL, values_rapl_init, values_rapl_end);
 
-    if ((current_dvfs_pc <= POWER_CAP_UNLIMITED) || (c_status != PC_STATUS_RUN)){
-        debug("powercap unlimited or status != PC_STATUS_RUN");
+    //if ((current_dvfs_pc <= POWER_CAP_UNLIMITED) || (c_status != PC_STATUS_RUN)){
+    if (current_dvfs_pc <= POWER_CAP_UNLIMITED){
+        debug("powercap unlimited");
         return EAR_SUCCESS;
     }   
 
@@ -304,7 +308,7 @@ state_t dvfs_pc_thread_main(void *p)
         //vector_print_pstates(c_pstate, node_size);
         //print_frequencies(node_size,c_req_f);
         //vector_print_pstates(t_pstate, node_size);
-        verbose(VEARD_PC,"%sCurrent freq freq0 %lu freqn %lu%s", COL_RED, c_freq[0], c_freq[node_size-1],COL_CLR);
+        verbose(VEARD_PC+1,"%sCurrent freq freq0 %lu freqn %lu%s", COL_RED, c_freq[0], c_freq[node_size-1],COL_CLR);
         if (current_dvfs_pc < default_dvfs_pc) {
             dvfs_ask_def = 1;
         }
@@ -329,7 +333,7 @@ state_t dvfs_pc_thread_main(void *p)
         frequency_npstate_to_nfreq(c_pstate,c_freq,node_size);
         //print_frequencies(node_size, c_freq);
         frequency_set_with_list(node_size,c_freq);
-        verbose(VEARD_PC,"%spower above limit. Curr %.2f Limit %.2f, setting freq0 %lu freqm %lu%s", COL_RED, power_rapl, my_limit, c_freq[0], c_freq[node_size-1], COL_CLR);
+        verbose(VEARD_PC+1,"%spower above limit. Curr %.2f Limit %.2f, setting freq0 %lu freqm %lu%s", COL_RED, power_rapl, my_limit, c_freq[0], c_freq[node_size-1], COL_CLR);
 
     }else{ /* We are below the PC */
         if (is_null_f(c_req_f)) {
@@ -391,12 +395,19 @@ state_t enable(suscription_t *sus)
     /* Init data */
     s = topology_init(&node_desc);
     if (s == EAR_ERROR) debug("Error getting node topology");
-
     node_size = node_desc.cpu_count;
+
+	/* Load energy cpu plugin */
+	if (energy_cpu_load(&node_desc, 0)) {
+		error("energy_cpu cannot be loaded");
+		return EAR_ERROR;
+	}
+
     debug("DVFS:Initializing frequency in dvfs_pc %u cpus",node_size);
     frequency_init(node_size);
-		frequency_set_userspace_governor_all_cpus();
+	frequency_set_userspace_governor_all_cpus();
     num_pstates = frequency_get_num_pstates();
+
     /* node_size or MAX_CPUS_SUPPORTED */
     c_freq = calloc(MAX_CPUS_SUPPORTED,sizeof(ulong));
     c_req_f = calloc(MAX_CPUS_SUPPORTED,sizeof(ulong));
@@ -420,6 +431,11 @@ state_t plugin_set_burst()
 state_t plugin_set_relax()
 {
     return monitor_relax(sus_dvfs);
+}
+
+void plugin_get_settings(domain_settings_t *s)
+{
+	memcpy(s, &settings, sizeof(domain_settings_t));
 }
 
 void restore_frequency()

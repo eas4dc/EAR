@@ -10,11 +10,12 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
+#include <errno.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -22,12 +23,10 @@
 #include <limits.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <errno.h>
-
-
 //#define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/states.h>
+#include <common/system/poll.h>
 #include <common/types/generic.h>
 #include <common/output/verbose.h>
 #include <daemon/app_api/app_conf_api.h>
@@ -44,15 +43,16 @@ static char my_app_to_eard[MAX_PATH_SIZE];
 static void remove_pipes()
 {        
 	unlink(eard_to_app);
-        unlink(my_app_to_eard);
+    unlink(my_app_to_eard);
 }
+
 static int create_connection()
 {
 	char *tmp;
 	int pid,tries=0;
 	app_send_t req;
     /* Creating the connection */
-	debug("create_connection\n");
+	debug("create_connection");
 
     tmp=getenv("EAR_TMP");
     if (tmp==NULL){
@@ -67,23 +67,23 @@ static int create_connection()
     sprintf(my_app_to_eard,"%s/.app_to_eard.%d",tmp,pid);
 	/* This pipe is to send data */
 
-	debug("Creating pipe %s\n",my_app_to_eard);
+	debug("Creating pipe %s",my_app_to_eard);
     if (mknod(my_app_to_eard,S_IFIFO|S_IWUSR|S_IRGRP|S_IROTH,0)<0){
 		if (errno!=EEXIST) return EAR_ERROR;
 	}
 	/* This pipe is to receive data */
-	debug("Creating pipe %s\n",eard_to_app);
+	debug("Creating pipe %s",eard_to_app);
 	chmod(my_app_to_eard,S_IWUSR|S_IRGRP|S_IROTH);
     if (mknod(eard_to_app,S_IFIFO|S_IRUSR|S_IWGRP|S_IWOTH,0)<0){
 		if (errno!=EEXIST){ 
-			debug("Error un mknod\n");
+			debug("Error un mknod");
 			return EAR_ERROR;
 		}
     }
 	chmod(eard_to_app,S_IRUSR|S_IWGRP|S_IWOTH);
-  debug("Pipes created\n");
+  debug("Pipes created");
 	/* EARD connection */	
-	debug("opening pipe and sending request\n");
+	debug("opening pipe and sending request");
     	fd_app_to_eard=open(app_to_eard,O_WRONLY|O_NONBLOCK);
 	if (fd_app_to_eard<0){ 
 		debug("Error opening connection pipe %s",strerror(errno));
@@ -93,7 +93,7 @@ static int create_connection()
 	close(fd_app_to_eard);
 	
 	/* Now we open our specific connection */
-	debug("Connecting specific pipes\n");
+	debug("Connecting specific pipes");
     	fd_app_to_eard=open(my_app_to_eard,O_WRONLY|O_NONBLOCK);
 	if (fd_app_to_eard<0){ 
 		if (errno!=ENXIO){ 
@@ -130,10 +130,11 @@ static int create_connection()
 	debug("Connection created");
 	return EAR_SUCCESS;
 }
+
 static int send_request(app_send_t *req)
 {
 	int ret;
-	debug("Send request\n");
+	debug("Send request");
 	if ((ret=write(fd_app_to_eard,req,sizeof(app_send_t)))!=sizeof(app_send_t)){
 		debug("Error sending request %d",ret); 
 		return EAR_ERROR;
@@ -141,42 +142,44 @@ static int send_request(app_send_t *req)
 	debug("request sent");
 	return EAR_SUCCESS;
 }
+
 static int wait_answer(app_recv_t *rec)
 {
-        int ret=EAR_SUCCESS;
-        fd_set rfds;
-        struct timeval tv;
-        int retval;
+    int ret = EAR_SUCCESS;
+    struct timeval tv;
+    afd_set_t rfds;
+    int retval;
 
-	debug("wait for data\n");
-        /* Addin fd_eard_to_app to the fdset */
-        FD_ZERO(&rfds);
-        FD_SET(fd_eard_to_app, &rfds);
+    debug("wait for data");
+    /* Addin fd_eard_to_app to the fdset */
+    AFD_ZERO(&rfds);
+    AFD_SET(fd_eard_to_app, &rfds);
 
-        tv.tv_sec = 0;
-        tv.tv_usec = 100000;
+    tv.tv_sec = 0;
+    tv.tv_usec = 100000;
+    retval = aselectv(&rfds, &tv);
 
-        retval = select(fd_eard_to_app+1, &rfds, NULL, NULL, &tv);
-        if (retval<0) return EAR_ERROR;
-	if (retval==0){
-		debug("timeout expired");
-		return EAR_TIMEOUT;
-	}
-
-        /* we can read now */
-        if ((ret=read(fd_eard_to_app,rec,sizeof(app_recv_t)))!=sizeof(app_recv_t)){ 
-		debug("Error receiving data %d",ret);
-		return EAR_ERROR;
-	}
-	debug("Data received\n");
-  return EAR_SUCCESS;
+    if (retval < 0) {
+        return EAR_ERROR;
+    }
+    if (retval == 0) {
+        debug("timeout expired");
+        return EAR_TIMEOUT;
+    }
+    /* we can read now */
+    if ((ret = read(fd_eard_to_app, rec, sizeof(app_recv_t))) != sizeof(app_recv_t)) {
+        debug("Error receiving data %d", ret);
+        return EAR_ERROR;
+    }
+    debug("Data received");
+    return EAR_SUCCESS;
 }
 
 static void close_connection()
 {
 	app_send_t req;
 
-	debug("Closing connection\n");
+	debug("Closing connection");
 	if (fd_app_to_eard<0) return;
 	req.pid=getpid();
 	req.req=DISCONNECT;
@@ -188,6 +191,7 @@ static void close_connection()
 	remove_pipes();
 	debug("disconnected");
 }
+
 /************** ear_energy ***************/
 int ear_energy(ulong *energy_mj,ulong *time_ms)
 {

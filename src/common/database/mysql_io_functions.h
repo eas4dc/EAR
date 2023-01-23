@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <common/config.h>
@@ -118,7 +118,7 @@ int mysql_insert_signature(MYSQL *connection, signature_t *sig, char is_learning
 /** Given a MYSQL connection and an array of applications, inserts said application's
 *   signatures into the database. Returns the first signature's database id on 
 *   success, and either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
-int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont, char is_learning, int num_sigs);
+long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont, char is_learning, int num_sigs);
 
 /** Given a MYSQL connection and a valid MYSQL query, stores in sigs the 
 *   signatures found in the database corresponding to the query. Returns the 
@@ -181,7 +181,7 @@ int mysql_batch_insert_avg_signatures(MYSQL *connection, application_t *app, int
 /** Given a MYSQL connection and an array of applications or loops, inserts said application's
 *   signatures into the database. Returns the first signature's database id on 
 *   success, and either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
-int mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t cont, int num_sigs);
+long long mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t cont, int num_sigs);
 
 /** Given a MYSQL connection and a query, retrieves the gpu signatures corresponding to that query */
 int mysql_retrieve_gpu_signatures(MYSQL *connection, char *query, gpu_signature_t *gpu_sig);
@@ -195,5 +195,5 @@ int mysql_retrieve_power_signatures(MYSQL *connection, char *query, power_signat
 
 
 /** Given a MYSQL connection and a query, retrieves the corresponding result and stores it in results*/
-int mysql_run_query_string_results(MYSQL *connection, char *query, char ****results, int *num_columns);
+int mysql_run_query_string_results(MYSQL *connection, char *query, char ****results, int *num_columns, int *num_rows);
 #endif

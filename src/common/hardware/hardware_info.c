@@ -10,12 +10,13 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #define _GNU_SOURCE
+
 #include <time.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -23,6 +24,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sched.h>
+
 #include <common/config.h>
 #include <common/hardware/topology.h>
 #include <common/hardware/hardware_info.h>
@@ -31,14 +33,21 @@
 
 uint num_cpus_in_mask(cpu_set_t *my_mask)
 {
+    /*
     uint c, lcpus = 0;
 
     for (c = 0; c < MAX_CPUS_SUPPORTED; c++){
         if (CPU_ISSET(c, my_mask)) lcpus++;
     }
     return lcpus;
-
+    */
+    if (my_mask != NULL) {
+        return CPU_COUNT(my_mask);
+    } else {
+        return (uint) -1;
+    }
 }
+
 
 int list_cpus_in_mask(cpu_set_t *my_mask, uint n_cpus, uint *cpu_list)
 {
@@ -61,13 +70,27 @@ int list_cpus_in_mask(cpu_set_t *my_mask, uint n_cpus, uint *cpu_list)
 
 }
 
+
+void fill_cpufreq_list(cpu_set_t *my_mask, uint n_cpus, uint value, uint no_value, uint *cpu_list)
+{
+  if (my_mask == NULL || cpu_list == NULL || n_cpus < 1) return;
+  for (uint c = 0; c < n_cpus; c++) {
+    if (CPU_ISSET(c, my_mask)) {
+      cpu_list[c] = value;
+    }else{
+      cpu_list[c] = no_value;
+    }
+  }
+}
+
+
 void aggregate_cpus_to_mask(cpu_set_t *dst, cpu_set_t *src)
 {
-    for (uint c=0; c < MAX_CPUS_SUPPORTED; c++){
+    for (uint c = 0; c < MAX_CPUS_SUPPORTED; c++) {
       if (CPU_ISSET(c, src)) CPU_SET(c, dst);
   }
-
 }
+
 
 void remove_cpus_from_mask(cpu_set_t *dst, cpu_set_t *src)
 {
@@ -81,19 +104,18 @@ void remove_cpus_from_mask(cpu_set_t *dst, cpu_set_t *src)
 /* Sets in dst CPUs not in src */
 void cpus_not_in_mask(cpu_set_t *dst, cpu_set_t *src)
 {
-	CPU_ZERO(dst);
-  for (uint c=0; c < MAX_CPUS_SUPPORTED; c++){
-      if (!CPU_ISSET(c, src)) CPU_SET(c, dst);
-  }
-
+    CPU_ZERO(dst);
+    for (uint c=0; c < MAX_CPUS_SUPPORTED; c++){
+        if (!CPU_ISSET(c, src)) CPU_SET(c, dst);
+    }
 }
 
 
 void print_affinity_mask(topology_t *topo) 
 {
     cpu_set_t mask;
-		int i;
-		CPU_ZERO(&mask);
+    int i;
+    CPU_ZERO(&mask);
     if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1) return;
     fprintf(stderr,"sched_getaffinity = ");
     for (i = 0; i < topo->cpu_count; i++) {
@@ -102,36 +124,39 @@ void print_affinity_mask(topology_t *topo)
     fprintf(stderr,"\n");
 }
 
-state_t print_this_affinity_mask(cpu_set_t *mask)
+
+state_t verbose_affinity_mask(int verb_lvl, const cpu_set_t *mask, uint cpus)
 {
-    if (mask == NULL) return EAR_ERROR;
-    fprintf(stderr,"mask affinity = ");
-    for (int i = 0; i < MAX_CPUS_SUPPORTED; i++) {
-        fprintf(stderr,"CPU[%d]=%d ", i,CPU_ISSET(i, mask));
+    if (mask) {
+
+        if (VERB_ON(verb_lvl)) {
+
+            verbosen(0, "mask affinity (n-1..0) =");
+
+            for (int i = cpus-1; i >= 0; i -= 4) {
+                verbosen(0, " %d%d%d%d", CPU_ISSET(i, mask), CPU_ISSET(i-1, mask),
+                        CPU_ISSET(i-2, mask), CPU_ISSET(i-3, mask));
+            }
+
+            verbosen(0, "\n");
+
+        }
+
+
+    } else {
+        return EAR_ERROR;
     }
-    fprintf(stderr,"\n");
     return EAR_SUCCESS;
 }
 
-state_t verbose_affinity_mask(cpu_set_t *mask, uint cpus)
-{
-    if (mask == NULL) return EAR_ERROR;
-    verbosen(0,"mask affinity = ");
-    for (int i = 0; i < cpus; i++) {
-        verbosen(0,"CPU[%d]=%d ", i,CPU_ISSET(i, mask));
-    }
-    verbosen(0,"\n");
-    return EAR_SUCCESS;
-}
 
-
-state_t is_affinity_set(topology_t *topo,int pid,int *is_set,cpu_set_t *my_mask)
+state_t is_affinity_set(topology_t *topo, int pid, int *is_set, cpu_set_t *my_mask)
 {
 	cpu_set_t mask;
 	*is_set=0;
 	CPU_ZERO(&mask);
 	CPU_ZERO(my_mask);
-	if (sched_getaffinity(pid,sizeof(cpu_set_t), &mask) == -1) return EAR_ERROR;
+	if (sched_getaffinity(pid, sizeof(cpu_set_t), &mask) == -1) return EAR_ERROR;
 	memcpy(my_mask,&mask,sizeof(cpu_set_t));
 	int i;
 	for (i = 0; i < topo->cpu_count; i++) {
@@ -143,7 +168,8 @@ state_t is_affinity_set(topology_t *topo,int pid,int *is_set,cpu_set_t *my_mask)
 	return EAR_SUCCESS;
 }
 
-state_t set_affinity(int pid,cpu_set_t *mask)
+
+state_t set_affinity(int pid, cpu_set_t *mask)
 {
 	int ret;
 	ret=sched_setaffinity(pid,sizeof(cpu_set_t),mask);
@@ -214,40 +240,6 @@ int detect_packages(int **mypackage_map)
 	}
 
 	return num_packages;
-}
-
-int get_model()
-{
-    cpuid_regs_t r;
-	int model_full;
-	int model_low;
-
-	CPUID(r,1,0);
-	model_low  = cpuid_getbits(r.eax, 7, 4);
-	model_full = cpuid_getbits(r.eax, 19, 16);
-	return (model_full << 4) | model_low;
-}
-
-int is_aperf_compatible()
-{
-    cpuid_regs_t r;
-
-	if (!cpuid_isleaf(11)) {
-		return EAR_ERROR;
-	}
-
-	CPUID(r,6,0);
-    return r.ecx & 0x01;
-}
-
-int is_cpu_boost_enabled()
-{
-	cpuid_regs_t r;
-	//
-	CPUID(r,6,0);
-	//
-
-	return cpuid_getbits(r.eax, 1, 1);
 }
 
 int cpu_isset(int cpu, cpu_set_t *mask)

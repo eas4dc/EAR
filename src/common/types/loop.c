@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #include <stdlib.h>
 #include <string.h>
@@ -43,35 +43,46 @@
 
 int create_loop_id(loop_id_t *lid, ulong event, ulong size, ulong level)
 {
-    if (lid!=NULL){
+    if (lid != NULL) {
         lid->event = event;
-        lid->size = size;
+        lid->size  = size;
         lid->level = level;
+
         return EAR_SUCCESS;
-    }else return EAR_ERROR;
+    } else {
+        return_msg(EAR_ERROR, Generr.input_null);
+    }
 }
 
 int create_loop(loop_t *l)
 {
-    if (l!=NULL)
+    if (l != NULL)
     {
-        l->jid=0;
-        l->step_id=0;
-        l->total_iterations=0;
-        memset(&l->signature,0,sizeof(signature_t));
+        l->jid              = 0;
+        l->step_id          = 0;
+        l->total_iterations = 0;
+
+        memset(&l->signature, 0, sizeof(signature_t));
+
         return EAR_SUCCESS;
-    }else return EAR_ERROR;
+    } else {
+        return_msg(EAR_ERROR, Generr.input_null);
+    }
 }
 
-int loop_init(loop_t *loop, job_t *job,ulong event, ulong size, ulong level)
+int loop_init(loop_t *loop, ulong job_id, ulong step_id, const char *node_id, ulong event, ulong size, ulong level)
 {
     int ret;
-    if ((ret=create_loop(loop))!=EAR_SUCCESS) return ret;
-    if ((ret=create_loop_id(&loop->id,event,size,level))!=EAR_SUCCESS) return ret;
-    loop->jid = job->id;
-    loop->step_id=job->step_id;
-    gethostname(loop->node_id,sizeof(loop->node_id));
-    strtok(loop->node_id,".");
+
+    if ((ret=create_loop(loop)) != EAR_SUCCESS) return ret;
+
+    if ((ret=create_loop_id(&loop->id, event, size, level)) != EAR_SUCCESS) return ret;
+
+    loop->jid     = job_id;
+    loop->step_id = step_id;
+
+    memcpy(loop->node_id, node_id, sizeof loop->node_id);
+
     return EAR_SUCCESS;
 }
 
@@ -80,7 +91,7 @@ void clean_db_loop(loop_t *loop, double limit)
     if (loop->id.event > INT_MAX) loop->id.event = INT_MAX;
     if (loop->id.size > INT_MAX) loop->id.size = INT_MAX; 
     if (loop->id.level > INT_MAX) loop->id.level = INT_MAX;
-    clean_db_signature(&loop->signature, limit);
+    signature_clean_before_db(&loop->signature, limit);
 }
 
 int set_null_loop(loop_t *loop)
@@ -120,8 +131,9 @@ void print_loop_id_fd(int fd, loop_id_t *loop_id)
 void print_loop_fd(int fd, loop_t *loop)
 {
     dprintf(fd,"%lu;%lu;", loop->jid, loop->step_id);
-    print_loop_id_fd(fd, &loop->id);
+    dprintf(fd, "%s;", loop->node_id);
     signature_print_fd(fd, &loop->signature, 1, 0 , ' ');
+    print_loop_id_fd(fd, &loop->id);
     dprintf(fd, "%lu\n", loop->total_iterations);
 }
 
@@ -198,8 +210,11 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
     char gpu_header[128];
     char *HEADER_GPU_SIG = ";GPU%d_POWER;GPU%d_FREQ;GPU%d_MEM_FREQ;GPU%d_UTIL;GPU%d_MEM_UTI";
 #endif
-
+#if REPORT_TIMESTAMP
+    char *HEADER_LOOP = ";LOOPID;LOOP_NEST_LEVEL;LOOP_SIZE;TIMESTAMP";
+#else
     char *HEADER_LOOP = ";LOOPID;LOOP_NEST_LEVEL;LOOP_SIZE;ITERATIONS";
+#endif
     char HEADER[1024] = "";
 
     if (file_is_regular(path)) {
@@ -221,7 +236,7 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
     strncat(HEADER, HEADER_LOOP,sizeof(HEADER));
 
     if (ts) {
-        xstrncat(HEADER, ";TIMESTAMP", sizeof(HEADER));
+        xstrncat(HEADER, ";ELAPSED", sizeof(HEADER));
     }
 
     int fd = open(path, OPTIONS, PERMISSION);
@@ -254,7 +269,7 @@ int append_loop_text_file_no_job(char *path, loop_t *loop, int add_header,
 int append_loop_text_file_no_job_with_ts(char *path, loop_t *loop, ullong currtime,
         int add_header, int single_column, char sep)
 {
-    return append_loop_text_file_no_job_int(path,loop,1, currtime, add_header, single_column, sep);
+    return append_loop_text_file_no_job_int(path, loop, 1, currtime, add_header, single_column, sep);
 }
 
 static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts, ullong currtime, int add_header, int single_column, char sep)

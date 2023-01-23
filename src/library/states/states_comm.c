@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #if MPI
@@ -52,7 +52,7 @@ static void debug_loop_signature(char *title, signature_t *loop);
 #endif
 
 void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname, char *nname,
-        int iterations, ulong prevf, ulong new_freq, char *mode)
+        int iterations, ulong prevf, ulong new_freq, char *user_mode)
 {
     double CPI, GBS, POWER, TIME, VPI, FLOPS;
     float AVGF = 0, AVGGPUF = 0, PFREQ = 0, NFREQ = 0;
@@ -61,9 +61,17 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
     ulong GPU_UTIL = 0, GPU_FREQ = 0, gpu_used_cnt=0;
     ulong elapsed;
     timestamp end;
+    char mode[32];
 #if 0
     sig_ext_t *se = (sig_ext_t *)sig->signature.sig_ext;
 #endif
+
+    if (VERB_GET_LV() == 0) return;
+    sprintf(mode, "%s", "");
+    if (VERB_GET_LV() >= 2){
+      strcpy(mode, user_mode);
+    }
+
     timestamp_getfast(&end);
     elapsed=timestamp_diff(&end, &ear_application_time_init, TIME_SECS);
 
@@ -103,14 +111,14 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
         } // MPI info
 
         // IMC
-        imcf = (float) sig->signature.avg_imc_f / 1000000.0;
+        imcf = (per_proc_verb_file) ? (float) lib_shared_region->job_signature.avg_imc_f / 1000000.0 : (float) sig->signature.avg_imc_f / 1000000.0;
 
         // CPI
         // If enabled, each process reports its CPI
         CPI = (per_proc_verb_file) ? (double) sig_shared_region[my_node_id].sig.CPI : sig->signature.CPI;
 
         // GB/s
-        GBS = sig->signature.GBS;
+        GBS = (per_proc_verb_file) ? sig_shared_region[my_node_id].sig.GBS : sig->signature.GBS;
 
         // I/O MB/s
 #if 0
@@ -126,12 +134,12 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
             sprintf(io_info, "No IO data");
         }
 
-        // TODO: period or time ?
+        // TODO: period or time ? time is the time per iteration. This metric is computed periodically by a thread.
         // If enabled each process computes it I/O bandwidth, otherwise the node I/O bandwidth is already computed
         IO_MBS = (per_proc_verb_file) ? ((float) io_data->rchar / (float) (1024 * 1024) + (float) io_data->wchar / (float) (1024 * 1024)) / sig_shared_region[my_node_id].period : (float) sig->signature.IO_MBS;
 
         // DC Node Power
-        POWER = sig->signature.DC_power; 
+        POWER = (per_proc_verb_file) ? sig_shared_region[my_node_id].sig.DC_power : sig->signature.DC_power;
 
         // Time
         // TODO: What is this time?
@@ -160,7 +168,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
             // Each process computes its VPI
             compute_ssig_vpi(&VPI, &sig_shared_region[my_node_id].sig);
         } else {
-            compute_vpi(&VPI, &sig->signature);
+            compute_sig_vpi(&VPI, &sig->signature);
         }
         
         double GPU_POWER = 0;
@@ -206,7 +214,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
                     GPU_UTIL     += sig->signature.gpu_sig.gpu_data[i].GPU_util; 
                 }
             } 
-            verbose_master(3, "---------------------------------------");
+            verbose_master(3, "-------------------------------------");
 
             if (gpu_used_cnt) {
                 GPU_POWER /= (float) gpu_used_cnt;
@@ -221,11 +229,11 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
 #endif
 
         debug("%swriting app info%s", COL_YLW, COL_CLR);
-        verbose(2, "EAR+%s(%s) at %.2f in %s: LoopID=%lu, LoopSize=%lu-%lu, iterations=%d",
+        verbose(2, "EAR%s(%s) at %.2f in %s: LoopID=%lu, LoopSize=%lu-%lu, iterations=%d",
                 mode, aname, PFREQ, nname, sig->id.event, sig->id.size, sig->id.level, iterations); 
 
         debug("%swriting nname at elapsed%s", COL_YLW, COL_CLR)
-        verbosen(1, "EAR+%s(%s) at %.2f in %s MR[%d] elapsed %lu sec.: ",
+        verbosen(1, "EAR%s(%s) at %.2f in %s MR[%d] elapsed %lu sec.: ",
                 mode, aname, PFREQ, nname, master_rank, elapsed); 
         verbosen(1, "%s", COL_GRE);
 
@@ -235,8 +243,8 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
 
         strcpy(gpu_buff," ");
         if (GPU_UTIL) {
-            snprintf(gpu_buff, sizeof(gpu_buff), "\n\t(Used GPUS %lu GPU_power %.2lfW "
-                    "GPU_freq %.2fGHz GPU_util %lu)", gpu_used_cnt, GPU_POWER, AVGGPUF, GPU_UTIL);
+            snprintf(gpu_buff, sizeof(gpu_buff), "\n\t(Used GPUS %lu GPU_power %.2lfW (avg) "
+                    "GPU_freq %.2fGHz (avg) GPU_util %lu (avg))", gpu_used_cnt, GPU_POWER, AVGGPUF, GPU_UTIL);
         }
 
         debug("%swriting CPI GBS power...%s", COL_YLW, COL_CLR);
@@ -254,7 +262,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
         l2_sec = l2_miss/(TIME * 1024*1024*1024);
         l3_sec = l3_miss/(TIME * 1024*1024*1024);
 
-        verbosen(2,"\n\t L1GB/sec %.2f L2GB/sec %.2f L3GB/sec %.2f",l1_sec,l2_sec,l3_sec);
+        verbosen(2,"\n\t L1GB/sec %.2f L2GB/sec %.2f L3GB/sec %.2f TPI %.2lf ",l1_sec,l2_sec,l3_sec, sig->signature.TPI);
 
         uint n_mpi_calls = (per_proc_verb_file) ? sig_shared_region[my_node_id].mpi_info.total_mpi_calls : total_mpi;
 
@@ -267,16 +275,30 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
 
 void state_report_traces(int master_rank, int my_rank,int lid, loop_t *lsig,ulong freq,ulong status)
 {
-    if (master_rank >= 0 && traces_are_on()){
+    #if SINGLE_CONNECTION
+    if (master_rank >= 0 && traces_are_on()) {
         traces_new_signature(my_rank, lid, &lsig->signature);
-        if (freq > 0 ) traces_frequency(my_rank, lid, freq); 
-        traces_policy_state(my_rank, lid,status);
+        //if (freq > 0 ) traces_frequency(my_rank, lid, freq); 
+        traces_policy_state(my_rank, lid, status);
     }
+    #else
+    if (traces_are_on()){
+        traces_new_signature(my_rank, lid, &lsig->signature);
+        //if (freq > 0 ) traces_frequency(my_rank, lid, freq); 
+        traces_policy_state(my_rank, lid, status);
+      
+    }
+    #endif
 }
 
-void state_report_traces_state(int master_rank, int my_rank,int lid,ulong status)
+void state_report_traces_state(int master_rank, int my_rank, int lid, ulong status)
 {
-    if (master_rank >= 0 && traces_are_on()) traces_policy_state(my_rank, lid,status);
+    #if SINGLE_CONNECTION
+    if (master_rank >= 0 && traces_are_on()) traces_policy_state(my_rank, lid, status);
+    #else
+    if (traces_are_on()) traces_policy_state(my_rank, lid, status);
+    #endif
+
 }
 
 /* Auxiliary functions */

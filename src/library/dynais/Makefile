@@ -1,5 +1,7 @@
 CFLAGS        = -fPIC -O3 -I$(SRCDIR)
 CFLAGS_AVX2   = $(CFLAGS) -march=haswell
+CFLAGS_AVX2   = $(CFLAGS) -msse4.1  -msse4.2 -msse3  -mavx2
+CFLAGS_AVX512 = $(CFLAGS) -msse4.1  -msse4.2 -msse3 -mavx512dq -mavx512f -mavx2
 CFLAGS_AVX512 = $(CFLAGS) -march=skylake-avx512
 
 ######## FILES

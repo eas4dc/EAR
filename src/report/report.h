@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef REPORT_H
@@ -40,15 +40,13 @@
 #define PERIODIC_AGGREGATIONS 2
 #define MPITRACE              4
 
-/** Short name for const char. */
-typedef const char cchar;
-
 /** This structure is used to pass information about the process calling your plugin function. 
  * The API functions receive a parameter of this type with the calling process information. */
 typedef struct report_id_s
 {
     int   local_rank;  /*!< Process node local rank. */
     int   global_rank; /*!< Process application rank. */
+    int   node_id;     /*!< Node id */
     int   master_rank; /*!< Indicates whether this process is the master on its node.  */
 	pid_t pid;         /*!< The process PID. */
 } report_id_t;

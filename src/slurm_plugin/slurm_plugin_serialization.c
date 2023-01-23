@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #define _GNU_SOURCE
@@ -181,35 +181,15 @@ int plug_read_application(spank_t sp, plug_serialization_t *sd)
 	new_job_req_t *app = &sd->job.app;
 	ulong *freqs = sd->pack.eard.freqs.freqs;
 	int n_freqs = sd->pack.eard.freqs.n_freqs;
-	char cnum_cpus[SZ_NAME_SHORT];
-	uint32_t uitem;
 
-	memset(app,0,sizeof(new_job_req_t));
-
+    // Cleaning
+	//memset(app, 0, sizeof(new_job_req_t));
 	// Gathering variables
-	app->is_mpi = plug_component_isenabled(sp, Component.library);
-	
 	strcpy(app->job.user_id, sd->job.user.user);
 	strcpy(app->job.group_id, sd->job.user.group);
 	strcpy(app->job.user_acc, sd->job.user.account);
-
-    if (getenv_agnostic(sp, Var.cpus_nodn.rem, cnum_cpus, SZ_NAME_SHORT)) {
-        app->job.procs = atoi(cnum_cpus);
-    }
-
-	plug_verbose(sp, 2, "%lu cpus detected on plugin", app->job.procs);
-	
-	if (spank_get_item (sp, S_JOB_ID, (int *)&uitem) == ESPANK_SUCCESS) {
-		app->job.id = (ulong) uitem;
-	} else {
-		app->job.id = NO_VAL;
-	}
-	if (spank_get_item (sp, S_JOB_STEPID, (int *)&uitem) == ESPANK_SUCCESS) {
-		app->job.step_id = (ulong) uitem;
-	} else {
-		app->job.step_id = NO_VAL;
-	}
-	
+    app->is_mpi = plug_component_isenabled(sp, Component.library);
+    // Getenv things
 	if (!getenv_agnostic(sp, Var.name_app.rem, app->job.app_id, GENERIC_NAME)) {
 		strcpy(app->job.app_id, "");
 	}
@@ -240,8 +220,8 @@ int plug_read_application(spank_t sp, plug_serialization_t *sd)
 	if (!getenv_agnostic(sp, Var.tag.ear, app->job.energy_tag, ENERGY_TAG_SIZE)) {
 		strcpy(app->job.energy_tag, "");
 	}
-
-	plug_print_application(sp, app);
+	
+    plug_print_application(sp, app);
 
 	return ESPANK_SUCCESS;
 }
@@ -311,6 +291,11 @@ int plug_print_variables(spank_t sp)
 	printenv_agnostic(sp, Var.path_temp.ear);
 	printenv_agnostic(sp, Var.ld_prel.ear);
 	printenv_agnostic(sp, Var.ld_libr.ear);
+    printenv_agnostic(sp, "SLURM_JOBID");
+    printenv_agnostic(sp, "SLURM_JOB_ID");
+    printenv_agnostic(sp, "SLURM_STEPID");
+    printenv_agnostic(sp, "SLURM_STEP_ID");
+    printenv_agnostic(sp, "SLURM_LOCALID");
 
 	return ESPANK_SUCCESS;
 }
@@ -501,12 +486,6 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 	getenv_agnostic(sp, Var.group.rem,     sd->job.user.group,   SZ_NAME_MEDIUM);
 	getenv_agnostic(sp, Var.account.rem,   sd->job.user.account, SZ_NAME_MEDIUM);
 
-  if (getenv_agnostic(sp, Var.cpus_nodn.rem, buffer1, SZ_BUFFER_EXTRA)) {
-    sd->job.app.job.procs = atoi(buffer1);
-  }
-  plug_verbose(sp, 2, "%lu cpus detected on plugin", sd->job.app.job.procs);
-
-
 	// Subject
 	if (isenv_agnostic(sp, Var.ctx_last.rem, Constring.srun)) {
 		sd->subject.context_local = Context.srun;
@@ -518,7 +497,19 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 	if (sd->subject.context_local == Context.error) {
 		return ESPANK_ERROR;
 	}
-	// Job/step
+
+    // Job/step
+    sd->job.app.job.step_id = (ulong) BATCH_STEP;
+    sd->job.app.job.id      = (ulong) BATCH_STEP;
+	
+    if (spank_get_item (sp, S_JOB_ID, (int *) &s1) == ESPANK_SUCCESS) {
+        sd->job.app.job.id = (ulong) s1;
+    }
+    if (spank_get_item (sp, S_JOB_STEPID, (int *) &s1) == ESPANK_SUCCESS) {
+        sd->job.app.job.step_id = (ulong) s1;
+    }
+
+	// Job/step list of nodes
 	s1 = 0;
 	s2 = 0;
 
@@ -576,8 +567,15 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 		}
 	}
 
-	plug_verbose(sp, 2, "subject '%s' is master? '%d'",
+	plug_verbose(sp, 2, "subject '%s' is node master? '%d'",
 		sd->subject.host, sd->subject.is_master);
+
+    // CPUs 
+    if (getenv_agnostic(sp, Var.cpus_nodn.rem, buffer1, SZ_BUFFER_EXTRA)) {
+        sd->job.app.job.procs = atoi(buffer1);
+    }
+    plug_verbose(sp, 2, "%lu cpus detected on plugin", sd->job.app.job.procs);
+
 	/*
 	 * The .ear variables are set during the APP serialization. But APP
 	 * serialization happens if the library is ON. But now we have ERUN.
@@ -701,21 +699,25 @@ int plug_deserialize_task(spank_t sp, plug_serialization_t *sd)
             task = atoi(buffer2);
         }
     }
-   
     // Getting task mastery
     sd->subject.is_task_master = (task == 0);
-     
     // Getting mask and number of processors
     CPU_ZERO(&sd->job.task.mask);
     
-    sd->job.task.jid      = sd->job.app.job.id;
-    sd->job.task.sid      = sd->job.app.job.step_id;
-    sd->job.task.pid      = getpid();
+    sd->job.task.jid = sd->job.app.job.id;
+    sd->job.task.sid = sd->job.app.job.step_id;
+    sd->job.task.pid = getpid();
     
+    // Below code doesn't work unless the SLURM user has explicitey set the number of CPUs per task.
 	spank_get_item(sp, S_STEP_CPUS_PER_TASK, (int *)&sd->job.task.num_cpus);
 
+    #if !ERUN
     #define SPACE "                            "
-    xsprintf(buffer2, "------------------------------------- task summary ---\n");	
+    #else
+    #define SPACE "            "
+    #endif
+    xsprintf(buffer1, "task summary:\n");
+    xsprintf(buffer2, "%s" SPACE "------------------------------------------------------\n", buffer1);
 	xsprintf(buffer1, "%s" SPACE "jid.sid.tid.pid: %lu.%lu.%d.%d\n", buffer2,
         sd->job.task.jid, sd->job.task.sid, task, sd->job.task.pid);
     xsprintf(buffer2, "%s" SPACE "affinity mask  : ", buffer1);

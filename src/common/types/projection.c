@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -67,24 +67,28 @@ state_t projections_init(uint user_type, conf_install_t *data, architecture_t * 
 {
 	char basic_path[SZ_PATH_INCOMPLETE];
 	char *obj_path = getenv(HACK_POWER_MODEL);
-  char *ins_path = getenv(HACK_EARL_INSTALL_PATH);
-	char *def_model = "basic_model.so";
+    char *ins_path = getenv(HACK_EARL_INSTALL_PATH);
+	char *def_model = "avx512_model.so";
 
 	state_t st;
 
 	if (data->obj_power_model!=NULL) debug("obj_power_model defined with %s\n",data->obj_power_model);
 	if (data->obj_power_model== NULL) debug("obj_power_model NULL\n");
+#if !USER_TEST
 	if (((obj_path == NULL) && (ins_path == NULL)) || (user_type != AUTHORIZED))
+#else
+	if (obj_path == NULL && ins_path == NULL)
+#endif
 	{
 		debug("model %s size %u", data->obj_power_model, strlen(data->obj_power_model));
-		if ((strncmp(data->obj_power_model, "default", strlen("default"))==0) || (data->obj_power_model==NULL)){
+		if ((strncmp(data->obj_power_model, "default", strlen("default"))==0) || (data->obj_power_model==NULL)) {
 			xsnprintf(basic_path,sizeof(basic_path), "%s/models/basic_model.so", data->dir_plug);
-		}else if (data->obj_power_model!=NULL){
+		} else if (data->obj_power_model!=NULL) {
 			xsnprintf(basic_path, sizeof(basic_path),"%s/models/%s", data->dir_plug,data->obj_power_model);
 		}
 		obj_path = basic_path;
 		
-	}else{
+	} else {
     if (obj_path == NULL) obj_path = data->obj_power_model;
 		if (ins_path == NULL) ins_path = data->dir_plug;
 		if (strncmp(obj_path, "default", strlen("default")) == 0) obj_path = def_model;

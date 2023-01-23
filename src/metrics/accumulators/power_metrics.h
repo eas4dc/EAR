@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 /**
@@ -55,7 +55,7 @@ typedef struct power_data {
 
 
 /**  Starts power monitoring */
-int init_power_ponitoring(ehandler_t *eh);
+int init_power_monitoring(ehandler_t *eh, topology_t *tp);
 
 /** Ends power monitoring */
 void end_power_monitoring(ehandler_t *eh);

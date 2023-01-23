@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #define _GNU_SOURCE 
@@ -78,6 +78,7 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
             for (i = 0; i < num_tags; i++)
                 if (!strcmp(tags[i].id, value)) idx = i;
 
+
             if (idx < 0)
             {
                 tags = realloc(tags, sizeof(tag_t) * (num_tags + 1));
@@ -85,9 +86,6 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
                 num_tags++;
                 memset(&tags[idx], 0, sizeof(tag_t));
                 set_default_tag_values(&tags[idx]);
-                strcpy(tags[idx].energy_model, "");
-                strcpy(tags[idx].energy_plugin, "");
-                strcpy(tags[idx].powercap_plugin, "");
                 strcpy(tags[idx].id, value);
             }
         }
@@ -140,6 +138,10 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
         {
             tags[idx].imc_max_pstate = atol(value);
         }
+		else if (!strcmp(key, "IDLE_PSTATE"))
+		{
+            tags[idx].idle_pstate = atol(value);
+		}
 		else if (!strcmp(key, "IMC_MAX_FREQ"))
 		{
 			tags[idx].imc_max_freq = (ulong)atol(value);
@@ -165,6 +167,10 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
         {
             strcpy(tags[idx].powercap_gpu_plugin, value);
         }
+		else if (!strcmp(key, "IDLE_GOVERNOR")) 
+		{
+            strcpy(tags[idx].idle_governor, value);
+		}
         else if (!strcmp(key, "COEFFS"))
         {
             strcpy(tags[idx].coeffs, value);
@@ -203,20 +209,36 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
     return found;
 }
 
+void power2str(ulong power, char *str)
+{
+  if (power == POWER_CAP_UNLIMITED){ 
+    strcpy(str,"unlimited");
+    return;
+  }
+  if (power == 0){
+    strcpy(str,"disabled");
+    return;
+  }
+  sprintf(str,"%lu",power);
+  return;
+}
+
 void print_tags_conf(tag_t *tag)
 {
+  char buffer[64];
     verbosen(VCCONF, "--> Tag: %s\ttype: %d\tdefault: %d\tpowercap_type: %d\n", tag->id, tag->type, tag->is_default, tag->powercap_type);
-    verbosen(VCCONF, "\t\tavx512_freq: %lu\tavx2_freq: %lu\tmax_power: %lu\tmin_power: %lu\terror_power: %lu\t max_powercap: %lu\n", 
-                     tag->max_avx512_freq, tag->max_avx2_freq, tag->max_power, tag->min_power, tag->error_power, tag->max_powercap);
+    verbosen(VCCONF, "\t\tavx512_freq: %lu\tavx2_freq: %lu\tmax_power: %lu\tmin_power: %lu\terror_power: %lu\t \n", 
+                     tag->max_avx512_freq, tag->max_avx2_freq, tag->max_power, tag->min_power, tag->error_power);
 	verbosen(VCCONF, "\t\tgpu_def_freq %lu / cpu_max_pstate %d / imc_max_pstate %d\n", tag->gpu_def_freq, tag->cpu_max_pstate, tag->imc_max_pstate);
-		verbosen(VCCONF, "\t\timc_max_freq %lu imc_min_freq %lu\n", tag->imc_max_freq, tag->imc_min_freq);
+	verbosen(VCCONF, "\t\timc_max_freq %lu imc_min_freq %lu\n", tag->imc_max_freq, tag->imc_min_freq);
+    verbosen(VCCONF, "\t\tidle_governor: %s\tidle_pstate: %d\n", tag->idle_governor, tag->idle_pstate);
     verbosen(VCCONF, "\t\tenergy_model: %s\tenergy_plugin: %s\tpowercap_plugin: %s", tag->energy_model, tag->energy_plugin, tag->powercap_plugin);
 		if (tag->powercap == DEF_POWER_CAP){
 			verbosen(VCCONF,"\t\t powercap set_def\n");
-		}else if (tag->powercap == 0){
-			verbosen(VCCONF,"\t\t powercap disabled\n");
-		}else {
-			verbosen(VCCONF,"\t\t powercap %ld\n",tag->powercap);
-		}
+    }
+    power2str(tag->powercap, buffer);
+    verbosen(VCCONF,"\t\t powercap %s\n",buffer);
+    power2str(tag->max_powercap, buffer);
+    verbosen(VCCONF,"\t\t max_powercap %s\n",buffer);
 }
 

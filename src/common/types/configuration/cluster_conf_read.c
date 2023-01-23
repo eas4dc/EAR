@@ -214,7 +214,6 @@ void generate_node_ranges(node_island_t *island, char *nodelist)
 			int r_start = atoi(first_token);
 			int r_end = atoi(second_token);
 			int r_len = ear_min(strlen(first_token), strlen(second_token));
-#define MAX_RANGE 30
 			int curr_start = r_start;
 			int curr_end = ear_min(r_end, r_start+MAX_RANGE);
 

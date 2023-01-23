@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #define _GNU_SOURCE
 #include <sched.h>
@@ -24,9 +24,7 @@
 #include <library/policies/policy_ctx.h>
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
-#if USE_GPUS
-#include <library/metrics/gpu.h>
-#endif
+#include <library/metrics/metrics.h>
 
 extern const char     *polsyms_nam[];
 state_t policy_gpu_load(settings_conf_t *app_settings,polsym_t *psyms)
@@ -73,19 +71,22 @@ state_t policy_gpu_load(settings_conf_t *app_settings,polsym_t *psyms)
 
 state_t policy_gpu_init_ctx(polctx_t *c)
 {
+#if 0
     uint policy_gpu_model;
     uint gpun;
+#endif
     c->num_gpus = 0;
+
 #if USE_GPUS
-    if (gpu_lib_load(c->app) != EAR_SUCCESS){
+#if 0
+    if (gpu_lib_load(no_ctx) != EAR_SUCCESS) {
         error("gpu_lib_load in init_power_policy");
         return EAR_ERROR;
-    }else{
-        c->gpu_mgt_ctx.context = NULL;
-        if (gpu_lib_init(&c->gpu_mgt_ctx) == EAR_SUCCESS){
-            debug("gpu_lib_init success");
-            gpu_lib_model(&c->gpu_mgt_ctx,&policy_gpu_model);
-            if (policy_gpu_model == MODEL_DUMMY){ 
+    } else {
+        if (gpu_lib_init(no_ctx) == EAR_SUCCESS){
+            verbose_master(2,"gpu_lib_init success");
+            gpu_lib_model(no_ctx, &policy_gpu_model);
+            if (policy_gpu_model == API_DUMMY){
                 debug("Setting policy num gpus to 0 because DUMMY");
                 c->num_gpus = 0;
             }else{
@@ -94,11 +95,16 @@ state_t policy_gpu_init_ctx(polctx_t *c)
             }
             debug("Num gpus detected in policy_load %u ",c->num_gpus);	
 
-        }else{
+        } else {
             error("gpu_lib_init");
             return EAR_ERROR;
         }
     }
-#endif
+#else
+    if (metrics_gpus_get(MET_GPU)->ok) {
+        c->num_gpus = metrics_gpus_get(MET_GPU)->devs_count;
+    }
+#endif // NEW_GPU_API
+#endif // USE_GPUS
     return EAR_SUCCESS;
 }

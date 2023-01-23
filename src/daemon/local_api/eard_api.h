@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _EAR_DAEMON_CLIENT_H
@@ -27,6 +27,7 @@
 #include <metrics/gpu/gpu.h>
 #include <metrics/cpufreq/cpufreq.h>
 #include <metrics/imcfreq/imcfreq.h>
+#include <management/gpu/gpu.h>
 
 #include <daemon/local_api/eard_api_rpc.h>
 #include <daemon/local_api/eard_api_conf.h>
@@ -110,7 +111,10 @@ int eards_gpu_data_read(gpu_t *gpu_info,uint num_dev);
 /** \todo  */
 int eards_gpu_set_freq(uint num_dev,ulong *freqs);
 /** \todo  */
-int eards_gpu_get_info(gpu_info_t *info, uint num_dev);
+int eards_gpu_get_info(gpu_devs_t *info, uint num_dev);
+/** EARD GPU support */
+int eards_gpu_support();
+
 /** @}  */
 
 #endif

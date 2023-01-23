@@ -1,33 +1,43 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #ifndef COMMON_MATH_OPS_H
 #define COMMON_MATH_OPS_H
 
 #include <stdlib.h>
 #include <limits.h>
+
 #include <common/types/generic.h>
 
-#define MAXBITS32 0x00000000FFFFFFFF
-#define MAXBITS48 0x0000FFFFFFFFFFFF
-#define MAXBITS64 0xFFFFFFFFFFFFFFFF
-#define B_TO_KB   1E3
-#define B_TO_MB   1E6
-#define B_TO_GB   1E9
+#define MAXBITS32  0x00000000FFFFFFFF
+#define MAXBITS48  0x0000FFFFFFFFFFFF
+#define MAXBITS64  0xFFFFFFFFFFFFFFFF
+#define B_TO_KB    1E3
+#define B_TO_MB    1E6
+#define B_TO_GB    1E9
+#define KB_TO_MB(n)    (n / 1000)
+#define KB_TO_HB(n)    (n / 100000) //Hundred of megahertz
+#define MB_TO_KB(n)    (n * 1000) 
+#define HB_TO_KB(n)    (n * 100000)
+#define KHZ_TO_MHZ(n)  KB_TO_MB(n)
+#define KHZ_TO_HHZ(n)  KB_TO_HB(n)
+#define MHZ_TO_KHZ(n)  MB_TO_KB(n)
+#define HHZ_TO_KHZ(n)  HB_TO_KB(n)
+#define KHZ_TO_GHZ(n)  (n / 1000000)
 
 /* Overflow functions:
  * 	zeros: returns zero on overflow
@@ -47,8 +57,8 @@ overflow_mixed(ullong, u64);
 overflow_magic(ullong, u64);
 overflow_magic(uint, u32);
 
-/** Given two doubles a and b, checks if they are equal within a margin of th.*/
-unsigned int equal_with_th(double a, double b, double th);
+/** Given two doubles a and b, checks whether they are equal within a margin of th.*/
+uint equal_with_th(double a, double b, double th);
 
 uint equal_with_th_ul(ulong a,ulong b,double th);
 

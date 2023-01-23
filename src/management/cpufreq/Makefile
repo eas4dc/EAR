@@ -1,11 +1,12 @@
-CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC -Wall -g
+CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC -Wall
 
 ######## FILES
 
 root_OBJS = \
     cpufreq.o \
     frequency.o \
-	governor.o
+	governor.o \
+	priority.o
 
 ######## RULES
 
@@ -13,6 +14,9 @@ all: all.components $(root_OBJS)
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<
+
+test_prio: priority.o
+	$(CC) $(CFLAGS) -o $@ $< ./archs/prio_dummy.o ./archs/prio_isst.o ./archs/prio_eard.o ../../daemon/lib  $(SRCDIR)/daemon/local_app/libeard.a $(SRCDIR)/metrics/libmetrics.a $(SRCDIR)/common/libcommon.a -lpthread
 
 ######## SUBFOLDERS
 

@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -182,7 +182,7 @@ state_t bwidth_dummy_data_print(ullong cas, double gbs, int fd)
 state_t bwidth_dummy_data_tostr(ullong cas, double gbs, char *buffer, size_t length)
 {
 #if 1
-	snprintf(buffer, length, "Bandwidth: %0.2lf GB/s (%llu CAS)\n", gbs, cas);
+	snprintf(buffer, length, "%0.2lf (GB/s, %llu CAS)\n", gbs, cas);
 #else
 	size_t accum = 0;
 	size_t added = 0;

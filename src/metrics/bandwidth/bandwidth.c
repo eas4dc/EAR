@@ -10,12 +10,12 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
-// #define SHOW_DEBUGS 1
+//#define SHOW_DEBUGS 1
 
 #include <pthread.h>
 #include <common/output/debug.h>
@@ -42,18 +42,13 @@ state_t bwidth_load(topology_t *tp, int eard)
 		pthread_mutex_unlock(&lock);
 		return EAR_SUCCESS;
 	}
+  #ifndef FAKE_ERROR_USE_DUMMY
 	// Dummy by default
 	api = API_DUMMY;
 	if (state_ok(bwidth_eard_load(tp, &ops, eard))) {
 		debug("Loaded EARD");
 		api = API_EARD;
 	}
-    #if 0
-	if (state_ok(bwidth_intel106_load(tp, &ops))) {
-		api = API_INTEL106;
-		debug("Loaded INTEL106");
-	}
-    #endif
 	if (state_ok(bwidth_intel63_load(tp, &ops))) {
 		api = API_INTEL63;
 		debug("Loaded INTEL63");
@@ -62,15 +57,22 @@ state_t bwidth_load(topology_t *tp, int eard)
 		api = API_AMD17;
 		debug("Loaded AMD17");
 	}
+    // EAR memory bandwith plugin for Icelake using Likwid
 	if (state_ok(bwidth_likwid_load(tp, &ops))) {
 		api = API_LIKWID;
 		debug("Loaded LIKWID");
+	}
+    // EAR memory bandwith plugin for Icelake
+	if (state_ok(bwidth_intel106_load(tp, &ops))) {
+		api = API_INTEL106;
+		debug("Loaded INTEL106");
 	}
     #if 0
 	if (state_ok(bwidth_bypass_load(tp, &ops))) {
 		api = API_BYPASS;
 		debug("Loaded BYPASS");
 	}
+    #endif
     #endif
 	bwidth_dummy_load(tp, &ops);
     // Overhead control

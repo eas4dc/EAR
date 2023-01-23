@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <unistd.h>
@@ -72,7 +72,7 @@ void overhead_stop(uint id)
     queue[id].accum_us += timestamp_diff(&queue[id].time_stop, &queue[id].time_start, TIME_USECS);
 }
 
-void overhead_report()
+void overhead_report(int print_header)
 {
     #if !ENABLE_OVERHEAD
     return; 
@@ -89,9 +89,11 @@ void overhead_report()
     global_stamp_secs = ((double) timestamp_diffnow(&global_stamp_start, TIME_USECS)) / 1000000.0;
     global_clock_secs = ((double) (clock() - global_clock_start)) / CLOCKS_PER_SEC;
 
-    tprintf_init(fderr, STR_MODE_DEF, "10 14 14 14 14 32");
-    tprintf("#calls||time accum||time/#calls||%%cpu time||%%wall time||description");
-    tprintf("------||----------||-----------||---------||----------||-----------");
+    if (print_header) {
+        overhead_print_header();
+    }
+    // Formatting again by the case
+    tprintf_init(verb_channel, STR_MODE_DEF, "10 14 14 14 14 32");
 
     for(id = 0; id < queue_last; ++id)
     {
@@ -108,6 +110,13 @@ void overhead_report()
         tprintf("%llu||%0.3lf s||%0.3lf ms||%0.2lf %%||%0.2lf %%||%s", queue[id].call_count,
                 accum_secs, percall_msecs, percent_clock, percent_stamp, queue[id].description);
     }
+}
+
+void overhead_print_header()
+{
+    tprintf_init(verb_channel, STR_MODE_DEF, "10 14 14 14 14 32");
+    tprintf("#calls||time accum||time/#calls||%%cpu time||%%wall time||description");
+    tprintf("------||----------||-----------||---------||----------||-----------");
 }
 
 #if 0

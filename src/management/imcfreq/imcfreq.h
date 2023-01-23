@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef MANAGEMENT_IMCFREQ_H
@@ -72,23 +72,23 @@ state_t mgt_imcfreq_get_api(uint *api);
 state_t mgt_imcfreq_init(ctx_t *c);
 /** */
 state_t mgt_imcfreq_dispose(ctx_t *c);
-/** This API is per socket. */
+/** Counts the number of devices (by now devices means sockets). */
 state_t mgt_imcfreq_count_devices(ctx_t *c, uint *devs_count);
-/** */
+/** Get the available list of P_STATEs available. */
 state_t mgt_imcfreq_get_available_list(ctx_t *c, const pstate_t **pstate_list, uint *pstate_count);
-/** */
+/** Get the current list of P_STATEs in the IMCs. */
 state_t mgt_imcfreq_get_current_list(ctx_t *c, pstate_t *pstate_list);
-/** */
+/** Sets a P_STATE in all IMCs given a list of P_STATE indexes. */
 state_t mgt_imcfreq_set_current_list(ctx_t *c, uint *index_list);
-/** */
+/** Sets a P_STATE in a specific socket given a P_STATE index. Consider also all_devices constant. */
 state_t mgt_imcfreq_set_current(ctx_t *c, uint pstate_index, int socket);
-/** */
+/** Returns to default values. Normally automatic frequency scalling by the system. */
 state_t mgt_imcfreq_set_auto(ctx_t *c);
 /** Min is top limit, it meas higher frequencies and lower PSATEs. Max the opposite. */
 state_t mgt_imcfreq_get_current_ranged_list(ctx_t *c, pstate_t *ps_min_list, pstate_t *ps_max_list);
 /** Min is top limit, it meas higher frequencies and lower PSATEs. Max the opposite. */
 state_t mgt_imcfreq_set_current_ranged_list(ctx_t *c, uint *id_min_list, uint *id_max_list);
-/** */
+/** Allocates P_STATEs and indexes lists. */
 state_t mgt_imcfreq_data_alloc(pstate_t **pstate_list, uint **index_list);
 /** */
 void mgt_imcfreq_data_print(pstate_t *ps_list, uint ps_count, int fd);

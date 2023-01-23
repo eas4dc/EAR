@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _EAR_DAEMON_COMMON_H
@@ -129,6 +129,7 @@ int eards_write(int fd,char *buff,int size);
 #define GPU_DATA_READ           502
 #define GPU_SET_FREQ            503
 #define GPU_GET_INFO            504
+#define GPU_SUPPORTED           505
 
 
 #define CONNECT_EARD_NODE_SERVICES 		CONNECT_FREQ

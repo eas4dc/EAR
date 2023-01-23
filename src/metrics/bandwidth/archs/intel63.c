@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 // #define SHOW_DEBUGS 1
@@ -58,13 +58,10 @@ state_t bwidth_intel63_load(topology_t *tp, bwidth_ops_t *ops)
 {
 	state_t s;
 	// If AMD or model previous to Intel Haswell
-	if (tp->vendor == VENDOR_AMD || tp->model < MODEL_HASWELL_X) {
+	if (tp->vendor == VENDOR_AMD || tp->model < MODEL_HASWELL_X || tp->model > MODEL_SKYLAKE_X) {
 		return_msg(EAR_ERROR, Generr.api_incompatible);
 	}
-	if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_ICELAKE_X) {
-		return_msg(EAR_ERROR, Generr.api_incompatible);
-	}
-	if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_SKYLAKE_X) {
+	if (tp->vendor == VENDOR_INTEL && tp->model == MODEL_SKYLAKE_X) {
 		debug("detected Intel SKY LAKE");
 		if(state_fail(s = pci_scan(0x8086, slake_ids, slake_dfs, O_RDWR, &pcis, &pcis_count))) {
 			return s;

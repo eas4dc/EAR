@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #include <time.h>
 #include <errno.h>
@@ -38,13 +38,16 @@
 
 /** \struct Defines the tracer API symbols. Your tracer plugins should implement some of the below functions to work. */ 
 typedef struct traces_symbols {
+
     /** Executed at application start.
      * @param app The Job name.
      * @param global_rank The global MPI rank of the calling process.
      * @param local_rank The node local MPI rank of the calling process.
      * @param nodes The number of nodes of the current job.
-     * @param mpis The number of MPI processes on the current node. */
+     * @param mpis The number of MPI processes on the current node.
+     * @param ppn The number of MPI processes on the current node. */
     void (*traces_init) (char *app, int global_rank, int local_rank, int nodes, int mpis, int ppn);
+
     void (*traces_end)(int global_rank,int local_rank, unsigned long int total_ener);
     void (*traces_start)();
     void (*traces_stop)();
@@ -63,11 +66,12 @@ typedef struct traces_symbols {
     void (*traces_mpi_init)();
     void (*traces_mpi_call)(int global_rank, int local_rank, ulong ev, ulong a1, ulong a2, ulong a3);
     void (*traces_mpi_end)();
+    void (*traces_generic_event)(int global_rank, int local_rank, int event, int value);
 } trace_sym_t;
 
 static trace_sym_t trace_syms_fun;
 static int trace_plugin=0;
-const int       trace_syms_n = 19;
+const int       trace_syms_n = 20;
 
 const char     *trace_syms_nam[] = {
     "traces_init",
@@ -88,7 +92,8 @@ const char     *trace_syms_nam[] = {
     "traces_are_on",
     "traces_mpi_init",
     "traces_mpi_call",
-    "traces_mpi_end"
+    "traces_mpi_end",
+    "traces_generic_event"
 };
 
 /*
@@ -154,7 +159,6 @@ void traces_init(settings_conf_t *conf, char *app, int global_rank, int local_ra
         }
     }
     verbose(1, "Tracer plugin '%s%s%s' has been loaded with EAR.", COL_GRE, traces_plugin, COL_CLR);
-
 
     /*
        int ret = symplug_open(traces_plugin, (void **) &trace_syms_fun, trace_syms_nam, trace_syms_n);
@@ -337,6 +341,15 @@ void traces_mpi_end()
         trace_syms_fun.traces_mpi_end();
     }
     return;
+}
+
+void traces_generic_event(int global_rank, int local_rank, int event, int value)
+{
+  debug("traces_generic_event");
+  if (trace_plugin && trace_syms_fun.traces_generic_event != NULL){
+    trace_syms_fun.traces_generic_event(global_rank, local_rank, event, value);
+  }
+  return;
 }
 
 #endif

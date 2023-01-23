@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef COMMON_UTILS_OVERHEAD_H
@@ -20,7 +20,7 @@
 
 #include <common/types.h>
 
-#define ENABLE_OVERHEAD 0
+#define ENABLE_OVERHEAD 1
 
 void overhead_suscribe(const char *description, uint *id);
 
@@ -28,6 +28,8 @@ void overhead_start(uint id);
 
 void overhead_stop(uint id);
 
-void overhead_report();
+void overhead_report(int print_header);
+
+void overhead_print_header();
 
 #endif //COMMON_UTILS_OVERHEAD_H

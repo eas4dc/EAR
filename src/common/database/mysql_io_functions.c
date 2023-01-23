@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <time.h>
@@ -106,7 +106,7 @@
 
 #define PERIODIC_AGGREGATION_MYSQL_QUERY "INSERT INTO Periodic_aggregations (DC_energy, start_time, end_time, eardbd_host) VALUES (?, ?, ?, ?)"
 
-#define EAR_EVENT_MYSQL_QUERY         "INSERT INTO Events (timestamp, event_type, job_id, step_id, freq, node_id) VALUES (?, ?, ?, ?, ?, ?)"
+#define EAR_EVENT_MYSQL_QUERY         "INSERT INTO Events (timestamp, event_type, job_id, step_id, value, node_id) VALUES (?, ?, ?, ?, ?, ?)"
 
 #if EXP_EARGM
 #define EAR_WARNING_MYSQL_QUERY "INSERT INTO Global_energy2 (energy_percent, warning_level, inc_th, p_state, GlobEnergyConsumedT1, "\
@@ -302,7 +302,7 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
         return EAR_ERROR;
     }
     
-    char is_learning = app[0].is_learning;
+    char is_learning = app[0].is_learning & USE_LEARNING_APPS;
     char is_mpi      = app[0].is_mpi;
     
     int i;
@@ -350,7 +350,7 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
         sig_id = mysql_batch_insert_signatures(connection, cont, is_learning, num_apps);
 
         if (sig_id < 0)
-            verbose(VMYSQL,"Unknown error when writing signature to database. (%ld)\n",sig_id);
+            verbose(VMYSQL,"Unknown error when writing signature to database. (%lld)\n",sig_id);
 
         for (i = 0; i < num_apps; i++)
             sigs_ids[i] = sig_id + i*autoincrement_offset;
@@ -438,7 +438,7 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
 
 int mysql_batch_insert_jobs(MYSQL *connection, application_t *app, int num_apps)
 {
-    char is_learning = app[0].is_learning;
+    char is_learning = app[0].is_learning & USE_LEARNING_APPS;
 
     MYSQL_STMT *statement = mysql_stmt_init(connection);
     if (!statement) return EAR_MYSQL_ERROR;
@@ -528,7 +528,7 @@ int mysql_batch_insert_jobs(MYSQL *connection, application_t *app, int num_apps)
 
 int mysql_batch_insert_applications_no_mpi(MYSQL *connection, application_t *app, int num_apps)
 {
-    char is_learning = app[0].is_learning;
+    char is_learning = app[0].is_learning & USE_LEARNING_APPS;
     MYSQL_STMT *statement = mysql_stmt_init(connection);
     if (!statement) return EAR_MYSQL_ERROR;
 
@@ -627,6 +627,7 @@ int mysql_batch_insert_applications_no_mpi(MYSQL *connection, application_t *app
 
 int mysql_retrieve_applications(MYSQL *connection, char *query, application_t **apps, char is_learning)
 {
+	is_learning &= USE_LEARNING_APPS;
     MYSQL_STMT *statement = mysql_stmt_init(connection);
     if (!statement) return EAR_MYSQL_ERROR;
     application_t *app_aux = xcalloc(1, sizeof(application_t));
@@ -719,9 +720,9 @@ int mysql_retrieve_applications(MYSQL *connection, char *query, application_t **
         if (is_mpi)
         {
             if (is_learning)
-                sprintf(sig_query, "SELECT * FROM Learning_signatures WHERE id=%ld", sig_id);
+                sprintf(sig_query, "SELECT * FROM Learning_signatures WHERE id=%lld", sig_id);
             else
-                sprintf(sig_query, "SELECT * FROM Signatures WHERE id=%ld", sig_id);
+                sprintf(sig_query, "SELECT * FROM Signatures WHERE id=%lld", sig_id);
             int num_sigs = mysql_retrieve_signatures(connection, sig_query, &sig_aux);
             if (num_sigs > 0) {
                 signature_copy(&app_aux->signature, sig_aux);
@@ -876,7 +877,7 @@ int mysql_retrieve_loops(MYSQL *connection, char *query, loop_t **loops)
     }
 
     MYSQL_BIND bind[8];
-    unsigned long sig_id;
+    long long sig_id;
     memset(bind, 0, sizeof(bind));
 
 
@@ -937,7 +938,7 @@ int mysql_retrieve_loops(MYSQL *connection, char *query, loop_t **loops)
     status = mysql_stmt_fetch(statement);
     while (status == 0 || status == MYSQL_DATA_TRUNCATED)
     {
-        sprintf(sig_query, "SELECT * FROM Signatures WHERE id=%lu", sig_id);
+        sprintf(sig_query, "SELECT * FROM Signatures WHERE id=%lld", sig_id);
         mysql_retrieve_signatures(connection, sig_query, &sig_aux);
 
         if (sig_aux != NULL) { //to prevent it from crashing
@@ -1172,12 +1173,12 @@ int mysql_batch_insert_avg_signatures(MYSQL *connection, application_t *app, int
 }
 
 //returns id of the first inserted signature
-int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont, char is_learning, int num_sigs)
+long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont, char is_learning, int num_sigs)
 {
+	is_learning &= USE_LEARNING_APPS;
     MYSQL_STMT *statement = mysql_stmt_init(connection);
 
     if (!statement) return EAR_MYSQL_ERROR;
-    signature_t *signature;
     char *query, *params;
     int i, j, num_params;
 
@@ -1220,7 +1221,7 @@ int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont,
         strcat(query, params);
 
 #if USE_GPUS
-    long int *gpu_sig_ids, current_gpu_sig_id = 0, starter_gpu_sig_id;
+    long int *gpu_sig_ids = NULL, current_gpu_sig_id = 0, starter_gpu_sig_id;
     starter_gpu_sig_id = mysql_batch_insert_gpu_signatures(connection, cont, num_sigs);
     if (starter_gpu_sig_id >= 0)
     {
@@ -1231,6 +1232,10 @@ int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont,
                 gpu_sig = &cont.app[i].signature.gpu_sig;
             else if (cont.type == EAR_TYPE_LOOP)
                 gpu_sig = &cont.loop[i].signature.gpu_sig;
+            else {
+                warning("container type unrecognized");
+                continue;
+            }
 
             current_gpu_sig_id += gpu_sig->num_gpus;
         }
@@ -1286,6 +1291,7 @@ int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont,
             bind[offset+j].is_unsigned = 1;
         }
 
+        signature_t *signature = NULL;
 
         //storage variables assignation
         if (cont.type == EAR_TYPE_APPLICATION)
@@ -1295,6 +1301,8 @@ int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont,
         else if (cont.type == EAR_TYPE_LOOP)
         {
             signature = &cont.loop[i].signature;
+        } else {
+            continue;
         }
 
         bind[0+offset].buffer = (char *)&signature->DC_power;
@@ -1324,7 +1332,7 @@ int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont,
             bind[22+offset].buffer = (char *)&signature->avg_imc_f;
             bind[23+offset].buffer = (char *)&signature->def_f;
 #if USE_GPUS
-            if (signature->gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0) //if there are gpu signatures and no error occured
+            if (signature->gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0) // if there are gpu signatures and no error occured
             {
                 bind[24+offset].buffer = (char *)&gpu_sig_ids[current_gpu_sig_id];
 
@@ -1386,7 +1394,7 @@ int mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont,
         return mysql_statement_error(statement);
     }
 
-    int id = mysql_stmt_insert_id(statement);
+    long long id = mysql_stmt_insert_id(statement);
 
     long long affected_rows = mysql_stmt_affected_rows(statement);
 
@@ -1510,18 +1518,21 @@ int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs
     if (mysql_stmt_bind_result(statement, bind)) 
     {
         free(sig_aux);
+		free(bind);
         return mysql_statement_error(statement);
     }
 
     if (mysql_stmt_execute(statement)) 
     {
         free(sig_aux);
+		free(bind);
         return mysql_statement_error(statement);
     }
 
     if (mysql_stmt_store_result(statement)) 
     {
         free(sig_aux);
+		free(bind);
         return mysql_statement_error(statement);
     }
 
@@ -1531,6 +1542,7 @@ int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs
     {
         mysql_stmt_close(statement);
         free(sig_aux);
+		free(bind);
         return EAR_ERROR;
     }
 
@@ -1561,6 +1573,7 @@ int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs
         status = mysql_stmt_fetch(statement);
         i++;
     }
+	free(bind);
     free(sig_aux);
     if (mysql_stmt_close(statement)) {
         free(sigs_aux);
@@ -1685,7 +1698,7 @@ int mysql_batch_insert_power_signatures(MYSQL *connection, application_t *pow_si
 }
 
 #if USE_GPUS
-int mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t cont, int num_sigs)
+long long mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t cont, int num_sigs)
 {
     int i, j, k;
     int offset = 0, num_gpu_sigs = 0;
@@ -1695,18 +1708,25 @@ int mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t c
 
     gpu_signature_t *gpu_sig;
 
-    //GPU_signature total counts might be different of the number of signatures
+    // GPU_signature total counts might be different of the number of signatures
     for (i = 0; i < num_sigs; i++)
     {
+
         if (cont.type == EAR_TYPE_APPLICATION)
             gpu_sig = &cont.app[i].signature.gpu_sig;
         else if (cont.type == EAR_TYPE_LOOP)
             gpu_sig = &cont.loop[i].signature.gpu_sig;
+        else {
+            warning("Container type isn't an application nor a loop.");
+            continue;
+        }
 
-        if (gpu_sig->num_gpus > MAX_GPUS_SUPPORTED)
-            warning("current GPU signature has more GPUs than supported");
+        if (gpu_sig) {
+            if (gpu_sig->num_gpus > MAX_GPUS_SUPPORTED)
+                warning("current GPU signature has more GPUs than supported");
 
-        num_gpu_sigs += ear_min(gpu_sig->num_gpus, MAX_GPUS_SUPPORTED);
+            num_gpu_sigs += ear_min(gpu_sig->num_gpus, MAX_GPUS_SUPPORTED);
+        }
     }
 
     verbose(VMYSQL + 1, "total number of gpu_sigs: %d", num_gpu_sigs);
@@ -1731,12 +1751,17 @@ int mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t c
 
     MYSQL_BIND *bind = xcalloc(num_gpu_sigs*GPU_SIGNATURE_ARGS, sizeof(MYSQL_BIND));
 
-    for (i = 0; i < num_sigs;  i++)
+    for (i = 0; i < num_sigs; i++)
     {
+
         if (cont.type == EAR_TYPE_APPLICATION)
             gpu_sig = &cont.app[i].signature.gpu_sig;
         else if (cont.type == EAR_TYPE_LOOP)
             gpu_sig = &cont.loop[i].signature.gpu_sig;
+        else {
+            warning("Container type isn't an application nor a loop.");
+            continue;
+        }
 
         for (j = 0; j < gpu_sig->num_gpus; j++)
         {
@@ -1758,7 +1783,6 @@ int mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t c
 
             offset += GPU_SIGNATURE_ARGS;
         }
-
     }
 
     if (offset/GPU_SIGNATURE_ARGS < num_gpu_sigs) { verbose(VMYSQL, "Assigned less signatures than allocated"); }
@@ -1778,7 +1802,7 @@ int mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t c
         return mysql_statement_error(statement);
     }
 
-    int id = mysql_stmt_insert_id(statement);
+    long long id = mysql_stmt_insert_id(statement);
 
     long long affected_rows = mysql_stmt_affected_rows(statement);
 
@@ -1997,6 +2021,7 @@ int mysql_insert_periodic_metric(MYSQL *connection, periodic_metric_t *per_met)
 {
     return mysql_batch_insert_periodic_metrics(connection, per_met, 1);
 }
+
 int mysql_batch_insert_periodic_metrics(MYSQL *connection, periodic_metric_t *per_mets, int num_mets)
 {
     MYSQL_STMT *statement = mysql_stmt_init(connection);
@@ -2308,7 +2333,7 @@ int mysql_insert_gm_warning(MYSQL *connection, gm_warning_t *warning)
 }
 
 
-int mysql_run_query_string_results(MYSQL *connection, char *query, char ****results, int *num_columns)
+int mysql_run_query_string_results(MYSQL *connection, char *query, char ****results, int *num_columns, int *num_r)
 {
     int i, j;
     int num_rows, num_cols;
@@ -2316,13 +2341,16 @@ int mysql_run_query_string_results(MYSQL *connection, char *query, char ****resu
     MYSQL_RES *result;
     MYSQL_ROW row;
 
-    if (mysql_query(connection, query))
-    {
+    if (mysql_query(connection, query)) {
         error("Error executing query");
         return EAR_ERROR;
     }
 
     result = mysql_store_result(connection);
+	if (result == NULL) {
+        error("Error storing result. Check the query types.");
+        return EAR_ERROR;
+    }
 
     num_rows = mysql_num_rows(result);
     num_cols = mysql_num_fields(result);
@@ -2345,13 +2373,13 @@ int mysql_run_query_string_results(MYSQL *connection, char *query, char ****resu
 
         for (j = 0; j < num_cols; j++)
         {
-            if (row[i] == NULL)
+            if (row[j] == NULL)
             {
                 tmp_res[i][j] = NULL;
                 continue;
             }
-            tmp_res[i][j] = calloc(strlen(row[i]), sizeof(char));
-            strcpy(tmp_res[i][j], row[i]);
+            tmp_res[i][j] = calloc(strlen(row[j]) + 1, sizeof(char));
+            strcpy(tmp_res[i][j], row[j]);
         }
 
     }
@@ -2361,7 +2389,8 @@ int mysql_run_query_string_results(MYSQL *connection, char *query, char ****resu
 
     *results = tmp_res;
     *num_columns = num_cols;
-    return num_rows;
+	*num_r = num_rows;
+    return EAR_SUCCESS;
 
 }
 

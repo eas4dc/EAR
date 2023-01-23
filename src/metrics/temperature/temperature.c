@@ -10,13 +10,14 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdlib.h>
 #include <common/output/debug.h>
+#include <metrics/common/apis.h>
 #include <metrics/temperature/temperature.h>
 #include <metrics/temperature/archs/amd17.h>
 #include <metrics/temperature/archs/intel63.h>
@@ -30,6 +31,9 @@ static struct temp_ops
 	state_t (*read)          (ctx_t *c, llong *temp, llong *average);
 } ops;
 
+static uint api = API_NONE;
+static uint devs_count;
+
 state_t temp_load(topology_t *tp)
 {
 	if (ops.init != NULL) {
@@ -41,18 +45,21 @@ state_t temp_load(topology_t *tp)
 		ops.read          = temp_intel63_read;
 		ops.count_devices = temp_intel63_count_devices;
 		debug("selected intel63 temperature");
+        api = API_INTEL63;
 	} else if (state_ok(temp_amd17_status(tp))) {
 		ops.init          = temp_amd17_init;
 		ops.dispose       = temp_amd17_dispose;
 		ops.read          = temp_amd17_read;
 		ops.count_devices = temp_amd17_count_devices;
 		debug("selected amd17 temperature");
+        api = API_AMD17;
 	} else if (state_ok(temp_dummy_status(tp))) {
 		ops.init          = temp_dummy_init;
 		ops.dispose       = temp_dummy_dispose;
 		ops.read          = temp_dummy_read;
 		ops.count_devices = temp_dummy_count_devices;
 		debug("selected dummy temperature");
+        api = API_DUMMY;
 	}
 	if (ops.init == NULL) {
 		return_msg(EAR_ERROR, Generr.api_incompatible);
@@ -60,9 +67,21 @@ state_t temp_load(topology_t *tp)
 	return EAR_SUCCESS;
 }
 
+void temp_get_api(uint *api_in)
+{
+    *api_in = api;
+}
+
 state_t temp_init(ctx_t *c)
 {
-	preturn(ops.init, c);
+    state_t s = EAR_SUCCESS;
+    if (state_fail(s = ops.init(c))) {
+        return s;
+    }
+	if (state_fail(s = temp_count_devices(c, &devs_count))) {
+		return s;
+	}
+    return s;
 }
 
 state_t temp_dispose(ctx_t *c)
@@ -75,54 +94,50 @@ state_t temp_count_devices(ctx_t *c, uint *count)
 	preturn(ops.count_devices, c, count);
 }
 
+// Getters
+state_t temp_read(ctx_t *c, llong *temp, llong *average)
+{
+	preturn(ops.read, c, temp, average);
+}
+
 // Data
-state_t temp_data_alloc(ctx_t *c, llong **temp, uint *temp_count)
+state_t temp_data_alloc(llong **temp)
 {
-	uint socket_count;
-	state_t s;
-	if (temp == NULL) {
-		return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
-	}
-	if (xtate_fail(s, temp_count_devices(c, &socket_count))) {
-		return s;
-	}
-	if ((*temp = (llong *) calloc(socket_count, sizeof(llong))) == NULL) {
-		return_msg(EAR_ERROR, strerror(errno));
-	}
-	if (temp_count != NULL) {
-		*temp_count = socket_count;
-	}
-	return EAR_SUCCESS;
-}
-
-state_t temp_data_copy(ctx_t *c, llong *temp2, llong *temp1)
-{
-	uint socket_count;
-	state_t s;
-	if (temp2 == NULL || temp1 == NULL) {
-		return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
-	}
-	if (xtate_fail(s, temp_count_devices(c, &socket_count))) {
-		return s;
-	}
-	if (memcpy((void *) temp2, (const void *) temp1, sizeof(llong)*socket_count) != temp2) {
+	if ((*temp = (llong *) calloc(devs_count, sizeof(llong))) == NULL) {
 		return_msg(EAR_ERROR, strerror(errno));
 	}
 	return EAR_SUCCESS;
 }
 
-state_t temp_data_free(ctx_t *c, llong **temp)
+state_t temp_data_copy(llong *temp2, llong *temp1)
 {
-	if (temp == NULL || *temp == NULL) {
-		return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
+	if (memcpy((void *) temp2, (const void *) temp1, sizeof(llong)*devs_count) != temp2) {
+		return_msg(EAR_ERROR, strerror(errno));
 	}
+	return EAR_SUCCESS;
+}
+
+state_t temp_data_free(llong **temp)
+{
 	free(*temp);
 	*temp = NULL;
 	return EAR_SUCCESS;
 }
 
-// Getters
-state_t temp_read(ctx_t *c, llong *temp, llong *average)
+void temp_data_print(llong *list, llong avrg, int fd)
 {
-	preturn(ops.read, c, temp, average);
+    char buffer[1024];
+    temp_data_tostr(list, avrg, buffer, 1024);
+    dprintf(fd, "%s", buffer); 
+}
+
+void temp_data_tostr(llong *list, llong avrg, char *buffer, int length)
+{
+    ullong a = 0;
+    int i;
+
+    for (i = 0; i < devs_count; ++i) {
+        a += sprintf(&buffer[a], "%lld\t", list[i]);
+    }
+    sprintf(&buffer[a], "avg %lld (Celsius)\n", avrg);
 }

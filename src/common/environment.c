@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <errno.h>
@@ -548,4 +548,25 @@ state_t read_config_env(char **var, const char* sched_env_var){
 state_t read_config(uint *var, const char *config_var){
     *var = (uint)atoi(config_var);
     return EAR_SUCCESS;
+}
+
+char *ear_getenv(const char *name)
+{
+    static char *pfx[] = { "EAR_", "SCHED_", "SLURM_", "OAR_", "PBS_" };
+    static int pfx_n = 5;
+    char buffer[32];
+    char *var;
+    int i;
+
+    for (i = 0; i < pfx_n; ++i) {
+        // clean and concat
+        buffer[0] = '\0';
+        strcat(buffer, pfx[i]);
+        strcat(buffer, name);
+        debug("%s", buffer);
+        if ((var = getenv((const char *) buffer)) != NULL) {
+            return var;
+        }
+    }
+    return NULL;
 }

@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <math.h>
@@ -155,7 +155,7 @@ void init_db_helper(db_conf_t *conf)
 float run_query_float_result(char *query)
 {
     MYSQL_RES *result = db_run_query_result(query);
-    float num_indexes;
+    float num_indexes = 0;
     if (result == NULL) {
         verbose(VDBH, "Error while retrieving result");
         return EAR_ERROR;
@@ -171,6 +171,7 @@ float run_query_float_result(char *query)
             for(i = 0; i < num_fields; i++)
                 num_indexes = atof(row[i]);
         }
+		mysql_free_result(result);
     }
     return num_indexes;
 }
@@ -178,7 +179,7 @@ float run_query_float_result(char *query)
 int run_query_int_result(char *query)
 {
     MYSQL_RES *result = db_run_query_result(query);
-    int num_indexes;
+    int num_indexes = 0;
     if (result == NULL) {
         verbose(VDBH, "Error while retrieving result");
         return EAR_ERROR;
@@ -194,6 +195,7 @@ int run_query_int_result(char *query)
             for(i = 0; i < num_fields; i++)
                 num_indexes = atoi(row[i]);
         }
+		mysql_free_result(result);
     }
     return num_indexes;
 }
@@ -1490,6 +1492,7 @@ int db_read_applications(application_t **apps,uint is_learning, int max_apps, ch
         verbose(VDBH, "ERROR: querying less than 1 app is not possible (%d requested).\n", max_apps);
         return EAR_ERROR;
     }
+	is_learning &= USE_LEARNING_APPS;
 
     char query[512];
     if (is_learning && node_name != NULL)
@@ -1647,6 +1650,7 @@ ulong get_num_applications(char is_learning, char *node_name)
     ulong ret = 0;
     char query[256];
 
+	is_learning &= USE_LEARNING_APPS;
     if (is_learning && node_name != NULL)
         sprintf(query, LEARNING_APPS_QUERY, node_name);
     else if (!is_learning && node_name != NULL)
@@ -1691,17 +1695,35 @@ float get_max_dc_power(char is_max, char *app_name, ulong freq)
 #endif
 }
 
-int db_run_query_string_results(char *query, char ****results, int *num_columns)
+int db_run_query_string_results(char *query, char ****results, int *num_columns, int *num_rows)
 {
 
 #if DB_MYSQL
+	int ret;
     MYSQL *connection = mysql_create_connection();
 
     if (connection == NULL) {
         return EAR_ERROR;
     }
-    return mysql_run_query_string_results(connection, query, results, num_columns);
+    ret = mysql_run_query_string_results(connection, query, results, num_columns, num_rows);
+    mysql_close(connection);
+	return ret;
 #else
-    return 0;
+    return EAR_ERROR;
 #endif
+}
+
+void db_free_results(char ***results, int num_cols, int num_rows)
+{
+	int i, j;
+	if (results == NULL) return; //the nullity checks probably are unnecessary, but it doesn't hurt
+	for (i = 0; i < num_rows; i++) {
+		if (results[i] == NULL) continue;
+		for (j = 0; j < num_cols; j++) {
+			if (results[i][j] == NULL) continue;
+			free(results[i][j]);
+		}
+		free(results[i]);
+	}
+	free(results);
 }

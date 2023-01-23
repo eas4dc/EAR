@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _EAR_TYPES_JOB
@@ -46,22 +46,22 @@ typedef struct job
 
 typedef struct job
 {
-	job_id 	id;
-	job_id 	step_id;
-	char 	user_id[GENERIC_NAME];
-	char 	group_id[GENERIC_NAME];
-	char 	app_id[GENERIC_NAME];
-	char    user_acc[GENERIC_NAME];
-	char	energy_tag[ENERGY_TAG_SIZE];
-    time_t 	start_time;
-	time_t	end_time;
-	time_t 	start_mpi_time;
-	time_t	end_mpi_time;
-	char 	policy[POLICY_NAME];
-	double  th;
-	ulong 	procs; 
-	job_type	type;	
-	ulong 		def_f;
+	job_id 	 id;
+	job_id 	 step_id;
+	char 	 user_id[GENERIC_NAME];
+	char 	 group_id[GENERIC_NAME];
+	char 	 app_id[GENERIC_NAME];
+	char     user_acc[GENERIC_NAME];
+	char	 energy_tag[ENERGY_TAG_SIZE];
+    time_t 	 start_time;
+	time_t	 end_time;
+	time_t 	 start_mpi_time;
+	time_t	 end_mpi_time;
+	char 	 policy[POLICY_NAME];
+	double   th;
+	ulong 	 procs; 
+	job_type type;	
+	ulong    def_f;
 } job_t;
 
 

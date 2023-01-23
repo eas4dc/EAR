@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef EAR_POLICIES_CTX_H
@@ -53,11 +53,11 @@ typedef struct node_freqs {
 typedef struct policy_context {
 	settings_conf_t *app;
 	resched_t *reconfigure;
-	unsigned long user_selected_freq;
-	unsigned long reset_freq_opt;
-	unsigned long *ear_frequency;
-	unsigned int  num_pstates;
-	unsigned int use_turbo;
+	ulong user_selected_freq;
+	ulong reset_freq_opt;
+	ulong *ear_frequency;
+	uint  num_pstates;
+	uint use_turbo;
 	//job_t 		*my_job
 	ctx_t     gpu_mgt_ctx;
 	uint      num_gpus;
@@ -79,6 +79,8 @@ typedef struct node_freq_domain {
 #define POL_GRAIN_CORE 1
 #define POL_DEFAULT    2
 #define POL_NOT_SUPPORTED 100
+#define ALL_PROCESSES     -1
+#define NO_PROCESS        -2
 
 typedef struct policy_symbols {
     state_t (*init)               (polctx_t *c);
@@ -91,11 +93,12 @@ typedef struct policy_symbols {
     state_t (*loop_init)          (polctx_t *c, loop_id_t *loop_id);
     state_t (*loop_end)           (polctx_t *c, loop_id_t *loop_id);
     state_t (*new_iter)           (polctx_t *c, signature_t *sig);
-    state_t (*mpi_init)           (polctx_t *c, mpi_call call_type);
-    state_t (*mpi_end)            (polctx_t *c, mpi_call call_type);
+    state_t (*mpi_init)           (polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id);
+    state_t (*mpi_end)            (polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id);
     state_t (*configure)          (polctx_t *c);
     state_t (*domain)             (polctx_t *c, node_freq_domain_t *domain);
 	state_t (*io_settings)        (polctx_t *c, signature_t *my_sig, node_freqs_t *freqs);
+  state_t (*cpu_gpu_settings) (polctx_t *c,signature_t *my_sig,node_freqs_t *freqs);
 	state_t (*busy_wait_settings) (polctx_t *c, signature_t *my_sig, node_freqs_t *freqs);
 	state_t (*restore_settings)   (polctx_t *c, signature_t *my_sig, node_freqs_t *freqs);
 } polsym_t;

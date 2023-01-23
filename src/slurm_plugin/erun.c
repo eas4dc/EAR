@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <sys/wait.h>
@@ -20,6 +20,7 @@
 #include <slurm_plugin/slurm_plugin_environment.h>
 #include <slurm_plugin/slurm_plugin_serialization.h>
 #include <slurm_plugin/erun_lock.h>
+#include <slurm_plugin/erun_signals.h>
 
 //
 extern plug_serialization_t sd;
@@ -334,10 +335,16 @@ int main(int argc, char *argv[])
 	// Creating job and reading arguments
 	job(argc, argv);
 
+    // Signals initialization
+    signals();
+
 	// Clean
 	if (_clean) {
-	    plug_verbose(_sp, 0, "cleaning temporal folder");
-		return all_clean(path_tmp);
+        // Cleaning $EAR_TMP/erun folder
+	    plug_verbose(_sp, 0, "cleaning erun folder");
+		all_clean(path_tmp);
+       
+         return 0;
 	}
 
 	// Help
@@ -360,7 +367,7 @@ int main(int argc, char *argv[])
 				//
 				sleep(2);
 				//
-				folder_clean(path_tmp, sd.erun.job_id);
+				folder_clean(sd.erun.job_id);
 			}
 			return 0;	
 		}
@@ -372,7 +379,7 @@ int main(int argc, char *argv[])
 			execute(_argc, _argv);
 			//
 			if (sd.erun.is_master) {	
-				folder_clean(path_tmp, sd.erun.job_id);
+				folder_clean(sd.erun.job_id);
 			}
 			return 0;	
 		}
@@ -380,14 +387,17 @@ int main(int argc, char *argv[])
 
 	// Simulating the single pipeline, take the lock.master
 	if ((sd.erun.is_master = lock_master(path_tmp, sd.erun.job_id))) {
-		plug_verbose(_sp, 2, "got the lock file");
-		// Take the lock.job and read its old step id
-		sd.erun.step_id = lock_job(path_tmp, sd.erun.job_id, sd.erun.step_id);
+		plug_verbose(_sp, 2, "subject '%d' is erun master? '%d' (got the lock file)",
+            getpid(), sd.erun.is_master);
+		// Read old step id in master.step.id
+		sd.erun.step_id = master_getstep(sd.erun.job_id, sd.erun.step_id);
 	} else {
-		plug_verbose(_sp, 4, "missed the lock file, spinlock");
-		// plug_verbosity_silence(_sp);
-		// Spinlock over lock.step
-		sd.erun.step_id = spinlock_step(path_tmp, sd.erun.job_id, sd.erun.step_id);
+		plug_verbose(_sp, 3, "subject '%d' is erun master? '%d' (missed the lock file and then spinlock)",
+            getpid(), sd.erun.is_master);
+		// Spinlock over lock.slave
+		spinlock_slave(sd.erun.job_id);
+        // Get slave.step.id
+		sd.erun.step_id = slave_getstep(sd.erun.job_id, sd.erun.step_id);
 	}
 
 	// Creating step
@@ -400,7 +410,7 @@ int main(int argc, char *argv[])
 
 	if (sd.erun.is_master) {
 		// Free lock.step
-		unlock_step(path_tmp, sd.erun.job_id, sd.erun.step_id);
+		unlock_slave(sd.erun.job_id, sd.erun.step_id);
 	}
 
 	execute(_argc, _argv);
@@ -415,7 +425,7 @@ int main(int argc, char *argv[])
 	pipeline(_argc, _argv, Context.srun, Action.exit);
 
 	if (sd.erun.is_master) {
-		lock_clean(path_tmp, sd.erun.job_id, sd.erun.step_id);
+		files_clean(sd.erun.job_id, sd.erun.step_id);
 	}
 
 	return 0;

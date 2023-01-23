@@ -1,27 +1,39 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #define _GNU_SOURCE
+#define FAKE_POWER_READING  0
+#define FAKE_ENERGY_READING 0
 
 // #define SHOW_DEBUGS            1
+
 #define INFO_METRICS           2
 #define IO_VERB                3
 #define SET_DYN_UNC_BY_DEFAULT 1
 #define MPI_VERB               3
+#define GPU_VERB               2
+#define VERBOSE_CUPTI          2
+#define PHASES_SUMMARY_VERB    2
+#define CPUPRIO_VERB           2
+#define ERROR_VERB             2
+#define TPI_DEBUG              4
+#define ENERGY_EFF_VERB        2
+
+#define DEF_READ_CUPTI_METRICS 0
 
 #if !SHOW_DEBUGS
 #define NDEBUG // Disable asserts
@@ -45,15 +57,24 @@
 
 #include <library/api/clasify.h>
 #include <library/loader/module_cuda.h>
+#include <library/common/utils.h>
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
 #include <library/common/library_shared_data.h>
 #include <library/metrics/metrics.h>
 #include <library/metrics/energy_node_lib.h>
 #include <library/policies/common/mpi_stats_support.h> /* Should we move this file out out policies? */
+#include <library/tracer/tracer.h>
+#include <library/tracer/tracer_paraver_comp.h>
+
 #if USE_GPUS
-#include <library/metrics/gpu.h>
+#define EAR_USE_CUPTI "EAR_USE_CUPTI"
+#include <metrics/gpu/gpu.h>
+#define USE_CUPTI 1
+#if USE_CUPTI
+#include <metrics/gpu/gpuproc.h>
 #endif
+#endif // USE_GPUS
 
 #include <metrics/io/io.h>
 #include <metrics/cpi/cpi.h>
@@ -62,6 +83,7 @@
 #include <metrics/cpufreq/cpufreq.h>
 #include <metrics/imcfreq/imcfreq.h>
 #include <metrics/bandwidth/bandwidth.h>
+#include <metrics/energy_cpu/energy_cpu.h>
 #include <management/cpufreq/cpufreq.h>
 #include <management/imcfreq/imcfreq.h>
 #include <daemon/local_api/eard_api.h>
@@ -80,6 +102,11 @@
 
 // #define MASTER(master_rank) (master_rank >= 0)
 
+// extern configuration from the main ear library
+extern cluster_conf_t cconf;
+
+extern ear_classify_t phases_limits; // Get from ear.c
+
 extern int         dispose;
 // Hardware
 static double      hw_cache_line_size;
@@ -92,14 +119,23 @@ static uint        node_energy_units;
 /* These vectors have position APP for application granularity and LOO for loop granularity */
 static int         num_packs = 0;
 static ull        *metrics_rapl[2];  // nJ (vec)
+#if MPI_OPTIMIZED
+static ull        *metrics_rapl_fine_monitor_start, *metrics_rapl_fine_monitor_end, *metrics_rapl_fine_monitor_diff;
+
+/* This constant must be migrated to config_env */
+#define EAR_REPORT_POWER_TRACE "EAR_REPORT_POWER_TRACE"
+static uint report_power_trace = 0;
+
+#endif
 static ull        *aux_rapl;         // nJ (vec)
 static ull        *last_rapl;        // nJ (vec)
-static ulong       rapl_size;
+static uint        rapl_size;
 static llong       aux_time;
-static edata_t     aux_energy;
-static edata_t     metrics_ipmi[2];  // mJ
+static edata_t     aux_energy = NULL;
+static edata_t     metrics_ipmi[2] = { NULL, NULL};  // mJ
 static ulong       acum_ipmi[2];
-static edata_t     aux_energy_stop;
+static double      total_acum_time = 0;
+static edata_t     aux_energy_stop = NULL;
 static llong       metrics_usecs[2]; // uS
 
 /* In the case of IO we will collect per process, per loop,
@@ -117,20 +153,8 @@ mpi_calls_types_t *metrics_mpi_calls_types[2];      // Contains the data of the 
 mpi_calls_types_t *metrics_last_mpi_calls_types[2];
 
 #if USE_GPUS
-/* These vectors have position APP for application granularity and LOO for loop granularity. */
-static gpu_t      *gpu_metrics_init[2];
-static gpu_t      *gpu_metrics_end[2];
-static gpu_t      *gpu_metrics_diff[2];
-static gpu_t      *gpud_busy;
-static gpu_t      *gpuddiff_busy;
-static ctx_t       gpu_lib_ctx;
-       uint        gpu_initialized      = 0;
-static uint        gpu_loop_stopped     = 0;
-static uint        earl_gpu_model       = MODEL_UNDEFINED;
-
-char               gpu_str[256];
-uint               ear_num_gpus_in_node = 0;
-#endif
+       char        gpu_str[256];
+#endif // USE_GPUS
 
 /* These vectors have position APP for application granularity and LOO for loop granularity. */
 static llong       last_elap_sec = 0;
@@ -177,27 +201,77 @@ static cpi_t       cpi_read1[2];
 static cpi_t       cpi_read2[2];
 static cpi_t       cpi_diff[2];
 static double      cpi_avrg[2];
+#if USE_GPUS
+static gpu_t      *gpu_metrics_read1[2];
+static gpu_t      *gpu_metrics_read2[2];
+static gpu_t      *gpu_metrics_diff[2];
+static gpu_t      *gpu_metrics_busy;
+static gpu_t      *gpu_metrics_busy_diff;
+#endif // USE_GPUS
+
 
 /* New metrics */
-static metrics_t   mgt_cpufreq;
-static metrics_t   mgt_imcfreq;
-static metrics_t   met_cpufreq;
-static metrics_t   met_imcfreq;
-static metrics_t   met_bwidth;
-static metrics_t   met_flops;
-static metrics_t   met_cache;
-static metrics_t   met_cpi;
+static metrics_t         mgt_cpufreq;
+static metrics_t         mgt_imcfreq;
+static metrics_t         met_cpufreq;
+static metrics_t         met_imcfreq;
+static metrics_t         met_bwidth;
+static metrics_t         met_energy;
+static metrics_t         met_flops;
+static metrics_t         met_cache;
+static metrics_t         met_cpi;
+static metrics_t         mgt_cpuprio;
+
+
+#if USE_GPUS
+static metrics_gpus_t mgt_gpu;
+static metrics_gpus_t met_gpu;
+#if USE_CUPTI
+static uint read_cupti_metrics = DEF_READ_CUPTI_METRICS;
+static metrics_gpus_t proc_gpu;
+/* 0 for LOOP, 1 for APP */
+static gpuproc_t     *proc_gpu_data_init[2];
+static gpuproc_t     *proc_gpu_data_end[2];
+static gpuproc_t     *proc_gpu_data_diff[2];
+static char gpu_proc_buffer[256];
+#endif
+#endif // USE_GPUS
 
 /* New status */
-static int master = -1;
+static int  master = -1;
 static uint eard;
+
+static double dc_power_ratio;
+static uint   dc_power_ratio_instances  = 0;
 
 /* Energy saving app event */
 static ear_event_t app_energy_saving;
+static ear_event_t app_phase_summary;
 extern report_id_t rep_id;
+
+
+extern uint last_earl_phase_classification;
+extern timestamp init_last_phase, init_last_comp;
+extern uint policy_cpu_bound ;
+extern uint policy_mem_bound ;
+
 
 /** Compute the total node I/O data. */
 static state_t metrics_compute_total_io(io_data_t *total);
+
+
+/** This function is called before any API initialization. It's used to read envorironment
+ * variables that enable/disable the load of some APIs. By now, these are CUPTI. */
+static void read_metrics_options();
+
+
+/** Loads the energy plug-in. */
+static state_t energy_lib_init(settings_conf_t *conf);
+
+
+/** Private function to perfom last operations before returning from dispose call. */
+static void metrics_static_dispose();
+
 
 node_freq_domain_t earl_default_domains = {
 	.cpu 	= POL_DEFAULT,
@@ -205,6 +279,7 @@ node_freq_domain_t earl_default_domains = {
 	.gpu 	= POL_DEFAULT,
 	.gpumem = POL_DEFAULT,
 };
+
 
 const metrics_t *metrics_get(uint api)
 {
@@ -217,9 +292,22 @@ const metrics_t *metrics_get(uint api)
         case MET_FLOPS:   return &met_flops;
         case MET_CACHE:   return &met_cache;
         case MET_CPI:     return &met_cpi;
+        case API_ISST:    return &mgt_cpuprio;
         default: return NULL;
     }
 }
+
+#if USE_GPUS
+const metrics_gpus_t *metrics_gpus_get(uint api)
+{
+    switch(api) {
+        case MGT_GPU:     return &mgt_gpu;
+        case MET_GPU:     return &met_gpu;
+        default: return NULL;
+    }
+}
+#endif // USE_GPUS
+
 
 static void metrics_configuration(topology_t *tp)
 {
@@ -229,49 +317,49 @@ static void metrics_configuration(topology_t *tp)
 	if (eards_connected()) {
 		verbose_master(2, "EARD connected");
 	}else {
-		verbose_master(2, "EARD not connected. Switch to monitoring?");
+		verbose_master(ERROR_VERB, "EARD not connected. Switch to monitoring?");
 	}
 	if (!mgt_cpufreq.ok){
-		verbose_master(2, "Mgt cpufreq is not ok, switching to monitoring");
+		verbose_master(ERROR_VERB, "Mgt cpufreq is not ok, switching to monitoring");
 		earl_default_domains.cpu = POL_NOT_SUPPORTED;
 		topology_tostr(tp, topo_str, sizeof(topo_str));
-		verbose_master(2,"%s", topo_str);
+		verbose_master(ERROR_VERB,"%s", topo_str);
 		if (topology_freq_getbase(0, &freq_base) == EAR_SUCCESS){
-			verbose_master(2, "Frequency detected %lu", freq_base);
+			verbose_master(ERROR_VERB, "Frequency detected %lu", freq_base);
 		}
 	}
 	if (!mgt_imcfreq.ok){
-		verbose_master(2, "Mgt imcfreq is not ok, swtching to monitoring for IMC");
+		verbose_master(ERROR_VERB, "Mgt imcfreq is not ok, swtching to monitoring for IMC");
 		earl_default_domains.mem = POL_NOT_SUPPORTED;
 	}
-	/* This must be migrated to mgt_gpu.ok */
-	#if USE_GPUS
-	if (earl_gpu_model == MODEL_DUMMY) {
-		verbose_master(2, "GPU dummy, swtching to monitoring for GPU");
-		earl_default_domains.gpu = POL_NOT_SUPPORTED;
-	}
-	#endif
-	if (!met_cpufreq.ok && mgt_cpufreq.ok){
-		verbose_master(2, "Avg cpufreq is not ok. Using mgt_cpufreq");
+#if USE_GPUS
+    if (!mgt_gpu.ok) {
+        verbose_master(GPU_VERB, "%sWARNING%s GPU dummy API, swtching to monitoring for GPU.", COL_YLW, COL_CLR);
+        earl_default_domains.gpu = POL_NOT_SUPPORTED;
+    }
+#endif // USE_GPUS
+	if (!met_cpufreq.ok && mgt_cpufreq.ok) {
+		verbose_master(ERROR_VERB, "Avg cpufreq is not ok. Using mgt_cpufreq");
 	}
 	if (!met_imcfreq.ok && mgt_imcfreq.ok){
-		verbose_master(2, "Avg imcfreq is not ok. Using mgt_imcfreq");
+		verbose_master(ERROR_VERB, "Avg imcfreq is not ok. Using mgt_imcfreq");
 	}
   if (! met_bwidth.ok){
-		verbose_master(2, "Mem bandwith not ok. swtching to monitoring");
+		verbose_master(ERROR_VERB, "Mem bandwith not ok. swtching to monitoring");
 		earl_default_domains.cpu = POL_NOT_SUPPORTED;
 	}
   if(!met_flops.ok){
-		verbose_master(2, "FLOPS not available");
+		verbose_master(ERROR_VERB, "FLOPS not available");
 	}
   if (!met_cache.ok){
-		verbose_master(2, "Cache not available");
+		verbose_master(ERROR_VERB, "Cache not available");
 	}
   if (!met_cpi.ok){
-		verbose_master(2, "CPI not available. swtching to monitoring");
+		verbose_master(ERROR_VERB, "CPI not available. swtching to monitoring");
 		earl_default_domains.cpu = POL_NOT_SUPPORTED;
 	}
 }
+
 
 static void metrics_static_init(topology_t *tp)
 {
@@ -283,66 +371,128 @@ static void metrics_static_init(topology_t *tp)
     master = (masters_info.my_master_rank >= 0);
     eard   = (master);
     // Load
-#if 0
-    sa(mgt_cpufreq_load(tp, 1));
-#else
+#if SINGLE_CONNECTION
     sa(mgt_cpufreq_load(tp, eard));
+#else
+    sa(mgt_cpufreq_load(tp, 1));
 #endif
     sa(mgt_imcfreq_load(tp, eard, NULL));
+    sa( energy_cpu_load(tp, eard));
     sa(    cpufreq_load(tp, eard));
     sa(    imcfreq_load(tp, eard));
     sa(     bwidth_load(tp, eard));
     sa(      flops_load(tp, eard));
     sa(      cache_load(tp, eard));
     sa(        cpi_load(tp, eard));
+    sa(mgt_cpuprio_load(tp, eard));
 
+#if USE_GPUS
+        gpu_load(eard);
+    mgt_gpu_load(eard);
+#if USE_CUPTI
+    if (read_cupti_metrics) {
+      gpuproc_load(1);
+    }
+#endif
+#endif // USE_GPUS
     debug("metics_load ready");
-    // This extinguishable
+
+#if SINGLE_CONNECTION
     frequency_init(eard);
+#else
+    frequency_init(1);
+#endif
+
     // Get API
     sa(mgt_cpufreq_get_api(&mgt_cpufreq.api));
     sa(mgt_imcfreq_get_api(&mgt_imcfreq.api));
+    sa( energy_cpu_get_api(&met_energy.api ));
     sa(    cpufreq_get_api(&met_cpufreq.api));
     sa(    imcfreq_get_api(&met_imcfreq.api));
     sa(     bwidth_get_api(&met_bwidth.api ));
     sa(      flops_get_api(&met_flops.api  ));
     sa(      cache_get_api(&met_cache.api  ));
     sa(        cpi_get_api(&met_cpi.api    ));
+    sa(mgt_cpuprio_get_api(&mgt_cpuprio.api));
+
+#if USE_GPUS
+    mgt_gpu_get_api(&mgt_gpu.api);
+        gpu_get_api(&met_gpu.api);
+#if USE_CUPTI
+        if (read_cupti_metrics) {
+            gpuproc_get_api(&proc_gpu.api);
+        }
+#endif
+#endif // USE_GPUS
+
     // Working
     mgt_cpufreq.ok = (mgt_cpufreq.api > API_DUMMY);
     mgt_imcfreq.ok = (mgt_imcfreq.api > API_DUMMY);
     met_cpufreq.ok = (met_cpufreq.api > API_DUMMY);
     met_imcfreq.ok = (met_imcfreq.api > API_DUMMY);
     met_bwidth.ok  = (met_bwidth.api  > API_DUMMY);
+    met_energy.ok  = (met_energy.api  > API_DUMMY);
     met_flops.ok   = (met_flops.api   > API_DUMMY);
     met_cache.ok   = (met_cache.api   > API_DUMMY);
     met_cpi.ok     = (met_cpi.api     > API_DUMMY);
 
+    mgt_cpuprio.ok = (mgt_cpuprio.api > API_DUMMY);
+
+#if USE_GPUS
+    mgt_gpu.ok     = (mgt_gpu.api     > API_DUMMY);
+    met_gpu.ok     = (met_gpu.api     > API_DUMMY);
+#if USE_CUPTI
+    if (read_cupti_metrics){
+        proc_gpu.ok = (proc_gpu.api   > API_DUMMY);
+    }
+#endif
+#endif // USE_GPUS
 	debug("metrics_api ready");
+
     // Init
     sa(mgt_cpufreq_init(no_ctx));
     sa(mgt_imcfreq_init(no_ctx));
+    sa( energy_cpu_init(no_ctx));
     sa(    cpufreq_init(no_ctx));
     sa(    imcfreq_init(no_ctx));
     sa(     bwidth_init(no_ctx));
     sa(      flops_init(no_ctx));
     sa(      cache_init(no_ctx));
     sa(        cpi_init(no_ctx));
+    sa(mgt_cpuprio_init());
+
+#if USE_GPUS
+    sa(    mgt_gpu_init(no_ctx));
+    sa(        gpu_init(no_ctx));
+#if USE_CUPTI
+    if (read_cupti_metrics){
+        sa(    gpuproc_init(no_ctx));
+    }
+#endif
+#endif // USE_GPUS
+
 	debug("metrics_init ready");
 
     // Count
     sa(mgt_cpufreq_count_devices(no_ctx, &mgt_cpufreq.devs_count));
     sa(mgt_imcfreq_count_devices(no_ctx, &mgt_imcfreq.devs_count));
+    sa( energy_cpu_count_devices(no_ctx, &met_energy.devs_count ));
     sa(    cpufreq_count_devices(no_ctx, &met_cpufreq.devs_count));
     sa(    imcfreq_count_devices(no_ctx, &met_imcfreq.devs_count));
     sa(     bwidth_count_devices(no_ctx, &met_bwidth.devs_count ));
-
-    debug("metrics_count_device ready");
-    debug("mgt cpufreq %u", mgt_cpufreq.devs_count);
-    debug("mgt imcfreq %u", mgt_imcfreq.devs_count);
-    debug("    cpufreq %u", met_cpufreq.devs_count);
-    debug("    imcfreq %u", met_imcfreq.devs_count);
-    debug("     bwidth %u", met_bwidth.devs_count);
+#if USE_GPUS
+    sa(    mgt_gpu_count_devices(no_ctx, &mgt_gpu.devs_count    ));
+    sa(        gpu_count_devices(no_ctx, &met_gpu.devs_count    ));
+    #if USE_CUPTI
+    if (read_cupti_metrics) {
+      sa(    gpuproc_count_devices(no_ctx, &proc_gpu.devs_count   ));
+      verbose_master(VERBOSE_CUPTI, "CUPTI devices %u", proc_gpu.devs_count);
+    }
+    #endif
+#endif // USE_GPUS
+    debug("metrics_count_device ready\n mgt cpufreq %u\nmgt imcfreq %u\n  mgt gpu %u\n    cpufreq %u\n    imcfreq %u\n     bwidth %u\n        gpu %u",
+            mgt_cpufreq.devs_count, mgt_imcfreq.devs_count, mgt_gpu.devs_count, met_cpufreq.devs_count,
+            met_imcfreq.devs_count, met_bwidth.devs_count, met_gpu.devs_count);
 
     // Available lists
     sa(mgt_cpufreq_get_available_list(no_ctx, (const pstate_t **) &mgt_cpufreq.avail_list,
@@ -350,21 +500,66 @@ static void metrics_static_init(topology_t *tp)
     sa(mgt_imcfreq_get_available_list(no_ctx, (const pstate_t **) &mgt_imcfreq.avail_list,
                 &mgt_imcfreq.avail_count));
 
+    // Allocation is needed before requesting available and devices list
+    sa(mgt_cpuprio_data_alloc((cpuprio_t **) &mgt_cpuprio.avail_list, (uint **) &mgt_cpuprio.current_list));
+
+    /* List of priorities */
+    sa(mgt_cpuprio_get_available_list((cpuprio_t *) mgt_cpuprio.avail_list));
+
+    /* List of devices */
+    sa(mgt_cpuprio_get_current_list((uint *) mgt_cpuprio.current_list));
+
+    sa(mgt_cpuprio_data_count((uint *) &mgt_cpuprio.avail_count, (uint *) &mgt_cpuprio.devs_count)); 
+
+    if (VERB_ON(CPUPRIO_VERB)) {
+        verbose_master(CPUPRIO_VERB, "[CPUPRIO] %s / %u priorities / %u devices.",
+                       mgt_cpuprio.ok ? "OK" : "DUMMY", mgt_cpuprio.avail_count, mgt_cpuprio.devs_count);
+
+        mgt_cpuprio_data_tostr((cpuprio_t *) mgt_cpuprio.avail_list, (uint *) mgt_cpuprio.current_list,
+                               buffer, SZ_BUFFER_EXTRA);
+        verbose_master(CPUPRIO_VERB, "CPUPRIO list of available priorities\n %s", buffer);
+    }
+
+#if USE_GPUS
+    sa(mgt_gpu_freq_list(no_ctx,
+                (const ulong ***) &mgt_gpu.avail_list,
+                (const uint **) &mgt_gpu.avail_count));
+
+#endif // USE_GPUS
+
     pstate_tostr(mgt_cpufreq.avail_list, mgt_cpufreq.avail_count, buffer, SZ_BUFFER_EXTRA);
     verbose_master(2, "CPUFREQ available list of frequencies:\n%s", buffer);
     pstate_tostr(mgt_imcfreq.avail_list, mgt_imcfreq.avail_count, buffer, SZ_BUFFER_EXTRA);
     verbose_master(2, "IMCFREQ available list of frequencies:\n%s", buffer);
 
-    if (VERB_ON(2) && master) {
+    if (VERB_ON(2) && (master)) {
         apis_print(mgt_cpufreq.api, "MGT_CPUFREQ: ");
         apis_print(mgt_imcfreq.api, "MGT_IMCFREQ: ");
+#if USE_GPUS
+        apis_print(mgt_gpu.api    , "MGT_GPU    : ");
+        #if USE_CUPTI
+        if (read_cupti_metrics){
+          apis_print(proc_gpu.api   , "PROC_GPU    : ");
+        }
+        #endif
+#endif // USE_GPUS
         apis_print(met_cpufreq.api, "MET_CPUFREQ: ");
         apis_print(met_imcfreq.api, "MET_IMCFREQ: ");
         apis_print(met_bwidth.api , "MET_BWIDTH : ");
+        apis_print(met_energy.api , "MET_ENERGY : ");
         apis_print(met_flops.api  , "MET_FLOPS  : ");
         apis_print(met_cache.api  , "MET_CACHE  : ");
         apis_print(met_cpi.api    , "MET_CPI    : ");
+        apis_print(mgt_cpuprio.api, "MGT_PRIO   : ");
+#if USE_GPUS
+        apis_print(met_gpu.api    , "MET_GPU    : ");
+#endif // USE_GPUS
     }
+#if !SINGLE_CONNECTION
+    if (VERB_ON(2)){
+        apis_print(mgt_cpufreq.api, "MGT_CPUFREQ: ");
+    }
+#endif
 
     cpufreq_data_alloc(&cpufreq_read1[0], empty);
     cpufreq_data_alloc(&cpufreq_read1[1], empty);
@@ -383,14 +578,40 @@ static void metrics_static_init(topology_t *tp)
     bwidth_data_alloc(&bwidth_diff[0]);
     bwidth_data_alloc(&bwidth_diff[1]);
 
+#if USE_GPUS
+    gpu_data_alloc(&gpu_metrics_read1[LOO]);
+    gpu_data_alloc(&gpu_metrics_read1[APP]);
+    gpu_data_alloc(&gpu_metrics_read2[LOO]);
+    gpu_data_alloc(&gpu_metrics_read2[APP]);
+    gpu_data_alloc(&gpu_metrics_diff[LOO]);
+    gpu_data_alloc(&gpu_metrics_diff[APP]);
+    gpu_data_alloc(&gpu_metrics_busy);
+    gpu_data_alloc(&gpu_metrics_busy_diff);
+    #if USE_CUPTI
+    if (read_cupti_metrics){
+      gpuproc_data_alloc(&proc_gpu_data_init[LOO]);
+      gpuproc_data_alloc(&proc_gpu_data_init[APP]);
+      gpuproc_data_alloc(&proc_gpu_data_end[LOO]);
+      gpuproc_data_alloc(&proc_gpu_data_end[APP]);
+      gpuproc_data_alloc(&proc_gpu_data_diff[LOO]);
+      gpuproc_data_alloc(&proc_gpu_data_diff[APP]);
+      verbose_master(VERBOSE_CUPTI, "PROC_GPU data allocated");
+    }
+    #endif
+#endif // USE_GPUS
+
+    energy_cpu_data_alloc(no_ctx, &metrics_rapl[LOO], &rapl_size);
+    energy_cpu_data_alloc(no_ctx, &metrics_rapl[APP], &rapl_size);
+    energy_cpu_data_alloc(no_ctx, &aux_rapl, &rapl_size);
+    energy_cpu_data_alloc(no_ctx, &last_rapl, &rapl_size);
+
+	rapl_elements = rapl_size;
+
     debug("metrics_allocation ready");
 
-    metrics_configuration(tp);
+    metrics_configuration(tp); // Check the status of loaded APIs
 }
 
-void metrics_static_dispose()
-{
-}
 
 // Legacy code
 static void cpufreq_my_avgcpufreq(ulong *nodecpuf, ulong *avgf)
@@ -399,7 +620,7 @@ static void cpufreq_my_avgcpufreq(ulong *nodecpuf, ulong *avgf)
 	ulong total = 0, total_cpus = 0;
 	ulong lavg, lcpus;
 	int p;
-    for (p = 0; p < lib_shared_region->num_processes ; p++)
+    for (p = 0; p < lib_shared_region->num_processes; p++)
     {
         m = sig_shared_region[p].cpu_mask;
 		pstate_freqtoavg(m, nodecpuf, met_cpufreq.devs_count, &lavg, &lcpus);
@@ -407,6 +628,16 @@ static void cpufreq_my_avgcpufreq(ulong *nodecpuf, ulong *avgf)
 		total_cpus += lcpus;
 	}
 	*avgf = total/total_cpus;
+}
+
+static void cpufreq_process_avgcpufreq(uint proc, ulong *nodecpuf, ulong *avgf)
+{
+  cpu_set_t m;
+  ulong lavg = 0, lcpus = 0;
+
+  m = sig_shared_region[proc].cpu_mask;
+  pstate_freqtoavg(m, nodecpuf, met_cpufreq.devs_count, &lavg, &lcpus);
+  *avgf = lavg;
 }
 
 void set_null_dc_energy(edata_t e)
@@ -431,9 +662,14 @@ static void metrics_global_start()
     state_t s;
 	int ret;
 
-	app_energy_saving.jid 		= application.job.id;
+    // Init energy savings fields
+	app_energy_saving.jid     = application.job.id;
 	app_energy_saving.step_id = application.job.step_id;
+  app_phase_summary.jid     = application.job.id;
+  app_phase_summary.step_id = application.job.step_id;
+
 	strcpy(app_energy_saving.node_id, application.node_id);
+	strcpy(app_phase_summary.node_id, application.node_id);
 
 	if (master)
 	{
@@ -441,82 +677,114 @@ static void metrics_global_start()
         if (state_fail(s = cpufreq_read(no_ctx, cpufreq_read1[APP]))) {
             debug("CPUFreq data read in global_start");
         }
+        /* To be used in partial_start */
+        cpufreq_data_copy(cpufreq_read2[LOO], cpufreq_read1[APP]);
 		/* Reads IMC data */
 		if (mgt_imcfreq.ok){
 		    debug("imcfreq_read");
 		    if (state_fail(s = imcfreq_read(no_ctx, imcfreq_read1[APP]))){
 			    debug("IMCFreq data read in global_start");
 		    }
-		}
-		/* Energy */
-		if (eards_connected()){
-			debug("eards_node_dc_energy");
-			ret = eards_node_dc_energy(aux_energy,node_energy_datasize);
-			if ((ret == EAR_ERROR) || energy_lib_data_is_null(aux_energy)){
-				debug("MR[%d] Error reading Node energy at application start",masters_info.my_master_rank);
-			}
-			/* RAPL energy metrics */
-			eards_read_rapl(aux_rapl);
-		}else{
-			memset(aux_energy, 0, node_energy_datasize);
-			memset(aux_rapl, 0 ,rapl_size);
+        /* To be used in partial_start */
+        imcfreq_data_copy(imcfreq_read2[LOO], imcfreq_read1[APP]);
 		}
 
-		#if USE_GPUS
-		/* GPu metrics */
-		if (gpu_initialized){
-			gpu_lib_data_null(gpu_metrics_init[APP]);
-			if (gpu_lib_read(&gpu_lib_ctx,gpu_metrics_init[APP]) != EAR_SUCCESS){
-				debug("Error in gpu_read in application start");
-			}
-			debug("gpu_lib_read in global start");
-			gpu_lib_data_copy(gpu_metrics_end[LOO],gpu_metrics_init[APP]);
-			debug("gpu_lib_data_copy in global start");
-		}
-		#endif
+#if USE_GPUS
+        if (state_ok(gpu_data_null(gpu_metrics_read1[APP]))) {
+
+            if (state_ok(gpu_read(no_ctx, gpu_metrics_read1[APP]))) {
+
+                // We set here the starting sample for partial start/stop flow
+                gpu_data_copy(gpu_metrics_read2[LOO], gpu_metrics_read1[APP]);
+
+                if (VERB_ON(GPU_VERB + 1)) {
+                    gpu_data_tostr(gpu_metrics_read1[APP], gpu_str, sizeof(gpu_str));
+                    verbose(GPU_VERB + 1, "Initial global GPU data\n-----------------------\n%s", gpu_str);
+                }
+
+            } else {
+                verbose(GPU_VERB, "%sERROR%s Reading GPU metrics at application start", COL_RED, COL_CLR);
+            }
+
+        } else {
+            verbose(GPU_VERB, "%sWARNING%s GPU metrics could not be read at application start: %s",
+                    COL_RED, COL_CLR, state_msg);
+        }
+#endif // USE_GPUS
 
 		/* Only the master computes per node I/O metrics */
 		if (state_fail(metrics_compute_total_io(&metrics_io_init[APP_NODE]))) {
-
-            verbose_master(2, "%sWarning%s Node total I/O could not be"
-                    " read (%s)." , COL_RED, COL_CLR, state_msg);
-        }
-
-	} else {
-		set_null_dc_energy(aux_energy);
-		set_null_rapl(aux_rapl);
+            verbose_master(ERROR_VERB, "%sWarning%s Node total I/O could not be read (%s)." , COL_RED, COL_CLR, state_msg);
+    }
+    /* To be used in partial_start */
+    io_copy(&metrics_io_end[LOO_NODE], &metrics_io_init[APP_NODE]);
 	}
+  #if USE_CUPTI
+  if (read_cupti_metrics){
+    if (state_fail(gpuproc_read(no_ctx, proc_gpu_data_init[APP]))){
+      verbose(ERROR_VERB, "gpuproc_read failed");
+    }
+    /* We will copy in partial start */
+    gpuproc_data_copy(proc_gpu_data_end[LOO], proc_gpu_data_init[APP]);
+  }
+  #endif
+
 
 	/* Per process IO data */
 	if (io_read(&ctx_io, &metrics_io_init[APP]) != EAR_SUCCESS){
-		verbose_master(2,"Warning: IO data not available");
+		verbose_master(ERROR_VERB,"Warning: IO data not available");
+	}
+  io_copy(&metrics_io_end[LOO], &metrics_io_init[APP]);
+
+	// New metrics
+	/* Energy */
+	debug(" node_dc_energy");
+	ret = energy_read(NULL, aux_energy);
+	if ((ret == EAR_ERROR) || energy_data_is_null(aux_energy)){
+		debug("MR[%d] Error reading Node energy at application start",masters_info.my_master_rank);
 	}
 
-    // New metrics
-    bwidth_read(no_ctx, bwidth_read1[APP]);
-		debug("bwidth_read ready");
-     flops_read(no_ctx, &flops_read1[APP]);
-		debug("flops_read ready");
-     cache_read(no_ctx, &cache_read1[APP]);
-	  debug("cache_read ready");
-       cpi_read(no_ctx,   &cpi_read1[APP]);
-		debug("cpi_read ready");
+	/* RAPL energy metrics */
+	energy_cpu_read(no_ctx, aux_rapl);
+	debug("energy_cpu_read ready");
+  /* No need to copy aux_rapl in other metric for partial_start */
+
+	bwidth_read(no_ctx, bwidth_read1[APP]);
+	debug("bwidth_read ready");
+  /* To be used in partial_start */
+  bwidth_data_copy(bwidth_read2[LOO], bwidth_read1[APP]);
+
+	flops_read(no_ctx, &flops_read1[APP]);
+	debug("flops_read ready");
+  /* To be used in partial_start */
+  flops_data_copy(&flops_read2[LOO], &flops_read1[APP]);
+	
+	cache_read(no_ctx, &cache_read1[APP]);
+	debug("cache_read ready");
+  /* To be used in partial_start */
+  cache_data_copy(&cache_read2[LOO], &cache_read1[APP]);
+
+	cpi_read(no_ctx,   &cpi_read1[APP]);
+	debug("cpi_read ready");
+  /* To be used in partial_start */
+  cpi_data_copy(&cpi_read2[LOO], &cpi_read1[APP]);
+
 }
 
 static void metrics_global_stop()
 {
 	char io_info[256];
 	char *verb_path=getenv(FLAG_EARL_VERBOSE_PATH);
-    state_t s;
+	state_t s;
 	int i;
 
-    debug("%s--- (l. rank) %d  METRICS GLOBAL STOP ---%s", COL_YLW, my_node_id, COL_CLR);
+	debug("%s--- (l. rank) %d  METRICS GLOBAL STOP ---%s", COL_YLW, my_node_id, COL_CLR);
 
-    if (!(master)) {
+    if (!master) {
         /* Synchro 4: Waiting for master signature */
         while(!lib_shared_region->global_stop_ready) {
             if (msync(lib_shared_region, sizeof(lib_shared_data_t), MS_SYNC) < 0) {
-                verbose_master(2, "%sError%s Memory sync. for lib shared region failed: %s",
+                verbose(2, "%sError%s Memory sync. for lib shared region failed: %s",
                         COL_RED, COL_CLR, strerror(errno));
             }
             usleep(10000);
@@ -529,24 +797,24 @@ static void metrics_global_stop()
 	/* Only the master will collect these metrics */
 	if (master) {
 
-        /* MPI statistics */
-        if (is_mpi_enabled()) {
-          read_diff_node_mpi_info(lib_shared_region, sig_shared_region,
-                  metrics_mpi_info[APP], metrics_last_mpi_info[APP]);
-          read_diff_node_mpi_types_info(lib_shared_region, sig_shared_region,
-                  metrics_mpi_calls_types[APP], metrics_last_mpi_calls_types[APP]);
-        }
+		/* MPI statistics */
+		if (is_mpi_enabled()) {
+			read_diff_node_mpi_info(lib_shared_region, sig_shared_region,
+					metrics_mpi_info[APP], metrics_last_mpi_info[APP]);
+			read_diff_node_mpi_types_info(lib_shared_region, sig_shared_region,
+					metrics_mpi_calls_types[APP], metrics_last_mpi_calls_types[APP]);
+		}
 
         /* Avg CPU frequency */
         if (state_fail(s = cpufreq_read(no_ctx, cpufreq_read2[APP]))) {
-            error("CPUFreq data read in global_stop");
+            verbose(2, "%sERROR%s cpufreq data read in global_stop.", COL_RED, COL_CLR);
         }
         if (state_fail(s = cpufreq_data_diff(cpufreq_read2[APP], cpufreq_read1[APP],
-                        cpufreq_diff, &cpufreq_avrg[APP]))){
-            error("CPUFreq data diff");
+                        cpufreq_diff, &cpufreq_avrg[APP]))) {
+            verbose(2, "%sERROR%s cpufreq data diff in global_stop.", COL_RED, COL_CLR);
         } else {
-            debug("CPUFreq average for the application is %.2fGHz",
-                    (float) cpufreq_avrg[APP] / 1000000.0);
+            verbose(3, "%sINFO%s CPUFreq average for the application is %.2fGHz.",
+                    COL_BLU, COL_CLR, (float) cpufreq_avrg[APP] / 1000000.0);
         }
 
         cpufreq_my_avgcpufreq(cpufreq_diff, &cpufreq_avrg[APP]);
@@ -564,7 +832,7 @@ static void metrics_global_stop()
                             imcfreq_diff[APP], &imcfreq_avrg[APP]))){
                 error("IMC data diff fails");
             }
-            verbose_master(2, "AVG IMC frequency %.2f", (float)imcfreq_avrg[APP]/1000000.0);
+            verbose(2, "AVG IMC frequency %.2f", (float)imcfreq_avrg[APP]/1000000.0);
             for (i=0; i< mgt_imcfreq.devs_count;i++) {
                 imc_max_pstate[i]= imc_num_pstates-1;
                 imc_min_pstate[i] = 0;
@@ -574,151 +842,188 @@ static void metrics_global_stop()
                 error("Setting the IMC freq in global stop");
             }
 
-            verbose_master(2, "IMC freq restored to %.2f-%.2f",
+            verbose(2, "IMC freq restored to %.2f-%.2f",
                     (float) imc_pstates[imc_min_pstate[0]].khz / 1000000.0,
                     (float) imc_pstates[imc_max_pstate[0]].khz / 1000000.0);
         }
 
 #if USE_GPUS
         /* GPU */
-        if (gpu_initialized) {
-            if (state_fail(gpu_lib_read(&gpu_lib_ctx, gpu_metrics_end[APP]))) {
-                debug("gpu_lib_read error");
+        if (state_ok(gpu_read(no_ctx, gpu_metrics_read2[APP]))) {
+
+            gpu_data_diff(gpu_metrics_read2[APP],
+                    gpu_metrics_read1[APP], gpu_metrics_diff[APP]);
+
+            if (VERB_ON(GPU_VERB + 1)) {
+                gpu_data_tostr(gpu_metrics_diff[APP], gpu_str, sizeof(gpu_str));
+                verbose(GPU_VERB + 1, "Global GPU data\n---------------\n%s", gpu_str);
             }
-            debug("gpu_read in global_stop");
-
-            gpu_lib_data_diff(gpu_metrics_end[APP],
-                    gpu_metrics_init[APP], gpu_metrics_diff[APP]);
-
-            gpu_lib_data_tostr(gpu_metrics_diff[APP], gpu_str, sizeof(gpu_str));
-
-            debug("gpu_data in global_stop %s", gpu_str);
+        } else {
+            verbose(GPU_VERB, "%sERROR%s Reading GPU metrics at application ending.", COL_RED, COL_CLR);
         }
-#endif
+
+#endif // USE_GPUS
 		/* IO node data */
-        if (state_fail(metrics_compute_total_io(&metrics_io_end[APP_NODE]))) {
+		if (state_fail(metrics_compute_total_io(&metrics_io_end[APP_NODE]))) {
 
-            // As we could not read the global node IO, we
-            // put as global IO the total accumulated until now.
-            metrics_io_diff[APP_NODE] = metrics_io_diff[APP_ACUM];
+			// As we could not read the global node IO, we
+			// put as global IO the total accumulated until now.
+			metrics_io_diff[APP_NODE] = metrics_io_diff[APP_ACUM];
 
-            verbose_master(2, "%sWarning%s Node total I/O could not be read (%s), working with"
+            verbose(2, "%sWarning%s Node total I/O could not be read (%s), working with"
                     " the acumulated data read until now.", COL_RED, COL_CLR, state_msg);
 
-        } else {
-            io_diff(&metrics_io_diff[APP_NODE], &metrics_io_init[APP_NODE],
-                    &metrics_io_end[APP_NODE]);
-        }
+		} else {
+			io_diff(&metrics_io_diff[APP_NODE], &metrics_io_init[APP_NODE],
+					&metrics_io_end[APP_NODE]);
+		}
 	} // master
 
-    /* Per-process IO */
-    if (state_fail(io_read(&ctx_io, &metrics_io_end[APP]))) {
-        verbose_master(2, "%sWarning%s I/O data not available.", COL_RED, COL_CLR);
-    } else {
-	    io_diff(&metrics_io_diff[APP], &metrics_io_init[APP], &metrics_io_end[APP]);
-    }
+	/* Per-process IO */
+	if (state_fail(io_read(&ctx_io, &metrics_io_end[APP]))) {
+		verbose_master(ERROR_VERB, "%sWarning%s I/O data not available.", COL_RED, COL_CLR);
+	} else {
+		io_diff(&metrics_io_diff[APP], &metrics_io_init[APP], &metrics_io_end[APP]);
+	}
 
 	if (VERB_ON(IO_VERB)) {
 		int fd;
 		io_tostr(&metrics_io_diff[APP], io_info, sizeof(io_info));
 		if (verb_path != NULL) {
 
-	        char file_name[256];
+			char file_name[256];
 
 			sprintf(file_name, "%s/earl_io_info.%d.%d", verb_path, my_step_id, my_job_id);
 
 			fd = open(file_name,O_WRONLY|O_CREAT|O_APPEND,S_IRUSR|S_IWUSR|S_IRGRP);
 		} else {
-            fd = 2;
-        }
+			fd = 2;
+		}
 
 		char *io_buffer = malloc(strlen(io_info) + 200);
-        assert(io_buffer != NULL);
+		assert(io_buffer != NULL);
 
 		sprintf(io_buffer, "[%d] APP I/O DATA: %s\n", ear_my_rank, io_info);
 		write(fd, io_buffer, strlen(io_buffer));
 
-        free(io_buffer);
+		free(io_buffer);
 
 		if (verb_path != NULL) close(fd);
 	}
 
-    // New metrics
-    bwidth_read_diff(no_ctx, bwidth_read2[APP], bwidth_read1[APP], NULL, &bwidth_cas[APP], NULL);
-     flops_read_diff(no_ctx, &flops_read2[APP], &flops_read1[APP], NULL, NULL);
-     cache_read_diff(no_ctx, &cache_read2[APP], &cache_read1[APP], &cache_diff[APP], &cache_avrg[APP]);
-       cpi_read_diff(no_ctx,   &cpi_read2[APP],   &cpi_read1[APP],   &cpi_diff[APP],   &cpi_avrg[APP]);
+	// New metrics
+
+	bwidth_read_diff(no_ctx, bwidth_read2[APP], bwidth_read1[APP], NULL, &bwidth_cas[APP], NULL);
+  if (master) lib_shared_region->cas_counters = bwidth_cas[APP];
+	flops_read_diff(no_ctx, &flops_read2[APP], &flops_read1[APP], NULL, NULL);
+	cache_read_diff(no_ctx, &cache_read2[APP], &cache_read1[APP], &cache_diff[APP], &cache_avrg[APP]);
+	cpi_read_diff(no_ctx,   &cpi_read2[APP],   &cpi_read1[APP],   &cpi_diff[APP],   &cpi_avrg[APP]);
+
+  #if USE_CUPTI
+  if (read_cupti_metrics){
+    if (state_fail(gpuproc_read_diff(no_ctx, proc_gpu_data_end[APP], proc_gpu_data_init[APP], proc_gpu_data_diff[APP]))){
+     verbose(VERBOSE_CUPTI, "gpuproc_read_diff global stop failed");
+    }
+    gpuproc_data_tostr(proc_gpu_data_diff[APP], gpu_proc_buffer, sizeof(gpu_proc_buffer));
+    verbose(VERBOSE_CUPTI,"GPU_PROC APP DATA for [%d][%d] : %s", masters_info.my_master_rank, my_node_id, gpu_proc_buffer);
+  }
+  #endif
 }
 
 static void metrics_partial_start()
 {
-    debug("metrics_partial_start starts %p %p %lu",
-            metrics_ipmi[LOO], aux_energy, node_energy_datasize);
 
-    /* This must be replaced by a copy of energy */
-    /* Energy node */
-    memcpy(metrics_ipmi[LOO], aux_energy, node_energy_datasize);
-
-    /* Time */
-    metrics_usecs[LOO] = aux_time;
-    last_elap_sec = 0;
-
-    /* Per-process IO data */
-    debug("starting IO for process");
-    if (state_fail(io_read(&ctx_io, &metrics_io_init[LOO]))){
-        verbose_master(2, "%sWarning%s I/O data not available.", COL_RED, COL_CLR);
-    }
-    debug("IO read done");
-
-    /* These data is measured only by the master */
-    if (master) {
-        /* Avg CPU freq */
-        if (state_fail(cpufreq_read(no_ctx, cpufreq_read1[LOO]))) {
-            verbose_master(2, "%sError%s Reading loop's CPUFreq data.", COL_RED, COL_CLR);
-        }
-        debug("cpufreq_read ");
-
-        /* Avg IMC freq */
-        if (mgt_imcfreq.ok){
-            /* Reads the IMC */
-            if (state_fail(imcfreq_read(no_ctx,imcfreq_read1[LOO]))){
-			    verbose_master(2, "%sError%s Reading loop's IMCFreq data.", COL_RED, COL_CLR);
-            }
-        }
-
-        /* Per NODE IO data */
+  #if 0
+	if (state_fail(io_read(&ctx_io, &metrics_io_init[LOO]))){
+		verbose_master(2, "%sWarning%s I/O data not available.", COL_RED, COL_CLR);
+	}
+	if (master) {
+		if (state_fail(cpufreq_read(no_ctx, cpufreq_read1[LOO]))) {
+			verbose_master(2, "%sError%s Reading loop's CPUFreq data.", COL_RED, COL_CLR);
+		}
+			if (state_fail(imcfreq_read(no_ctx,imcfreq_read1[LOO]))){
+				verbose_master(2, "%sError%s Reading loop's IMCFreq data.", COL_RED, COL_CLR);
+			}
 		if (state_fail(metrics_compute_total_io(&metrics_io_init[LOO_NODE]))) {
 
-            verbose_master(2, "%sWarning%s Node total I/O could not be"
-                    " read (%s)." , COL_RED, COL_CLR, state_msg);
-        }
+			verbose_master(2, "%sWarning%s Node total I/O could not be"
+					" read (%s)." , COL_RED, COL_CLR, state_msg);
+		}
+    }
+	for (int i = 0; i < rapl_elements; i++) {
+		last_rapl[i] = aux_rapl[i];
+	}
+	bwidth_read(no_ctx, bwidth_read1[LOO]);
+	flops_read(no_ctx, &flops_read1[LOO]);
+	cache_read(no_ctx, &cache_read1[LOO]);
+	cpi_read(no_ctx,   &cpi_read1[LOO]);
+  #endif
+
+	debug("metrics_partial_start starts %p %p %lu",
+			metrics_ipmi[LOO], aux_energy, node_energy_datasize);
+
+	/* This must be replaced by a copy of energy */
+	/* Energy node */
+	memcpy(metrics_ipmi[LOO], aux_energy, node_energy_datasize);
+
+	/* Time */
+	metrics_usecs[LOO] = aux_time;
+	last_elap_sec = 0;
+
+	/* Per-process IO data */
+	debug("starting IO for process");
+  io_copy(&metrics_io_init[LOO], &metrics_io_end[LOO]);
+	debug("IO read done");
+
+	/* These data is measured only by the master */
+	if (master) {
+		/* Avg CPU freq */
+    cpufreq_data_copy(cpufreq_read1[LOO], cpufreq_read2[LOO]);
+		debug("cpufreq_read ");
+
+		/* Avg IMC freq */
+		if (mgt_imcfreq.ok){
+			/* Reads the IMC */
+      imcfreq_data_copy(imcfreq_read1[LOO], imcfreq_read2[LOO]);
+		}
+
+		/* Per NODE IO data */
+    io_copy(&metrics_io_init[LOO_NODE], &metrics_io_end[LOO_NODE]);
 
 #if USE_GPUS
         /* GPUS */
-        if (gpu_initialized){
+        /*  Avoidable since at global start: gpu_metrics_read2[LOO] <- gpu_metrics_read1[APP]
             if (gpu_loop_stopped) {
-                gpu_lib_data_copy(gpu_metrics_init[LOO],gpu_metrics_end[LOO]);
-            } else{
-                gpu_lib_data_copy(gpu_metrics_init[LOO],gpu_metrics_init[APP]);
-            }
-            debug("gpu_copy in partial start");
+            */
+        if (state_fail(gpu_data_copy(gpu_metrics_read1[LOO], gpu_metrics_read2[LOO]))) {
+            verbose(GPU_VERB, "%sWARNING%s GPU data could not be copied: %s", COL_YLW, COL_RED, state_msg);
         }
-#endif
-    } //master_rank
+        /*
+           } else {
+           gpu_data_copy(gpu_metrics_read1[LOO], gpu_metrics_read1[APP]);
+           }
+           */
+        debug("gpu_copy in partial start");
+        #if USE_CUPTI
+        if (read_cupti_metrics){
+          gpuproc_data_copy(proc_gpu_data_init[LOO], proc_gpu_data_end[LOO]);
+        }
+        #endif
+#endif // USE_GPUS
 
-    /* Energy RAPL */
-    for (int i = 0; i < rapl_elements; i++) {
-        last_rapl[i] = aux_rapl[i];
-    }
-    debug("RAPL copied");
+    } // master_rank
 
-    // New metrics
-    bwidth_read(no_ctx, bwidth_read1[LOO]);
-    flops_read(no_ctx, &flops_read1[LOO]);
-    cache_read(no_ctx, &cache_read1[LOO]);
-    cpi_read(no_ctx,   &cpi_read1[LOO]);
+	/* Energy RAPL */
+  energy_cpu_data_copy(no_ctx, last_rapl, aux_rapl);
+	debug("RAPL copied");
 
-    debug("partial_start ends");
+	// New metrics
+  bwidth_data_copy(bwidth_read1[LOO], bwidth_read2[LOO]);
+  flops_data_copy(&flops_read1[LOO], &flops_read2[LOO]);
+  cache_data_copy(&cache_read1[LOO], &cache_read2[LOO]);
+  cpi_data_copy(&cpi_read1[LOO], &cpi_read2[LOO]);
+
+	debug("partial_start ends");
 }
 
 /****************************************************************************************************************************************************************/
@@ -728,6 +1033,7 @@ static void metrics_partial_start()
 extern uint ear_iterations;
 extern int ear_guided;
 
+static  uint    estimate_power = 0;
 static int metrics_partial_stop(uint where)
 {
 	ulong c_energy;
@@ -735,70 +1041,82 @@ static int metrics_partial_stop(uint where)
 	float c_power;
 	long long aux_time_stop;
 	char stop_energy_str[256], start_energy_str[256];
-    state_t s;
+	state_t s;
 
-    debug("metrics_partial_stop %u", my_node_id);
+	debug("metrics_partial_stop %u", my_node_id);
 
-    if (!eards_connected() && (master)){
-        verbose_master(2, "Disconnecting library because EARD not connected.");
+    if (!eards_connected() && (master)) {
+        verbose_master(ERROR_VERB, "Disconnecting library because EARD not connected.");
         if (!EARL_LIGHT) lib_shared_region->earl_on = 0;
     }
 
     /* If the signature of the master is not ready, we cannot compute our signature */
     //debug("My rank is %d",masters_info.my_master_rank);
-    if ((masters_info.my_master_rank<0) && (!sig_shared_region[0].ready)){
+    if ((masters_info.my_master_rank<0) && (!sig_shared_region[0].ready)) {
         debug("Iterations %u ear_guided %u", ear_iterations, ear_guided);
         return EAR_NOT_READY;
     }
 
 #if SHOW_DEBUGS
-    float elapsed = (metrics_time() - app_start) / 1000000;
-    debug("Master signature ready at time %f", elapsed);
+	float elapsed = (metrics_time() - app_start) / 1000000;
+	debug("Master signature ready at time %f", elapsed);
 #endif
 
 	// Manual IPMI accumulation
-	if (master) {
-		/* Energy node */
-		if (eards_connected()){
-			int ret = eards_node_dc_energy(aux_energy_stop, node_energy_datasize);
+	/* Energy node */
+	//int ret = eards_node_dc_energy(aux_energy_stop, node_energy_datasize);
+	int ret = energy_read(NULL, aux_energy_stop);
+	if (ret == EAR_ERROR){
+		debug("MR[%d] Error reading Node energy at application start",masters_info.my_master_rank);
+	}
 
-			/* If EARD is present, we wait until the power is computed */
-			if (energy_lib_data_is_null(aux_energy_stop) || (ret == EAR_ERROR)) {
-				if (eards_connected()) return EAR_NOT_READY;
-				else 							     return EAR_SUCCESS;
-			}
-		}else{
-			memset(aux_energy_stop , 0, node_energy_datasize);
-		}
-		energy_lib_data_accumulated(&c_energy,metrics_ipmi[LOO],aux_energy_stop);
-		energy_lib_data_to_str(start_energy_str,metrics_ipmi[LOO]);
-		energy_lib_data_to_str(stop_energy_str,aux_energy_stop);
+	/* If EARD is present, we wait until the power is computed */
+	/*if (energy_lib_data_is_null(aux_energy_stop) || (ret == EAR_ERROR)) {
+		if (eards_connected()) return EAR_NOT_READY;
+		else return EAR_SUCCESS;
+	}*/
 
-		/* If EARD is present, we wait until the power is computed */
-		if (eards_connected()){
-			if ((where==SIG_END) && (c_energy==0) && (master)) {
-				debug("EAR_NOT_READY because of accumulated energy %lu\n",c_energy);
-				if (dispose) fprintf(stderr,"partial stop and EAR_NOT_READY\n");
-				if (!EARL_LIGHT) return EAR_NOT_READY;
-			}
-		}
-	} // master
+	energy_data_accumulated(&c_energy,metrics_ipmi[LOO],aux_energy_stop);
+	energy_data_to_str(start_energy_str,metrics_ipmi[LOO]);
+	energy_data_to_str(stop_energy_str,aux_energy_stop);
+	debug("start energy str %s", start_energy_str);
+	debug("end energy str %s", stop_energy_str);
+
+  #if FAKE_ENERGY_READING
+  c_energy = 0;
+  verbose_master(0,"FAKE_ENERGY_READING used ");
+  #endif
+
+
+
+	/* If EARD is present, we wait until the power is computed */
+	if ((where==SIG_END) && (c_energy==0) && (master)) {
+		debug("EAR_NOT_READY because of accumulated energy %lu\n",c_energy);
+		if (dispose) fprintf(stderr,"partial stop and EAR_NOT_READY\n");
+		if (!EARL_LIGHT) return EAR_NOT_READY;
+	}
 
 	/* Time */
 	aux_time_stop = metrics_time();
 
 	/* Sometimes energy is not zero but power is not correct */
-	c_time=metrics_usecs_diff(aux_time_stop, metrics_usecs[LOO]);
+	c_time = ear_max(metrics_usecs_diff(aux_time_stop, metrics_usecs[LOO]), 1);
 
 	/* energy is computed in node_energy_units and time in usecs */
 	c_power=(float)(c_energy*(1000000.0/(double)node_energy_units))/(float)c_time;
 
-    if (master) {
-        if (dispose && ((c_power<0) || (c_power>system_conf->max_sig_power))){
-            debug("dispose and c_power %lf\n",c_power);
-            debug("power %f energy %lu time %llu\n",c_power,c_energy,c_time);
-        }
-    }
+  #if FAKE_POWER_READING
+  c_power = 1000000;
+  verbose_master(0,"FAKE_POWER_READING used");
+  #endif
+
+	if (master) {
+    /* Error is manage later in this function */
+		if (dispose && ((c_power<=0) || (c_power>system_conf->max_sig_power))){
+			debug("dispose and c_power %lf\n",c_power);
+			debug("power %f energy %lu time %llu\n",c_power,c_energy,c_time);
+		}
+	}
 
 	/* If we are not the node master, we will continue */
 	if ((where==SIG_END) && (c_power<system_conf->min_sig_power) && (master)) {
@@ -806,623 +1124,720 @@ static int metrics_partial_stop(uint where)
 		if (!EARL_LIGHT) return EAR_NOT_READY;
 	}
 
-	/* This is new to avoid cases where uncore gets frozen */
-    if (master) {
-#if USE_GPUS
-        /* GPUs */
-        if (gpu_initialized){
-            if (gpu_lib_read(&gpu_lib_ctx, gpu_metrics_end[LOO])!= EAR_SUCCESS){
-                debug("gpu_lib_read error");
-            }
-            debug("gpu_read in partial stop");
-            gpu_loop_stopped = 1;
-            gpu_lib_data_diff(gpu_metrics_end[LOO], gpu_metrics_init[LOO], gpu_metrics_diff[LOO]);
-            gpu_lib_data_tostr(gpu_metrics_diff[LOO], gpu_str, sizeof(gpu_str));
-            debug("gpu_diff in partial_stop: %s", gpu_str);
-        }
-#endif
-    }
-
-	/* End new section to check frozen uncore counters */
-	energy_lib_data_copy(aux_energy,aux_energy_stop);
-	aux_time=aux_time_stop;
+	/* TODO: This commment can not be above GPU code: This is new to avoid cases where uncore gets frozen */
 
 	if (master) {
-		if (c_power < system_conf->max_sig_power) {
+#if USE_GPUS
+        if (state_ok(gpu_read(no_ctx, gpu_metrics_read2[LOO]))) {
+
+            // gpu_loop_stopped = 1;
+            gpu_data_diff(gpu_metrics_read2[LOO], gpu_metrics_read1[LOO], gpu_metrics_diff[LOO]);
+
+            if (VERB_ON(GPU_VERB + 1)) {
+                gpu_data_tostr(gpu_metrics_diff[LOO], gpu_str, sizeof(gpu_str));
+                verbose(GPU_VERB + 1, "Partial GPU data\n---------------\n%s", gpu_str);
+            }
+        } else {
+            gpu_data_null(gpu_metrics_read2[LOO]);
+            gpu_data_null(gpu_metrics_diff[LOO]);
+            verbose(GPU_VERB, "%sERROR%s Reading GPU data in partial stop.", COL_RED, COL_CLR);
+        }
+
+
+#endif // USE_GPUS
+    }
+
+    /* End new section to check frozen uncore counters */
+    energy_data_copy(aux_energy,aux_energy_stop);
+    aux_time=aux_time_stop;
+
+    if (master) {
+		if ((c_power > system_conf->min_sig_power) && (c_power < system_conf->max_sig_power)) {
 			acum_ipmi[LOO] = c_energy;
-		}else{
-			verbose_master(2, "Computed power was not correct (%lf) reducing it to %lf\n",c_power,system_conf->min_sig_power);
-			acum_ipmi[LOO] = system_conf->min_sig_power*c_time;
+
+		} else {
+      /* If there is an error, power is computed based on power from CPu+GPU. Computed in 
+       * compute_signature_data */
+			verbose_master(ERROR_VERB, "%sWARNING%s Computed power (%lf) is not correct. Reducing it to %lf...\n",
+                    COL_YLW, COL_CLR, c_power, system_conf->min_sig_power);
+			// acum_ipmi[LOO] = system_conf->min_sig_power*c_time;
+      estimate_power = 1;
 		}
-		acum_ipmi[APP] += acum_ipmi[LOO];
+    /* Power error control: Delay this accumulation to the job power computation */ 
+		 //acum_ipmi[APP] += acum_ipmi[LOO];
 	}
 	/* Per process IO data */
-    if (io_read(&ctx_io, &metrics_io_end[LOO]) != EAR_SUCCESS){
-        verbose_master(2,"%sWarning%s I/O data not available", COL_RED, COL_CLR);
-    }
+	if (io_read(&ctx_io, &metrics_io_end[LOO]) != EAR_SUCCESS){
+		verbose_master(ERROR_VERB,"%sWarning%s I/O data not available", COL_RED, COL_CLR);
+	}
 	io_diff(&metrics_io_diff[LOO],&metrics_io_init[LOO],&metrics_io_end[LOO]);
 
 	//  Manual time accumulation
 	metrics_usecs[LOO] = c_time;
 	metrics_usecs[APP] += metrics_usecs[LOO];
-	
-    // Daemon metrics
-    if (master) {
-        /* MPI statistics */
-        if (is_mpi_enabled()) {
-         read_diff_node_mpi_info(lib_shared_region, sig_shared_region,
-                 metrics_mpi_info[LOO], metrics_last_mpi_info[LOO]);
-         read_diff_node_mpi_types_info(lib_shared_region, sig_shared_region,
-                 metrics_mpi_calls_types[LOO], metrics_last_mpi_calls_types[LOO]);
-        }
 
-        /* Avg CPU freq */
-        if (state_fail(s = cpufreq_read(no_ctx, cpufreq_read2[LOO]))) {
-            verbose_master(2, "%sCPUFreq data read in partial stop failed%s", COL_RED, COL_CLR);
-        }
-        if (xtate_fail(s, cpufreq_data_diff(cpufreq_read2[LOO], cpufreq_read1[LOO], cpufreq_diff, &cpufreq_avrg[LOO]))){
-            verbose_master(2, "%sCPUFreq data diff failed%s", COL_RED, COL_CLR);
-        } else {
-            verbose_master(2, "%sPARTIAL STOP%s CPUFreq average is %.2f GHz", COL_BLU, COL_CLR, (float) cpufreq_avrg[LOO] / 1000000.0);
-        }
-        // Simple verbose
-        if (verb_level >= 3) {
-            for (int cpu = 0; cpu < mtopo.cpu_count; cpu++) {
-                verbosen_master(3, "AVGCPU[%d] = %.2f ",cpu,(float)cpufreq_diff[cpu]/1000000.0);
-            }
-            verbose_master(3, "%s", "");
-        }
+	// Daemon metrics
+	if (master) {
+		/* MPI statistics */
+		if (is_mpi_enabled()) {
+			read_diff_node_mpi_info(lib_shared_region, sig_shared_region,
+					metrics_mpi_info[LOO], metrics_last_mpi_info[LOO]);
+			read_diff_node_mpi_types_info(lib_shared_region, sig_shared_region,
+					metrics_mpi_calls_types[LOO], metrics_last_mpi_calls_types[LOO]);
+		}
+
+		/* Avg CPU freq */
+		if (state_fail(s = cpufreq_read(no_ctx, cpufreq_read2[LOO]))) {
+			verbose_master(ERROR_VERB, "%sCPUFreq data read in partial stop failed%s", COL_RED, COL_CLR);
+		}
+		if (xtate_fail(s, cpufreq_data_diff(cpufreq_read2[LOO], cpufreq_read1[LOO], cpufreq_diff, &cpufreq_avrg[LOO]))){
+			verbose_master(ERROR_VERB, "%sCPUFreq data diff failed%s", COL_RED, COL_CLR);
+		} else {
+			//verbose_master(1, "CPUFreq average is %.2f GHz", (float) cpufreq_avrg[LOO] / 1000000.0);
+		}
+		// Simple verbose
+		if (verb_level >= 3) {
+			for (int cpu = 0; cpu < mtopo.cpu_count; cpu++) {
+				verbosen_master(3, "AVGCPU[%d] = %.2f ",cpu,(float)cpufreq_diff[cpu]/1000000.0);
+			}
+			verbose_master(3, "%s", "");
+		}
 		cpufreq_my_avgcpufreq(cpufreq_diff, &cpufreq_avrg[LOO]);
-        memcpy(lib_shared_region->avg_cpufreq, cpufreq_diff, met_cpufreq.devs_count * sizeof(cpufreq_diff[0]));
+		memcpy(lib_shared_region->avg_cpufreq, cpufreq_diff, met_cpufreq.devs_count * sizeof(cpufreq_diff[0]));
 
-        /* Avg IMC frequency */
-        if (mgt_imcfreq.ok){
-            if (state_fail(s = imcfreq_read(no_ctx,imcfreq_read2[LOO]))){
-                verbose_master(2, "%sError%s IMC freq. data read in partial stop", COL_RED, COL_CLR);
-            }
-            if (state_fail(s = imcfreq_data_diff(imcfreq_read2[LOO],imcfreq_read1[LOO], imcfreq_diff[LOO], &imcfreq_avrg[LOO]))){
-                verbose_master(2, "IMC data diff fails");
-            }
-            debug("AVG IMC frequency %.2f",(float)imcfreq_avrg[LOO]/1000000.0);
+		/* Avg IMC frequency */
+		if (mgt_imcfreq.ok){
+			if (state_fail(s = imcfreq_read(no_ctx,imcfreq_read2[LOO]))){
+				verbose_master(ERROR_VERB, "%sError%s IMC freq. data read in partial stop", COL_RED, COL_CLR);
+			}
+			if (state_fail(s = imcfreq_data_diff(imcfreq_read2[LOO],imcfreq_read1[LOO], imcfreq_diff[LOO], &imcfreq_avrg[LOO]))){
+				verbose_master(ERROR_VERB, "IMC data diff fails");
+			}
+			debug("AVG IMC frequency %.2f",(float)imcfreq_avrg[LOO]/1000000.0);
 		}
 
 		/* Per node IO data */
-        if (state_ok(metrics_compute_total_io(&metrics_io_end[LOO_NODE]))) {
+		if (state_ok(metrics_compute_total_io(&metrics_io_end[LOO_NODE]))) {
 
-            // Diff
-            io_diff(&metrics_io_diff[LOO_NODE],
-                    &metrics_io_init[LOO_NODE], &metrics_io_end[LOO_NODE]);
+			// Diff
+			io_diff(&metrics_io_diff[LOO_NODE],
+					&metrics_io_init[LOO_NODE], &metrics_io_end[LOO_NODE]);
 
-            // Accumulate
-            io_accum(no_ctx, &metrics_io_diff[APP_ACUM], &metrics_io_diff[LOO_NODE]);
-        } else {
-            memset(&metrics_io_diff[LOO_NODE], 0, sizeof(io_data_t));
+			// Accumulate
+			io_accum(no_ctx, &metrics_io_diff[APP_ACUM], &metrics_io_diff[LOO_NODE]);
+		} else {
+			memset(&metrics_io_diff[LOO_NODE], 0, sizeof(io_data_t));
 
-            verbose_master(2, "%sWarning%s Node total I/O could not be read (%s). Assuming"
-                    " no I/O data for this loop.", COL_RED, COL_CLR, state_msg);
-        }
-
-        /* This code needs to be adapted to read , compute the difference, and copy begin=end 
-         * diff_uncores(values,values_end,values_begin,num_counters);
-         * copy_uncores(values_begin,values_end,num_counters);
-         */
-
-	/* RAPL energy */
-		if (eards_connected()) eards_read_rapl(aux_rapl);
-		else memset(aux_rapl, 0, rapl_size);
-
-		// We read acuumulated energy
-		for (int i = 0; i < rapl_elements; i++) {
-			if (aux_rapl[i] < last_rapl[i]) {
-				metrics_rapl[LOO][i] = ullong_diff_overflow(last_rapl[i], aux_rapl[i]);
-			}
-			else {
-				metrics_rapl[LOO][i]=aux_rapl[i]-last_rapl[i];		
-			}
+			verbose_master(ERROR_VERB, "%sWarning%s Node total I/O could not be read (%s). Assuming"
+					" no I/O data for this loop.", COL_RED, COL_CLR, state_msg);
 		}
+
+		/* Only the master read RAPL because is not per-process metric */
+		/* RAPL energy */
+		energy_cpu_read(no_ctx, aux_rapl);
+		// We read acuumulated energy
+		energy_cpu_data_diff(no_ctx, last_rapl, aux_rapl, metrics_rapl[LOO]);
 	
 		// Manual RAPL accumulation
+    ullong total_RAPL_energy = 0;
 		for (int i = 0; i < rapl_elements; i++) {
-				metrics_rapl[APP][i] += metrics_rapl[LOO][i];
+			metrics_rapl[APP][i] += metrics_rapl[LOO][i];
+      total_RAPL_energy += metrics_rapl[LOO][i];
+			debug("energy CPU: %llu", metrics_rapl[LOO][i]);
 		}
-    } //master_rank (metrics collected by node_master)
 
+	} //master_rank (metrics collected by node_master)
+
+	/* This code needs to be adapted to read , compute the difference, and copy begin=end 
+	 * diff_uncores(values,values_end,values_begin,num_counters);
+	 * copy_uncores(values_begin,values_end,num_counters);
+	 */
 	// New metrics
-    bwidth_read_diff(no_ctx, bwidth_read2[LOO], bwidth_read1[LOO], bwidth_diff[LOO], &bwidth_cas[LOO], NULL);
-     flops_read_diff(no_ctx, &flops_read2[LOO], &flops_read1[LOO], &flops_diff[LOO], NULL);
-     cache_read_diff(no_ctx, &cache_read2[LOO], &cache_read1[LOO], &cache_diff[LOO], &cache_avrg[LOO]);
-       cpi_read_diff(no_ctx,   &cpi_read2[LOO],   &cpi_read1[LOO],   &cpi_diff[LOO],   &cpi_avrg[LOO]);
+	bwidth_read_diff(no_ctx, bwidth_read2[LOO], bwidth_read1[LOO], bwidth_diff[LOO], &bwidth_cas[LOO], NULL);
+  if (master) lib_shared_region->cas_counters = bwidth_cas[LOO];
+	flops_read_diff(no_ctx, &flops_read2[LOO], &flops_read1[LOO], &flops_diff[LOO], NULL);
+	cache_read_diff(no_ctx, &cache_read2[LOO], &cache_read1[LOO], &cache_diff[LOO], &cache_avrg[LOO]);
+	cpi_read_diff(no_ctx,   &cpi_read2[LOO],   &cpi_read1[LOO],   &cpi_diff[LOO],   &cpi_avrg[LOO]);
 
-    // New accumulations: by now these application metrics are taken accumulating loop values.
-    // Not sure if required this way in the future, is just because if there are too long apps
-    // that could overflow these metric counters.
-     flops_data_accum(&flops_diff[APP], &flops_diff[LOO], NULL);
+  #if USE_CUPTI
+  if (read_cupti_metrics){
+    if (state_fail(gpuproc_read_diff(no_ctx, proc_gpu_data_end[LOO], proc_gpu_data_init[LOO], proc_gpu_data_diff[LOO]))){
+     verbose(2, "gpuproc_read_diff failed");
+    }
+    gpuproc_data_tostr(proc_gpu_data_diff[LOO], gpu_proc_buffer, sizeof(gpu_proc_buffer));
+    verbose(VERBOSE_CUPTI, "GPU_PROC LOOP DATA for [%d][%d] : %s", masters_info.my_master_rank, my_node_id, gpu_proc_buffer);
+  }
+  #endif
+
+	// New accumulations: by now these application metrics are taken accumulating loop values.
+	// Not sure if required this way in the future, is just because if there are too long apps
+	// that could overflow these metric counters.
+	flops_data_accum(&flops_diff[APP], &flops_diff[LOO], NULL);
 
 	return EAR_SUCCESS;
 }
 
+
 ull metrics_vec_inst(signature_t *metrics)
 {
-    ullong fops = 0LLU;
-    if (metrics->FLOPS[INDEX_512F] > 0) fops += metrics->FLOPS[INDEX_512F] / WEIGHT_512F;
-    if (metrics->FLOPS[INDEX_512D] > 0) fops += metrics->FLOPS[INDEX_512D] / WEIGHT_512D;
-    return fops;
+	ullong fops = 0LLU;
+	if (metrics->FLOPS[INDEX_512F] > 0) fops += metrics->FLOPS[INDEX_512F] / WEIGHT_512F;
+	if (metrics->FLOPS[INDEX_512D] > 0) fops += metrics->FLOPS[INDEX_512D] / WEIGHT_512D;
+	return fops;
 }
 
-void copy_node_data(signature_t *dest,signature_t *src)
+
+void copy_node_data(signature_t *dest, signature_t *src)
 {
-    dest->DC_power	=	src->DC_power;
-    dest->DRAM_power=	src->DRAM_power;
-    dest->PCK_power	=	src->PCK_power;
-    dest->avg_f			= src->avg_f;
-    dest->avg_imc_f = src->avg_imc_f;
-	dest->GBS       = src->GBS;
-	dest->TPI       = src->TPI;
+	dest->DC_power	=	src->DC_power;
+	dest->DRAM_power=	src->DRAM_power;
+	dest->PCK_power	=	src->PCK_power;
+	dest->avg_f			= src->avg_f;
+	dest->avg_imc_f = src->avg_imc_f;
+  dest->GBS       = src->GBS;
+  dest->TPI       = src->TPI;
 #if USE_GPUS
-    memcpy(&dest->gpu_sig,&src->gpu_sig,sizeof(gpu_signature_t));
+	memcpy(&dest->gpu_sig,&src->gpu_sig,sizeof(gpu_signature_t));
 #endif
 }
 
-/******************* This function computes the signature : per loop (global = LOO) or application ( global = APP)  **************/
-/******************* The node master has computed the per-node metrics and the rest of processes uses this information ***********/
+/* This function computes the signature: per loop (global = LOO) or application ( global = APP)
+ * The node master has computed the per-node metrics and the rest of processes uses this information. */
 static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *metrics,
-        uint iterations, ulong procs)
+		uint iterations, ulong procs)
 {
-				// If sign_app_loop_idx is 1, it means that the global application metrics are required
-				// instead the small time metrics for loops. 'sign_app_loop_idx' is just a
-                // signature index.
-				sig_ext_t *sig_ext;
-				
-                debug("process %d - %sapp/loop(1/0) %u%s",
-                        my_node_id, COL_YLW, sign_app_loop_idx, COL_CLR);
+	// If sign_app_loop_idx is 1, it means that the global application metrics are required
+	// instead the small time metrics for loops. 'sign_app_loop_idx' is just a
+	// signature index.
+	sig_ext_t *sig_ext;
 
-				/* Total time */
-				double time_s = (double) metrics_usecs[sign_app_loop_idx] / 1000000.0;
+	debug("process %d - %sapp/loop(1/0) %u%s",
+			my_node_id, COL_YLW, sign_app_loop_idx, COL_CLR);
 
-                if (VERB_ON(2) && (sign_app_loop_idx == APP)) {
-                    verbose_master(2, "Process %d ends in exclusive mode: %u",
-                            my_node_id, exclusive);
-                }
+	/* Total time */
+	metrics_usecs[sign_app_loop_idx] = ear_max(metrics_usecs[sign_app_loop_idx], 1);
+	double time_s = (double) metrics_usecs[sign_app_loop_idx] / 1000000.0;
 
-				/* Avg CPU frequency */
-				metrics->avg_f = cpufreq_avrg[sign_app_loop_idx];
+	if (VERB_ON(2) && (sign_app_loop_idx == APP)) {
+		verbose_master(2, "Process %d ends in exclusive mode: %u",
+				my_node_id, exclusive);
+	}
 
-				/* Avg IMC frequency */
-				metrics->avg_imc_f = imcfreq_avrg[sign_app_loop_idx];
+	/* Avg CPU frequency */
+	metrics->avg_f = cpufreq_avrg[sign_app_loop_idx];
 
-				/* Time per iteration */
-				metrics->time = time_s / (double) iterations;
+	/* Avg IMC frequency */
+	metrics->avg_imc_f = imcfreq_avrg[sign_app_loop_idx];
 
-				/* Cache misses */
-				metrics->L1_misses = cache_diff[sign_app_loop_idx].l1d_misses;
-				metrics->L2_misses = cache_diff[sign_app_loop_idx].l2_misses;
-				metrics->L3_misses = cache_diff[sign_app_loop_idx].l3_misses;
- 
-                if (metrics->sig_ext == NULL) {
-                    metrics->sig_ext = (void *) calloc(1, sizeof(sig_ext_t));
-                }
-				sig_ext = metrics->sig_ext;
-				sig_ext->elapsed = time_s;
+	/* Time per iteration */
+	iterations = ear_max(iterations, 1);
+	metrics->time = time_s / (double) iterations;
 
-				/* FLOPS */
-                flops_data_accum(&flops_diff[APP], NULL, &metrics->Gflops);
-                flops_help_toold(&flops_diff[APP], metrics->FLOPS);
+	/* Cache misses */
+	metrics->L1_misses = cache_diff[sign_app_loop_idx].l1d_misses;
+	metrics->L2_misses = cache_diff[sign_app_loop_idx].l2_misses;
+	metrics->L3_misses = cache_diff[sign_app_loop_idx].l3_misses;
 
-                /* CPI */
-                metrics->cycles       = cpi_diff[sign_app_loop_idx].cycles;
-                metrics->instructions = cpi_diff[sign_app_loop_idx].instructions;
-                metrics->CPI          = cpi_avrg[sign_app_loop_idx];
+	if (metrics->sig_ext == NULL) {
+		metrics->sig_ext = (void *) calloc(1, sizeof(sig_ext_t));
+	}
+	sig_ext = metrics->sig_ext;
+	sig_ext->elapsed = time_s;
 
-				/* TPI and Memory bandwith */
-                if (master) {
-                    bwidth_data_accum(bwidth_diff[APP], bwidth_diff[LOO], NULL, NULL);
-                    verbose_master(INFO_METRICS + 1, "%sCOMPUTE SIGNATURE DATA%s GBS[%d]: %0.2lf", COL_BLU, COL_CLR, sign_app_loop_idx, metrics->GBS);
-					metrics->TPI = bwidth_help_castotpi(bwidth_cas[sign_app_loop_idx],
-										metrics->instructions);
-				 	metrics->GBS = bwidth_help_castogbs(bwidth_cas[sign_app_loop_idx], time_s);
-                } else {
-                    bwidth_cas[sign_app_loop_idx] = (ullong) lib_shared_region->cas_counters;
-                    metrics->GBS = bwidth_help_castogbs(bwidth_cas[sign_app_loop_idx], time_s);
-                }
+	/* FLOPS */
+	flops_data_accum(&flops_diff[APP], NULL, &metrics->Gflops);
+	flops_help_toold(&flops_diff[APP], metrics->FLOPS);
 
-                metrics->TPI = bwidth_help_castotpi(bwidth_cas[sign_app_loop_idx],
-                        metrics->instructions);
+	/* CPI */
+	metrics->cycles       = cpi_diff[sign_app_loop_idx].cycles;
+	metrics->instructions = ear_max(cpi_diff[sign_app_loop_idx].instructions, 1);
+	metrics->CPI          = cpi_avrg[sign_app_loop_idx];
 
-				/* Per process IO data */
-                io_copy(&(sig_ext->iod), &metrics_io_diff[sign_app_loop_idx]);
-                io_copy(&sig_shared_region[my_node_id].sig.iod, &metrics_io_diff[sign_app_loop_idx]);
+	/* TPI and Memory bandwith */
+	if (master) {
+		bwidth_data_accum(bwidth_diff[APP], bwidth_diff[LOO], NULL, NULL);
 
-				/* Per Node IO data */
-				int io_app_loop_idx = sign_app_loop_idx;
+	  metrics->TPI = bwidth_help_castotpi(bwidth_cas[sign_app_loop_idx], metrics->instructions);
+	  metrics->GBS = bwidth_help_castogbs(bwidth_cas[sign_app_loop_idx], time_s);
+	} else {
+		bwidth_cas[sign_app_loop_idx] = (ullong) lib_shared_region->cas_counters;
+		metrics->GBS = bwidth_help_castogbs(bwidth_cas[sign_app_loop_idx], time_s);
+    /* TPI normalized by total instructions */
+	  metrics->TPI = bwidth_help_castotpi(bwidth_cas[sign_app_loop_idx], metrics->instructions);
+	}
+  verbose_master(TPI_DEBUG, "GBS %.2lf TPI %.2lf", metrics->GBS, metrics->TPI);
 
-                /* Each process will compute its own IO_MBS, except
-                 * the master, that computes per node IO_MBS */
-                if (master) {
-                    if (io_app_loop_idx == APP) {
-                        io_app_loop_idx = APP_NODE;
-                    } else if (io_app_loop_idx == LOO) {
-                        io_app_loop_idx = LOO_NODE;
-                    }
-                }
+  #if USE_CUPTI
+  if (read_cupti_metrics){
+    gpuproc_data_tostr(proc_gpu_data_diff[sign_app_loop_idx], gpu_proc_buffer, sizeof(gpu_proc_buffer));
+    verbose_master(VERBOSE_CUPTI, "GPU PROC data for master: %s", gpu_proc_buffer);
+  }
+  #endif
 
-                double iogb = (double) metrics_io_diff[io_app_loop_idx].rchar / (double) (1024*1024) + (double) metrics_io_diff[io_app_loop_idx].wchar/(double)(1024*1024);
+	/* Per process IO data */
+	io_copy(&(sig_ext->iod), &metrics_io_diff[sign_app_loop_idx]);
+	io_copy(&sig_shared_region[my_node_id].sig.iod, &metrics_io_diff[sign_app_loop_idx]);
 
-				metrics->IO_MBS = iogb/time_s;
+	/* Per Node IO data */
+	int io_app_loop_idx = sign_app_loop_idx;
 
-                if (master) {
-                    sig_ext->max_mpi = 0;
-                    sig_ext->min_mpi = 100;
+	/* Each process will compute its own IO_MBS, except
+	 * the master, that computes per node IO_MBS */
+	if (master) {
+		if (io_app_loop_idx == APP) {
+			io_app_loop_idx = APP_NODE;
+		} else if (io_app_loop_idx == LOO) {
+			io_app_loop_idx = LOO_NODE;
+		}
+	}
 
-                    /* MPI statistics */
-                    if (is_mpi_enabled()) {
-                        double mpi_time_perc = 0.0;
-                        for (int i = 0; i < lib_shared_region->num_processes; i++) {
-                            ullong mpi_time_usecs = ((mpi_information_t *) metrics_mpi_info[sign_app_loop_idx])[i].mpi_time;
-                            ullong exec_time_usecs = ((mpi_information_t *) metrics_mpi_info[sign_app_loop_idx])[i].exec_time;
+	double iogb = (double) metrics_io_diff[io_app_loop_idx].rchar / (double) (1024 * 1024) +
+    (double) metrics_io_diff[io_app_loop_idx].wchar / (double) (1024 * 1024);
 
-#if 0
-                            double local_mpi_time_perc;
-                            double local_mpi_time_perc_test = ((mpi_information_t *) metrics_mpi_info[sign_app_loop_idx])[i].perc_mpi;
-                            if ((metrics_mpi_info[sign_app_loop_idx])[i].mpi_time > 0) {
-                                local_mpi_time_perc = (double) (mpi_time_usecs * 100.0 / exec_time_usecs);
-                            }
-                            else {
-                                local_mpi_time_perc = 0;
-                            }
-#endif
-                            // The percentage of time spent in MPI calls is computed on
-                            // metrics_[partial|global]_stop, so we can avoid the above code.
-                            double local_mpi_time_perc = ((mpi_information_t *) metrics_mpi_info[sign_app_loop_idx])[i].perc_mpi;
+	metrics->IO_MBS = iogb/time_s;
+    #if 0
+    if (metrics->IO_MBS > phases_limits.io_th) {
+        verbose(1," %s.[%d] With high IO activity %.2lf", node_name, my_node_id, metrics->IO_MBS);
+    }
+    #endif
 
-                            sig_shared_region[i].mpi_info.perc_mpi = local_mpi_time_perc;
-                            mpi_time_perc += local_mpi_time_perc;
+	if (master) {
+		sig_ext->max_mpi = 0;
+		sig_ext->min_mpi = 100;
 
-                            sig_ext->max_mpi = ear_max(local_mpi_time_perc, sig_ext->max_mpi);
-                            sig_ext->min_mpi = ear_min(local_mpi_time_perc, sig_ext->min_mpi);
+		/* MPI statistics */
+		if (is_mpi_enabled()) {
+			double mpi_time_perc = 0.0;
+			for (int i = 0; i < lib_shared_region->num_processes; i++) {
 
-                            verbose_master(MPI_VERB,
-                                    "%%MPI process %d: %.2lf | MPI time (us): %llu"
-                                    " | Wall time (us): %llu", i, local_mpi_time_perc,
-                                    mpi_time_usecs, exec_time_usecs);
-                        }
+				ullong mpi_time_usecs = ((mpi_information_t *) metrics_mpi_info[sign_app_loop_idx])[i].mpi_time;
+				ullong exec_time_usecs = ear_max(((mpi_information_t *) metrics_mpi_info[sign_app_loop_idx])[i].exec_time, 1);
 
-                        metrics->perc_MPI = mpi_time_perc / lib_shared_region->num_processes;
-                    } else { // MPI not enabled
-                        metrics->perc_MPI = 0.0;
-                    }
+				// The percentage of time spent in MPI calls is computed on metrics_[partial|global]_stop.
+				double local_mpi_time_perc = ((mpi_information_t *) metrics_mpi_info[sign_app_loop_idx])[i].perc_mpi;
 
-                    sig_ext->mpi_stats = metrics_mpi_info[sign_app_loop_idx];
-                    sig_ext->mpi_types = metrics_mpi_calls_types[sign_app_loop_idx];
+				sig_shared_region[i].mpi_info.perc_mpi = local_mpi_time_perc;
+				mpi_time_perc += local_mpi_time_perc;
 
-                    /* Power: Node, DRAM, PCK */
-                    metrics->DC_power = (double) acum_ipmi[sign_app_loop_idx] / (time_s * node_energy_units);
+				sig_ext->max_mpi = ear_max(local_mpi_time_perc, sig_ext->max_mpi);
+				sig_ext->min_mpi = ear_min(local_mpi_time_perc, sig_ext->min_mpi);
 
-                    /* DRAM and PCK PENDING for Njobs */
-                    metrics->PCK_power=0;
-                    metrics->DRAM_power=0;
+				verbose_master(MPI_VERB,
+						"%%MPI process %d: %.2lf | MPI time (us): %llu"
+						" | Wall time (us): %llu", i, local_mpi_time_perc,
+						mpi_time_usecs, exec_time_usecs);
+			}
 
-                    for (int p = 0; p < num_packs; p++) {
-                        double rapl_dram = (double) metrics_rapl[sign_app_loop_idx][p];
-                        metrics->DRAM_power = metrics->DRAM_power + rapl_dram;
+			metrics->perc_MPI = mpi_time_perc / lib_shared_region->num_processes;
 
-                        double rapl_pck = (double) metrics_rapl[sign_app_loop_idx][num_packs+p];
-                        metrics->PCK_power = metrics->PCK_power + rapl_pck;
-                    }
+		} else { // MPI not enabled
+			metrics->perc_MPI = 0.0;
+		}
 
-                    metrics->PCK_power   = (metrics->PCK_power / 1000000000.0) / time_s;
-                    metrics->DRAM_power  = (metrics->DRAM_power / 1000000000.0) / time_s;
-                    metrics->EDP = time_s * time_s * metrics->DC_power;
+		sig_ext->mpi_stats = metrics_mpi_info[sign_app_loop_idx];
+		sig_ext->mpi_types = metrics_mpi_calls_types[sign_app_loop_idx];
 
+		/* Power: Node, DRAM, PCK */
+    /* If power is not estimated, we computed here, later otherwise */
+    metrics->DC_power = 0;
+    /* Loop power */
+		if (!estimate_power && acum_ipmi[sign_app_loop_idx] && (sign_app_loop_idx == LOO)){
+			metrics->DC_power = (double) acum_ipmi[sign_app_loop_idx] / (time_s * node_energy_units);
+		}
+    /* App power */
+    if (!estimate_power && acum_ipmi[sign_app_loop_idx] && (sign_app_loop_idx == APP)){
+			metrics->DC_power = (double) acum_ipmi[sign_app_loop_idx] / (total_acum_time * node_energy_units);
+    }
+
+
+		/* DRAM and PCK PENDING for Njobs */
+		metrics->PCK_power=0;
+		metrics->DRAM_power=0;
+
+		for (int p = 0; p < num_packs; p++) {
+			double rapl_dram = (double) metrics_rapl[sign_app_loop_idx][p];
+			metrics->DRAM_power = metrics->DRAM_power + rapl_dram;
+
+			double rapl_pck = (double) metrics_rapl[sign_app_loop_idx][num_packs+p];
+			metrics->PCK_power = metrics->PCK_power + rapl_pck;
+		}
+
+		metrics->PCK_power   = energy_cpu_compute_power(metrics->PCK_power, time_s);
+		metrics->DRAM_power  = energy_cpu_compute_power(metrics->DRAM_power, time_s);
+		metrics->EDP = time_s * time_s * metrics->DC_power;
+		#if EARL_LIGHT
+		verbose_master(1,"computing dram power %.2lf", metrics->DRAM_power);
+		verbose_master(1,"computing pck power %.2lf time %lf", metrics->PCK_power, time_s);
+		#else
+		debug("computing dram power %.2lf", metrics->DRAM_power);
+		debug("computing pck power %.2lf", metrics->PCK_power);
+		#endif
+
+		float total_gpu_power = 0;
 #if USE_GPUS
-                    /* GPUS */
-                    if (gpu_initialized) {
-                        metrics->gpu_sig.num_gpus = ear_num_gpus_in_node;
-                        if (earl_gpu_model == MODEL_DUMMY) { 
-                            debug("Setting num_gpu to 0 because model is DUMMY");
-                            metrics->gpu_sig.num_gpus = 0;
-                        }
-                        verbose_master(2, "We have %d GPUS ", metrics->gpu_sig.num_gpus);
-                        for (int p=0;p<metrics->gpu_sig.num_gpus;p++){
-                            metrics->gpu_sig.gpu_data[p].GPU_power    = gpu_metrics_diff[sign_app_loop_idx][p].power_w;
-                            metrics->gpu_sig.gpu_data[p].GPU_freq     = gpu_metrics_diff[sign_app_loop_idx][p].freq_gpu;
-                            metrics->gpu_sig.gpu_data[p].GPU_mem_freq = gpu_metrics_diff[sign_app_loop_idx][p].freq_mem;
-                            metrics->gpu_sig.gpu_data[p].GPU_util     = gpu_metrics_diff[sign_app_loop_idx][p].util_gpu;
-                            metrics->gpu_sig.gpu_data[p].GPU_mem_util = gpu_metrics_diff[sign_app_loop_idx][p].util_mem;
-                        }	
-                    }
+        /* GPUS */
+        metrics->gpu_sig.num_gpus = met_gpu.devs_count;
+        if (!met_gpu.ok) {
+            metrics->gpu_sig.num_gpus = 0;
+        }
+        verbose_master(GPU_VERB + 1, "Storing signature data for %d GPUs...", metrics->gpu_sig.num_gpus);
+
+        for (int p = 0; p < metrics->gpu_sig.num_gpus; p++) {
+            metrics->gpu_sig.gpu_data[p].GPU_power    = gpu_metrics_diff[sign_app_loop_idx][p].power_w;
+            metrics->gpu_sig.gpu_data[p].GPU_freq     = gpu_metrics_diff[sign_app_loop_idx][p].freq_gpu;
+            metrics->gpu_sig.gpu_data[p].GPU_mem_freq = gpu_metrics_diff[sign_app_loop_idx][p].freq_mem;
+            metrics->gpu_sig.gpu_data[p].GPU_util     = gpu_metrics_diff[sign_app_loop_idx][p].util_gpu;
+            metrics->gpu_sig.gpu_data[p].GPU_mem_util = gpu_metrics_diff[sign_app_loop_idx][p].util_mem;
+			      total_gpu_power += metrics->gpu_sig.gpu_data[p].GPU_power;
+        }
 #endif
-                } else {
-                    copy_node_data(metrics,&lib_shared_region->node_signature);
-                }
+    if (!estimate_power){
+      /* Power error control: computing the ratio */
+      dc_power_ratio += metrics->DC_power / (total_gpu_power + metrics->DRAM_power + metrics->PCK_power);
+      dc_power_ratio_instances++;
+    }
+		#if EARL_LIGHT
+		if (metrics->DC_power == 0){
+			metrics->DC_power = total_gpu_power + metrics->DRAM_power + metrics->PCK_power;
+			verbose_master(1,"Estimated power %.2lf", metrics->DC_power);
+		}
+		#else
+    if (estimate_power){
+      /* Power error control: There was an error on power computation and we use an estimation */
+      double current_ratio;
+      if (dc_power_ratio_instances && dc_power_ratio){
+        current_ratio = dc_power_ratio / (double)dc_power_ratio_instances;
+      }else current_ratio = 1.0;
+      metrics->DC_power = (total_gpu_power + metrics->DRAM_power + metrics->PCK_power) * current_ratio;
+      verbose_master(1,"Warning: Estimated power %.2lf W (DC vs CPU+GPU %.2lf)", metrics->DC_power, current_ratio);
+      if (sign_app_loop_idx == LOO) acum_ipmi[sign_app_loop_idx] = metrics->DC_power * time_s * node_energy_units;
+      estimate_power = 0;
+    }
+    #endif
 
-				/* Copying my info in the shared signature */
-				from_sig_to_mini(&sig_shared_region[my_node_id].sig,metrics);
 
-				/* If I'm the master, I have to copy in the special section */
-                if (master){
-                    signature_copy(&lib_shared_region->node_signature,metrics);
-                    signature_copy(&lib_shared_region->job_signature,metrics);
-
-                    if (VERB_ON(2)) {
-                        signature_print_simple_fd(2, metrics);
-                        verbose_master(2," ");
-                    }
-                }
-
-                sig_shared_region[my_node_id].period = time_s;
+    /* Power error control: We don't accumulate if we are computing application metrics, not loop  metrics */
+    if (!lib_shared_region->global_stop_ready){
+      //acum_ipmi[APP] += master->DC_power *  se->elapsed * node_energy_units;
+      acum_ipmi[APP] += acum_ipmi[LOO];
+      total_acum_time += time_s;
+      verbose_master(2,"Accumulating %.2lu J to the application. Total energy %lu J acum_time %.2lf sec", acum_ipmi[LOO], acum_ipmi[APP] , total_acum_time);
+    }
 
 
-				update_earl_node_mgr_info();
+	} else {
+    // Copies DC, DRAM, PCK, avg_f, avg_imc_f, GBS and TPI
+    // Node metrics are not needed in shared signature, IF we are
+    // collecting traces we don't copy to avoid having node
+    // metrics in per-process data. We maintain is tracing is not
+    // used since GPU metrics are not computed per-process
+    // WARNING: GPU metrics are replicated per-process
+    if (!traces_are_on()){
+		  copy_node_data(metrics, &lib_shared_region->node_signature);
+    }
+	}
 
-				debug("Signature ready - local rank %d - time %lld", my_node_id, (metrics_time() - app_start)/1000000);
-				signature_ready(&sig_shared_region[my_node_id],0);
 
-				verbose_master(INFO_METRICS + 1,
-                        "End compute signature for (l. rank) %d. Period %lf secs",
-                        my_node_id, sig_shared_region[my_node_id].period);
+	/* Copying my info in the shared signature */
+	ssig_from_signature(&sig_shared_region[my_node_id].sig, metrics);
+  /* Computing avg_cpufreq in shared sig (new) */
+  cpufreq_process_avgcpufreq(my_node_id, lib_shared_region->avg_cpufreq, &sig_shared_region[my_node_id].sig.avg_f);
 
-				if (msync(sig_shared_region, sizeof(shsignature_t) * lib_shared_region->num_processes,MS_SYNC) < 0) {
-                    verbose_master(2, "Memory sync fails: %s", strerror(errno));
-                }
+	/* If I'm the master, I have to copy in the special section */
+	if (master) {
+		signature_copy(&lib_shared_region->node_signature, metrics);
+		signature_copy(&lib_shared_region->job_signature, metrics);
 
-				/* Compute and print the total savings */
-				if ((sign_app_loop_idx == APP) && (masters_info.my_master_rank >= 0) && sig_ext->telapsed){
-					float avg_esaving = sig_ext->saving / sig_ext->telapsed;
-					float avg_psaving = sig_ext->psaving / sig_ext->telapsed;
-					float avg_tpenalty = sig_ext->tpenalty / sig_ext->telapsed;
-					verbose_master(2, "MR[%d] Average estimated energy savings %.2f. Average Power reduction %.2f. Time penalty %.2f. Elapsed %.2f", masters_info.my_master_rank, avg_esaving, avg_psaving, avg_tpenalty, sig_ext->telapsed);
-					app_energy_saving.event = ENERGY_SAVING;
-					/* We will use freq for the energy saving */
-					app_energy_saving.freq = (ulong)(avg_esaving * 10);
-					report_events(&rep_id, &app_energy_saving, 1);
+		if (VERB_ON(2)) {
+            char sig_to_vrb[128];
+			// signature_print_simple_fd(verb_channel, metrics);
+            signature_to_str(metrics, sig_to_vrb, sizeof(sig_to_vrb));
+			verbose(0, "Signature computed: %s", sig_to_vrb);
+		}
+	}
 
-					#if 0
-					/* Not yet reported */
-					app_energy_saving.event = POWER_SAVING;
-					app_energy_saving.event = PERF_PENALTY;
-					#endif
-				}
+	sig_shared_region[my_node_id].period = time_s; // TODO: We can ommit this attribute because the shared signature has this metric.
 
-				if (sign_app_loop_idx == APP) {
-                    sig_shared_region[my_node_id].exited = 1;
-                }
+	update_earl_node_mgr_info();
+
+	debug("Signature ready - local rank %d - time %lld", my_node_id, (metrics_time() - app_start)/1000000);
+	signature_ready(&sig_shared_region[my_node_id], 0);
+
+    verbose_master(INFO_METRICS + 1,
+            "End compute signature for (l. rank) %d. Period %lf secs",
+            my_node_id, sig_shared_region[my_node_id].period);
+
+	if (msync(sig_shared_region, sizeof(shsignature_t) * lib_shared_region->num_processes,MS_SYNC) < 0) {
+		verbose_master(ERROR_VERB, "Memory sync fails: %s", strerror(errno));
+	}
+
+	/* Compute and print the total savings */
+	if ((sign_app_loop_idx == APP) && (masters_info.my_master_rank >= 0) && sig_ext->telapsed) {
+
+		float avg_esaving = sig_ext->saving / sig_ext->telapsed;
+		float avg_psaving = sig_ext->psaving / sig_ext->telapsed;
+		float avg_tpenalty = sig_ext->tpenalty / sig_ext->telapsed;
+		verbose_master(ENERGY_EFF_VERB, "MR[%d] Average estimated energy savings %.2f. Average Power reduction %.2f. Time penalty %.2f. Elapsed %.2f", masters_info.my_master_rank, avg_esaving, avg_psaving, avg_tpenalty, sig_ext->telapsed);
+		
+    app_energy_saving.event = ENERGY_SAVING_AVG;
+
+		/* We will use freq for the energy saving */
+		app_energy_saving.freq = (llong)avg_esaving;
+		report_events(&rep_id, &app_energy_saving, 1);
+
+		app_energy_saving.event = POWER_SAVING_AVG;
+		app_energy_saving.freq = (llong)avg_psaving;
+		report_events(&rep_id, &app_energy_saving, 1);
+#if 0
+		/* Not yet reported */
+		app_energy_saving.event = PERF_PENALTY;
+#endif
+	}
+
+  /* Phases summary */
+  if ((sign_app_loop_idx == APP) && (masters_info.my_master_rank >= 0) && (sig_ext != NULL)) {
+    ullong ms_total = 0;
+    timestamp currt;
+
+    /* Remaining time since last change */
+    timestamp_getfast(&currt);
+    sig_ext->earl_phase[last_earl_phase_classification].elapsed += timestamp_diff(&currt, &init_last_phase, TIME_USECS);
+
+    /* For COMP_BOUND we compute if CPU or MEM (or mix) */
+    if (last_earl_phase_classification == APP_COMP_BOUND){
+        ullong elapsed_comp = timestamp_diff(&currt, &init_last_comp, TIME_USECS);
+        /* policy_cpu_bound and policy_mem_bound are updated only in the APP_COMP_PHASE */
+        if (policy_cpu_bound)      sig_ext->earl_phase[APP_COMP_CPU].elapsed += elapsed_comp;
+        else if (policy_mem_bound) sig_ext->earl_phase[APP_COMP_MEM].elapsed += elapsed_comp;
+        else                            sig_ext->earl_phase[APP_COMP_MIX].elapsed += elapsed_comp;
+    }
+
+    for (uint ph = 0; ph < EARL_BASIC_PHASES; ph ++) ms_total += sig_ext->earl_phase[ph].elapsed;
+    for (uint ph = 0; ph < EARL_BASIC_PHASES; ph ++){
+      if (sig_ext->earl_phase[ph].elapsed){
+        verbose_master(PHASES_SUMMARY_VERB, "Phase[%s] percentage %f (%llu msec/%llu msec)", phase_to_str(ph), (ms_total && sig_ext->earl_phase[ph].elapsed)? (float)sig_ext->earl_phase[ph].elapsed / (float)ms_total : 0.0, sig_ext->earl_phase[ph].elapsed, ms_total);
+        app_phase_summary.event = PHASE_SUMMARY_BASE + ph;
+        app_phase_summary.freq  = sig_ext->earl_phase[ph].elapsed;
+        report_events(&rep_id, &app_phase_summary, 1);
+      }
+    }
+    for (uint ph = EARL_BASIC_PHASES; ph < EARL_MAX_PHASES; ph++){
+      if (sig_ext->earl_phase[ph].elapsed){
+        verbose_master(PHASES_SUMMARY_VERB, "Phase[%s] percentage %f (%llu msec/%llu msec)", phase_to_str(ph), (ms_total && sig_ext->earl_phase[ph].elapsed)? (float)sig_ext->earl_phase[ph].elapsed / (float)ms_total : 0.0, sig_ext->earl_phase[ph].elapsed, ms_total);
+        app_phase_summary.event = PHASE_SUMMARY_BASE + ph;
+        app_phase_summary.freq  = sig_ext->earl_phase[ph].elapsed;
+        report_events(&rep_id, &app_phase_summary, 1);
+      }
+    }
+  }
+
+	if (sign_app_loop_idx == APP) {
+		sig_shared_region[my_node_id].exited = 1;
+	}
 }
 
 /**************************** Init function used in ear_init ******************/
 int metrics_init(topology_t *topo)
 {
+
     char *cimc_max_khz,*cimc_min_khz;
 #if 0
-    char imc_buffer[1024];
+	char imc_buffer[1024];
 #endif
-    pstate_t tmp_def_imc_pstate;
-    state_t st;
-    state_t s;
-    int i;
+	pstate_t tmp_def_imc_pstate;
+	state_t st;
+	state_t s;
+	int i;
 
-    metrics_static_init(topo);
-    assert(master >= 0); // Debug if master was well initialized at metrics_static_init
-    debug("metrics_static_init done");
+    read_metrics_options(); // Read env. vars configuring metrics
 
-    //debug("Masters region %p size %lu",&masters_info,sizeof(masters_info));
-    //debug("My master rank %d",masters_info.my_master_rank);
+	metrics_static_init(topo);
+	assert(master >= 0); // Debug if master was well initialized at metrics_static_init
+	debug("metrics_static_init done");
 
-    hw_cache_line_size = topo->cache_line_size;
-    num_packs = topo->socket_count;
-    topology_copy(&mtopo,topo);
+	//debug("Masters region %p size %lu",&masters_info,sizeof(masters_info));
+	//debug("My master rank %d",masters_info.my_master_rank);
 
-    //debug("detected cache line size: %0.2lf bytes", hw_cache_line_size);
-    //debug("detected sockets: %d", num_packs);
+	hw_cache_line_size = topo->cache_line_size;
+	num_packs = topo->socket_count;
+	topology_copy(&mtopo,topo);
 
-    if (hw_cache_line_size == 0) {
-        return_msg(EAR_ERROR, "error detecting the cache line size");
-    }
-    if (num_packs == 0) {
-        return_msg(EAR_ERROR, "error detecting number of packges");
-    }
+	//debug("detected cache line size: %0.2lf bytes", hw_cache_line_size);
+	//debug("detected sockets: %d", num_packs);
 
-    st = energy_lib_init(system_conf);
-    if (st != EAR_SUCCESS) {
-        verbose(2, "%sError%s returned by energy_lib_init: %s", COL_RED, COL_CLR, state_msg);
-        return_msg(EAR_ERROR, "Loading energy plugin");
-    }
+	if (hw_cache_line_size == 0) {
+		return_msg(EAR_ERROR, "error detecting the cache line size");
+	}
+	if (num_packs == 0) {
+		return_msg(EAR_ERROR, "error detecting number of packges");
+	}
 
-    if (io_init(&ctx_io,getpid()) != EAR_SUCCESS){
-        verbose_master(2,"Warning: IO data not available");
-    } else {
-        verbose_master(INFO_METRICS,"IO data initialized");
-    }
+	st = energy_lib_init(system_conf);
+	if (st != EAR_SUCCESS) {
+		verbose(ERROR_VERB, "%sError%s returned by energy_lib_init: %s", COL_RED, COL_CLR, state_msg);
+		return_msg(EAR_ERROR, "Loading energy plugin");
+	}
 
-    // Daemon metrics allocation
-    if (master && eards_connected()){
-        rapl_size = eards_get_data_size_rapl();
-    }else{
-        rapl_size=sizeof(unsigned long long);
+	if (state_ok(io_init(&ctx_io, getpid()))) {
+        verbose_master(INFO_METRICS, "%sMETRICS%s I/O data initialized.", COL_BLU, COL_CLR);
+	} else {
+        verbose_master(INFO_METRICS, "%sWARNING%s I/O data not available.", COL_YLW, COL_CLR);
     }
 
-    debug("RAPL size %lu",rapl_size);
-    rapl_elements = rapl_size / sizeof(unsigned long long);
+	// Allocating data for energy node metrics
+	// node_energy_datasize=eards_node_energy_data_size();
+	energy_datasize(&node_energy_datasize);
+	debug("energy data size %lu", node_energy_datasize);
+	energy_units(&node_energy_units);
+	/* We should create a data_alloc for enerrgy and a set_null */
+	energy_data_alloc(&aux_energy);
+	energy_data_alloc(&aux_energy_stop);
+	energy_data_alloc(&metrics_ipmi[0]);
+	energy_data_alloc(&metrics_ipmi[1]);
+	acum_ipmi[0]=0;acum_ipmi[1]=0;
 
-    // Allocating data for energy node metrics
-    // node_energy_datasize=eards_node_energy_data_size();
-    energy_lib_datasize(&node_energy_datasize);
-    debug("energy data size %lu", node_energy_datasize);
-    energy_lib_units(&node_energy_units);
-    /* We should create a data_alloc for enerrgy and a set_null */
-    aux_energy=(edata_t)malloc(node_energy_datasize);
-    aux_energy_stop=(edata_t)malloc(node_energy_datasize);
-    metrics_ipmi[0]=(edata_t)malloc(node_energy_datasize);
-    metrics_ipmi[1]=(edata_t)malloc(node_energy_datasize);
-    memset(metrics_ipmi[0],0,node_energy_datasize);
-    memset(metrics_ipmi[1],0,node_energy_datasize);
-    acum_ipmi[0]=0;acum_ipmi[1]=0;
 
-    metrics_rapl[LOO] = malloc(rapl_size);
-    metrics_rapl[APP] = malloc(rapl_size);
-    aux_rapl = malloc(rapl_size);
-    last_rapl = malloc(rapl_size);
+	if (master) {
 
-    memset(metrics_rapl[LOO], 0, rapl_size);
-    memset(metrics_rapl[APP], 0, rapl_size);
-    memset(aux_rapl, 0, rapl_size);
-    memset(last_rapl, 0, rapl_size);
-    if (master) {
 
-        debug("Allocating data for %d processes", lib_shared_region->num_processes);
+		debug("Allocating data for %d processes", lib_shared_region->num_processes);
 
-        /* We will collect MPI statistics */
-        metrics_mpi_info[APP]             = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
-        metrics_last_mpi_info[APP]        = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
-        metrics_mpi_info[LOO]             = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
-        metrics_last_mpi_info[LOO]        = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
-        metrics_mpi_calls_types[APP]      = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
-        metrics_last_mpi_calls_types[APP] = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
-        metrics_mpi_calls_types[LOO]      = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
-        metrics_last_mpi_calls_types[LOO] = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
+		/* We will collect MPI statistics */
+		metrics_mpi_info[APP]             = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
+		metrics_last_mpi_info[APP]        = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
+		metrics_mpi_info[LOO]             = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
+		metrics_last_mpi_info[LOO]        = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
+		metrics_mpi_calls_types[APP]      = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
+		metrics_last_mpi_calls_types[APP] = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
+		metrics_mpi_calls_types[LOO]      = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
+		metrics_last_mpi_calls_types[LOO] = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
 
-        /* IMC management */
-        if (mgt_imcfreq.ok) {
+		/* IMC management */
+		if (mgt_imcfreq.ok) {
 
-            imc_devices = mgt_imcfreq.devs_count;
+			imc_devices = mgt_imcfreq.devs_count;
 
-            imc_max_pstate = calloc(mgt_imcfreq.devs_count, sizeof(uint));
-            imc_min_pstate = calloc(mgt_imcfreq.devs_count, sizeof(uint));
+			imc_max_pstate = calloc(mgt_imcfreq.devs_count, sizeof(uint));
+			imc_min_pstate = calloc(mgt_imcfreq.devs_count, sizeof(uint));
 
-            if ((imc_max_pstate == NULL) || (imc_min_pstate == NULL)){
-                error("Asking for memory");
-                return EAR_ERROR;
-            }
+			if ((imc_max_pstate == NULL) || (imc_min_pstate == NULL)){
+				error("Asking for memory");
+				return EAR_ERROR;
+			}
 
-            if (state_fail(s = mgt_imcfreq_get_available_list(NULL, (const pstate_t **)&imc_pstates, &imc_num_pstates))){
-                error("Asking for IMC frequency list");
-            }
+			if (state_fail(s = mgt_imcfreq_get_available_list(NULL, (const pstate_t **)&imc_pstates, &imc_num_pstates))){
+				error("Asking for IMC frequency list");
+			}
 
 #if 0
-            mgt_imcfreq_data_tostr(imc_pstates, imc_num_pstates, imc_buffer, sizeof(imc_buffer));
-            verbose_master(2, "IMC pstates list:\n%s", imc_buffer);
+			mgt_imcfreq_data_tostr(imc_pstates, imc_num_pstates, imc_buffer, sizeof(imc_buffer));
+			verbose_master(2, "IMC pstates list:\n%s", imc_buffer);
 #endif
 
-            /* Default values */
-            def_imc_max_khz = imc_pstates[0].khz;
-            def_imc_min_khz = imc_pstates[imc_num_pstates-1].khz;
-            for (i=0; i< mgt_imcfreq.devs_count;i++) imc_min_pstate[i] = 0;
-            for (i=0; i< mgt_imcfreq.devs_count;i++) imc_max_pstate[i]= imc_num_pstates-1;
+			/* Default values */
+			def_imc_max_khz = imc_pstates[0].khz;
+			def_imc_min_khz = imc_pstates[imc_num_pstates-1].khz;
+			for (i=0; i< mgt_imcfreq.devs_count;i++) imc_min_pstate[i] = 0;
+			for (i=0; i< mgt_imcfreq.devs_count;i++) imc_max_pstate[i]= imc_num_pstates-1;
 
-            /* This section checks for explicitly requested IMC freq. range */
+			/* This section checks for explicitly requested IMC freq. range */
 
-            cimc_max_khz = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_MAX_IMCFREQ) : NULL; // Max. IMC freq. (kHz)
-            cimc_min_khz = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_MIN_IMCFREQ) : NULL; // Min. IMC freq. (kHz)
+			cimc_max_khz = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_MAX_IMCFREQ) : NULL; // Max. IMC freq. (kHz)
+			cimc_min_khz = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_MIN_IMCFREQ) : NULL; // Min. IMC freq. (kHz)
 
-            imc_max_khz = def_imc_max_khz;
-            imc_min_khz = def_imc_min_khz;
+			imc_max_khz = def_imc_max_khz;
+			imc_min_khz = def_imc_min_khz;
 
-            if (cimc_max_khz != (char*)NULL){
-                ulong tmp_def_imc = atoi(cimc_max_khz);
-                if (state_ok(pstate_freqtops(imc_pstates,imc_num_pstates,tmp_def_imc,&tmp_def_imc_pstate))){
-                    for (i=0; i< mgt_imcfreq.devs_count;i++) imc_min_pstate[i] = tmp_def_imc_pstate.idx;
-                    /* We are assuming that all devices work at the same IMC freq. */
-                    imc_max_khz = imc_pstates[imc_min_pstate[0]].khz;
-                }
-            }
-            if (cimc_min_khz != (char*)NULL){
-                ulong tmp_def_imc = atoi(cimc_min_khz);
-                if (state_ok(pstate_freqtops(imc_pstates,imc_num_pstates,tmp_def_imc,&tmp_def_imc_pstate))){
-                    for (i=0; i< mgt_imcfreq.devs_count;i++) imc_max_pstate[i] = tmp_def_imc_pstate.idx;
-                    /* We are assuming that all devices ork at the same IMC freq. */
-                    imc_min_khz = imc_pstates[imc_max_pstate[0]].khz;
-                }
-            }
+			if (cimc_max_khz != (char*)NULL){
+				ulong tmp_def_imc = atoi(cimc_max_khz);
+				if (state_ok(pstate_freqtops(imc_pstates,imc_num_pstates,tmp_def_imc,&tmp_def_imc_pstate))){
+					for (i=0; i< mgt_imcfreq.devs_count;i++) imc_min_pstate[i] = tmp_def_imc_pstate.idx;
+					/* We are assuming that all devices work at the same IMC freq. */
+					imc_max_khz = imc_pstates[imc_min_pstate[0]].khz;
+				}
+			}
+			if (cimc_min_khz != (char*)NULL){
+				ulong tmp_def_imc = atoi(cimc_min_khz);
+				if (state_ok(pstate_freqtops(imc_pstates,imc_num_pstates,tmp_def_imc,&tmp_def_imc_pstate))){
+					for (i=0; i< mgt_imcfreq.devs_count;i++) imc_max_pstate[i] = tmp_def_imc_pstate.idx;
+					/* We are assuming that all devices ork at the same IMC freq. */
+					imc_min_khz = imc_pstates[imc_max_pstate[0]].khz;
+				}
+			}
 
-            /* End sets */
-            if (state_fail(s = mgt_imcfreq_set_current_ranged_list(NULL, imc_min_pstate, imc_max_pstate))) {
-                error("Initialzing the IMC freq");
-            }
+			/* End sets */
+			if (state_fail(s = mgt_imcfreq_set_current_ranged_list(NULL, imc_min_pstate, imc_max_pstate))) {
+				error("Initialzing the IMC freq");
+			}
 
-            /* We assume all the sockets have the same configuration */
-            imc_curr_max_pstate = imc_max_pstate[0];
-            imc_curr_min_pstate = imc_min_pstate[0];	
+			/* We assume all the sockets have the same configuration */
+			imc_curr_max_pstate = imc_max_pstate[0];
+			imc_curr_min_pstate = imc_min_pstate[0];	
 
-            // Verbose a resume
-            if (verb_level >= INFO_METRICS) {
-                verbose_master(INFO_METRICS, "\n           --- IMC info ---\n            #devices: %u", mgt_imcfreq.devs_count);
+			// Verbose a resume
+			if (verb_level >= INFO_METRICS + 1) {
+				verbose_master(INFO_METRICS + 1, "\n           --- IMC info ---\n            #devices: %u", mgt_imcfreq.devs_count);
 
-                if (cimc_max_khz != NULL) {
-                    verbose_master(INFO_METRICS, "              Maximum: %s kHz", cimc_max_khz);
-                }
+				if (cimc_max_khz != NULL) {
+					verbose_master(INFO_METRICS + 1, "              Maximum: %s kHz", cimc_max_khz);
+				}
 
-                if (cimc_min_khz != NULL) {
-                    verbose_master(INFO_METRICS, "             Minimum: %s kHz", cimc_min_khz);
-                }
+				if (cimc_min_khz != NULL) {
+					verbose_master(INFO_METRICS + 1, "             Minimum: %s kHz", cimc_min_khz);
+				}
 
-                verbose_master(INFO_METRICS, "Init (max/min) (kHz): %.2f/%.2f\n           ----------------\n",
-                        (float) imc_pstates[imc_min_pstate[0]].khz, (float) imc_pstates[imc_max_pstate[0]].khz);
-            }
+				verbose_master(INFO_METRICS + 1, "Init (max/min) (kHz): %.2f/%.2f\n           ----------------\n",
+						(float) imc_pstates[imc_min_pstate[0]].khz, (float) imc_pstates[imc_max_pstate[0]].khz);
+			}
 
-        } else {
-            verbose_master(2, "%sMETRICS%s IMCFREQ not supported.", COL_BLU, COL_CLR);
-        } // IMC
-    }
+		} else {
+			verbose_master(ERROR_VERB, "%sMETRICS%s IMCFREQ not supported.", COL_BLU, COL_CLR);
+		} // IMC
+	}
 
 #if USE_GPUS
-    if (master){
-        if (gpu_lib_load(system_conf) !=EAR_SUCCESS){
-            gpu_initialized=0;
-            debug("Error in gpu_lib_load");
-        }else gpu_initialized=1;
-        if (gpu_initialized){
-            debug("Initializing GPU");
-            if (gpu_lib_init(&gpu_lib_ctx) != EAR_SUCCESS){
-                error("Error in GPU initiaization");
-                gpu_initialized=0;
-            }else{
-                debug("GPU initialization successfully");
-                gpu_lib_model(&gpu_lib_ctx,&earl_gpu_model);
-                debug("GPU model %u",earl_gpu_model);
-                gpu_lib_data_alloc(&gpu_metrics_init[LOO]);gpu_lib_data_alloc(&gpu_metrics_init[APP]);
-                gpu_lib_data_alloc(&gpu_metrics_end[LOO]);gpu_lib_data_alloc(&gpu_metrics_end[APP]);
-                gpu_lib_data_alloc(&gpu_metrics_diff[LOO]);gpu_lib_data_alloc(&gpu_metrics_diff[APP]);
-                gpu_lib_count(&ear_num_gpus_in_node);
-                gpu_lib_data_alloc(&gpud_busy);
-                gpu_lib_data_alloc(&gpuddiff_busy);
-                debug("GPU library data initialized");
-            }
-        }
-        debug("GPU initialization successfully");
-    }
     fflush(stderr);	
+#else
 #endif
 
-    //debug( "detected %d RAPL counters for %d packages: %d events por package", rapl_elements,num_packs,rapl_elements/num_packs);
+	metrics_global_start();
+	metrics_partial_start();
 
-    metrics_global_start();
-    metrics_partial_start();
-
-    return EAR_SUCCESS;
+	return EAR_SUCCESS;
 }
 
+
 #define MAX_SYNCHO_TIME 100
+#define METRICS_OVH 0
+#if METRICS_OVH
+static ulong total_metrics_ovh = 0;
+#endif
+
 
 void metrics_dispose(signature_t *metrics, ulong procs)
 {
-    sig_ext_t *se;
-    signature_t nodeapp;
-    uint num_ready;
-    uint exited;
-    float wait_time = 0;
+	sig_ext_t *se;
+	signature_t job_node_sig;
+	uint num_ready;
+	uint exited;
+	float wait_time = 0;
 
-    verbosen_master(INFO_METRICS, "--- Metrics dispose init (l. rank) %d ---", my_node_id);
-    verbose_master(INFO_METRICS + 1, "End local signature");
+  #if METRICS_OVH
+  verbose(1,"[%d] Total usecs in metrics signature finish %lu", my_node_id, total_metrics_ovh);
+  #endif
 
-    if (!eards_connected() && master){ 
-        if (!EARL_LIGHT){ 
-            return;
-        }
-    }
+	verbosen_master(INFO_METRICS, "--- Metrics dispose init (l. rank) %d ---", my_node_id);
 
-		verbose_master(2, "Partial stop");
+	if (!eards_connected() && master){ 
+		if (!EARL_LIGHT){ 
+			return;
+		}
+	}
 
-    /* Synchro 1, waiting for last loop data: partial stop: master will wait if. Others will wait for master signature */
-    while ((metrics_partial_stop(SIG_BEGIN) == EAR_NOT_READY) && (wait_time < MAX_SYNCHO_TIME) && lib_shared_region->earl_on){ 
+	verbose_master(INFO_METRICS, "Calling last partial stop...");
+
+	/* Synchro 1, waiting for last loop data: partial stop: master will wait if. Others will wait for master signature */
+	while ((metrics_partial_stop(SIG_BEGIN) == EAR_NOT_READY) && (wait_time < MAX_SYNCHO_TIME) && lib_shared_region->earl_on){ 
 		usleep(10000);
 		wait_time += 0.01;
 	}
@@ -1431,238 +1846,224 @@ void metrics_dispose(signature_t *metrics, ulong procs)
 	}
 	metrics_compute_signature_data(LOO, metrics, 1, procs);
 
-    /* Waiting for node signatures */
-    verbose_master(INFO_METRICS+1, "(l.rank) %d: Waiting for loop node signatures", my_node_id);
+	/* Waiting for node signatures */
+	verbose_master(INFO_METRICS+1, "(l.rank) %d: Waiting for loop node signatures", my_node_id);
 
-    /* Synchro 2: Waiting for local signatures to compute loops.
-     * Master will wait for the others and Other will wait for the master */
-    wait_time = 0;
-    exited = num_processes_exited(lib_shared_region,sig_shared_region);
-    while ((exited < lib_shared_region->num_processes - 1) 
-				&& are_signatures_ready(lib_shared_region,sig_shared_region, &num_ready) == 0 && (wait_time < MAX_SYNCHO_TIME)) {
-        if (!(master) && lib_shared_region->global_stop_ready) {
-            break;
-        }
-        if (master && (exited == lib_shared_region->num_processes - 1)) {
-            break;
-        }
-        usleep(10000);
-        wait_time += 0.01;
-        exited = num_processes_exited(lib_shared_region, sig_shared_region);
-    }
-
-    // Only master does something in this funcion
-	compute_per_process_and_job_metrics(&nodeapp);
-
-	/* At this point we mark signatures are not ready to be computed again */
-    if (master)  {
-        free_node_signatures(lib_shared_region,sig_shared_region);
-        lib_shared_region->global_stop_ready = 1;
-    }
-	verbose_master(2, "Global stop");
-	metrics_global_stop();
-	verbose_master(2, "metrics_compute_signature_data APP");
-	metrics_compute_signature_data(APP, metrics, 1, procs);
-
-    /* Waiting for node signatures */
-    //verbose(2, "(l. rank) %d: Waiting for app node signatures", my_node_id);
-    /* Synchro 3: Waiting for app signature: global stop */
-    wait_time = 0;
-    exited = num_processes_exited(lib_shared_region,sig_shared_region);
-    while ( (exited != lib_shared_region->num_processes) && (are_signatures_ready(lib_shared_region,sig_shared_region, &num_ready) == 0) 
-            && (wait_time < MAX_SYNCHO_TIME) ){ 
-        usleep(100000);
-        wait_time += 0.01;
-        exited = num_processes_exited(lib_shared_region,sig_shared_region);
-    }
-
-    /* Estimate local metrics, accumulate */
-    if (master) {
-        verbose_master(2, "Computing application node signature");
-
-        se = (sig_ext_t *) metrics->sig_ext;
-
-        if (!exclusive) {
-            metrics_app_node_signature(metrics, &nodeapp);
-        } else {
-            metrics_node_signature(&lib_shared_region->job_signature, &nodeapp);
-        }
-
-        signature_copy(metrics, &nodeapp);
-        metrics->sig_ext = se;
+	/* Synchro 2: Waiting for local signatures to compute loops.
+	 * Master will wait for the others and Other will wait for the master */
+	wait_time = 0;
+	exited = num_processes_exited(lib_shared_region,sig_shared_region);
+	while ((exited < lib_shared_region->num_processes - 1) 
+			&& are_signatures_ready(lib_shared_region,sig_shared_region, &num_ready) == 0 && (wait_time < MAX_SYNCHO_TIME)) {
+		if (!(master) && lib_shared_region->global_stop_ready) {
+			break;
+		}
+		if (master && (exited == lib_shared_region->num_processes - 1)) {
+			break;
+		}
+		usleep(10000);
+		wait_time += 0.01;
+		exited = num_processes_exited(lib_shared_region, sig_shared_region);
 	}
 
-    metrics_static_dispose();
-    debug("Metrics_dispose_end %d", my_node_id);
+	// Only master does something in this funcion
+	compute_per_process_and_job_metrics(&job_node_sig);
+
+	/* At this point we mark signatures are not ready to be computed again */
+	if (master)  {
+		free_node_signatures(lib_shared_region,sig_shared_region);
+		lib_shared_region->global_stop_ready = 1;
+	}
+	debug("Global stop");
+	metrics_global_stop();
+	debug("metrics_compute_signature_data APP");
+	metrics_compute_signature_data(APP, metrics, 1, procs);
+
+	/* Waiting for node signatures */
+	//verbose(2, "(l. rank) %d: Waiting for app node signatures", my_node_id);
+	/* Synchro 3: Waiting for app signature: global stop */
+	wait_time = 0;
+	exited = num_processes_exited(lib_shared_region,sig_shared_region);
+	while ( (exited != lib_shared_region->num_processes) && (are_signatures_ready(lib_shared_region,sig_shared_region, &num_ready) == 0) 
+			&& (wait_time < MAX_SYNCHO_TIME) ){ 
+		usleep(100000);
+		wait_time += 0.01;
+		exited = num_processes_exited(lib_shared_region,sig_shared_region);
+	}
+
+	/* Estimate local metrics, accumulate */
+	if (master) {
+	  debug("Computing application node signature");
+
+		se = (sig_ext_t *) metrics->sig_ext;
+
+		if (!exclusive) {
+			metrics_app_node_signature(metrics, &job_node_sig);
+		} else {
+			metrics_job_signature(&lib_shared_region->job_signature, &job_node_sig);
+		}
+
+		signature_copy(metrics, &job_node_sig);
+		metrics->sig_ext = se;
+	}
+
+	metrics_static_dispose();
+	debug("Metrics_dispose_end %d", my_node_id);
 }
+
 
 void metrics_compute_signature_begin()
 {
-    metrics_partial_stop(SIG_BEGIN);
-    metrics_partial_start();
+	metrics_partial_stop(SIG_BEGIN);
+	metrics_partial_start();
 }
 
-/** Compute the total node I/O data. */
-static state_t metrics_compute_total_io(io_data_t *total)
-{
-	if (total == NULL) {
-        return_msg(EAR_ERROR, Generr.input_null);
-    }
-
-	memset((char *) total, 0, sizeof(io_data_t));
-
-	debug("Reading IO node data - #processes: %d", lib_shared_region->num_processes);
-
-    for (int i = 0; i < lib_shared_region->num_processes; i++) {
-
-        ctx_t local_io_ctx;
-
-        if (state_fail(io_init(&local_io_ctx, sig_shared_region[i].pid))) {
-
-            debug("IO data process %d (%d) can not be read", i, sig_shared_region[i].pid);
-
-            return_msg(EAR_ERROR, "I/O could not be read for some process.");
-
-        } else {
-            io_data_t io;
-            io_read(&local_io_ctx, &io);
-
-            total->rchar       += io.rchar;
-            total->wchar       += io.wchar;
-            total->syscr       += io.syscr;
-            total->syscw       += io.syscw;
-            total->read_bytes  += io.read_bytes;
-            total->write_bytes += io.write_bytes;
-            total->cancelled   += io.cancelled;
-
-            io_dispose(&local_io_ctx);
-        }
-    }
-
-	debug("Node IO data ready - master: %d", masters_info.my_master_rank);
-
-    return EAR_SUCCESS;
-}
 
 int time_ready_signature(ulong min_time_us)
 {
-    long long f_time;
-    f_time = metrics_usecs_diff(metrics_time(), metrics_usecs[LOO]);
-    if (f_time<min_time_us) return 0;
-    else return 1;
+	llong f_time = metrics_usecs_diff(metrics_time(), metrics_usecs[LOO]);
+	if (f_time < min_time_us) {
+		return 0;
+	}
+	return 1;
 }
 
-/****************************************************************************************************************************************************************/
-/******************* This function checks if data is ready to be shared **************************************/
-/****************************************************************************************************************************************************************/
 
-
-int metrics_compute_signature_finish(signature_t *metrics, uint iterations, ulong min_time_us, ulong procs)
+/**********************************************************************************************
+ ******************* This function checks if data is ready to be shared ***********************
+ **********************************************************************************************/
+state_t metrics_compute_signature_finish(signature_t *metrics, uint iterations,
+		ulong min_time_us, ulong procs)
 {
-				long long aux_time;
-                report_id_t report_id;
-				uint num_ready;
+    #if METRICS_OVH
+    timestamp met_ovh_init, met_ovh_end;
+    timestamp_getfast(&met_ovh_init);
+    #endif
 
-				debug("metrics_compute_signature_finish %u", my_node_id);
 
-                if (!sig_shared_region[my_node_id].ready){
-                    
-                    debug("Signature for proc. %d is not ready", my_node_id);
+	debug("metrics_compute_signature_finish %u", my_node_id);
 
-                    // Time requirements
-                    aux_time = metrics_usecs_diff(metrics_time(), metrics_usecs[LOO]);
+	if (!sig_shared_region[my_node_id].ready) {
 
-                    //
-                    if ((aux_time < min_time_us) && !equal_with_th((double)aux_time, (double)min_time_us,0.1)) {
-                        metrics->time=0;
-                        debug("EAR_NOT_READY because of time %llu\n",aux_time);
-                        return EAR_NOT_READY;
-                    }
+		debug("Signature for proc. %d is not ready", my_node_id);
 
-                    //Master: Returns not ready when power is not ready
-                    //Not master: when master signature not ready
-                    if (metrics_partial_stop(SIG_END)==EAR_NOT_READY) return EAR_NOT_READY;
+		// Time requirements
+		llong elap_time = metrics_usecs_diff(metrics_time(), metrics_usecs[LOO]);
 
-                    //Marks the signature as ready
-                    metrics_compute_signature_data(LOO, metrics, iterations, procs);
+		uint time_eq = equal_with_th((double) elap_time, (double) min_time_us, 0.1);
+		if (elap_time < min_time_us && !time_eq) {
+			metrics->time = 0;
+			debug("EAR_NOT_READY because of time %lld\n", elap_time);
+      #if METRICS_OVH
+      timestamp_getfast(&met_ovh_end);
+      total_metrics_ovh += timestamp_diff(&met_ovh_end, &met_ovh_init, TIME_USECS);
+      #endif
+			return EAR_NOT_READY;
+		}
 
-                    // Call report mpitrace
-                    report_create_id(&report_id, my_node_id, ear_my_rank, masters_info.my_master_rank);
-                    if (state_fail(report_misc(&report_id, MPITRACE, (cchar *) &sig_shared_region[my_node_id], -1))) {
-                        verbose(3, "%sERROR%s Reporting mpitrace for process %d", COL_RED, COL_CLR, my_node_id);
-                    }
+		// Master: Returns not ready when power is not ready
+		// Not master: when master signature not ready
+		if (metrics_partial_stop(SIG_END) == EAR_NOT_READY) {
+      #if METRICS_OVH
+      timestamp_getfast(&met_ovh_end);
+      total_metrics_ovh += timestamp_diff(&met_ovh_end, &met_ovh_init, TIME_USECS);
+      #endif
+			return EAR_NOT_READY;
+		}
 
-                    //
-                    metrics_partial_start();
-                } else {
-                    debug("Signature for proc. %d is ready", my_node_id);
-                }
+		// Marks the signature as ready
+		metrics_compute_signature_data(LOO, metrics, iterations, procs);
 
-                if (!are_signatures_ready(lib_shared_region, sig_shared_region, &num_ready)) {
-                    if ((master) && (sig_shared_region[0].ready)){
-                        debug("Setting Master ready");
-                        lib_shared_region->master_ready = 1;
-                    }
-                    return EAR_NOT_READY;
-                } else if (master) {
-                    lib_shared_region->master_ready = 0;
-                }
+		// Call report mpitrace
+		report_id_t report_id;
+		report_create_id(&report_id, my_node_id, ear_my_rank, masters_info.my_master_rank);
+		if (state_fail(report_misc(&report_id, MPITRACE, (cchar *) &sig_shared_region[my_node_id], -1))) {
+			verbose(3, "%sERROR%s Reporting mpitrace for process %d", COL_RED, COL_CLR, my_node_id);
+		}
 
-				return EAR_SUCCESS;
+		metrics_partial_start();
+	}
+#if SHOW_DEBUGS
+	else {
+		debug("Signature for proc. %d is ready", my_node_id);
+	}
+#endif
+
+	uint num_ready;
+	if (!are_signatures_ready(lib_shared_region, sig_shared_region, &num_ready)) {
+		if ((master) && (sig_shared_region[0].ready)) {
+			debug("Setting Master ready");
+			lib_shared_region->master_ready = 1;
+		}
+    #if METRICS_OVH
+    timestamp_getfast(&met_ovh_end);
+    total_metrics_ovh += timestamp_diff(&met_ovh_end, &met_ovh_init, TIME_USECS);
+    #endif
+		return EAR_NOT_READY;
+	} else if (master) {
+		lib_shared_region->master_ready = 0;
+	}
+  #if METRICS_OVH
+  timestamp_getfast(&met_ovh_end);
+  total_metrics_ovh += timestamp_diff(&met_ovh_end, &met_ovh_init, TIME_USECS);
+  #endif
+
+	return EAR_SUCCESS;
 }
+
 
 long long metrics_usecs_diff(long long end, long long init)
 {
-				long long to_max;
+	long long to_max;
 
-				if (end < init)
-				{
-								debug( "Timer overflow (end: %lld - init: %lld)\n", end, init);
-								to_max = LLONG_MAX - init;
-								return (to_max + end);
-				}
+	if (end < init)
+	{
+		debug( "Timer overflow (end: %lld - init: %lld)\n", end, init);
+		to_max = LLONG_MAX - init;
+		return (to_max + end);
+	}
 
-				return (end - init);
+	return (end - init);
 }
+
 
 void metrics_app_node_signature(signature_t *master,signature_t *ns)
 {
-  ullong inst, max_inst = 0;
-  ullong cycles;
-  ullong FLOPS[FLOPS_EVENTS];
-  sig_ext_t *se;
-  int i;
+	ullong inst, max_inst = 0;
+	ullong cycles;
+	ullong FLOPS[FLOPS_EVENTS];
+	sig_ext_t *se;
+	int i;
 	double valid_period;
 	ullong L1, L2, L3;
-	ullong accesses = 0;
+  ullong accesses = 0;
 
-  se = (sig_ext_t *)master->sig_ext;
-  signature_copy(ns,master);
-  if (se != NULL) memcpy(ns->sig_ext,se,sizeof(sig_ext_t));
+	se = (sig_ext_t *)master->sig_ext;
+	signature_copy(ns,master);
+	if (se != NULL) memcpy(ns->sig_ext,se,sizeof(sig_ext_t));
 
-	verbose_master(2, " metrics_app_node_signature");
+	debug(" metrics_app_node_signature");
 
-  compute_total_node_instructions(lib_shared_region, sig_shared_region, &inst);
-  compute_total_node_flops(lib_shared_region, sig_shared_region, FLOPS);
-  compute_total_node_cycles(lib_shared_region, sig_shared_region, &cycles);
-  compute_total_node_L1_misses(lib_shared_region, sig_shared_region, &L1);
-  compute_total_node_L2_misses(lib_shared_region, sig_shared_region, &L2);
-  compute_total_node_L3_misses(lib_shared_region, sig_shared_region, &L3);
+	compute_job_node_instructions(sig_shared_region, lib_shared_region->num_processes, &inst);
+	compute_job_node_cycles(sig_shared_region, lib_shared_region->num_processes, &cycles);
 
-  ns->CPI = (double)cycles/(double)inst;
-	#if 0
-  verbose_master(2,"CPI %lf CPI2 %lf",ns->CPI, CPI/(double)lib_shared_region->num_processes); */
-  if (ns->CPI > 5.0){
-    for (i=0; i< lib_shared_region->num_processes;i ++){
-      verbosen_master(2," CPI[%d]=%lf",i,sig_shared_region[i].sig.CPI);
-    } 
-    verbose_master(2," ");
-  }
-	#endif
-  for (i = 0; i < FLOPS_EVENTS; i++){
-  	ns->FLOPS[i] = FLOPS[i];
-  }    
-  ns->Gflops = compute_node_flops(lib_shared_region, sig_shared_region);
+	ns->CPI = (double) cycles / (double) inst;
+
+	compute_job_node_flops(sig_shared_region, lib_shared_region->num_processes, FLOPS);
+
+	compute_job_node_L1_misses(sig_shared_region, lib_shared_region->num_processes, &L1);
+	compute_job_node_L2_misses(sig_shared_region, lib_shared_region->num_processes, &L2);
+	compute_job_node_L3_misses(sig_shared_region, lib_shared_region->num_processes, &L3);
+
+	for (i = 0; i < FLOPS_EVENTS; i++){
+		ns->FLOPS[i] = FLOPS[i];
+	}    
+
+	if (state_fail(compute_job_node_gflops(sig_shared_region, lib_shared_region->num_processes, &ns->Gflops))) {
+		verbose(ERROR_VERB, "%sWARNING%s Error on computing job's node GFLOP/s rate: %s",
+				COL_RED, COL_CLR, state_msg);
+	}
+
 	ns->L1_misses  = L1;
 	ns->L2_misses  = L2;
 	ns->L3_misses  = L3;
@@ -1676,78 +2077,80 @@ void metrics_app_node_signature(signature_t *master,signature_t *ns)
 	ns->avg_f      = 0;
 	ns->DRAM_power = 0;
 	ns->PCK_power  = 0;
-  if (master){
+	if (master){
 		for (uint lp = 0; lp < lib_shared_region->num_processes; lp ++){
 			valid_period    = sig_shared_region[lp].sig.valid_time;
-			max_inst        = ear_max(max_inst, sig_shared_region[lp].sig.instructions);
+      max_inst        = ear_max(max_inst, sig_shared_region[lp].sig.instructions);
 			ns->DC_power   += sig_shared_region[lp].sig.accum_energy / valid_period;
 			ns->DRAM_power += sig_shared_region[lp].sig.accum_dram_energy / valid_period;
 			ns->PCK_power  += sig_shared_region[lp].sig.accum_pack_energy / valid_period;
 			ns->GBS        += sig_shared_region[lp].sig.accum_mem_access / (valid_period * B_TO_GB);
 			ns->avg_f      += (sig_shared_region[lp].sig.accum_avg_f * sig_shared_region[lp].num_cpus) / (ulong)valid_period;
 			tcpus          += sig_shared_region[lp].num_cpus;
-			accesses       += sig_shared_region[lp].sig.accum_mem_access;
-			verbose_master(2," p[%u]: Power %lf GBs %lf avg_f %lu dram %lf pck %lf  period %lf", lp, (double)(sig_shared_region[lp].sig.accum_energy / valid_period), (double)(sig_shared_region[lp].sig.accum_mem_access/ (valid_period * 1024 * 1024 * 1024)), sig_shared_region[lp].sig.accum_avg_f/(ulong)valid_period, ns->DRAM_power, ns->PCK_power, valid_period);
+      accesses       += sig_shared_region[lp].sig.accum_mem_access;
+			debug(" p[%u]: Power %lf GBs %lf avg_f %lu dram %lf pck %lf  period %lf", lp, (double)(sig_shared_region[lp].sig.accum_energy / valid_period), (double)(sig_shared_region[lp].sig.accum_mem_access/ (valid_period * 1024 * 1024 * 1024)), sig_shared_region[lp].sig.accum_avg_f/(ulong)valid_period, ns->DRAM_power, ns->PCK_power, valid_period);
 		}
 		ns->avg_f /= (double)tcpus;
-		ns->TPI = (double)accesses / (double)max_inst;
-		verbose_master(2,"AVG  %lu", ns->avg_f);
-  }
-  signature_copy(&lib_shared_region->node_signature,ns);
+    ns->TPI    = (double)accesses / (double)max_inst;
+    /* TPI should be computed based on total instructions */
+		verbose_master(TPI_DEBUG,"AVG  %lu TPI %.2lf (accesses %llu, inst %llu) ", ns->avg_f, ns->TPI, accesses, inst);
+	}
+	signature_copy(&lib_shared_region->node_signature,ns);
 
 }
 
-void metrics_node_signature(signature_t *master,signature_t *ns)
+void metrics_job_signature(const signature_t *master, signature_t *dst)
 {
 	ullong inst;
 	ullong cycles;
 	ullong FLOPS[FLOPS_EVENTS];
-	sig_ext_t *se;
-	int i;
 	ullong L1, L2, L3;
 
+	signature_copy(dst, master);
 
-	se = (sig_ext_t *)master->sig_ext;	
-	signature_copy(ns,master);
-	if ((se != NULL) && (ns->sig_ext != NULL))  memcpy(ns->sig_ext,se,sizeof(sig_ext_t));
-	
-	compute_total_node_instructions(lib_shared_region, sig_shared_region, &inst);
-	compute_total_node_flops(lib_shared_region, sig_shared_region, FLOPS);
-	compute_total_node_cycles(lib_shared_region, sig_shared_region, &cycles);	
-	compute_total_node_L3_misses(lib_shared_region, sig_shared_region, &L3);
-  compute_total_node_L2_misses(lib_shared_region, sig_shared_region, &L2);
-  compute_total_node_L1_misses(lib_shared_region, sig_shared_region, &L1);
+	sig_ext_t *se = (sig_ext_t *) master->sig_ext;
+	if ((se != NULL) && (dst->sig_ext != NULL)) memcpy(dst->sig_ext, se, sizeof(sig_ext_t));
 
-	ns->CPI = (double)cycles/(double)inst;
-	/* verbose_master(2,"CPI %lf CPI2 %lf",ns->CPI, CPI/(double)lib_shared_region->num_processes); */
-	if (ns->CPI > 2.0){
-		for (i=0; i< lib_shared_region->num_processes;i ++){
-			verbosen_master(2," CPI[%d]=%lf",i,sig_shared_region[i].sig.CPI);
-		}	
-		verbose_master(2," ");
+	/* If some job node computation fails, we use the CPI data we had from \p master */
+	if (state_fail(compute_job_node_instructions(sig_shared_region, lib_shared_region->num_processes, &inst))) {
+		verbose(ERROR_VERB, "%sWARNING%s Error on computing job's node instructions: %s",
+				COL_RED, COL_CLR, state_msg);
 	}
-	ns->Gflops = compute_node_flops(lib_shared_region, sig_shared_region);
-  ns->L1_misses  = L1;
-  ns->L2_misses  = L2;
-  ns->L3_misses  = L3;
-  ns->cycles     = cycles;
-  ns->instructions = inst;
-  for (uint i = 0; i < FLOPS_EVENTS; i++){
-  	ns->FLOPS[i] = FLOPS[i];
-  }    
+	else if (state_fail(compute_job_node_cycles(sig_shared_region, lib_shared_region->num_processes, &cycles))) {
+		verbose(ERROR_VERB, "%sWARNING%s Error on computing job's node cycles: %s",
+				COL_RED, COL_CLR, state_msg);
+	} else {
 
-	verbose_master(2,"Node metrics: CPI %.2lf Gflops %.2lf", ns->CPI, ns->Gflops);
+		dst->cycles       = cycles;
+		dst->instructions = inst;
 
+		assert(inst != 0);
+		dst->CPI = (double) cycles / (double) inst;
 
-	#if 0
-	signature_copy(&lib_shared_region->node_signature,ns);
-
-	if (master){
-		/* Updating shared info */
-  	update_earl_node_mgr_info();
-  	estimate_power_and_gbs(master,lib_shared_region,sig_shared_region, node_mgr_job_info, ns, PER_JOB, -1);
 	}
-	#endif
+
+	if (state_fail(compute_job_node_flops(sig_shared_region, lib_shared_region->num_processes, FLOPS))) {
+		verbose(ERROR_VERB, "%sWARNING%s Error on computing job's node FLOPs events: %s",
+				COL_RED, COL_CLR, state_msg);
+	} else {
+		for (uint i = 0; i < FLOPS_EVENTS; i++) {
+			dst->FLOPS[i] = FLOPS[i];
+		}
+	}
+
+	if (state_fail(compute_job_node_gflops(sig_shared_region, lib_shared_region->num_processes, &dst->Gflops))) {
+		verbose(ERROR_VERB, "%sWARNING%s Error on computing job's node GFLOP/s rate: %s",
+				COL_RED, COL_CLR, state_msg);
+	}
+
+	compute_job_node_L1_misses(sig_shared_region, lib_shared_region->num_processes, &L1);
+	compute_job_node_L2_misses(sig_shared_region, lib_shared_region->num_processes, &L2);
+	compute_job_node_L3_misses(sig_shared_region, lib_shared_region->num_processes, &L3);
+
+	dst->L1_misses = L1;
+	dst->L2_misses = L2;
+	dst->L3_misses = L3;
+
 }
 
 extern uint last_earl_phase_classification;
@@ -1755,80 +2158,289 @@ extern gpu_state_t last_gpu_state;
 
 state_t metrics_new_iteration(signature_t *sig)
 {
-#if USE_GPUS
-    int p;
-#endif
-
+    
     if (!(master)) {
         return EAR_ERROR;
     }
 
-    /* FLOPS are used to determine the CPU BUSY waiting */
-    uint last_phase_io_bnd = (last_earl_phase_classification == APP_IO_BOUND);
-    uint last_phase_bw     = (last_earl_phase_classification == APP_BUSY_WAITING);
-    if (last_phase_io_bnd || last_phase_bw)
-    {
-        llong f_time = metrics_usecs_diff(metrics_time(), metrics_usecs[LOO]);
-        llong elap_sec = f_time / 1000000;
 
-        debug("--- Computing flops because of application phase ---\n"
-                "%-26s: %d\n%-26s: %d\n"
-                "%-26s: %lld\n%-26s: %lld\n"
-                "----------------------------------------------------",
-                "IO", last_phase_io_bnd, "Busy waiting", last_phase_bw,
-                "Time elapsed", elap_sec, "Last elapsed", last_elap_sec);
+	uint last_phase_io_bnd = (last_earl_phase_classification == APP_IO_BOUND);
+	uint last_phase_bw     = (last_earl_phase_classification == APP_BUSY_WAITING);
+	if (last_phase_io_bnd || last_phase_bw)
+	{
+		llong f_time = metrics_usecs_diff(metrics_time(), metrics_usecs[LOO]);
+		llong elap_sec = f_time / 1000000;
 
-        if (elap_sec <= last_elap_sec) {
-            return EAR_ERROR;
-        }
 
-        last_elap_sec = elap_sec;
+		if (elap_sec <= last_elap_sec) {
+			return EAR_ERROR;
+		}
 
-        // FLOPs
-        flops_read_diff(no_ctx, &flops_read2[LOO],
-                &flops_read1[LOO], &flops_diff[LOO], &sig->Gflops);
-        flops_help_toold(&flops_diff[LOO], sig->FLOPS);
+		last_elap_sec = elap_sec;
 
-        sig->time = elap_sec;
-        debug("GFlops in metrics for validation: %lf", sig->Gflops);
-    }
+
+    /* We should check is we are still on a IO phase */
+        if (last_phase_io_bnd){
+            double iogb;
+            metrics_compute_total_io(&metrics_io_end[LOO_NODE]);
+            io_diff(&metrics_io_diff[LOO_NODE], &metrics_io_init[LOO_NODE], &metrics_io_end[LOO_NODE]);
+            iogb = (double) metrics_io_diff[LOO_NODE].rchar / (double) (1024 * 1024) +
+                (double) metrics_io_diff[LOO_NODE].wchar / (double) (1024 * 1024);
+
+            sig->IO_MBS = iogb/elap_sec;
+
+            verbose_master(2, "IO phase and current IO rate %.2lf (IO? %u)", sig->IO_MBS, sig->IO_MBS > phases_limits.io_th);
+            return EAR_SUCCESS;
+        }    
+
+    /* We should check the CPI */
+    if (last_phase_bw){
+      cpi_read_diff(no_ctx,   &cpi_read2[LOO],   &cpi_read1[LOO],   &cpi_diff[LOO],   &cpi_avrg[LOO]);
+      sig->CPI = cpi_avrg[LOO];
+      verbose_master(2, "Busy Waiting phase and current CPI %.2lf (BW? %u)", sig->CPI , sig->CPI < phases_limits.cpi_busy_waiting);
+      return EAR_SUCCESS;
+    }    
+        // TODO: We changed the approach, so this message should change.
+		debug("--- Computing flops because of application phase ---\n"
+				"%-26s: %d\n%-26s: %d\n"
+				"%-26s: %lld\n%-26s: %lld\n"
+				"----------------------------------------------------",
+				"IO", last_phase_io_bnd, "Busy waiting", last_phase_bw,
+				"Time elapsed", elap_sec, "Last elapsed", last_elap_sec);
+
+
+	    /* FLOPS are used to determine the CPU BUSY waiting
+         *  WARNING: Currently below code won't be executed never. */
+		flops_read_diff(no_ctx, &flops_read2[LOO],
+				&flops_read1[LOO], &flops_diff[LOO], &sig->Gflops);
+		flops_help_toold(&flops_diff[LOO], sig->FLOPS);
+
+		sig->time = elap_sec;
+		debug("GFlops in metrics for validation: %lf", sig->Gflops);
+	}
 
 #if USE_GPUS
     sig->gpu_sig.num_gpus = 0;
     if (last_gpu_state & _GPU_Idle) {
+
         debug("Computing GPU util because of application gpu phase is IDLE");
+
         /* GPUs */
-        if (gpu_initialized){
-            if (gpu_lib_read(&gpu_lib_ctx,gpud_busy) != EAR_SUCCESS){
-                debug("gpu_lib_read error");
-            }
-            gpu_lib_data_diff(gpud_busy, gpu_metrics_init[LOO], gpuddiff_busy);
-            sig->gpu_sig.num_gpus = ear_num_gpus_in_node;
-            if (earl_gpu_model == MODEL_DUMMY){
-                debug("Setting num_gpu to 0 because model is DUMMY");
-                sig->gpu_sig.num_gpus = 0;
-            }
-            for (p=0; p < sig->gpu_sig.num_gpus;p++){
-                sig->gpu_sig.gpu_data[p].GPU_power    = gpuddiff_busy[p].power_w;
-                sig->gpu_sig.gpu_data[p].GPU_freq     = gpuddiff_busy[p].freq_gpu;
-                sig->gpu_sig.gpu_data[p].GPU_mem_freq = gpuddiff_busy[p].freq_mem;
-                sig->gpu_sig.gpu_data[p].GPU_util     = gpuddiff_busy[p].util_gpu;
-                sig->gpu_sig.gpu_data[p].GPU_mem_util = gpuddiff_busy[p].util_mem;
-            }
+        if (state_fail(gpu_read(no_ctx, gpu_metrics_busy))) {
+            verbose(ERROR_VERB, "%sERROR%s Reading GPU data on new iteration.", COL_RED, COL_CLR);
+        }
+        gpu_data_diff(gpu_metrics_busy, gpu_metrics_read1[LOO], gpu_metrics_busy_diff);
+
+        sig->gpu_sig.num_gpus = met_gpu.devs_count;
+
+        if (!met_gpu.ok) {
+            debug("Setting num_gpu to 0 because model is DUMMY");
+            sig->gpu_sig.num_gpus = 0;
+        }
+        for (int i = 0; i < sig->gpu_sig.num_gpus; i++) {
+            sig->gpu_sig.gpu_data[i].GPU_power    = gpu_metrics_busy_diff[i].power_w;
+            sig->gpu_sig.gpu_data[i].GPU_freq     = gpu_metrics_busy_diff[i].freq_gpu;
+            sig->gpu_sig.gpu_data[i].GPU_mem_freq = gpu_metrics_busy_diff[i].freq_mem;
+            sig->gpu_sig.gpu_data[i].GPU_util     = gpu_metrics_busy_diff[i].util_gpu;
+            sig->gpu_sig.gpu_data[i].GPU_mem_util = gpu_metrics_busy_diff[i].util_mem;
         }
     }
-#endif
-				return EAR_SUCCESS;
+#endif // USE_GPUS
+    return EAR_SUCCESS;
 }
 
-/* This function computes local metrics per process, computes per job and computes the accumulated */
+/* This function computes local metrics per process,
+ * computes per job and computes the accumulated. */
 void compute_per_process_and_job_metrics(signature_t *dest)
 {
+
 	if (master) {
 		update_earl_node_mgr_info();
-		estimate_power_and_gbs(lib_shared_region, sig_shared_region, node_mgr_job_info)	;
+		estimate_power_and_gbs(lib_shared_region, sig_shared_region, node_mgr_job_info);
 		accum_estimations(lib_shared_region, sig_shared_region);
-		signature_copy(dest, &lib_shared_region->job_signature);	
+		signature_copy(dest, &lib_shared_region->job_signature);
 	}
 }
 
+
+#if MPI_OPTIMIZED
+static int fd_csv_cpu;
+static uint report_power_id = 0;
+void metrics_start_cpupower()
+{
+  if (master && report_power_trace) {
+    char filename[256];
+    energy_cpu_data_alloc(no_ctx, &metrics_rapl_fine_monitor_start, &rapl_size);
+    energy_cpu_data_alloc(no_ctx, &metrics_rapl_fine_monitor_end, &rapl_size);
+    energy_cpu_data_alloc(no_ctx, &metrics_rapl_fine_monitor_diff, &rapl_size);
+    energy_cpu_read(no_ctx, metrics_rapl_fine_monitor_start);
+    if (!traces_are_on()){
+      snprintf(filename, sizeof(filename), "csv_cpu_power.%lu.%lu.%s.csv", application.job.id, application.job.step_id, application.node_id);
+      fd_csv_cpu = open(filename, O_WRONLY|O_CREAT|O_TRUNC,S_IRUSR|S_IWUSR);
+      if (fd_csv_cpu < 0 ){
+        verbose_master(0,"Error opening csv_cpu_power.csv file (%s)", strerror(errno));
+        fd_csv_cpu = verb_channel;
+      }
+    }else{
+      verbose_master(0,"CPU power metrics will be generated in traces");
+    }
+  }
+}
+
+void metrics_read_cpupower()
+{
+  if (master && report_power_trace) {
+
+    char buffer[64], csv_str[256];
+    double total = 0, curr ;
+
+    energy_cpu_read(no_ctx, metrics_rapl_fine_monitor_end);
+    energy_cpu_data_diff(no_ctx, metrics_rapl_fine_monitor_start, metrics_rapl_fine_monitor_end, metrics_rapl_fine_monitor_diff);
+    energy_cpu_data_copy(no_ctx, metrics_rapl_fine_monitor_start, metrics_rapl_fine_monitor_end); 
+
+    if (!traces_are_on()){
+      sprintf(csv_str,"%s;%u;%lld;",application.node_id, report_power_id, timestamp_getconvert(TIME_USECS));
+    }
+    report_power_id++;
+
+    ullong lpck = 0, ldram = 0;
+    for (int p = 0; p < (num_packs*2) -1 ; p++) {
+      curr = (double)metrics_rapl_fine_monitor_diff[p]/200000000.0;
+      if (curr < num_packs){
+        ldram += (ullong)curr*1000;
+      }else{
+        lpck  += (ullong)curr*1000;
+      }
+      if (!traces_are_on()){
+        snprintf(buffer, sizeof(buffer), "%.2lf;", curr);
+        strcat( csv_str, buffer);
+      }
+      total += curr;
+    }
+
+    curr = (double)metrics_rapl_fine_monitor_diff[(num_packs*2) -1]/200000000.0;
+    total += curr;
+    if (traces_are_on()){
+        traces_generic_event(ear_my_rank, my_node_id, TRA_PCK_POWER_NODE, lpck);
+        traces_generic_event(ear_my_rank, my_node_id, TRA_DRAM_POWER_NODE, ldram);
+    }else{
+      snprintf(buffer, sizeof(buffer), "%.2lf;%.2lf\n", curr, total);
+      strcat(csv_str, buffer);
+      write(fd_csv_cpu, csv_str, strlen(csv_str));
+    }
+  }
+}
+#endif // MPI_OPTIMIZED
+
+/** Compute the total node I/O data. */
+static state_t metrics_compute_total_io(io_data_t *total)
+{
+    if (total != NULL) {
+
+        memset((char *) total, 0, sizeof(io_data_t));
+
+        debug("Reading IO node data - #processes: %d", lib_shared_region->num_processes);
+
+        for (int i = 0; i < lib_shared_region->num_processes; i++) {
+
+            ctx_t local_io_ctx;
+
+            if (state_ok(io_init(&local_io_ctx, sig_shared_region[i].pid))) {
+
+                io_data_t io;
+                io_read(&local_io_ctx, &io);
+
+                total->rchar       += io.rchar;
+                total->wchar       += io.wchar;
+                total->syscr       += io.syscr;
+                total->syscw       += io.syscw;
+                total->read_bytes  += io.read_bytes;
+                total->write_bytes += io.write_bytes;
+                total->cancelled   += io.cancelled;
+
+                io_dispose(&local_io_ctx);
+            } else {
+                debug("IO data process %d (%d) can not be read", i, sig_shared_region[i].pid);
+
+                return_msg(EAR_ERROR, "I/O could not be read for some process.");
+            }
+        }
+
+        debug("Node IO data ready - master: %d", masters_info.my_master_rank);
+
+        return EAR_SUCCESS;
+    } else {
+		return_msg(EAR_ERROR, Generr.input_null);
+    }
+}
+
+
+/* Update the description of this function (at the top) if you modify it. */
+static void read_metrics_options()
+{
+#if USE_CUPTI
+    char *cuse_cupti;
+    /* We will get per-process cupti metrics */
+    cuse_cupti = getenv(EAR_USE_CUPTI);
+    if (cuse_cupti != NULL) read_cupti_metrics = atoi(cuse_cupti);
+    verbose_master(VERBOSE_CUPTI, "CUPTI metrics: %s", (read_cupti_metrics ? "Enabled" : "Disabled"));
+#endif
+#if MPI_OPTIMIZED
+    /* this is already read in policy.c but RAPL traces will be generated only if this option is ON */
+    char *cear_mpi_opt          =  getenv(FLAG_MPI_OPT);
+    if (cear_mpi_opt != NULL){
+      uint opt = atoi(cear_mpi_opt);
+      if (opt && (getenv(EAR_REPORT_POWER_TRACE) != NULL)){
+        report_power_trace = atoi(getenv(EAR_REPORT_POWER_TRACE));
+      }
+      verbose_master(0,"RAPL power traces %s", (report_power_trace?"Enabled":"Disabled"));
+    }
+#endif
+}
+
+
+
+static state_t energy_lib_init(settings_conf_t *conf)
+{
+    state_t ret;
+
+    char my_plug_path[512];
+    if (state_fail(utils_create_plugin_path(my_plug_path, conf->installation.dir_plug,
+                    getenv(HACK_EARL_INSTALL_PATH), conf->user_type))) {
+        return_msg(EAR_ERROR, "Plugins path can not be built.");
+    }
+
+    char *hack_energy_plugin_path = (conf->user_type == AUTHORIZED) ? getenv(HACK_ENERGY_PLUGIN) : NULL;
+
+    char energy_objc[SZ_PATH];
+
+    // If hack, then the energy plugin is a path, otherwise is a shared object file.
+    if (hack_energy_plugin_path != NULL) {
+
+        debug("Using a hack energy plugin path");
+
+        strcpy(energy_objc, hack_energy_plugin_path);
+
+    } else if (conf->installation.obj_ener != NULL) {
+
+        debug("Using the configured energy plugin shared object file");
+
+        sprintf(energy_objc, "%s/energy/%s", my_plug_path, conf->installation.obj_ener);
+
+    } else {
+        return_msg(EAR_NOT_FOUND, "There is no energy plugin configured.");
+    }
+
+    /* master is defined in metrics_static_init */
+    int eard = (master);
+
+    ret = energy_node_load(energy_objc, eard);
+
+    // TODO: if ret fails, generate dummy path and load that one
+    return ret;
+}
+
+
+static void metrics_static_dispose()
+{
+}

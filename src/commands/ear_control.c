@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #include <errno.h>
 #include <netdb.h>
@@ -41,6 +41,7 @@
 #include <daemon/remote_api/eard_rapi_internals.h>
 #include <daemon/remote_api/eard_rapi.h>
 #include <database_cache/eardbd_api.h>
+#include <global_manager/eargm_rapi.h>
 
 #define NUM_LEVELS  4
 #define MAX_PSTATE  16
@@ -267,7 +268,7 @@ void usage(char *app)
 			"\n\t\t\t\t\t\t\tresponding is provided with their hostnames and IP address."\
 			"\n\t\t\t\t\t\t\t--status=node_name retrieves the status of that node individually."\
 			"\n\t--type \t\t[status_type]\t\t->specifies what type of status will be requested: hardware,"\
-			"\n\t\t\t\t\t\t\tpolicy, full (hardware+policy), app_node, app_master, eardbd or power. [default:hardware]"\
+			"\n\t\t\t\t\t\t\tpolicy, full (hardware+policy), app_node, app_master, eardbd, eargm or power. [default:hardware]"\
 			"\n\t--power \t\t\t\t->requests the current power for the cluster. "\
 			"\n\t\t\t\t\t\t\t--power=node_name retrieves the current power of that node individually."\
 			"\n\t--set-freq \t[newfreq]\t\t->sets the frequency of all nodes to the requested one"\
@@ -483,6 +484,59 @@ int eardbd_status_all(cluster_conf_t *conf, eardbd_table_t **edbstatus)
 	return count;
 }
 
+void process_eargm_status(int num_status, eargm_status_t *status, char **hosts, int num_hosts)
+{
+	int i, j;
+	char found;
+	char **inactive;
+	eargm_status_t *egm;
+	int num_inactive = 0;
+
+	inactive = calloc(sizeof(char *), my_cluster_conf.eargm.num_eargms); //prepare for inactive nodes
+	if (num_status < 1) {
+		printf("No EARGMs active\n");
+		return;
+	}
+	printf("%3s %10s %6s %10s %10s %10s %10s\n", 
+				"ID", "NODE", "Status", "Cur. Power", "Powercap", "Req. Power", "Extra Pow.");
+	
+	for (j = 0; j < my_cluster_conf.eargm.num_eargms; j++) {
+		found = 0;
+		for (i = 0; i < num_status; i++) {
+			egm = &status[i];
+			if (egm->id == my_cluster_conf.eargm.eargms[j].id) {
+				found = 1;
+				break;
+			}
+		}
+
+		if (found) {
+			printf("%3d %10s %6d %10lu %10lu %10lu %10lu\n", 
+				egm->id, my_cluster_conf.eargm.eargms[j].node, egm->status, egm->current_power, egm->current_powercap, egm->requested, egm->extra_power);
+		} else { //store the node to print it later
+			if (hosts != NULL) { //if we have a hostlist, we don't need the nodes out of the list
+				for (i = 0; i < num_hosts; i++) {
+					if (!strcasecmp(hosts[i], my_cluster_conf.eargm.eargms[j].node)) {
+						inactive[num_inactive] = my_cluster_conf.eargm.eargms[j].node;
+						num_inactive++;
+						break;
+					}
+				}
+			} else {
+				inactive[num_inactive] = my_cluster_conf.eargm.eargms[j].node;
+				num_inactive++;
+
+			}
+		}
+	}
+
+	if (num_inactive) printf("\nINACTIVE EARGMs\n");
+	for (i = 0; i < num_inactive; i++) {
+		printf("\t%s\n", inactive[i]);
+	}
+
+}
+
 void process_eardbd_status(int num_status, eardbd_table_t *status, char error_only)
 {
 	int i, j;
@@ -609,7 +663,6 @@ int main(int argc, char *argv[])
 	}
 
 
-
 	if (read_cluster_conf(path_name, &my_cluster_conf) != EAR_SUCCESS) printf("ERROR reading cluster configuration\n");
 
 	if (getuid() != 0 && !is_privileged_command(&my_cluster_conf))
@@ -619,39 +672,39 @@ int main(int argc, char *argv[])
 		exit(1); //error
 	}
 
+	int option_idx = 0;
+	static struct option long_options[] = {
+		{"set-freq",     	required_argument, 0, 0},
+		{"red-def-freq", 	required_argument, 0, 1},
+		{"set-max-freq", 	required_argument, 0, 2},
+		{"inc-th",       	required_argument, 0, 3},
+		{"set-def-freq", 	required_argument, 0, 4},
+		{"set-th",          required_argument, 0, 5},
+		{"hosts",           required_argument, 0, 6},
+		{"restore-conf", 	optional_argument, 0, 7},
+		{"ping", 	     	optional_argument, 0, 'p'},
+		{"status",       	optional_argument, 0, 's'},
+		{"powerstatus",     optional_argument, 0, 'w'},
+		{"power",           optional_argument, 0, 'g'},
+		{"release",         optional_argument, 0, 'l'},
+		{"set-risk",        required_argument, 0, 'r'},
+		{"setopt",          required_argument, 0, 'o'},
+		{"type",            required_argument, 0, 't'},
+		{"set-powercap",    required_argument, 0, 'c'},
+		{"reset-powercap",  required_argument, 0, 'x'},
+		{"inc-powercap",    required_argument, 0, 'i'},
+		{"red-powercap",    required_argument, 0, 'd'},
+		{"mail",            required_argument, 0, 'm'},
+		{"verbose",         optional_argument, 0, 'b'},
+		{"error",           no_argument, 0, 'e'},
+		{"health-check",    no_argument, 0, 'k'},
+		{"active-only",     no_argument, 0, 'y'},
+		{"help",         	no_argument, 0, 'h'},
+		{"version",         no_argument, 0, 'v'},
+		{0, 0, 0, 0}
+	};
 	while (1)
 	{
-		int option_idx = 0;
-		static struct option long_options[] = {
-			{"set-freq",     	required_argument, 0, 0},
-			{"red-def-freq", 	required_argument, 0, 1},
-			{"set-max-freq", 	required_argument, 0, 2},
-			{"inc-th",       	required_argument, 0, 3},
-			{"set-def-freq", 	required_argument, 0, 4},
-			{"set-th",          required_argument, 0, 5},
-			{"hosts",           required_argument, 0, 6},
-			{"restore-conf", 	optional_argument, 0, 7},
-			{"ping", 	     	optional_argument, 0, 'p'},
-			{"status",       	optional_argument, 0, 's'},
-			{"powerstatus",     optional_argument, 0, 'w'},
-			{"power",           optional_argument, 0, 'g'},
-			{"release",         optional_argument, 0, 'l'},
-			{"set-risk",        required_argument, 0, 'r'},
-			{"setopt",          required_argument, 0, 'o'},
-			{"type",            required_argument, 0, 't'},
-			{"set-powercap",    required_argument, 0, 'c'},
-			{"reset-powercap",  required_argument, 0, 'x'},
-			{"inc-powercap",    required_argument, 0, 'i'},
-			{"red-powercap",    required_argument, 0, 'd'},
-			{"mail",            required_argument, 0, 'm'},
-			{"verbose",         optional_argument, 0, 'b'},
-			{"error",           no_argument, 0, 'e'},
-			{"health-check",    no_argument, 0, 'k'},
-			{"active-only",     no_argument, 0, 'y'},
-			{"help",         	no_argument, 0, 'h'},
-			{"version",         no_argument, 0, 'v'},
-			{0, 0, 0, 0}
-		};
 
 		c = getopt_long(argc, argv, "p::shvb::", long_options, &option_idx);
 
@@ -812,6 +865,8 @@ int main(int argc, char *argv[])
 					status_type = EAR_TYPE_POLICY;
 				else if (!strcasecmp(optarg, "EARDBD"))
 					status_type = EAR_TYPE_EARDBD_STATUS;
+				else if (!strcasecmp(optarg, "EARGM"))
+					status_type = EAR_TYPE_EARGM_STATUS;
 				else
 					printf("Warning: specified type is invalid (%s)\n", optarg);
 				break;
@@ -1010,7 +1065,13 @@ int main(int argc, char *argv[])
 
 	if (set_limit != -2) 
 	{
-		ear_set_powerlimit(&my_cluster_conf, set_limit, nodes, num_nodes);
+		if (status_type == EAR_TYPE_EARGM_STATUS) {
+			eargm_set_powerlimit(&my_cluster_conf, set_limit, nodes, num_nodes);
+			status_type = 0;
+		}
+		else {
+			ear_set_powerlimit(&my_cluster_conf, set_limit, nodes, num_nodes);
+		}
 	}
 
 	if (get_power) {
@@ -1086,50 +1147,55 @@ int main(int argc, char *argv[])
 	else if (status_type > 0)
 	{
 		eardbd_table_t *edbstatus;
+		powercap_status_t *powerstatus;
+		app_status_t *appstatus;
+		eargm_status_t *egmstatus;
 		switch(status_type)
 		{
-			powercap_status_t *powerstatus;
-			app_status_t *appstatus;
 			case EAR_TYPE_STATUS:
-			num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
-			process_status(num_status, status, NODE_ONLY);
-			break;
+				num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
+				process_status(num_status, status, NODE_ONLY);
+				break;
 			case EAR_TYPE_POLICY:
-			num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
-			process_status(num_status, status, POLICY_ONLY);
-			break;
+				num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
+				process_status(num_status, status, POLICY_ONLY);
+				break;
 			case EAR_TYPE_FULL_STATUS:
-			num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
-			process_status(num_status, status, FULL_STATUS);
-			break;
+				num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
+				process_status(num_status, status, FULL_STATUS);
+				break;
 			case EAR_TYPE_POWER_STATUS:
-			num_status = ear_get_powercap_status(&my_cluster_conf, &powerstatus, 0, nodes, num_nodes);
-			process_powercap_status(powerstatus,num_status);
-			break;
+				num_status = ear_get_powercap_status(&my_cluster_conf, &powerstatus, 0, nodes, num_nodes);
+				process_powercap_status(powerstatus,num_status);
+				break;
 			case EAR_TYPE_APP_STATUS_MASTER:
-			num_status = ear_get_app_master_status(&my_cluster_conf, &appstatus, nodes, num_nodes);
-			process_app_status(num_status, appstatus, 1);
-			break;
+				num_status = ear_get_app_master_status(&my_cluster_conf, &appstatus, nodes, num_nodes);
+				process_app_status(num_status, appstatus, 1);
+				break;
 			case EAR_TYPE_APP_STATUS_NODE:
-			num_status = ear_get_app_node_status(&my_cluster_conf, &appstatus, nodes, num_nodes);
-			process_app_status(num_status, appstatus, 0);
-			break;
+				num_status = ear_get_app_node_status(&my_cluster_conf, &appstatus, nodes, num_nodes);
+				process_app_status(num_status, appstatus, 0);
+				break;
 			case EAR_TYPE_EARDBD_STATUS:
-			num_status = eardbd_status_all(&my_cluster_conf, &edbstatus);
-			process_eardbd_status(num_status, edbstatus, 0);
-			if (num_status > 0)
-				free(edbstatus);
-			break;
+				num_status = eardbd_status_all(&my_cluster_conf, &edbstatus);
+				process_eardbd_status(num_status, edbstatus, 0);
+				if (num_status > 0)
+					free(edbstatus);
+				break;
+			case EAR_TYPE_EARGM_STATUS:
+				num_status = eargm_get_status(&my_cluster_conf, &egmstatus, nodes, num_nodes);
+				process_eargm_status(num_status, egmstatus, nodes, num_nodes);
+				break;
 			case EAR_TYPE_HEALTH_CHECK:
-			printf("---------------------\nINACTIVE NODES\n---------------------\n");
-			num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
-			process_status(num_status, status, ERR_ONLY);
-			printf("---------------------\nINACTIVE EARDBDS\n---------------------\n");
-			num_status = eardbd_status_all(&my_cluster_conf, &edbstatus);
-			process_eardbd_status(num_status, edbstatus, 1);
-			if (num_status > 0)
-				free(edbstatus);
-			break;
+				printf("---------------------\nINACTIVE NODES\n---------------------\n");
+				num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
+				process_status(num_status, status, ERR_ONLY);
+				printf("---------------------\nINACTIVE EARDBDS\n---------------------\n");
+				num_status = eardbd_status_all(&my_cluster_conf, &edbstatus);
+				process_eardbd_status(num_status, edbstatus, 1);
+				if (num_status > 0)
+					free(edbstatus);
+				break;
 
 		}
 	}

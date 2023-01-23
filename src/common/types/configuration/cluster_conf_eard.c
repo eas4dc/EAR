@@ -10,9 +10,9 @@
  * BSC Contact   mailto:ear-support@bsc.es
  * Lenovo contact  mailto:hpchelp@lenovo.com
  *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
+ * EAR is an open source software, and it is licensed under both the BSD-3 license
+ * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+ * and COPYING.EPL files.
  */
 
 #define _GNU_SOURCE 
@@ -103,8 +103,12 @@ state_t EARD_parse_token(eard_conf_t *conf,char *token)
     {
         token = strtok(NULL, "=");
         strclean(token, '\n');
-        strncpy(conf->plugins, token, sizeof(conf->plugins));
-        found = EAR_SUCCESS;
+        if (strlen(token) < sizeof(conf->plugins)) {
+            strncpy(conf->plugins, token, sizeof(conf->plugins) - 1);
+            found = EAR_SUCCESS;
+        } else {
+            found = EAR_WARNING;
+        }
     }
 
 

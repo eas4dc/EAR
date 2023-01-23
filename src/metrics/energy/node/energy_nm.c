@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -30,9 +30,8 @@
 #include <sys/time.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
-#include <sys/select.h>
-
 #include <common/states.h> //clean
+#include <common/system/poll.h>
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
 #include <metrics/energy/node/energy_nm.h>
@@ -77,7 +76,7 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	static struct ipmi_rs rsp;
 	uint8_t *data = NULL;
 	static int curr_seq = 0;
-	fd_set rset;
+	afd_set_t rset;
 
 	if (intf == NULL || req == NULL)
 		return NULL;
@@ -113,16 +112,16 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 		return NULL;
 	};
 
-	FD_ZERO(&rset);
-	FD_SET(intf->fd, &rset);
+	AFD_ZERO(&rset);
+	AFD_SET(intf->fd, &rset);
 
-	if (select(intf->fd + 1, &rset, NULL, NULL, NULL) < 0) {
+	if (aselectv(&rset, NULL) < 0) {
 		debug("I/O Error\n");
 		if (data != NULL)
 			free(data);
 		return NULL;
 	};
-	if (FD_ISSET(intf->fd, &rset) == 0) {
+	if (AFD_ISSET(intf->fd, &rset) == 0) {
 		debug("No data available\n");
 		if (data != NULL)
 			free(data);

@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdio.h>
@@ -92,7 +92,7 @@ int init_node_metrics_data(nm_t *id,nm_data_t *nm)
 	}
 
 	// CPU Temperature
-	state_assert(s, temp_data_alloc(&temp_ctx, &nm->temp, NULL),);
+	state_assert(s, temp_data_alloc(&nm->temp),);
 	
 	// CPU/IMC Frequency
     state_assert(s, cpufreq_count_devices(no_ctx, &nm->freq_cpu_count),);
@@ -151,7 +151,7 @@ int diff_node_metrics(nm_t *id,nm_data_t *init,nm_data_t *end,nm_data_t *diff_nm
 	}
 
 	// Temperature
-	state_assert(s, temp_data_copy(&temp_ctx, diff_nm->temp, end->temp),);
+	state_assert(s, temp_data_copy(diff_nm->temp, end->temp),);
 	diff_nm->avg_temp = end->avg_temp;
 
 	// CPU & IMC Frequency
@@ -190,7 +190,7 @@ int copy_node_metrics(nm_t *id, nm_data_t *dest, nm_data_t *src)
 	}
 
 	// Temperature
-	state_assert(s, temp_data_copy(&temp_ctx, dest->temp, src->temp),);
+	state_assert(s, temp_data_copy(dest->temp, src->temp),);
 	dest->avg_temp = src->avg_temp;
 
 	// Frequencies

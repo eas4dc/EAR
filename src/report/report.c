@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 //#define SHOW_DEBUGS 1
 
@@ -95,14 +95,14 @@ static void static_load(const char *install_path, const char *_libs)
         // Loading /install/lib/plugins/report/lib.so
         sprintf(path, "%s/reports/%s", install_path, lib);
         debug("Loading '%s' plugin", path);
-        if (state_fail(s = symplug_open_flags(path, (void **) &ops_aux, (cchar **) names, S_NUM, S_FLAGS))) {
+        if (state_fail(s = plug_open(path, (void **) &ops_aux, (cchar **) names, S_NUM, S_FLAGS))) {
             // Loading ./lib.so
             sprintf(path, "./%s", lib);
             debug("Loading '%s' plugin", path);
-            if (state_fail(s = symplug_open_flags(path, (void **) &ops_aux, (cchar **) names, S_NUM, S_FLAGS))) {
+            if (state_fail(s = plug_open(path, (void **) &ops_aux, (cchar **) names, S_NUM, S_FLAGS))) {
                 // Loading /???/lib.so
                 debug("Loading '%s' plugin", lib);
-                if (state_fail(s = symplug_open_flags(lib, (void **) &ops_aux, (cchar **) names, S_NUM, S_FLAGS))) {
+                if (state_fail(s = plug_open(lib, (void **) &ops_aux, (cchar **) names, S_NUM, S_FLAGS))) {
                     error("Unable to load report plugin %s (%d)", state_msg, s);
                     goto next;
                 }

@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <mpi.h>
@@ -208,18 +208,18 @@ static uint        mpi_summary_pending = 0;
 static MPI_Request mpi_summary_req;
 
 
+#if SHARED_MPI_SUMMARY
 state_t share_my_mpi_summary(masters_info_t *mi,mpi_summary_t *my_data)
 {
-#if NODE_LB
 	if (ishare_global_info(mi->masters_comm,(char *)my_data, sizeof(mpi_summary_t),(char *)mi->nodes_mpi_summary,sizeof(mpi_summary_t),&mpi_summary_req)!=EAR_SUCCESS){
 		verbose_master(2,"MR[%d]:Sending node sh_signature to other masters master_rank",mi->my_master_rank);
 	}else{
 		verbose_master(3,"Successfully sent mpi_stats");
 		mpi_summary_pending = 1;
 	}
-#endif
 	return EAR_SUCCESS;	
 }
+#endif
 
 uint is_mpi_summary_pending()
 {
@@ -239,14 +239,14 @@ uint is_mpi_summary_ready()
 #endif
 }
 
+#if SHARED_MPI_SUMMARY
 void verbose_node_mpi_summary(int vl, masters_info_t *mi)
 {
 	int i;
 	mpi_summary_t *l;
-	#if NODE_LB
 	for (i=0;i<mi->my_master_size;i++){
 		l = &mi->nodes_mpi_summary[i];
 		verbose_master(vl,"MR[%d] maxp %.2f minp %.2f sd %.2f mean %.2f mag %.2f",i,l->max,l->min,l->sd,l->mean,l->mag);
 	}
-	#endif
 }
+#endif

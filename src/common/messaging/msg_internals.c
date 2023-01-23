@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -44,7 +44,7 @@ int remote_connected=0;
 int eards_sfd=-1;
 
 // 2000 and 65535
-#define DAEMON_EXTERNAL_CONNEXIONS 10
+#define DAEMON_EXTERNAL_CONNEXIONS 256
 
 
 int _read(int fd, void *data, size_t ssize)
@@ -349,6 +349,7 @@ size_t get_command_size(request_t *command, char **data_to_send)
         case EARGM_NEW_JOB:
         case EARGM_END_JOB:
         case EARGM_INC_PC:
+        case EARGM_SET_PC:
         case EARGM_RED_PC:
         case EARGM_RESET_PC:
             size += sizeof(eargm_req_t);
@@ -1216,7 +1217,6 @@ void send_command_all(request_t command, cluster_conf_t *my_cluster_conf)
 request_header_t data_all_nodes(request_t *command, cluster_conf_t *my_cluster_conf, void **data)
 {
     int i, j, k, rc, total_ranges, final_size = 0, default_type = EAR_ERROR, num_sfds = 0, offset_send = 0, offset_read = 0;
-    int last_i_send, last_j_send, last_i_read, last_j_read;
     int **ips, *ip_counts, *sfds;
     struct sockaddr_in temp;
     request_header_t head;
@@ -1232,8 +1232,10 @@ request_header_t data_all_nodes(request_t *command, cluster_conf_t *my_cluster_c
     int iters = num_sfds/MAX_CALLER_CONNECTIONS;
     if (num_sfds%MAX_CALLER_CONNECTIONS) iters += 1; //to prevent ranges of < MAX_CALLER_CONNECTIONS to not be sent, as well as 
                                                     //avoiding the remainder ranges to not be contacted
-    last_i_send = last_j_send = 0;
-    last_i_read = last_j_read = 0;
+    int last_i_send = 0;
+    int last_j_send = 0;
+    int last_i_read = 0;
+    int last_j_read = 0;
 
     debug("number of outer iterations %d (each of <= %d connections)", iters, MAX_CALLER_CONNECTIONS);
 

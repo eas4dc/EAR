@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -49,6 +49,8 @@ state_t cpufreq_load(topology_t *tp, int eard)
 	}
 	debug("Not loaded INTEL63: %s (%d)", state_msg, s);
 	if (state_ok(s = cpufreq_dummy_status(tp, &ops))) {}
+	debug("Loaded metrics/cpufreq/DUMMY %p", ops.data_diff);
+	
 	cpu_count = tp->cpu_count;
 	pthread_mutex_unlock(&lock);
 	return EAR_SUCCESS;
@@ -77,6 +79,7 @@ state_t cpufreq_count_devices(ctx_t *c, uint *dev_count)
 
 state_t cpufreq_read(ctx_t *c, cpufreq_t *ef)
 {
+	debug("cpufreq_read");
 	preturn(ops.read, c, ef);
 }
 
@@ -101,7 +104,11 @@ state_t cpufreq_read_copy(ctx_t *c, cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, 
 // Helpers
 state_t cpufreq_data_diff(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average)
 {
-	preturn(ops.data_diff, f2, f1, freqs, average);
+	debug("cpufreq_data_diff %p", ops.data_diff);
+	if (ops.data_diff != NULL){
+		return ops.data_diff(f2, f1, freqs, average);
+	}
+	return EAR_SUCCESS;
 }
 
 state_t cpufreq_data_alloc(cpufreq_t **f, ulong **freqs)
@@ -140,19 +147,14 @@ state_t cpufreq_data_print(ulong *freqs, ulong average, int fd)
 	int i;
 
 	//
-	dprintf(fd, "CPU:");
-
 	for (i = 0; i < cpu_count; ++i) {
-		if ((i != 0) && (i % 12 == 0)) {
-			dprintf(fd, "\nCPU:");
+		if ((i != 0) && (i % 8 == 0)) {
+			dprintf(fd, "\n");
 		}
 		freq_ghz = ((double) freqs[i]) / 1000000.0;
-		dprintf(fd, " %0.1lf", freq_ghz);
+		dprintf(fd, "%0.1lf\t", freq_ghz);
 	}
 	//
-	if (freqs != NULL) {
-		dprintf(fd, ",");
-	}
 	freq_ghz = ((double) average) / 1000000.0;
 	dprintf(fd, " avg %0.1lf", freq_ghz);
 	dprintf(fd, " (GHz)\n");

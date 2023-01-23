@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -119,7 +119,7 @@ static int load_test(char *path)
 	}
 	debug("dlopen ok");
 	// Finding symbols
-	symplug_join(liblikwid, (void **) &likwid, likwid_names, LIKWID_N);
+	plug_join(liblikwid, (void **) &likwid, likwid_names, LIKWID_N);
 
 	for(i = 0, error = 0; i < LIKWID_N; ++i) {
 		debug("symbol %s: %d", likwid_names[i], (p[i] != NULL));

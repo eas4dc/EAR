@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdio.h>
@@ -87,8 +87,8 @@ void print_cluster_conf(cluster_conf_t *conf)
     }
     else
     {
-    	verbosen(VCCONF, "\nGLOBALS\n--->Verbose: %u\n--->Default_policy: %s\n--->Min_time_perf_acc: %u\n",
-	    		conf->verbose, conf->power_policies[conf->default_policy].name, conf->min_time_perf_acc);
+    	verbosen(VCCONF, "\nGLOBALS\n--->Verbose: %u\n--->Default_policy: %s (id %d)\n--->Min_time_perf_acc: %u\n",
+	    		conf->verbose, conf->power_policies[conf->default_policy].name, conf->default_policy, conf->min_time_perf_acc);
     }
 
 	int i;
@@ -121,9 +121,10 @@ void print_cluster_conf(cluster_conf_t *conf)
 	
     verbosen(VCCONF, "\nGENERAL TAGS\n");
     for (i = 0; i < conf->num_tags; i++)
-		{
-        print_tags_conf(&conf->tags[i]);
-		}
+	{
+		//printf("tagid%d : %s\n", i, conf->tags[i].id);
+		print_tags_conf(&conf->tags[i]);
+	}
 
 	verbosen(VCCONF, "\nENERGY TAGS\n");
 	for (i = 0; i < conf->num_etags; i++)

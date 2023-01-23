@@ -1,20 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
-
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 // #define SHOW_DEBUGS 1
 #define _GNU_SOURCE
@@ -78,7 +77,7 @@ int must_load()
 
 int load_no_official()
 {
-    char *app_to_load=getenv(FLAG_LOADER_APPLICATION);
+    char *app_to_load = getenv(FLAG_LOADER_APPLICATION);
     if (app_to_load == NULL) {
         // TODO: This check is for the transition to the new environment variables.
         // It will be removed when SCHED_LOADER_LOAD_NO_MPI_LIB will be removed, in the next release.
@@ -91,7 +90,7 @@ int load_no_official()
             return 0;
         }
     }
-    if (strstr(program_invocation_name,app_to_load) == NULL) return 0;
+    if (strstr(program_invocation_name, app_to_load) == NULL) return 0;
     return 1;
 }
 
@@ -143,7 +142,7 @@ void  __attribute__ ((constructor)) loader()
         if (_loaded) return;
 
         if (load_no_official()) {
-            verbose(2,"Tring default module");
+            verbose(2, "Tring default module");
             _loaded = module_constructor(path_lib_so,libhack);
         }
     }

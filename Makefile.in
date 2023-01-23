@@ -1,58 +1,71 @@
+########################################################################################################
+# Flags information:
+#
+# ARCH_X86 and ARCH_ARM define the compiling architecture and are mutually exclusive
+# FEAT_MPI_API allows to compile the MPI EAR library version or non-MPI.
+# FEAT_AVX512 enables/disables the AVX-512 code.
+# FEAT_RESEARCH extend the set of files installed.
+# FEAT_GPU_OPT installs GPU optimization policies. 0 means only monitoring.
+# FEAT_AMD_OSCPUFREQ disables the utilization of virtual PSTATES in AMD and selects OS CPUFreq.
+# FEAT_DB_MYSQL and FEAT_DB_PSQL defines the database (MySQL or PostgreSQL) and are mutually exclusive.
+# REPLACE also replaces the current installation permissions by the user's current values.
+########################################################################################################
+
+# Architectures
+ARCH_X86           = @ARCH_X86@
+ARCH_ARM           = @ARCH_ARM@
 # Features
-# Compiles the MPI EAR library version or non-MPI
 FEAT_MPI_API       = @FEAT_MPI_API@
-# This is automatically generated based on the CPU version detected
 FEAT_AVX512        = @FEAT_AVX512@
-# Extend the set of files installed.
 FEAT_RESEARCH      = 0
-# Enables the installation of GPU optimization policies. If 0, only monitoring is supported.
-FEAT_GPU_OPT       = 0
-# Disables the utilization of virtual PSTATES in AMD and selects OS CPUFreq
+FEAT_GPU_OPT       = 1
 FEAT_AMD_OSCPUFREQ = 0
-# Uses mysql API
 FEAT_DB_MYSQL      = @FEAT_DB_MYSQL@
-# Uses Postgress API
 FEAT_DB_PSQL       = @FEAT_DB_PGSQL@
-
+FEAT_EXAMON        = 0
+FEAT_DB_CASSANDRA  = 0
 # Compilers
-CC           = @CC@
-CC_FLAGS     = @CC_FLAGS@
-MPICC        = @MPICC@
-MPICC_FLAGS  = @MPICC_FLAGS@
-
+CC                 = @CC@
+CC_FLAGS           = @CC_FLAGS@
+MPICC              = @MPICC@
+MPICC_FLAGS        = @MPICC_FLAGS@
 # Includes
-MPI_BASE         = @MPI_DIR@
-MPI_CFLAGS       = @MPI_CPPFLAGS@
-MPI_VERSION      = @MPI_VERSION@
-GSL_BASE         = @GSL_DIR@
-GSL_CFLAGS       = @GSL_CPPFLAGS@
-GSL_LDFLAGS      = @GSL_LDFLAGS@ @GSL_LIBS@
-SLURM_BASE       = @SLURM_DIR@
-SLURM_CFLAGS     = @SLURM_CFLAGS@
-DB_BASE          = @DB_DIR@
-DB_CFLAGS        = @DB_CFLAGS@
-DB_LDFLAGS       = @DB_LDFLAGS@ @DB_LIBS@
-CUDA_BASE        = @CUDA_DIR@
-LIKWID_BASE      = @LIKWID_DIR@
-LIKWID_CFLAGS    = @LIKWID_CFLAGS@
-FREEIPMI_BASE    = @FREEIPMI_DIR@
-FREEIPMI_CFLAGS  = @FREEIPMI_CFLAGS@
-FREEIPMI_LDFLAGS = @FREEIPMI_LDFLAGS@
-
-# Directories
-ROOTDIR      = $(shell pwd)
-SRCDIR       = $(ROOTDIR)/src
-DESTDIR      = @prefix@
-ETCDIR       = @sysconfdir@
-TMPDIR       = @localstatedir@
-DOCDIR       = @docdir@
-
-# Installation
-CHOWN_USR    = @USER@
-CHOWN_GRP    = @GROUP@
-#CONSTANTS   = -DSEC_KEY=10001 -DSYN_TEST # Define SYN_TEST for external synthetic tests compilation
-CONSTANTS    = -DSEC_KEY=10001
-REPLACE      =
+MPI_BASE           = @MPI_DIR@
+MPI_CFLAGS         = @MPI_CPPFLAGS@
+MPI_VERSION        = @MPI_VERSION@
+GSL_BASE           = @GSL_DIR@
+GSL_CFLAGS         = @GSL_CPPFLAGS@
+GSL_LDFLAGS        = @GSL_LDFLAGS@ @GSL_LIBS@
+SLURM_BASE         = @SLURM_DIR@
+SLURM_CFLAGS       = @SLURM_CFLAGS@
+DB_BASE            = @DB_DIR@
+DB_CFLAGS          = @DB_CFLAGS@
+DB_LDFLAGS         = @DB_LDFLAGS@ @DB_LIBS@
+CUDA_BASE          = @CUDA_DIR@
+CUDA_CFLAGS        = @CUDA_CFLAGS@
+CUPTI_BASE         = @CUPTI_DIR@
+CUPTI_CFLAGS       = @CUPTI_CFLAGS@
+ONEAPI_BASE        = @ONEAPI_DIR@
+ONEAPI_CFLAGS      = @ONEAPI_CFLAGS@
+LIKWID_BASE        = @LIKWID_DIR@
+LIKWID_CFLAGS      = @LIKWID_CFLAGS@
+REDFISH_BASE       = @REDFISH_DIR@
+REDFISH_CFLAGS     = @REDFISH_CFLAGS@
+FREEIPMI_BASE      = @FREEIPMI_DIR@
+FREEIPMI_CFLAGS    = @FREEIPMI_CFLAGS@
+FREEIPMI_LDFLAGS   = @FREEIPMI_LDFLAGS@
+COUNTDOWN_BASE     =
+# Installation directories and options
+ROOTDIR            = $(shell pwd)
+SRCDIR             = $(ROOTDIR)/src
+DESTDIR            = @prefix@
+ETCDIR             = @sysconfdir@
+TMPDIR             = @localstatedir@
+DOCDIR             = @docdir@
+CHOWN_USR          = @USER@
+CHOWN_GRP          = @GROUP@
+CONSTANTS          = -DSEC_KEY=10001 -DREPORT_TIMESTAMP=1 -DSYNC_SET_RPC=1 -DUSE_CNTD=0
+REPLACE            =
 
 ######## EXPORTS
 
@@ -67,8 +80,8 @@ all:
 
 full: clean all 
 
-check:
-	@ $(MAKE) -C 'src' check
+post:
+	@ $(MAKE) -C 'src' post
 
 install:
 	@ $(MAKE) -C 'etc' install || exit

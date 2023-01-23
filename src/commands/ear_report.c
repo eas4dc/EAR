@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #define _XOPEN_SOURCE 700 //to get rid of the warning
@@ -108,6 +108,9 @@
 #define ALL_ISLANDS "SELECT SUM(DC_energy), eardbd_host FROM Periodic_aggregations WHERE start_time >= %d "\
                     " AND end_time <= %d GROUP BY eardbd_host"
 
+#define ISLANDS_RAW "SELECT DC_energy, eardbd_host, start_time, end_time, DC_energy/(end_time-start_time) FROM "\
+					"Periodic_aggregations WHERE start_time >= %d AND end_time <= %d"
+
 #define ALL_TAGS    "SELECT TRUNCATE(SUM(DC_power*time), 0) as energy, Jobs.e_tag FROM " \
                     "Power_signatures INNER JOIN Applications ON id=Applications.power_signature_id " \
                     "INNER JOIN Jobs ON job_id = Jobs.id AND Applications.step_id = Jobs.step_id " \
@@ -142,10 +145,11 @@ void usage(char *app)
     printf( "Options are as follows:\n"\
         "\t-s start_time     \t indicates the start of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default: end_time minus insertion time*2.\n"
         "\t-e end_time       \t indicates the end of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default: current time.\n"
-        "\t-n node_name |all \t indicates from which node the energy will be computed. Default: none (all nodes computed) \n\t\t\t\t\t 'all' option shows all users individually, not aggregated.\n"
+        "\t-n node_name |all \t indicates from which node the energy will be computed. Default: none (all nodes computed) \n\t\t\t\t\t 'all' option shows all nodes individually, not aggregated.\n"
         "\t-u user_name |all \t requests the energy consumed by a user in the selected period of time. Default: none (all users computed). \n\t\t\t\t\t 'all' option shows all users individually, not aggregated.\n"
         "\t-t energy_tag|all \t requests the energy consumed by energy tag in the selected period of time. Default: none (all tags computed). \n\t\t\t\t\t 'all' option shows all tags individually, not aggregated.\n"
         "\t-i eardbd_name|all\t indicates from which eardbd (island) the energy will be computed. Default: none (all islands computed) \n\t\t\t\t\t 'all' option shows all eardbds individually, not aggregated.\n"
+        "\t\t-d                 expands the results of -i to individual records. If an island is not specified, it prints all of them.\n"
         "\t-g                \t shows the contents of EAR's database Global_energy table. The default option will show the records for the two previous T2 periods of EARGM.\n\t\t\t\t\t This option can only be modified with -s, not -e\n"
         "\t-x                \t shows the daemon events from -s to -e. If no time frame is specified, it shows the last 20 events. \n"
         "\t-v                \t shows current EAR version. \n"
@@ -604,7 +608,7 @@ void compute_pow(PGconn *connection, int start_time, int end_time, unsigned long
 
 }
 #endif
-
+/*
 void event_type_to_str(int type, char *buff, size_t size)
 {
     switch(type)
@@ -662,11 +666,14 @@ void event_type_to_str(int type, char *buff, size_t size)
             break;
     }
 }
+*/
 /* EARD runtime events */
 void print_event_type(int type)
 {
+    ear_event_t ev;
+    ev.event = type;
     char buff[15];
-    event_type_to_str(type, buff, 15);
+    event_type_to_str(&ev, buff, 15);
     printf("%15s ", buff);
 }
 
@@ -739,9 +746,9 @@ void postgresql_print_events(PGresult *res)
 #endif
 
 #if DB_MYSQL
-#define EVENTS_QUERY "SELECT id, FROM_UNIXTIME(timestamp), event_type, job_id, step_id, freq, node_id FROM Events"
+#define EVENTS_QUERY "SELECT id, FROM_UNIXTIME(timestamp), event_type, job_id, step_id, value, node_id FROM Events"
 #elif DB_PSQL
-#define EVENTS_QUERY "SELECT id, to_timestamp(timestamp), event_type, job_id, step_id, freq, node_id FROM Events"
+#define EVENTS_QUERY "SELECT id, to_timestamp(timestamp), event_type, job_id, step_id, value, node_id FROM Events"
 #endif
 
 void read_events(int start_time, int end_time, cluster_conf_t *my_conf) 
@@ -910,6 +917,8 @@ void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query,
 #endif
         } else if (!strcmp(inc_query, ALL_ISLANDS)) {
             printf( "%15s %15s\n", "Energy (J)", "EARDBD");
+        } else if (!strcmp(inc_query, ISLANDS_RAW)) {
+            printf( "%15s %15s %15s %15s %15s\n", "Energy (J)", "EARDBD", "Start time", "End time", "Power");
         } else if (global_end_time > 0) {
 #if USE_GPUS
             printf( "%15s %15s %15s %15s\n", "Energy (J)", "Node", "Avg. DC Power", "Avg. GPU Power");
@@ -947,7 +956,10 @@ void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query,
             if (row[0] && all_nodes && (atoll(row[2]) != atoll(row[1]))) { //when getting energy we compute the avg_power
                 printf("%15lld", (atoll(row[0]) /(atoll(row[2]) - atoll(row[1]))));
 #if USE_GPUS
-                printf("%15lld", (atoll(row[3]) /(atoll(row[2]) - atoll(row[1]))));
+				if (row[3] != NULL)
+                	printf("%15lld", (atoll(row[3]) /(atoll(row[2]) - atoll(row[1]))));
+				else
+					printf("%15s", "---");
 #endif
     	}
             printf("\n");
@@ -1033,6 +1045,8 @@ void print_all(PGconn *connection, int start_time, int end_time, char *inc_query
             printf( "%15s %15s\n", "Energy (J)", "Energy tag");
         } else if (!strcmp(inc_query, ALL_ISLANDS)) {
             printf( "%15s %15s\n", "Energy (J)", "EARDBD");
+        } else if (!strcmp(inc_query, ISLANDS_RAW)) {
+            printf( "%15s %15s %15s %15s %15s\n", "Energy (J)", "EARDBD", "Start time", "End time", "Power");
         } else if (global_end_time > 0) {
                 printf( "%15s %15s %15s\n", "Energy (J)", "Node", "Avg. Power");
             all_nodes = 1;
@@ -1065,13 +1079,14 @@ int main(int argc,char *argv[])
     time_t end_time = time(NULL);
     time_t time_period = 0;
     int divisor = 1;
-    int opt;
+    int c;
     char all_users = 0;
     char all_nodes = 0;
     char all_tags = 0;
     char all_eardbds = 0;
     char report_events = 0;
     char global_energy = 0;
+    char islands_expanded = 0;
     struct tm tinfo = {0};
 
     if (get_ear_conf_path(path_name) == EAR_ERROR)
@@ -1130,155 +1145,180 @@ int main(int argc,char *argv[])
     }
 #endif
 
-    while ((opt = getopt(argc, argv, "t:vhbn:u:s:e:i:gx")) != -1)
-    {
-        switch(opt)
-        {
-            case 'h':
-                usage(argv[0]);
-                break;
-            case 'v':
-                print_version();
-                exit(0);
-                break;
-            case 'b':
-                verbose=1;
-                break;
-            case 'n':
-                node_name = optarg;
-                if (!strcmp(node_name, "all"))
-                    all_nodes=1;
-                break;
-            case 'i':
-                eardbd_host = optarg;
-                if (!strcmp(eardbd_host, "all"))
-                    all_eardbds=1;
-                break;
-            case 'u':
-                user_name = optarg;
-                if (!strcmp(user_name, "all"))
-                    all_users=1;
-                break;
-            case 't':
-                etag = optarg;
-                if (!strcmp(etag, "all"))
-                    all_tags=1;
-                break;
-            case 'g':
-                time_period = my_conf.eargm.t2*2;
-                if (optind < argc && strchr(argv[optind], '-') == NULL)
-                    time_period = atoi(argv[optind]);
-                global_energy = 1;
-                break;
-            case 'e':
-                if (strptime(optarg, "%Y-%m-%e", &tinfo) == NULL)
-                {
-                    printf( "Incorrect time format. Supported format is YYYY-MM-DD\n"); //error
+	int option_idx = 0;
+	static struct option long_options[] = {
+		{"help",          no_argument, 0, 'h'},
+		{"version",       no_argument, 0, 'v'},
+		{"verbose",       no_argument, 0, 'b'},
+		{"global-energy", no_argument, 0, 'g'},
+		{"events",        no_argument, 0, 'x'},
+		{"expanded",      no_argument, 0, 'd'},
+		{"nodes",      required_argument, 0, 'n'},
+		{"users",      required_argument, 0, 'u'},
+		{"etags",      required_argument, 0, 't'},
+		{"islands",    required_argument, 0, 'i'},
+		{"start-time", required_argument, 0, 's'},
+		{"end-time",   required_argument, 0, 'e'},
+	};
+	while (1)
+	{
+		c = getopt_long(argc, argv, "t:vhdbn:u:s:e:i:gx", long_options, &option_idx);
+
+		if (c == -1) break;
+
+		switch(c)
+		{
+			case 'h':
+				usage(argv[0]);
+				break;
+			case 'v':
+				print_version();
+				exit(0);
+				break;
+			case 'b':
+				verbose=1;
+				break;
+			case 'n':
+				node_name = optarg;
+				if (!strcmp(node_name, "all"))
+					all_nodes=1;
+				break;
+			case 'i':
+				eardbd_host = optarg;
+				all_eardbds = 0; //reset it in case -d was specified before
+				if (!strcmp(eardbd_host, "all"))
+					all_eardbds=1;
+				break;
+			case 'd':
+				islands_expanded = 1;
+				if (eardbd_host == NULL) all_eardbds=1;
+				break;
+			case 'u':
+				user_name = optarg;
+				if (!strcmp(user_name, "all"))
+					all_users=1;
+				break;
+			case 't':
+				etag = optarg;
+				if (!strcmp(etag, "all"))
+					all_tags=1;
+				break;
+			case 'g':
+				time_period = my_conf.eargm.t2*2;
+				if (optind < argc && strchr(argv[optind], '-') == NULL)
+					time_period = atoi(argv[optind]);
+				global_energy = 1;
+				break;
+			case 'e':
+				if (strptime(optarg, "%Y-%m-%e", &tinfo) == NULL)
+				{
+					printf( "Incorrect time format. Supported format is YYYY-MM-DD\n"); //error
 #if DB_MYSQL
-                    mysql_close(connection);
+					mysql_close(connection);
 #elif DB_PSQL
-                    PQfinish(connection);
+					PQfinish(connection);
 #endif
-                    free_cluster_conf(&my_conf);
-                    exit(1);
-                    break;
-                }
-                end_time = mktime(&tinfo);
-                break;
-            case 's':
-                if (strptime(optarg, "%Y-%m-%e", &tinfo) == NULL)
-                {
-                    printf( "Incorrect time format. Supported format is YYYY-MM-DD\n"); //error
+					free_cluster_conf(&my_conf);
+					exit(1);
+					break;
+				}
+				end_time = mktime(&tinfo);
+				break;
+			case 's':
+				if (strptime(optarg, "%Y-%m-%e", &tinfo) == NULL)
+				{
+					printf( "Incorrect time format. Supported format is YYYY-MM-DD\n"); //error
 #if DB_MYSQL
-                    mysql_close(connection);
+					mysql_close(connection);
 #elif DB_PSQL
-                    PQfinish(connection);
+					PQfinish(connection);
 #endif
-                    free_cluster_conf(&my_conf);
-                    exit(1);
-                    break;
-                }
-                start_time = mktime(&tinfo);
-                break;
-            case 'x':
-                report_events = 1;
-                break;
-        }
-    }
+					free_cluster_conf(&my_conf);
+					exit(1);
+					break;
+				}
+				start_time = mktime(&tinfo);
+				break;
+			case 'x':
+				report_events = 1;
+				break;
+		}
+	}
 
-    if (start_time == 0) start_time = end_time - MAX(my_conf.eard.period_powermon, my_conf.db_manager.aggr_time)*4;
-    if (!all_users && !all_nodes && !all_tags && !all_eardbds && !global_energy && !report_events)
-    {
-        long long result = get_sum(connection, start_time, end_time, divisor);
-        compute_pow(connection, start_time, end_time, result);
-    
-        if (!result) {
-            printf( "No results in that period of time found\n");
-        } else if (result < 0)
-        {
-            printf( "Error querying the database.\n"); //error
-            exit(1);
-        }
-        else
-        {
-            char sbuff[64], ebuff[64];
-            strtok(ctime_r(&end_time, ebuff), "\n");
-            strtok(ctime_r(&start_time, sbuff), "\n");
-            printf( "Total energy spent from %s to %s: %llu J\n", sbuff, ebuff, result);
-            if (avg_pow <= 0)
-            {
-                if (user_name == NULL && etag == NULL && verbose)
-                    printf( "Error when reading time info from database, could not compute average power.\n"); //error
-            }
-            else if (avg_pow > 0) {
-                printf( "Average power during the reported period: %llu W\n", avg_pow);
-            }
-        }    
+	if (start_time == 0) start_time = end_time - MAX(my_conf.eard.period_powermon, my_conf.db_manager.aggr_time)*4;
+	if (!all_users && !all_nodes && !all_tags && !all_eardbds && !global_energy && !report_events)
+	{
+		long long result = get_sum(connection, start_time, end_time, divisor);
+		compute_pow(connection, start_time, end_time, result);
+
+		if (!result) {
+			printf( "No results in that period of time found\n");
+		} else if (result < 0)
+		{
+			printf( "Error querying the database.\n"); //error
+			exit(1);
+		}
+		else
+		{
+			char sbuff[64], ebuff[64];
+			strtok(ctime_r(&end_time, ebuff), "\n");
+			strtok(ctime_r(&start_time, sbuff), "\n");
+			printf( "Total energy spent from %s to %s: %llu J\n", sbuff, ebuff, result);
+			if (avg_pow <= 0)
+			{
+				if (user_name == NULL && etag == NULL && verbose)
+					printf( "Error when reading time info from database, could not compute average power.\n"); //error
+			}
+			else if (avg_pow > 0) {
+				printf( "Average power during the reported period: %llu W\n", avg_pow);
+			}
+		}    
 #if DB_MYSQL
-        mysql_close(connection);
+		mysql_close(connection);
 #elif DB_PSQL
-        PQfinish(connection);
+		PQfinish(connection);
 #endif
-        free_cluster_conf(&my_conf);
-        exit(0);
-    }
+		free_cluster_conf(&my_conf);
+		exit(0);
+	}
 
-    if (all_users)
-        print_all(connection, start_time, end_time, ALL_USERS, ALL_PER_METRIC_TYPE);
-    else if (all_tags)
-        print_all(connection, start_time, end_time, ALL_TAGS, ALL_PER_METRIC_TYPE);
-    else if (all_nodes)
-    {
-        compute_pow(connection, start_time, end_time, 0);
-        print_all(connection, start_time, end_time, ALL_NODES, PER_METRIC_TYPE);
-    }
-    else if (all_eardbds)
-    {
-        compute_pow(connection, start_time, end_time, 0);
-        print_all(connection, start_time, end_time, ALL_ISLANDS, PER_METRIC_TYPE);
-    }
-    else if (global_energy)
-    {
-        if (start_time > 0)
-            print_all(connection, start_time, end_time, GLOB_ENERGY, GLOBAL_ENERGY_TYPE);
-        else
-            print_all(connection, start_time, time_period, GLOB_ENERGY, GLOBAL_ENERGY_TYPE);
-    }
-    else if (report_events)
-    {
-        //read_events(char *user, int job_id, int limit, int step_id, char *job_ids) 
-        read_events(start_time, end_time, &my_conf); 
+	if (all_users)
+		print_all(connection, start_time, end_time, ALL_USERS, ALL_PER_METRIC_TYPE);
+	else if (all_tags)
+		print_all(connection, start_time, end_time, ALL_TAGS, ALL_PER_METRIC_TYPE);
+	else if (all_nodes)
+	{
+		compute_pow(connection, start_time, end_time, 0);
+		print_all(connection, start_time, end_time, ALL_NODES, PER_METRIC_TYPE);
+	}
+	else if (all_eardbds)
+	{
+		compute_pow(connection, start_time, end_time, 0);
+		if (!islands_expanded) print_all(connection, start_time, end_time, ALL_ISLANDS, PER_METRIC_TYPE);
+		else print_all(connection, start_time, end_time, ISLANDS_RAW, PER_METRIC_TYPE);
+	}
+	else if (global_energy)
+	{
+		if (start_time > 0)
+			print_all(connection, start_time, end_time, GLOB_ENERGY, GLOBAL_ENERGY_TYPE);
+		else
+			print_all(connection, start_time, time_period, GLOB_ENERGY, GLOBAL_ENERGY_TYPE);
+	}
+	else if (report_events)
+	{
+		//read_events(char *user, int job_id, int limit, int step_id, char *job_ids) 
+		read_events(start_time, end_time, &my_conf); 
 
-    }
+	}
 #if DB_MYSQL
-    mysql_close(connection);
+	mysql_close(connection);
 #elif DB_PSQL
-    PQfinish(connection);
+	PQfinish(connection);
 #endif
-    free_cluster_conf(&my_conf);
+	free_cluster_conf(&my_conf);
 
 
-    exit(0);
+	exit(0);
 }
 
 

@@ -97,7 +97,6 @@ EARGMPeriodT1=90
 EARGMPeriodT2=259200
 # '-' are Joules, 'K' KiloJoules and 'M' MegaJoules.
 EARGMUnits=K
-EARGMEnergyLimit=550000
 EARGMPort=50000
 # Two modes are supported '0=manual' and '1=automatic'.
 EARGMMode=0
@@ -118,11 +117,9 @@ EARGMUseLog=1
 EARGMEnergyAction=no_action
 
 #### POWERCAP definition for EARGM: Powercap is still under development. Do not activate.
-# 0 means no powercap
-EARGMPowerLimit=0
-# Period at which the powercap thread is activated.
+# Period at which the powercap thread is activated. Meta-EARGM checks the EARGMs it controls every 2*EARGMPowerPeriod
 EARGMPowerPeriod=120
-# 1 means automatic, 0 is only monitoring.
+# Powercap mode: 0 is monitoring, 1 is hard powercap, 2 is soft powercap.
 EARGMPowerCapMode=1
 # Admins can specify to automatically execute a command in EARGMPowerCapSuspendAction when total_power >= EARGMPowerLimit*EARGMPowerCapResumeLimit/100
 EARGMPowerCapSuspendLimit=90
@@ -139,13 +136,19 @@ EARGMPowerCapResumeAction=no_action
 
 # EARGMs must be specified with a unique id, their node and the port that receives remote
 # connections. An EARGM can also act as meta-eargm if the meta field is filled, and it will
-# control the EARGMs whose ids are in said field. If to EARGMs are in the same node, 
+# control the EARGMs whose ids are in said field. If two EARGMs are in the same node, 
 # setting the EARGMID environment variable overrides the node field and chooses the characteristics
-# of the EARGM with the correspoding id. If energy is set to 0, cluster_energy_cap will be disabled
-# for that EARGM. Currently, only 1 cluster_energy_cap is supported.
-EARGMId=1 energy=1800 power=600 node=node1 port=50100 meta=1,2,3
-EARGMId=2 energy=0 power=500 node=node1 port=50101
-EARGMId=3 energy=0 power=500 node=node2 port=50100
+# of the EARGM with the correspoding id.
+# 
+# Only one EARGM can currently control the energy caps, so setting the rest to 0 is recommended.
+# energy = 0 -> energy_cap disabled
+# power = 0  -> powercap disabled
+# power = N  -> powercap budget for that EARGM (and the nodes it controls) is N
+# power = -1 -> powercap budget is calculated by adding up the powercap set to each of the nodes under its control.
+# 				This is incompatible with nodes that have their powercap unlimited (powercap = 1)
+EARGMId=1 energy=1800 power=600 node=node1 port=50100 meta=1,2
+EARGMId=2 energy=0 power=500 node=node2 port=50100
+EARGMId=3 energy=0 power=500 node=node3 port=50100
 
 #---------------------------------------------------------------------------------------------------
 # Common configuration
@@ -187,11 +190,11 @@ AuthorizedGroups=grp1,grp2
 # List of accepted options is: max_avx512(GHz), max_avx2(GHz), max_power(W), min_power(W), error_power(W), coeffs(filename), 
 # powercap(W), powercap_plugin(filename), energy_plugin(filename), gpu_powercap_plugin(filename), max_powercap(W), gpu_def_freq(GHz), 
 # cpu_max_pstate(0..max_pstate), imc_max_pstate(0..max_imc_pstate), energy_model(filename)
-# imc_max_freq, imc_min_freq
+# imc_max_freq, imc_min_freq, idle_governor(def default), idle_pstate
 #
 #
 Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=500 min_power=50 error_power=600 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so 
-Tag=6148_GPU  max_avx512=2.2 max_avx2=2.6 max_power=800 min_power=150 error_power=1000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so
+Tag=6148_GPU  max_avx512=2.2 max_avx2=2.6 max_power=800 min_power=150 error_power=1000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000
 
 #---------------------------------------------------------------------------------------------------
 ## Power policies

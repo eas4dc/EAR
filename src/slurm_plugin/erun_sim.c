@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <slurm_plugin/slurm_plugin.h>
@@ -104,8 +104,8 @@ char *slurm_hostlist_shift (hostlist_t host_list)
 
 hostlist_t slurm_hostlist_create (char *node_list)
 {
-	char *copy = malloc(strlen(node_list));
-	return strcpy(copy, node_list);
+	char *copy = malloc(strlen(node_list)+8);
+    return strcpy(copy, node_list);
 }
 
 spank_err_t spank_option_register_print(spank_t sp, struct spank_option *opt)

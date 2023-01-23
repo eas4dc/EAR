@@ -10,13 +10,16 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 // #define SHOW_DEBUGS 1
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +38,7 @@ int file_lock(int fd)
 	}else return -1;
 }
 
-int file_lock_timeout(int fd, uint timeout)
+int file_lock_timeout(int fd, ulong timeout)
 {
 	uint tries = 0;
   while((file_lock(fd) < 0 ) && (tries < timeout)) tries++;
@@ -94,7 +97,9 @@ int file_is_regular(const char *path)
 
 int file_is_directory(const char *path)
 {
-	return 0;
+	struct stat buff;
+	if (stat(path, &buff) < 0 ) return 0;
+	return S_ISDIR(buff.st_mode);
 }
 
 ssize_t ear_file_size(char *path)

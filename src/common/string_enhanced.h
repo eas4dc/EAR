@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _STRING_ENHANCED_H_
@@ -76,6 +76,7 @@ int strinargs(int argc, char *argv[], const char *opt, char *value);
 /** Removes characters c from string s. */
 void remove_chars(char *s, char c);
 
-/* Parses src into a list of char* elements with n num_elements separated by separator in src. */
+/** Parses src into a list of char* elements with n num_elements separated by separator in src. */
 void str_cut_list(char *src, char ***elements, int *num_elements, char *separator);
+
 #endif

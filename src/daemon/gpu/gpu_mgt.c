@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdio.h>
@@ -21,32 +21,29 @@
 #include <common/config.h>
 #include <common/states.h>
 
+#if USE_GPUS
 #include <management/gpu/gpu.h>
 //#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
 #include <common/output/debug.h>
 #include <common/types/configuration/cluster_conf.h>
 
-static ctx_t gpu_node_mgr;
 static uint num_dev;
 static ulong *def_khz,*max_khz,*current_khz;
 static ulong *def_w,*max_w,*current_w,*min_w;
+static metrics_gpus_t mgt_gpu;
 extern my_node_conf_t *my_node_conf;
 state_t gpu_mgr_init()
 {
 	uint i;
 	state_t ret;
-	ret=mgt_gpu_load(NULL);
-	if (ret!=EAR_SUCCESS){
-		debug("Error in mgt_gpu_load");
-		return ret;
-	}
-	ret=mgt_gpu_init(&gpu_node_mgr);
+	mgt_gpu_load(NO_EARD);
+	ret=mgt_gpu_init(no_ctx);
 	if (ret!=EAR_SUCCESS){
 		debug("Error in mgt_gpu_init");
 		return ret;
 	}
-	ret=mgt_gpu_count(&gpu_node_mgr,&num_dev);
+	ret=mgt_gpu_count_devices(no_ctx,&num_dev);
 	if (ret!=EAR_SUCCESS){
 		debug("Error in mgt_gpu_count");
 		return ret;
@@ -68,33 +65,33 @@ state_t gpu_mgr_init()
 		return EAR_ALLOC_ERROR;
 	}
 	/* GPU frequency limits */
-	ret=mgt_gpu_freq_limit_get_default(&gpu_node_mgr,def_khz);
+	ret=mgt_gpu_freq_limit_get_default(no_ctx,def_khz);
 	if (ret!=EAR_SUCCESS){
 		debug("mgt_gpu_freq_limit_get_default");
 		return ret;
 	}
-	ret=mgt_gpu_freq_limit_get_max(&gpu_node_mgr,max_khz);
+	ret=mgt_gpu_freq_limit_get_max(no_ctx,max_khz);
 	if (ret!=EAR_SUCCESS){
 		debug("mgt_gpu_freq_limit_get_max");
 		return ret;
 	}
-	ret=mgt_gpu_freq_limit_get_current(&gpu_node_mgr,current_khz);
+	ret=mgt_gpu_freq_limit_get_current(no_ctx,current_khz);
 	if (ret!=EAR_SUCCESS){
 		debug("mgt_gpu_freq_limit_get_current");
 		return ret;
 	}
 	/* GPU power limits */
-	ret=mgt_gpu_power_cap_get_default(&gpu_node_mgr,def_w);
+	ret=mgt_gpu_power_cap_get_default(no_ctx,def_w);
 	if (ret!=EAR_SUCCESS){
 		debug("mgt_gpu_power_cap_limit_get_default");
 		return ret;
 	}
-	ret=mgt_gpu_power_cap_get_rank(&gpu_node_mgr,min_w,max_w);
+	ret=mgt_gpu_power_cap_get_rank(no_ctx,min_w,max_w);
 	if (ret!=EAR_SUCCESS){
 		debug("mgt_gpu_power_cap_get_rank");
 		return ret;
 	}
-	ret=mgt_gpu_power_cap_get_current(&gpu_node_mgr,current_w);
+	ret=mgt_gpu_power_cap_get_current(no_ctx,current_w);
 	if (ret!=EAR_SUCCESS){
 		debug("mgt_gpu_power_cap_limit_get_current");
 		return ret;
@@ -106,6 +103,12 @@ state_t gpu_mgr_init()
 	if (my_node_conf->gpu_def_freq == 0){
 		my_node_conf->gpu_def_freq = max_khz[0];
 	}
+  ret = mgt_gpu_freq_list(no_ctx, (const ulong ***) &mgt_gpu.avail_list, (const uint **) &mgt_gpu.avail_count);
+  if (ret != EAR_SUCCESS){
+    debug("mgt_gpu_freq_list");
+    return ret;
+  }
+
 	return EAR_SUCCESS;
 }
 
@@ -121,7 +124,7 @@ state_t gpu_mgr_set_freq(uint num_dev_req,ulong *freqs)
 		freqs[i]=freqs[i];
 		debug("gpu_mgr_set_freq gpu[%d]=%lu",i,freqs[i]);
 	}
-	return mgt_gpu_freq_limit_set(&gpu_node_mgr,freqs);
+	return mgt_gpu_freq_limit_set(no_ctx,freqs);
 }
 
 state_t gpu_mgr_set_freq_all_gpus(ulong gfreq)
@@ -133,7 +136,7 @@ state_t gpu_mgr_set_freq_all_gpus(ulong gfreq)
 	for (i=0;i<num_dev;i++){
 		nfreq[i]=gfreq;
   }
-  ret=mgt_gpu_freq_limit_set(&gpu_node_mgr,nfreq);
+  ret=mgt_gpu_freq_limit_set(no_ctx,nfreq);
 	free(nfreq);
 	return ret;
 }
@@ -143,4 +146,18 @@ uint    gpu_mgr_num_gpus()
 	return num_dev;
 }
 
+state_t gpu_mgr_get_min(uint gpu, ulong *gfreq)
+{
+  if (gpu > num_dev) return EAR_ERROR;
+  ulong *list = mgt_gpu.avail_list[gpu];
+  *gfreq = list[mgt_gpu.avail_count[gpu] - 1];
+  return EAR_SUCCESS;
+}
 
+state_t gpu_mgr_get_max(uint gpu, ulong *gfreq)
+{
+  if (gpu > num_dev) return EAR_ERROR;
+  *gfreq = max_khz[gpu];
+  return EAR_SUCCESS;
+}
+#endif

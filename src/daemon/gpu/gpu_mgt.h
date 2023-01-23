@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _GPU_NODE_MGR_H
@@ -22,6 +22,8 @@ state_t gpu_mgr_init();
 state_t gpu_mgr_set_freq(uint num_dev,ulong *freqs);
 state_t gpu_mgr_set_freq_all_gpus(ulong gfreq);
 uint    gpu_mgr_num_gpus();
+state_t gpu_mgr_get_min(uint gpu, ulong *gfreq);
+state_t gpu_mgr_get_max(uint gpu, ulong *gfreq);
 
 
 #endif

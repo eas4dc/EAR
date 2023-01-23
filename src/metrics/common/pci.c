@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -79,7 +79,7 @@ state_t pci_scan(ushort vendor, ushort *ids, char **dfs, mode_t mode, pci_t **pc
                 if (errno == EACCES) {
                     debug("Exists '%s', but no permissions", path);
                 } else {
-                    debug("Exists '%s', but error %s", strerror(errno));
+                    debug("Exists '%s', but error %s", path, strerror(errno));
                 }
                 continue;
             }
@@ -167,23 +167,19 @@ state_t pci_mwrite32(pci_t *pcis, uint pcis_count, const uint *buffer, off_t *ad
 	return EAR_SUCCESS;
 }
 
-void *ioremap(off_t addr, size_t size);
-
-state_t pci_mmio_map(off_t addr, size_t size, void **p)
+state_t pci_mmio_map(addr_t addr, void **p)
 {
-	off_t pagemask;
-	int pagesize;
+    void *maddr;
 	int fd;
-
-	pagesize = sysconf(_SC_PAGE_SIZE);
-	pagemask = ~(pagesize - 1);
 
 	if ((fd = open("/dev/mem", O_RDWR | O_SYNC)) < 0) {
 		return_print(EAR_ERROR, "while opening /dev/mem: %s", strerror(errno));
 	}
-	if ((*p = mmap(0, 0x4000, PROT_READ|PROT_WRITE, MAP_SHARED, fd, addr & pagemask)) == MAP_FAILED) {
+	if ((maddr = mmap(0, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, PAGE_MASK(addr))) == MAP_FAILED) {
 		return_print(EAR_ERROR, "while mapping /dev/mem: %s", strerror(errno));
 	}
+    *p = (void *) (((addr_t) maddr) + (addr - PAGE_MASK(addr)));
+    debug("Mapped at 0x%lx and size 0x%x", addr, PAGE_SIZE);
     #if 0
 	if ((*p = ioremap(addr, size)) == NULL) {
 		return_msg(EAR_ERROR, strerror(errno));

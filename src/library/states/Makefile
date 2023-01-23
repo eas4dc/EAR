@@ -1,7 +1,7 @@
 ######## FILES
 
 OBJS = \
-		states_comm.o \
+	states_comm.o \
     states.o 
 
 ######## RULES
@@ -9,7 +9,8 @@ OBJS = \
 all: $(OBJS)
 
 %.o: %.c %.h
-	$(CC) $(CC_FLAGS) $(LIB_CFLAGS) $(CFLAGS) -c $<
+	# DYNAIS_CUTOFF enables the dynamic DynAIS turning off.
+	$(CC) $(CC_FLAGS) $(LIB_CFLAGS) $(CFLAGS) -DDYNAIS_CUTOFF=1 -c $<
 
 ######## OPTIONS 
 

@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #include <time.h>
 #include <errno.h>
@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
 #include <common/sizes.h>
 #include <common/config.h>
 #include <common/config/config_env.h>
@@ -31,29 +32,16 @@
 #include <common/system/time.h>
 #include <common/output/verbose.h>
 #include <common/types/signature.h>
+#include <common/types/event_type.h>
+#include <common/system/lock.h>
 //#include <library/metrics/metrics.h>
 #include <library/tracer/tracer_paraver.h>
 
 #ifdef EAR_GUI
+static pthread_mutex_t trace_event_lock = PTHREAD_MUTEX_INITIALIZER;
 
-#define TRA_ID		60001
-#define TRA_LEN		60002
-#define TRA_ITS		60003
-#define TRA_TIM		60004
-#define TRA_CPI		60005
-#define TRA_TPI		60006
-#define TRA_GBS		60007
-#define TRA_POW		60008
-#define TRA_PTI		60009
-#define TRA_PCP		60010
-#define TRA_PPO		60011
-#define TRA_FRQ		60012
-#define TRA_ENE		60013
-#define TRA_DYN		60014
-#define TRA_STA		60015
-#define TRA_MOD		60016
-#define TRA_VPI		60017
-#define TRA_REC		60018
+
+
 
 static char buffer1[SZ_BUFFER];
 static char buffer2[SZ_BUFFER];
@@ -72,8 +60,10 @@ static int working;
 static int trace_fin=0;
 
 
-static int my_trace_rank=0;
-static int my_num_nodes=0;
+static int my_trace_rank= 0;
+static int my_num_nodes = 0;
+static int my_num_ranks = 0;
+static int my_num_ppn   = 0;
 static char my_app[GENERIC_NAME];
 static char  hostname[SZ_BUFFER];
 static char *pathname;
@@ -105,7 +95,7 @@ static long long metrics_usecs_diff(long long end, long long init)
     return (end - init);
 }
 
-static void row_file_create(char *pathname, char *hostname)
+static void row_file_create(char *pathname, char *hostname, int n_nodes)
 {
     #define write_unused(...) \
         if (write(__VA_ARGS__)) {}
@@ -116,7 +106,11 @@ static void row_file_create(char *pathname, char *hostname)
                 O_WRONLY | O_CREAT | O_TRUNC,
                 S_IRUSR  | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
         if (file_row<0) return;
-        sprintf(buffer1,"LEVEL TASK SIZE %d\n",my_num_nodes);
+        #if SINGLE_CONNECTION
+        sprintf(buffer1,"LEVEL TASK SIZE %d\n",n_nodes);
+        #else
+        sprintf(buffer1,"LEVEL TASK SIZE %d\n",my_num_ranks);
+        #endif
         write_unused(file_row, buffer1, strlen(buffer1));
     }else{
         file_row=open(buffer1,
@@ -160,13 +154,13 @@ static void config_file_create(char *pathname, char* hostname)
     write_unused(file_pcf, buffer1, strlen(buffer1));
     sprintf(buffer1, "EVENT_TYPE\n0\t60004\tPERIOD_TIME\n\n");
     write_unused(file_pcf, buffer1, strlen(buffer1));
-    sprintf(buffer1, "EVENT_TYPE\n0\t60005\tPERIOD_CPI\n\n");
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tCPI\n\n", TRA_CPI);
     write_unused(file_pcf, buffer1, strlen(buffer1));
-    sprintf(buffer1, "EVENT_TYPE\n0\t60006\tPERIOD_TPI\n\n");
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tTPI\n\n", TRA_TPI);
     write_unused(file_pcf, buffer1, strlen(buffer1));
-    sprintf(buffer1, "EVENT_TYPE\n0\t60007\tPERIOD_GBS\n\n");
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tGBS\n\n", TRA_GBS);
     write_unused(file_pcf, buffer1, strlen(buffer1));
-    sprintf(buffer1, "EVENT_TYPE\n0\t60008\tPERIOD_POWER\n\n");
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tPOWER\n\n", TRA_POW);
     write_unused(file_pcf, buffer1, strlen(buffer1));
     sprintf(buffer1, "EVENT_TYPE\n0\t60009\tPERIOD_TIME_PROJECTION\n\n");
     write_unused(file_pcf, buffer1, strlen(buffer1));
@@ -174,7 +168,7 @@ static void config_file_create(char *pathname, char* hostname)
     write_unused(file_pcf, buffer1, strlen(buffer1));
     sprintf(buffer1, "EVENT_TYPE\n0\t60011\tPERIOD_POWER_PROJECTION\n\n");
     write_unused(file_pcf, buffer1, strlen(buffer1));
-    sprintf(buffer1, "EVENT_TYPE\n0\t60012\tFREQUENCY\n\n");
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tFREQUENCY\n\n", TRA_FRQ);
     write_unused(file_pcf, buffer1, strlen(buffer1));
     sprintf(buffer1, "EVENT_TYPE\n0\t60013\tENERGY\n\n");
     write_unused(file_pcf, buffer1, strlen(buffer1));
@@ -202,7 +196,42 @@ static void config_file_create(char *pathname, char* hostname)
     write_unused(file_pcf, buffer1, strlen(buffer1));
     sprintf(buffer1, "EVENT_TYPE\n0\t60018\tRECONFIGURATION\n\n");
     write_unused(file_pcf, buffer1, strlen(buffer1));
-    sprintf(buffer1, "EVENT_TYPE\n0\t60019\tAVG_FREQ\n\n");
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tPERC_MPI\n\n",PERC_MPI);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tAVG_CPUFREQ\n\n",TRA_AVGFRQ);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tPCK_POWER\n\n",TRA_PCK_POWER);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tDRAM_POWER\n\n",TRA_DRAM_POWER);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tIO_MBS\n\n",TRA_IO);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tGFLOPS\n\n",TRA_GFLOPS);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tJOB_POWER\n\n",TRA_JOB_POWER);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tNODE_POWER\n\n",TRA_NODE_POWER);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+
+
+
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tMPI_CALLS\n\n",MPI_CALLS);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tMPI_SYNC_CALLS\n\n",MPI_SYNC_CALLS);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tMPI_BLOCK_CALLS\n\n",MPI_BLOCK_CALLS);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tTIME_SYNC_CALLS\n\n",TIME_SYNC_CALLS);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tTIME_BLOCK_CALLS\n\n",TIME_BLOCK_CALLS);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tTIME_MAX_BLOCK\n\n",TIME_MAX_BLOCK);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+
+
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tPCK_POWER_HIGHF\n\n",TRA_PCK_POWER_NODE);
+    write_unused(file_pcf, buffer1, strlen(buffer1));
+    sprintf(buffer1, "EVENT_TYPE\n0\t%d\tDRAM_POWER_HIGHF\n\n",TRA_DRAM_POWER_NODE);
     write_unused(file_pcf, buffer1, strlen(buffer1));
 
     close(file_pcf);
@@ -225,16 +254,18 @@ static void trace_file_open(char *pathname, char *hostname)
 static void trace_file_init(int n_nodes)
 {
     char *buffer = buffer1;
-    char *b;
-    int i, j;
+    // char *b;
+    // int i, j;
 
     time_t curr_time;
     struct tm *current_t;
     char s[256];
+    char short_b[128];
 
     if (!enabled) {
         return;
     }
+    // #Paraver (27/10/2022 at 06:17):00000000000391465931:1(48):1:48:(1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1,1:1) 
     time(&curr_time);
     current_t = localtime(&curr_time);
     strftime(s, 256, "%d/%m/%Y at %H:%M", current_t);
@@ -243,8 +274,35 @@ static void trace_file_init(int n_nodes)
     // Trace file header only generated by master_rank 0
     if (my_trace_rank==1)
     {
-        i = sprintf(buffer, "#Paraver (%s):%020llu:%d(", s, (unsigned long long) 0, n_nodes);
+        /* Valid for 1 node */
+
+        //i = sprintf(buffer, "#Paraver (%s):%020llu:%d(", s, (unsigned long long) 0, n_nodes);
+
+        // i = sprintf(buffer, "#Paraver (%s):%020llu:%d(%d):1:%d:(", s, (unsigned long long) 0, 1,my_num_ranks,my_num_ranks);
+        //
+        // nodes(1,1,1,1,1,1):1:nodes(1:1,1:1,1:1,1:1,1:1,1:1)
+
+        #if SINGLE_CONNECTION
+        sprintf(buffer, "#Paraver (%s):%020llu:%d(%d):1:%d:(", s, (unsigned long long) 0, 1,n_nodes,n_nodes);
+        #else
+        sprintf(buffer, "#Paraver (%s):%020llu:%d(%d):1:%d:(", s, (unsigned long long) 0, 1,my_num_ranks,my_num_ranks);
+        #endif
+
         edit_time_header = 31;
+
+        #if SINGLE_CONNECTION
+        for (uint i = 0; i < n_nodes - 1; i++) {
+        #else
+        for (uint i = 0; i < my_num_ranks - 1; i++) {
+        #endif
+            sprintf(short_b, "1:1,");
+            strcat(buffer, short_b);
+        }
+
+        sprintf(short_b, "1:1)\n");
+        strcat(buffer, short_b);
+
+        #if 0
 
         //
         for (b = &buffer[i], i = 0, j = 0; i < n_nodes; ++i, j += 2)
@@ -268,11 +326,15 @@ static void trace_file_init(int n_nodes)
         b[0] = ')';
         b[1] = '\n';
         b[2] = '\0';
+        #endif
 
         write_unused(file_prv, buffer, strlen(buffer));
     }
     // 1:cpu:app:task:thread:b_time:e_time:state
-    i = sprintf(buffer, "1:%d:1:%d:1:0:", my_trace_rank, my_trace_rank);
+    // i = sprintf(buffer, "1:%d:1:%d:1:0:", my_trace_rank, my_trace_rank);
+
+    sprintf(buffer, "1:%d:1:%d:1:0:", my_trace_rank, my_trace_rank);
+
     write_unused(file_prv, buffer, strlen(buffer));
 
     //
@@ -287,6 +349,7 @@ static void trace_file_write_in_file()
 {
     int i;
     int events,pendings=num_events,ready=0;
+
     if (trace_fin) debug("End trace pendings %d",pendings);
     while(pendings>0){
         if (pendings<EVENTS_IN_BUFFER) events=pendings;
@@ -312,6 +375,10 @@ static void trace_file_write_in_file()
 
 static void trace_file_write(int event, ullong value)
 {
+    state_t s;
+	  if (state_fail(s = ear_trylock(&trace_event_lock))) {
+		  return ;
+	  }
     if (num_events==PARAVER_EVENTS){
         trace_file_write_in_file();
     }
@@ -320,10 +387,15 @@ static void trace_file_write(int event, ullong value)
     events_list[num_events].event=event;
     events_list[num_events].value=value;
     num_events++;
+    ear_unlock(&trace_event_lock);
 
 }
 static void trace_file_write_simple_event(int event)
 {
+    state_t s;
+	  if (state_fail(s = ear_trylock(&trace_event_lock))) {
+		  return ;
+	  }
     if (num_events==PARAVER_EVENTS-2){
         trace_file_write_in_file();
     }
@@ -336,6 +408,7 @@ static void trace_file_write_simple_event(int event)
     events_list[num_events].event=event;
     events_list[num_events].value=0;
     num_events++;
+    ear_unlock(&trace_event_lock);
 
 }
 
@@ -387,7 +460,9 @@ void traces_init(char *app,int global_rank, int local_rank, int nodes, int mpis,
     enabled = (file_prv >= 0);
 
     //
-    my_num_nodes=nodes;
+    my_num_nodes = nodes;
+    my_num_ranks = mpis;
+    my_num_ppn   = ppn;
     trace_file_init(nodes);
 
     if(!enabled) {
@@ -396,7 +471,7 @@ void traces_init(char *app,int global_rank, int local_rank, int nodes, int mpis,
 
     //
     config_file_create(pathname, hostname);
-    if (my_trace_rank>=1) row_file_create(pathname, hostname);
+    if (my_trace_rank>=1) row_file_create(pathname, hostname, nodes);
 }
 
 // ear_api.c
@@ -472,23 +547,33 @@ void traces_new_signature(int global_rank, int local_rank, signature_t *sig)
     ullong lgbs;
     ullong lpow;
     ullong lvpi;
+    ullong lfreq;
+    ullong lavgf, lpck, ldram, lio, lgflops;
 
     if (!enabled || !working) {
         return;
     }
-    seconds=sig->time;
-    cpi=sig->CPI;
-    tpi=sig->TPI;
-    gbs=sig->GBS;
-    power=sig->DC_power;
-    vpi=(double)(sig->FLOPS[3]/16+sig->FLOPS[7]/8)/(double)sig->instructions;
+    if (sig->time == 0) return;
+    seconds = sig->time;
+    cpi   = sig->CPI;
+    tpi   = sig->TPI;
+    gbs   = sig->GBS;
+    power = sig->DC_power;
+    vpi   = (double)(sig->FLOPS[3]/16+sig->FLOPS[7]/8)/(double)sig->instructions;
+    lfreq = (ullong)sig->def_f;
+    lavgf = (ullong)sig->avg_f;
 
     lsec = (ullong) (seconds * 1000000.0);
     lcpi = (ullong) (cpi * 1000.0);
     ltpi = (ullong) (tpi * 1000.0);
     lgbs = (ullong) (gbs * 1000.0);
-    lpow = (ullong) (power);
+    lpow = (ullong) (power * 1000);
     lvpi = (ullong) (vpi * 1000.0);
+    lpck = (ullong) (sig->PCK_power * 1000);
+    ldram = (ullong) (sig->DRAM_power * 1000);
+    lio   = (ullong) (sig->IO_MBS * 1000);
+    lgflops = (ullong) (sig->Gflops * 1000);
+
 
     trace_file_write(TRA_TIM, lsec);
     trace_file_write(TRA_CPI, lcpi);
@@ -496,6 +581,12 @@ void traces_new_signature(int global_rank, int local_rank, signature_t *sig)
     trace_file_write(TRA_GBS, lgbs);
     trace_file_write(TRA_POW, lpow);
     trace_file_write(TRA_VPI, lvpi);
+    trace_file_write(TRA_FRQ, lfreq);
+    trace_file_write(TRA_AVGFRQ, lavgf);
+    trace_file_write(TRA_PCK_POWER, lpck);
+    trace_file_write(TRA_DRAM_POWER, ldram);
+    trace_file_write(TRA_IO, lio);
+    trace_file_write(TRA_GFLOPS, lgflops);
 }
 
 // ear_states.c
@@ -565,6 +656,11 @@ void traces_reconfiguration(int global_rank, int local_rank)
 int traces_are_on()
 {
     return enabled;
+}
+
+void traces_generic_event(int global_rank, int local_rank, int event, int value)
+{
+  trace_file_write(event, (ullong) value);
 }
 
 #endif

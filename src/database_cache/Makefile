@@ -1,4 +1,4 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -O2 
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -O2  $(CONSTANTS)
 LDFLAGS = -pthread -lm -rdynamic -ldl
 
 ######## INSTALLATION

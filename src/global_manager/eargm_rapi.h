@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 /**
@@ -48,15 +48,40 @@ int eargm_red_powercap(uint decrease);
 /* Resets the EARGM's powercap to its default value (from ear.conf) */
 int eargm_reset_powercap();
 
+/* Internal function that sends a new power limit */
+int eargm_send_set_powerlimit(uint limit);
+
 /** Disconnect from the previously connected EARGM
 */
 int eargm_disconnect();
 
 /** Given a fd, sends a request for an eargm_status and reads it. Returns the number of eargm_status retrieved */
-int eargm_get_status(int fd, eargm_status_t **status);
+int eargm_status(int fd, eargm_status_t **status);
 
 /** Sends the appropriate message to every sub-eargm on the list */
 int eargm_send_table_commands(eargm_table_t *egm_table);
 
+/** Gets all the EARGM status from the EARGMs under eargm_idx control*/
 int eargm_get_all_status(cluster_conf_t *conf, eargm_status_t **status, int eargm_idx);
+
+/** Gets all the EARGM status in the cluster */
+int eargm_cluster_get_status(cluster_conf_t *conf, eargm_status_t **status);
+
+/** If hosts is not NULL, gets all the EARGM status of the hostnames in hosts. Otherwise it gets all the EARGMs status 
+ *  in the cluster*/
+int eargm_get_status(cluster_conf_t *conf, eargm_status_t **status, char **hosts, int num_hosts);
+
+/** Gets all the EARGM status running in hosts*/
+int eargm_nodelist_get_status(cluster_conf_t *conf, eargm_status_t **status, char **hosts, int num_hosts);
+
+/* Sets the all the EARGMs powercap allocation to limit if hosts is NULL, if not it sets it only for the EARGM 
+ * in hosts. */
+void eargm_set_powerlimit(cluster_conf_t *conf, uint limit, char **hosts, int num_hosts);
+
+/* Sets the powercap allocation of all EARGMs in hosts to limit */
+void eargm_nodelist_set_powerlimit(cluster_conf_t *conf, uint limit, char **hosts, int num_hosts);
+
+/* Sets the powercap allocation of all EARGMs in the cluster. */
+void eargm_cluster_set_powerlimit(cluster_conf_t *conf, uint limit);
+
 #endif

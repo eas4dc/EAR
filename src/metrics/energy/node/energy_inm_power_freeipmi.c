@@ -55,6 +55,10 @@
 #include <common/hardware/hardware_info.h>
 #include <common/system/monitor.h>
 
+/* For error control */
+#define MAX_TIMES_POWER_SUPPORTED 10
+#define VPOWER_ERROR 0
+static        unsigned int     nm_free_last_power_measurement = 0;
 
 #define PACKAGE_NAME  "freeipmi"
 #define FREEIPMI_CONFIG_DIRECTORY_MODE    0700
@@ -526,6 +530,19 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
     *periodp = val;
     //debug("Statistics reporting period %d\n", val);
     verbose(0,"power: Max power %u Min power %u Avg power %u Current power %u Period %u\n", *maxp, *minp, *avgp, *currentp, *periodp);
+
+    /* For error control */
+    if (*currentp > *maxp){
+      verbose(VPOWER_ERROR,"enery_nm_freimpi: New max power reading current:%u max %u", *currentp, *maxp);
+    }
+    if ((*currentp < (*maxp * MAX_TIMES_POWER_SUPPORTED)) && ( *currentp > 0)){
+      nm_free_last_power_measurement = *currentp;
+    }else{
+      verbose(VPOWER_ERROR, "enery_nm_freeipmi:warning, invalid power detected. current %u, corrected to last valid power %u", *currentp, nm_free_last_power_measurement);
+       *currentp = nm_free_last_power_measurement;
+    }
+
+
 
     return EAR_SUCCESS;
 }

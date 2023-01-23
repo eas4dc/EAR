@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #define _GNU_SOURCE
 #include <sched.h>
@@ -82,6 +82,21 @@ static void create_dummy_island(cluster_conf_t *dummycc)
 		
 }
 
+static void create_dummy_node_conf(cluster_conf_t *dummycc, char *nodename)
+{
+  node_island_t *island = &dummycc->islands[dummycc->num_islands - 1];
+  island->ranges = realloc(island->ranges, sizeof(node_range_t)*(island->num_ranges+1));
+  if (island->ranges==NULL){
+    error("NULL pointer in generate_node_ranges");
+    return;
+  }
+  memset(&island->ranges[island->num_ranges], 0, sizeof(node_range_t));
+  sprintf(island->ranges[island->num_ranges].prefix, "%s", nodename);
+  island->ranges[island->num_ranges].start = island->ranges[island->num_ranges].end = -1;
+  island->ranges[island->num_ranges].db_ip = island->ranges[island->num_ranges].sec_ip = 0;
+  island->num_ranges++;
+}
+
 static void create_dummy_policy(cluster_conf_t *dummycc)
 {
 	dummycc->num_policies = 1;
@@ -111,13 +126,28 @@ state_t eard_dummy_cluster_conf(char *ear_tmp, uint ID)
 {
 				char *dummy_ser_cc,  *local_dummy_ser_cc;
 				size_t dummy_ser_cc_size;
+        state_t cc_read_result, check_cc = 1;
 				if (gethostname(nodename, sizeof(nodename)) < 0) {
         				verbose_master(0, "Error getting node name (%s)", strerror(errno));
         			}
         			strtok(nodename, ".");
 
 				/* Init dummy_cc */
-				if (get_ear_conf_path(path) != EAR_ERROR){
+
+        #ifdef FAKE_EAR_NOT_INSTALLED 
+        #if FAKE_EAR_NOT_INSTALLED
+        check_cc = 0;
+        #endif
+        #endif
+
+        if (check_cc){
+          cc_read_result = get_ear_conf_path(path);
+        }else{
+          verbose_master(0," FAKE_EAR_NOT_INSTALLED when creating cluster conf");
+          cc_read_result = EAR_ERROR;
+        }
+
+				if (cc_read_result != EAR_ERROR){
 					verbose_master(2, "Reading cluster_conf");
 					read_cluster_conf(path, &dummy_cc);
 				}else{
@@ -127,8 +157,19 @@ state_t eard_dummy_cluster_conf(char *ear_tmp, uint ID)
 					create_dummy_island(&dummy_cc);
 					create_dummy_policy(&dummy_cc);
 				}
-				//print_cluster_conf(&dummy_cc);
+				print_cluster_conf(&dummy_cc);
 				
+				verbose_master(2, "Looking for node conf. Nodename %s", nodename);
+				dummy_node_conf = get_my_node_conf(&dummy_cc, nodename);
+				if (dummy_node_conf == NULL){
+          create_dummy_node_conf(&dummy_cc, nodename);
+          dummy_node_conf = get_my_node_conf(&dummy_cc, nodename);
+        }
+				check_null(dummy_node_conf, "Invalid configuration file for node %s", nodename);
+        if (dummy_node_conf != NULL){
+          print_my_node_conf(dummy_node_conf);
+        }
+
 
 				/* serialization */
 				serialize_cluster_conf(&dummy_cc, &dummy_ser_cc, &dummy_ser_cc_size);
@@ -137,14 +178,6 @@ state_t eard_dummy_cluster_conf(char *ear_tmp, uint ID)
 
 				check_null(local_dummy_ser_cc, "Error serializing cluster_conf in path %s", " ");
 
-				verbose_master(2, "Looking for node conf. Nodename %s", nodename);
-				dummy_node_conf = get_my_node_conf(&dummy_cc, nodename);
-				check_null(dummy_node_conf, "Invalid configuration file for node %s", nodename);
-				#if 0
-				if (dummy_node_conf != NULL){
-					print_my_node_conf(dummy_node_conf);
-				}
-				#endif
 
 				verbose_master(2, "Dummy cluster_conf done");
 
@@ -158,6 +191,7 @@ state_t eard_dummy_earl_settings(char *ear_tmp, uint ID)
   			policy_conf_t   * my_policy;
 			ulong             freq_base;
 			topology_freq_getbase(0, &freq_base);
+			//verbose_master(1,"Using freq_base %lu", freq_base);
 
 				verbose_master(2, "looking for policy %d", dummy_cc.default_policy);	
   			my_policy = get_my_policy_conf(dummy_node_conf,dummy_cc.default_policy);
@@ -262,13 +296,15 @@ state_t eard_dummy_coefficients(char *ear_tmp, uint ID)
 
 state_t eard_dummy_frequency_list(char *ear_tmp, uint ID)
 {
-				ulong * frequencies, *dummy_frequencies;
+				ulong * frequencies, *dummy_frequencies, freq_base;
 				int ps;
 				ps = 1;
 				int size = ps * sizeof(ulong);
 				frequencies = (ulong *) malloc(size);
 				check_null(frequencies, "Error allocating memory for frequencies %s", " ");	
-				frequencies[0] = 2600000;
+				topology_freq_getbase(0, &freq_base);
+				frequencies[0] = freq_base;
+				//verbose_master(1,"Using freq_base %lu", freq_base);
 
 				get_frequencies_path(ear_tmp, path);
 				dummy_frequencies = create_frequencies_shared_area(path, frequencies, size);

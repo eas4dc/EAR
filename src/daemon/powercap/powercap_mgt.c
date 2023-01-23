@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #define _GNU_SOURCE
 #include <errno.h>
@@ -82,12 +82,14 @@ typedef struct powercap_symbols {
     state_t (*increase_powercap_allocation)(uint increase);
     state_t (*plugin_set_burst)();
     state_t (*plugin_set_relax)();
+    void 	(*plugin_get_settings)(domain_settings_t *settings);
 } powercapsym_t;
 
 static uint pmgt_limit;
 static float pdomains[NUM_DOMAINS]={0.6,0.45,0,GPU_PERC_UTIL};
 static float pdomains_idle[NUM_DOMAINS]={0.6,0.45,0,GPU_PERC_UTIL};
 static domain_status_t cdomain_status[NUM_DOMAINS];
+static domain_settings_t cdomain_settings[NUM_DOMAINS];
 static ulong *current_util[NUM_DOMAINS],*prev_util[NUM_DOMAINS];
 static ulong  dom_util[NUM_DOMAINS],last_dom_util[NUM_DOMAINS],dom_changed[NUM_DOMAINS];
 #if USE_GPUS || SHOW_DEBUGS
@@ -101,14 +103,14 @@ static float pdomains_min[NUM_DOMAINS]={0.6,0.4,0,GPU_PERC_UTIL};
 static float pdomains_min_dummy[NUM_DOMAINS]={1.0,0.75,0,0};
 #else
 static float pdomains_def[NUM_DOMAINS]={1.0,0.9,0,0};
-static float pdomains_min[NUM_DOMAINS]={1.0,07575,0,0};
+static float pdomains_min[NUM_DOMAINS]={1.0,0.7575,0,0};
 #endif
 static uint domains_loaded[NUM_DOMAINS]={0,0,0,0};
 static powercapsym_t pcsyms_fun[NUM_DOMAINS];
 
-#define SECURITY_RANGE 0.95
+static float security_range = 1.0;
 //static void *pcsyms_obj[NUM_DOMAINS] ={ NULL,NULL,NULL,NULL};
-const int   pcsyms_n = 19;
+const int   pcsyms_n = 20;
 
 static suscription_t *sus[NUM_DOMAINS];
 
@@ -132,6 +134,7 @@ const char     *pcsyms_names[] ={
     "increase_powercap_allocation",
     "plugin_set_burst",
     "plugin_set_relax",
+    "plugin_get_settings",
 };
 
 #ifndef SYN_TEST
@@ -169,7 +172,6 @@ void pmgt_set_burst(int b)
 #if USE_GPUS
 static suscription_t *sus_util_detection;
 static gpu_t *gpu_detection_raw_data;
-static ctx_t gpu_pc;
 static uint gpu_pc_num_gpus=0;
 static uint gpu_pc_model = 0;
 static uint util_period = 0;
@@ -187,11 +189,7 @@ extern double rapl_dram_tdps[MAX_PACKAGES];
 #define TDP_GPU 250
 void compute_power_distribution()
 {
-#if USE_GPUS
-    float node_ratio = 0.05;
-#else
-    float node_ratio = 0.1;
-#endif
+    float node_ratio = cdomain_settings[DOMAIN_CPU].node_ratio;
     uint pd_total=0,pd_cpu=0,pd_dram=0, pd_gpu=0, pd_pckg;
     uint bpd_cpu,bpd_dram,bpd_gpu = 0;
 
@@ -200,13 +198,13 @@ void compute_power_distribution()
     bpd_dram = rapl_dram_tdps[0];
 		debug("Using CPU TDP %u DRAM TDP %u", bpd_cpu, bpd_dram);
 #if USE_GPUS
-    if ((domains_loaded[DOMAIN_GPU]) && (gpu_pc_model != MODEL_DUMMY)) bpd_gpu = TDP_GPU;
+    if ((domains_loaded[DOMAIN_GPU]) && (gpu_pc_model != API_DUMMY)) bpd_gpu = TDP_GPU;
 #endif
     pd_cpu = bpd_cpu * pc_topology_info.socket_count;
     pd_dram = bpd_dram * pc_topology_info.socket_count;
     pd_gpu = bpd_gpu * gpu_pc_num_gpus;
     pd_pckg = pd_cpu + pd_dram;
-    pd_total = pd_pckg + pd_gpu + (pd_pckg + pd_gpu) * node_ratio;        
+    pd_total = pd_pckg + pd_gpu + pd_pckg * node_ratio;        
     pdomains_def[DOMAIN_NODE] = ((float)pd_pckg +(float)pd_pckg * node_ratio) / (float)pd_total;
     pdomains_def[DOMAIN_CPU] = (float) pd_pckg / (float)pd_total;
     pdomains_def[DOMAIN_DRAM] = (float) pd_dram / (float)pd_total;
@@ -274,7 +272,7 @@ static state_t util_detect_main(void *p)
 
         dom_util[DOMAIN_DRAM] = pc_topology_info.socket_count;
         dom_util[DOMAIN_GPU]=0;
-        if (gpu_read_raw(&gpu_pc,gpu_detection_raw_data) != EAR_SUCCESS){
+        if (gpu_read_raw(no_ctx, gpu_detection_raw_data) != EAR_SUCCESS){
             error("Error reading GPU data in powercap");
         }
         for (i=0;i<gpu_pc_num_gpus;i++){
@@ -327,7 +325,7 @@ static state_t util_detect_init(void *p)
 void util_monitoring_init()
 {
 #if USE_GPUS
-    if (gpu_pc_model != MODEL_DUMMY) {
+    if (gpu_pc_model != API_DUMMY) {
         sus_util_detection=suscription();
         sus_util_detection->call_main = util_detect_main;
         sus_util_detection->call_init = util_detect_init;
@@ -347,17 +345,15 @@ state_t pmgt_init()
     char basic_path[SZ_PATH];
     topology_init(&pc_topology_info);
 #if USE_GPUS
-    if (gpu_load(NULL,0,NULL)!= EAR_SUCCESS){
-        error("Initializing GPU(load) in powercap");
-    }
-    if (gpu_init(&gpu_pc)!=EAR_SUCCESS){
+    gpu_load(NO_EARD);
+    gpu_get_api(&gpu_pc_model);
+    if (gpu_init(no_ctx)!=EAR_SUCCESS){
         error("Initializing GPU in powercap");
     }
-    if (gpu_count(&gpu_pc,&gpu_pc_num_gpus)!=EAR_SUCCESS){
+    if (gpu_count_devices(no_ctx, &gpu_pc_num_gpus)!=EAR_SUCCESS){
         error("Getting num gpus");
     }
-    gpu_pc_model = gpu_model();
-    if (gpu_pc_model == MODEL_DUMMY) {
+    if (gpu_pc_model == API_DUMMY) {
         memcpy(pdomains_def,pdomains_def_dummy,sizeof(pdomains_def));
         memcpy(pdomains,pdomains_def_dummy,sizeof(pdomains_def));
         memcpy(pdomains_idle,pdomains_def_dummy,sizeof(pdomains_def));
@@ -453,7 +449,7 @@ state_t pmgt_init()
 #if USE_GPUS
     /* DOMAIN_GPU */
     obj_path = getenv("EAR_POWERCAP_POLICY_GPU");
-    if (gpu_pc_model != MODEL_DUMMY) {
+    if (gpu_pc_model != API_DUMMY) {
         if (obj_path==NULL){
             obj_path = my_node_conf->powercap_gpu_plugin;
             if (obj_path != NULL && strlen(obj_path) > 1) {
@@ -503,8 +499,15 @@ state_t pmgt_init()
 #endif
     debug("Initializing Util monitoring");
     util_monitoring_init();
-    compute_power_distribution();
     memset(cdomain_status,0,NUM_DOMAINS*sizeof(domain_status_t));
+	memset(&cdomain_settings, 0, sizeof(domain_settings_t)*NUM_DOMAINS);
+	for (i = 0; i<NUM_DOMAINS; i++) {
+		if (domains_loaded[i]) {
+			freturn(pcsyms_fun[i].plugin_get_settings, &cdomain_settings[i]);
+			security_range -= cdomain_settings[i].security_range; //security_range starts at 100 and every domain takes a bit from it
+		}
+	}
+    compute_power_distribution(); //power distribution can only be computed AFTER we have all the domain's settings (for now only CPU matters)
     debug("Returng from pmgt_init with %d (%d = SUCCESS, %d ERROR)", ret, EAR_SUCCESS, EAR_ERROR);
     return ret;
 }
@@ -717,7 +720,7 @@ void pmgt_set_power_per_domain(pwr_mgt_t *phandler,dom_power_t *pdomain,uint st)
         }
         debug("reduced power domains by %.2f, new CPU %.2f new GPU %.2f", excess, pdomains[DOMAIN_CPU], pdomains[DOMAIN_GPU]);
         pmgt_reset_pdomain();
-    }else if (pdomain->platform < (pmgt_limit * SECURITY_RANGE)){    
+    }else if (pdomain->platform < (pmgt_limit * security_range)){  //check if we can comfortably give power back to the domains without risking an excess of power use   
         for (i=0;i< NUM_DOMAINS; i++){
             pdomains[i] = ear_min(pdomains[i] + 0.02,pdomains_def[i]);
         }
@@ -737,7 +740,7 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
             pmapp = current_ear_app[cc];
             /* For each app, we must merge CPUfreq and GPUfreq requested */
 #ifndef SYN_TEST
-            if (domain == DOMAIN_CPU){ 
+            if (domain == DOMAIN_CPU) {
                 //memcpy(f,pc_app_info_data->req_f,sizeof(ulong)*MAX_CPUS_SUPPORTED);
                 cpu_set_t m;
                 pos_job_in_node = is_job_in_node(pmapp->app.job.id, &alloc);
@@ -747,7 +750,7 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
                 } else if (!pmapp->is_job) { //job step without EARL
                     debug("Using plugin mask (step without EARL)");
                     m = pmapp->plug_mask;
-                } else if (pmapp->is_job && pos_job_in_node && alloc->numc == 1) { //srun without an sbatch
+                } else if (pmapp->is_job && pos_job_in_node && alloc->num_ctx == 1) { //srun without an sbatch
                     debug("Using plugin mask (step without EARL neither sbatch)");
                     m = pmapp->plug_mask;
                 } else { //sbatch with other steps inside
@@ -797,7 +800,7 @@ void pmgt_set_app_req_freq(pwr_mgt_t *phandler)
         freturn(pcsyms_fun[DOMAIN_CPU].set_app_req_freq,cpuf);
     }
 #if USE_GPUS
-    if (gpu_pc_model != MODEL_DUMMY) {
+    if (gpu_pc_model != API_DUMMY) {
         ulong gpuf[MAX_GPUS_SUPPORTED];
         memset(gpuf, 0, sizeof(ulong)*MAX_GPUS_SUPPORTED);
         if (pcsyms_fun[DOMAIN_GPU].set_app_req_freq != NULL) {

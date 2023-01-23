@@ -10,14 +10,15 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
+#include <common/plugins.h>
 #include <management/cpufreq/governor.h>
 
-state_t mgt_governor_tostr(uint governor, char *buffer)
+char *governor_tostr(uint governor, char *buffer)
 {
 	if (governor == Governor.conservative) {
 		sprintf(buffer, "%s", Goverstr.conservative);
@@ -31,12 +32,11 @@ state_t mgt_governor_tostr(uint governor, char *buffer)
 		sprintf(buffer, "%s", Goverstr.ondemand);
 	} else {
 		sprintf(buffer, "%s", Goverstr.other);
-		return_msg(EAR_ERROR, "undefined governor");
 	}
-	return EAR_SUCCESS;
+	return buffer;
 }
 
-state_t mgt_governor_toint(char *buffer, uint *governor)
+state_t governor_toint(char *buffer, uint *governor)
 {
 	if (strncmp(buffer, Goverstr.conservative, 12) == 0) {
 		*governor = Governor.conservative;
@@ -55,7 +55,7 @@ state_t mgt_governor_toint(char *buffer, uint *governor)
 	return EAR_SUCCESS;
 }
 
-int mgt_governor_is(char *buffer, uint governor)
+int governor_is(char *buffer, uint governor)
 {
     uint aux;
     if (state_fail(mgt_governor_toint(buffer, &aux))) {

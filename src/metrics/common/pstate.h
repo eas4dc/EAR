@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef METRICS_COMMON_PSTATE_H
@@ -23,9 +23,6 @@
 #include <common/types.h>
 #include <common/states.h>
 
-#define all_devs   -1
-#define all_cpus   all_devs
-#define all_cores  -2
 #define ps_nothing (uint) -1
 #define ps_auto    (uint) -2
 

@@ -7,7 +7,7 @@ endif
 poli_BINS = \
     min_energy.so \
     min_time.so  \
-    monitoring.so
+    monitoring.so \
 
 ifdef CUDA_BASE
 poli_BINS += \
@@ -35,7 +35,7 @@ all: $(poli_BINS)
 	$(CC) $(CC_FLAGS) $(CFLAGS) $(LIB_CFLAGS) $(GPU_OPT_FLAG) -c $<
 
 %.so: %.o $(poli_DEPS)
-	$(CC) $(CC_FLAGS) -shared -fPIC -o $@ $^ 
+	$(CC) $(CC_FLAGS) -shared -fPIC -pthread -o $@ $^ 
 
 ######## OPTIONS 
 

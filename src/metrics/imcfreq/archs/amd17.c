@@ -10,12 +10,12 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #define _GNU_SOURCE
 #include <common/output/debug.h>
@@ -68,9 +68,9 @@ void imcfreq_amd17_load(topology_t *tp, imcfreq_ops_t *ops_in, int eard)
 	debug("the API was not loaded yet");
 	if (apis_not(ops)) {
 		// Loading symbols in runtime to avoid dependancies
-		symplug_join(RTLD_DEFAULT, (void **) &mgt_ops, mgt_names, 6);
+		plug_join(RTLD_DEFAULT, (void **) &mgt_ops, mgt_names, 6);
 		// Testing all symbols are available
-		if (state_fail(symplug_test((void **) &mgt_ops, 6))) {
+		if (state_fail(plug_test((void **) &mgt_ops, 6))) {
 			return;
 		}
 		// Loading management imcfreq API

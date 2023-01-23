@@ -10,6 +10,9 @@ modl_BINS = \
 modl_OBJS = models.o cpu_power_model.o 
 modl_PATH = $(DESTDIR)/lib/plugins/models
 modl_PERM = 0775
+modl_DEPS = \
+    $(SRCDIR)/common/libcommon.a
+
 
 ########
 
@@ -23,7 +26,7 @@ all: $(modl_OBJS) $(modl_BINS)
 %.o: %.c
 	$(CC) $(CC_FLAGS) $(CFLAGS) $(LIB_CFLAGS) -c $<
 
-%.so: %.o
+%.so: %.o $(modl_DEPS)
 	$(CC) $(CC_FLAGS) -shared -o $@ $^ 
 
 ######## OPTIONS 

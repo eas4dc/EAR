@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef CLUSTER_POWERCAP_H
@@ -21,6 +21,10 @@
 
 #define POWER_TYPE 0
 #define ENERGY_TYPE 1
+
+#define MONITOR       0
+#define HARD_POWERCAP 1
+#define SOFT_POWERCAP 2
 
 typedef struct shared_powercap_data {
     ulong status;
@@ -49,5 +53,6 @@ void cluster_power_monitor();
 
 void cluster_powercap_red_pc(uint red);
 void cluster_powercap_inc_pc(uint inc);
+void cluster_powercap_set_pc(uint limit);
 void cluster_powercap_reset_pc();
 #endif

@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <errno.h>
@@ -191,6 +191,9 @@ uint warning_api(int return_value, int expected, char *msg)
 
 int eards_connected()
 {
+  #if FAKE_EAR_NOT_INSTALLED
+  return 0;
+  #endif
 	return app_connected;
 }
 
@@ -215,6 +218,10 @@ int eards_connect(application_t *my_app, ulong lid)
   int my_id;
   int ret1;
   if (app_connected) return EAR_SUCCESS;
+
+  #if FAKE_EAR_NOT_INSTALLED
+  return_print(EAR_ERROR, "FAKE_EAR_NOT_INSTALLED applied");
+  #endif
 
   // These files connect EAR with EAR_COMM
   ear_tmp=getenv("EAR_TMP");
@@ -269,7 +276,7 @@ int eards_connect(application_t *my_app, ulong lid)
   /* Pipes are created */
   /* We give some opportunities to connect */
   do{
-        verbose(2,"Connecting with EARD using file %s\n",ear_commreq_global);
+        //verbose(3,"Connecting with EARD using file %s\n",ear_commreq_global);
         if ((ear_fd_req_global = open(ear_commreq_global,O_WRONLY|O_NONBLOCK))<0) tries++;
         else connected=1;
         if ((MAX_TRIES>1) && (!connected)) sleep(1);
@@ -405,7 +412,8 @@ ulong sendack(char *send_buf, size_t send_size, char *ack_buf, size_t ack_size, 
     (void) (ack);                           \
     if (!app_connected) return EAR_SUCCESS; \
     req.req_service = service;              \
-    req.sec=create_sec_tag();
+    req.sec=create_sec_tag();               \
+    memset(&req.req_data, 0, sizeof(union daemon_req_opt));
 
 ulong eards_write_app_signature(application_t *app_signature)
 {
@@ -498,11 +506,11 @@ int eards_gpu_data_read(gpu_t *gpu_info,uint num_dev)
     return (int) sendack((char *) &req, sizeof(req), (char *) gpu_info, sizeof(gpu_t)*num_dev, "GPU data read", 1);
 }
 
-int eards_gpu_get_info(gpu_info_t *info, uint num_dev)
+int eards_gpu_get_info(gpu_devs_t *info, uint num_dev)
 {
-    memset(info,0,sizeof(gpu_info_t)*num_dev);
+    memset(info,0,sizeof(gpu_devs_t)*num_dev);
     init_service(GPU_GET_INFO);
-    return (int) sendack((char *) &req, sizeof(req), (char *) info, sizeof(gpu_info_t)*num_dev, "GPU info", 1);
+    return (int) sendack((char *) &req, sizeof(req), (char *) info, sizeof(gpu_devs_t)*num_dev, "GPU info", 1);
 }
 
 int eards_gpu_set_freq(uint num_dev,ulong *freqs)
@@ -521,5 +529,11 @@ int eards_gpu_set_freq(uint num_dev,ulong *freqs)
     memcpy(req.req_data.gpu_freq.gpu_freqs, freqs, sizeof(ulong)*num_dev);
 
     return (int) sendack((char *) &req, sizeof(req), (char *) &ack, sizeof(ack), "GPU set freq", 1);
+}
+
+int eards_gpu_support()
+{
+  init_service(GPU_SUPPORTED);
+  return (int) sendack((char *) &req, sizeof(req), (char *) &ack, sizeof(ack), "GPU support", 0);
 }
 

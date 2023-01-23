@@ -1,4 +1,4 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -fstack-protector-strong
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -fstack-protector-strong $(CONSTANTS)
 LDFLAGS = -lm
 ifeq ($(FEAT_RESEARCH), 1)
 CFLAGS += -DEXT_OPT=1
@@ -27,12 +27,13 @@ endif
 
 ######## FILES
 
-comm_OBJS = $(SRCDIR)/common/libcommon.a -lm
+comm_OBJS = $(SRCDIR)/common/libcommon.a 
 
 rapi_OBJS = \
     $(SRCDIR)/daemon/remote_api/eard_rapi_internals.o \
     $(SRCDIR)/daemon/remote_api/eard_rapi.o \
     $(SRCDIR)/common/messaging/msg_internals.o \
+    $(SRCDIR)/global_manager/eargm_rapi.o \
     $(SRCDIR)/database_cache/eardbd_api.o
 
 ######## RULES
@@ -40,25 +41,25 @@ rapi_OBJS = \
 all: $(com1_BINS) $(com2_BINS)
 
 eacct: ear_acct.c $(comm_OBJS)
-	$(CCC) $(SLURM_CFLAGS) $(DB_CFLAGS) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
+	$(CCC) $(SLURM_CFLAGS) $(DB_CFLAGS) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) $(LDFLAGS)
 
 econtrol: ear_control.c $(rapi_OBJS) $(comm_OBJS)
-	$(CCC) $(SLURM_CFLAGS)  -o $@ $< $(rapi_OBJS) $(comm_OBJS)
+	$(CCC) $(SLURM_CFLAGS)  -o $@ $< $(rapi_OBJS) $(comm_OBJS) $(LDFLAGS)
 
 ear-info: ear-info.c $(comm_OBJS)
-	$(CCC) ${CFLAGS} -o $@ $< $(comm_OBJS)
+	$(CCC) ${CFLAGS} -o $@ $< $(comm_OBJS) 
 
 ereport: ear_report.c $(comm_OBJS)
-	$(CCC) $(DB_CFLAGS) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
+	$(CCC) $(DB_CFLAGS) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) $(LDFLAGS)
 
 edb_clean_pm: ear_clean_pm.c $(comm_OBJS)
-	$(CCC) $(DB_CFLAGS) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
+	$(CCC) $(DB_CFLAGS) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) $(LDFLAGS)
 
 edb_clean_apps: ear_clean_apps.c $(comm_OBJS)
-	$(CCC) $(DB_CFLAGS) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
+	$(CCC) $(DB_CFLAGS) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) $(LDFLAGS)
 
 edb_create: ear_create_database.c $(comm_OBJS)
-	$(CCC) $(DB_CFLAGS) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
+	$(CCC) $(DB_CFLAGS) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) $(LDFLAGS)
 
 ######## OPTIONS
 

@@ -1,4 +1,4 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(GSL_CFLAGS)
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(GSL_CFLAGS) $(DB_CFLAGS)
 LDFLAGS = $(GSL_LDFLAGS) -lm
 CCC     = $(CC) $(CFLAGS)
 
@@ -8,6 +8,8 @@ tool_BINS = \
     coeffs_show \
     coeffs_default \
     coeffs_null \
+	get_periodic \
+	metrics_show \
     ear_conf
 ifdef DB_BASE
 tool_BINS += \
@@ -49,11 +51,17 @@ coeffs_default: coeffs_default.c $(comm_OBJS)
 learning_show: learning_show.c $(comm_OBJS)
 	$(CCC) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) -lm
 
+metrics_show: metrics_show.c $(comm_OBJS)
+	$(CCC) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) -lm
+
+get_periodic: get_periodic.c $(comm_OBJS)
+	$(CCC) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) -lm
+
 learning_delete: learning_delete.c $(comm_OBJS)
-	$(CCC) -g -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
+	$(CCC) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
 
 ear_conf: ear_conf.c $(comm_OBJS)
-	$(CCC) -g -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
+	$(CCC) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
 
 ######## OPTIONS
 

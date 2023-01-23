@@ -24,6 +24,7 @@
 #include <common/config.h>
 #include <common/output/verbose.h>
 #include <common/database/db_helper.h>
+#include <common/types/version.h>
 #include <common/types/configuration/cluster_conf.h>
 
 #if DB_MYSQL
@@ -34,14 +35,6 @@
 
 #define OUT_QUERY 1
 #define RUN_QUERY 2
-
-void print_version()
-{
-    char msg[256];
-    sprintf(msg, "EAR version %s\n", RELEASE);
-    printf(msg);
-    exit(0);
-}
 
 void usage(char *app)
 {

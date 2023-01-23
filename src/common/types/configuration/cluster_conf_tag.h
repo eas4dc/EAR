@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _TAG_CONF_H
@@ -37,8 +37,9 @@ typedef struct tags
     ulong gpu_def_freq;
     int   cpu_max_pstate; /* Used as lower limit for policies */
     int   imc_max_pstate; /* Used as lower limit for policies */
-		ulong imc_max_freq;   /* Used to create the imcf list */
-		ulong imc_min_freq;   /* Used to create the imcf list */
+	int   idle_pstate;
+	ulong imc_max_freq;   /* Used to create the imcf list */
+	ulong imc_min_freq;   /* Used to create the imcf list */
     long powercap;
     long max_powercap;
     char energy_model[GENERIC_NAME];
@@ -46,12 +47,15 @@ typedef struct tags
     char powercap_plugin[GENERIC_NAME];
     char powercap_gpu_plugin[GENERIC_NAME];
     char coeffs[GENERIC_NAME];
+	char idle_governor[GENERIC_NAME];
+
 } tag_t;
 
 
 state_t TAG_token(char *token);
 state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line);
 void print_tags_conf(tag_t *tag);
+void power2str(ulong power, char *str);
 
 
 #endif

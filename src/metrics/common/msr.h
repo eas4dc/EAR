@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef EAR_MSR_H
@@ -23,7 +23,7 @@
 #include <common/types.h>
 #include <common/states.h>
 #include <common/hardware/topology.h>
-#include <metrics/common/pstate.h>
+#include <metrics/common/apis.h>
 
 #define MSR_RD O_RDONLY
 #define MSR_WR O_RDWR

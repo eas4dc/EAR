@@ -1,20 +1,21 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
+//#define PRINT_ONLY 1 //prints config and exits
 #define _XOPEN_SOURCE 700 //to get rid of the warning
 
 
@@ -122,7 +123,7 @@ uint in_action=0;
 double perc_energy,perc_time,perc_power;
 double avg_power_t2,avg_power_t1;
 static int fd_my_log=2;
-static char host[GENERIC_NAME];
+char host[GENERIC_NAME];
 
 
 void create_tmp(char *tmp_dir) {
@@ -284,6 +285,7 @@ void update_eargm_configuration(cluster_conf_t *conf)
     }
     //default_cluster_power=default_cluster_power*divisor;
 }
+
 void reopen_log()
 {
     log_close(fd_my_log);
@@ -666,6 +668,9 @@ int main(int argc,char *argv[])
     energy_consumed=malloc(sizeof(ulong)*aggregate_samples);
 
 
+#if PRINT_ONLY
+	exit(0);
+#endif
 
     catch_signals();
 

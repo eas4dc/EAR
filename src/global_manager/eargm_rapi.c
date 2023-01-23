@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 //#define SHOW_DEBUGS 1
 #include <netdb.h>
@@ -38,7 +38,163 @@
 static int eargm_sfd;
 static uint eargm_remote_connected=0;
 
+int eargm_get_status(cluster_conf_t *conf, eargm_status_t **status, char **hosts, int num_hosts)
+{
+	if (hosts == NULL || num_hosts < 1) return eargm_cluster_get_status(conf, status);
+	return eargm_nodelist_get_status(conf, status, hosts, num_hosts);
 
+}
+
+void eargm_set_powerlimit(cluster_conf_t *conf, uint limit, char **hosts, int num_hosts)
+{
+	if (hosts == NULL || num_hosts < 1) return eargm_cluster_set_powerlimit(conf, limit);
+	return eargm_nodelist_set_powerlimit(conf, limit, hosts, num_hosts);
+}
+
+void eargm_nodelist_set_powerlimit(cluster_conf_t *conf, uint limit, char **hosts, int num_hosts)
+{
+	if (hosts == NULL || num_hosts < 1) return;
+
+	int i, j, rc, port;
+
+	for (i = 0; i < num_hosts; i++) {
+		port = -1;
+		for (j = 0; j < conf->eargm.num_eargms; j++) {
+			if (!strcasecmp(hosts[i], conf->eargm.eargms[j].node)) {
+				port = conf->eargm.eargms[j].port;
+				break;
+			}
+		}
+		if (port < 0) {
+			warning("node %s not found in the configuration file, skipping", hosts[i]); 
+			continue;
+		}
+		rc = remote_connect(hosts[i], port);
+		if (rc < 0) {
+			error("Error connecting to %s:%u", hosts[i], port);
+			continue;
+		}
+		if (!eargm_send_set_powerlimit(limit)) {
+			error("Error sending powerlimit to %s", conf->eargm.eargms[i].node);
+		}
+        remote_disconnect();
+
+	}
+
+}
+
+void eargm_cluster_set_powerlimit(cluster_conf_t *conf, uint limit)
+{
+	int i, rc;
+	
+	for (i = 0; i < conf->eargm.num_eargms; i++) {
+        rc = remote_connect(conf->eargm.eargms[i].node, conf->eargm.eargms[i].port);
+        if (rc < 0) {
+            error("Error connecting to %s:%u", conf->eargm.eargms[i].node, conf->eargm.eargms[i].port);
+            continue;
+        }
+		if (!eargm_send_set_powerlimit(limit)) {
+			error("Error sending powerlimit to %s", conf->eargm.eargms[i].node);
+		}
+        remote_disconnect();
+
+	}
+}
+
+
+//get all eargm status under a nodelist
+int eargm_nodelist_get_status(cluster_conf_t *conf, eargm_status_t **status, char **hosts, int num_hosts)
+{
+
+	if (hosts == NULL || num_hosts < 1) return 0;
+
+    int i, j, rc, ret, port, num_status = 0;
+    eargm_status_t *aux_status, *final_status = NULL;
+    char *tmp_eargm = NULL;
+    debug("entering eargm_nodelist_get_all_status");
+    for (i = 0; i < num_hosts; i++) //simply iterate through all the eargms
+    {
+		tmp_eargm = hosts[i]; //to reuse the previous code
+		port = -1;
+		for (j = 0; j < conf->eargm.num_eargms; j++) {
+           if (!strcasecmp(tmp_eargm, conf->eargm.eargms[j].node)) {
+                port = conf->eargm.eargms[j].port;
+				break;
+                //debug("Found node on %s on port %u", tmp_eargm, port);
+            }
+		}
+        //debug("contacting node %d", i);
+        if (port < 0) {
+            debug("node %s not found, skipping", tmp_eargm);
+            continue;
+        }
+        rc = remote_connect(tmp_eargm, port);
+        if (rc < 0) {
+            debug("Error connecting to %s:%u", tmp_eargm, port);
+            continue;
+        }
+
+        ret = eargm_status(rc, &aux_status);
+        debug("Received %d eargm status", ret);
+        if (ret > 0)
+        {
+            num_status += ret;
+            final_status = realloc(final_status, sizeof(eargm_status_t)*num_status);
+            memcpy(&final_status[num_status-1], aux_status, ret*sizeof(eargm_status_t));
+            free(aux_status);
+        }
+        tmp_eargm = NULL; //reset the var
+        remote_disconnect();
+    }
+
+    *status = final_status;
+
+    return num_status;
+}
+
+//get all the eargm status in a cluster
+int eargm_cluster_get_status(cluster_conf_t *conf, eargm_status_t **status)
+{
+
+    int i, rc, ret, port, num_status = 0;
+    eargm_status_t *aux_status, *final_status = NULL;
+    char *tmp_eargm = NULL;
+    debug("entering eargm_cluster_get_all_status");
+    for (i = 0; i < conf->eargm.num_eargms; i++) //simply iterate through all the eargms
+    {
+		tmp_eargm = conf->eargm.eargms[i].node; //to reuse the previous code
+		port = conf->eargm.eargms[i].port;
+        //debug("contacting node %d", i);
+        if (tmp_eargm == NULL) {
+            debug("node not found, skipping");
+            continue;
+        }
+        rc = remote_connect(tmp_eargm, port);
+        if (rc < 0) {
+            debug("Error connecting to %s:%u", tmp_eargm, port);
+            continue;
+        }
+
+        ret = eargm_status(rc, &aux_status);
+        debug("Received %d eargm status", ret);
+        if (ret > 0)
+        {
+            num_status += ret;
+            final_status = realloc(final_status, sizeof(eargm_status_t)*num_status);
+            memcpy(&final_status[num_status-1], aux_status, ret*sizeof(eargm_status_t));
+            free(aux_status);
+        }
+        tmp_eargm = NULL; //reset the var
+        remote_disconnect();
+    }
+
+    *status = final_status;
+
+    return num_status;
+}
+
+
+//get all status under an eargmidx
 int eargm_get_all_status(cluster_conf_t *conf, eargm_status_t **status, int eargm_idx)
 {
     int i, j, rc, ret, port, num_status = 0;
@@ -66,7 +222,7 @@ int eargm_get_all_status(cluster_conf_t *conf, eargm_status_t **status, int earg
             continue;
         }
 
-        ret = eargm_get_status(rc, &aux_status);
+        ret = eargm_status(rc, &aux_status);
         debug("Received %d eargm status", ret);
         if (ret > 0)
         {
@@ -85,7 +241,7 @@ int eargm_get_all_status(cluster_conf_t *conf, eargm_status_t **status, int earg
 
 }
 
-int eargm_get_status(int fd, eargm_status_t **status)
+int eargm_status(int fd, eargm_status_t **status)
 {
     request_t command;
 
@@ -222,3 +378,14 @@ int eargm_disconnect()
     close(eargm_sfd);
     return EAR_SUCCESS;
 }
+
+int eargm_send_set_powerlimit(uint limit)
+{
+	request_t command;
+	memset(&command, 0, sizeof(request_t));
+	command.req = EARGM_SET_PC;
+	command.my_req.eargm_data.pc_change = limit;
+	verbose(2, "command %u pc_change %u\n", command.req, command.my_req.eargm_data.pc_change);
+	return send_command(&command);
+}
+

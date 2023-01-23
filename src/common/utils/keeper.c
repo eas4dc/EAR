@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -26,8 +26,10 @@
 #include <common/output/debug.h>
 #include <common/utils/keeper.h>
 
+#define BUFFER_SIZE 2048
+
 static char  ids[128][128];
-static char  values[128][128];
+static char  values[128][BUFFER_SIZE];
 static int   lines_count;
 static int   fd = -1;
 
@@ -66,15 +68,16 @@ static int keeper_read_line(int fd, char *id, char *value)
 static void keeper_open()
 {
     char path[256];
+    char *tmp;
 
     // Open file if not previously opened
-    if (getenv("EAR_TMP") == NULL) {
-        return;
+    if ((tmp = getenv("EAR_TMP")) == NULL) {
+        tmp = "/tmp";
     }
     if (fd >= 0) {
         return;
     }
-    sprintf(path, "%s/ear-dyn.conf", getenv("EAR_TMP"));
+    sprintf(path, "%s/ear-dyn.conf", tmp);
     debug("Opening %s", path);
     if ((fd = open(path, O_RDWR | O_CREAT, F_UR | F_UW | F_GR | F_OR)) < 0) {
         debug("Failed: %s", strerror(errno));
@@ -90,7 +93,7 @@ static void keeper_open()
 #if SHOW_DEBUGS
     int i = 0;
     while(i < lines_count) {
-        printf("Read %s=%s\n", ids[i], values[i]);
+        debug("Read %s = '%s'", ids[i], values[i]);
         ++i;
     }
 #endif
@@ -185,10 +188,10 @@ void keeper_save_string(const char *id, char *value)
 #define KEEPER_SAVE(suffix, type, line_cast) \
 void keeper_save_##suffix (const char *id, type value) \
 { \
-    char buffer[128];                        \
-    keeper_open();                           \
-    line_cast;                               \
-    keeper_save_string(id, buffer);          \
+    char buffer[BUFFER_SIZE]; \
+    keeper_open(); \
+    line_cast; \
+    keeper_save_string(id, buffer); \
 }
 
 #define KEEPER_LOAD(suffix, type, line_cast) \
@@ -205,29 +208,81 @@ int keeper_load_##suffix (const char *id, type value) \
     return 0; \
 }
 
-KEEPER_SAVE(   text,   char *, strcpy(buffer, value));
-KEEPER_SAVE(  int32,    int  , sprintf(buffer, "%d", value));
-KEEPER_SAVE(  int64,  llong  , sprintf(buffer, "%lld", value));
-KEEPER_SAVE( uint64, ullong  , sprintf(buffer, "%llu", value));
-KEEPER_SAVE(float32,  float  , sprintf(buffer, "%f", value));
-KEEPER_SAVE(float64, double  , sprintf(buffer, "%lf", value));
-KEEPER_LOAD(   text,   char *, strcpy(value, values[i]));
-KEEPER_LOAD(  int32,    int *, *value = atoi(values[i]));
-KEEPER_LOAD(  int64,  llong *, *value = atoll(values[i]));
-KEEPER_LOAD( uint64, ullong *, *value = (ullong) atoll(values[i]));
-KEEPER_LOAD(float32,  float *, *value = (float) atof(values[i]));
-KEEPER_LOAD(float64, double *, *value = atof(values[i]));
+#define KEEPER_SAVE_A(suffix, type, line_cast) \
+void keeper_save_a##suffix (const char *id, type *list, uint list_length) \
+{ \
+    char buffer[BUFFER_SIZE]; \
+    uint i; \
+    int a; \
+    keeper_open(); \
+    for (i = a = 0; i < list_length; ++i) { \
+        a += line_cast; \
+    } \
+    buffer[a-1] = '\0'; \
+    keeper_save_text(id, buffer); \
+}
 
-#if 0
+#define KEEPER_LOAD_A(suffix, type, line_cast) \
+int keeper_load_a##suffix (const char *id, type **list, uint *list_length) \
+{ \
+    char buffer[BUFFER_SIZE]; \
+    char **lines; \
+    int i; \
+    keeper_open(); \
+    if (!keeper_load_text(id, buffer)) { \
+        return 0; \
+    } \
+    if ((lines = strtoa(buffer, ',', NULL, list_length)) == NULL) { \
+        return 0; \
+    } \
+    *list = calloc(*list_length, sizeof(type)); \
+    for (i = 0; i < *list_length; ++i) { \
+        (*list)[i] = (type) line_cast; \
+    } \
+    strtoa_free(lines); \
+    return 1; \
+}
+
+KEEPER_SAVE  (   text,   char *, strcpy(buffer, value));
+KEEPER_SAVE  (  int32,    int  , sprintf(buffer, "%d", value));
+KEEPER_SAVE  (  int64,  llong  , sprintf(buffer, "%lld", value));
+KEEPER_SAVE  ( uint32,   uint  , sprintf(buffer, "%u", value));
+KEEPER_SAVE  ( uint64, ullong  , sprintf(buffer, "%llu", value));
+KEEPER_SAVE  (float32,  float  , sprintf(buffer, "%f", value));
+KEEPER_SAVE  (float64, double  , sprintf(buffer, "%lf", value));
+KEEPER_SAVE_A( uint32,   uint  , sprintf(&buffer[a], "%u,", list[i]));
+KEEPER_LOAD  (   text,   char *, strcpy(value, values[i]));
+KEEPER_LOAD  (  int32,    int *, *value = atoi(values[i]));
+KEEPER_LOAD  (  int64,  llong *, *value = atoll(values[i]));
+KEEPER_LOAD  ( uint32,   uint *, *value = (uint) atoi(values[i]));
+KEEPER_LOAD  ( uint64, ullong *, *value = strtoull(values[i], NULL, 10));
+KEEPER_LOAD  (float32,  float *, *value = (float) atof(values[i]));
+KEEPER_LOAD  (float64, double *, *value = atof(values[i]));
+KEEPER_LOAD_A( uint32,   uint  , atoi(lines[i]));
+
+#if TEST
 int main(int argc, char *argv)
 {
     int x;
 
+    #if 0
     keeper_save_text("AmdMaxImcFreq", "2400000");
     keeper_save_text("NumGpus", "2");
     keeper_load_int32("NumGpus", &x);
     debug("X = %d", x);
     keeper_save_text("NumGpus", "4");
+    #endif
+    uint array[4] = { 1,2,3,4 };
+    uint *narray;
+    uint narray_count;
+
+    keeper_save_auint32("lol", array, 4);
+    keeper_load_auint32("lol", &narray, &narray_count);
+    printf("%u: %u\n", 0, narray[0]);
+    printf("%u: %u\n", 1, narray[1]);
+    printf("%u: %u\n", 2, narray[2]);
+    printf("%u: %u\n", 3, narray[3]);
+    printf("T%u", narray_count);
 
     return 0;
 }

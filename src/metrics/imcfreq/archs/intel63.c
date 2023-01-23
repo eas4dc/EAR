@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -25,9 +25,11 @@
 #include <metrics/common/msr.h>
 #include <metrics/imcfreq/archs/intel63.h>
 
-#define UBOX_CTR_OFS	0x000704
-#define UBOX_CTL_OFS	0x000703
-#define UBOX_CMD_STA	0x400000
+#define GLBL_CTL_OFS    0x000700 // U_MSR_PMON_GLOBAL_CTL
+#define GLBL_CMD_UNF    0x2000000000000000
+#define UBOX_CTR_OFS	0x000704 // U_MSR_PMON_FIXED_CTL
+#define UBOX_CTL_OFS	0x000703 // U_MSR_PMON_FIXED_CTR
+#define UBOX_CMD_STA	0x400000 //
 #define UBOX_CMD_STO	0x000000
 #define SHIFT           22
 
@@ -77,18 +79,23 @@ void imcfreq_intel63_get_api(uint *api, uint *api_intern)
 
 static state_t imcfreq_intel63_enable()
 {
-	ulong com, com1;
+	ullong com, com1;
 	state_t s;
 	int cpu;
 
 	for (cpu = 0; cpu < tp.cpu_count; ++cpu) {
-		if (state_fail(s = msr_read(tp.cpus[cpu].id, &com, sizeof(ulong), UBOX_CTL_OFS))) {
+        // Unfreeze
+        if (state_ok(msr_read(tp.cpus[cpu].id, &com, sizeof(ullong), GLBL_CTL_OFS))) {
+            com = (com | GLBL_CMD_UNF);
+            msr_write(tp.cpus[cpu].id, &com, sizeof(ullong), GLBL_CTL_OFS);
+        }
+		if (state_fail(s = msr_read(tp.cpus[cpu].id, &com, sizeof(ullong), UBOX_CTL_OFS))) {
 			return s;
 		}
 		com1 = ((com & UBOX_CMD_STA) >> SHIFT);
 		if (!com1) {
 			com = com | UBOX_CMD_STA;
-			if (state_fail(s = msr_write(tp.cpus[cpu].id, &com, sizeof(ulong), UBOX_CTL_OFS))) {
+			if (state_fail(s = msr_write(tp.cpus[cpu].id, &com, sizeof(ullong), UBOX_CTL_OFS))) {
 				return s;
 			}
 		}

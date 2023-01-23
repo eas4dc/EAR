@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <database_cache/eardbd.h>
@@ -37,11 +37,7 @@ extern socket_t *socket_sync02;
 
 // Descriptors
 extern struct sockaddr_storage addr_new;
-extern fd_set fds_incoming;
-extern fd_set fds_active;
-extern int fd_new;
-extern int fd_min;
-extern int fd_max;
+extern afd_set_t fds_active;
 
 // PID
 extern process_data_t proc_server;
@@ -178,9 +174,10 @@ static int body_new_connection(int fd)
 
 static void manage_sockets()
 {
-	long ip;
-	state_t s;
-	int fd_old;
+    int fd_old;
+    int fd_new;
+    state_t s;
+    long ip;
 	int i;
 
 	// Nothing to be done here
@@ -188,9 +185,9 @@ static void manage_sockets()
 		return;
 	}
 
-	for(i = fd_min; i <= fd_max && listening; i++)
+	for(i = fds_active.fd_min; i <= fds_active.fd_max && listening; i++)
 	{
-		if (listening && FD_ISSET(i, &fds_incoming)) // we got one!!
+		if (listening && AFD_ISSET(i, &fds_active)) // we got one!!
 		{
 			// Handle new connections (just for TCP)
 			if (sync_fd_is_new(i))
@@ -265,9 +262,7 @@ void body()
 
 	while(listening)
 	{
-		fds_incoming = fds_active;
-
-		if ((s = select(fd_max + 1, &fds_incoming, NULL, NULL, &timeout_slct)) == -1) {
+		if ((s = aselectv(&fds_active, &timeout_slct)) == -1) {
 			if (listening && !updating) {
 				edb_error("during select (%s)", strerror(errno));
 			}
@@ -293,7 +288,7 @@ void release()
 	int i;
 
 	// Socket closing
-	for(i = fd_max; i >= fd_min && !listening; --i) {
+	for(i = fds_active.fd_max; i >= fds_active.fd_min && !listening; --i) {
 		close(i);
 	}
 	// Cleaning sockets
@@ -302,8 +297,7 @@ void release()
 	sockets_dispose(socket_sync01);
 	sockets_dispose(socket_sync02);
 	//
-	FD_ZERO(&fds_incoming);
-	FD_ZERO(&fds_active);
+	//FD_ZERO(&fds_active);
 	// Freeing data
 	free_cluster_conf(&conf_clus);
 

@@ -13,7 +13,6 @@ AC_DEFUN([X_AC_VAR_UNBACKUP], [
     LIBS=$LIBS_backup
 ])
 
-
 AC_DEFUN([X_AC_VAR_PRINT], [
     echo $CPPFLAGS
     echo $LDFLAGS
@@ -172,13 +171,22 @@ AC_DEFUN([AX_AFTER_FEATURES],
         fi
 	fi
 
-    if test "x$SCHED_NAME" = "xSLURM"; then
+        if test "x$SCHED_NAME" = "xSLURM"; then
         FEAT_SCHED_SLURM=1
         FEAT_SCHED_PBS=0
-    else
+				FEAT_SCHED_OAR=0
+		fi
+		if test "x$SCHED_NAME" = "xPBS"; then
         FEAT_SCHED_SLURM=0
         FEAT_SCHED_PBS=1
-    fi
+        FEAT_SCHED_OAR=0
+		fi
+		if test "x$SCHED_NAME" = "xOAR"; then
+        FEAT_SCHED_SLURM=0
+        FEAT_SCHED_PBS=0
+        FEAT_SCHED_OAR=1
+		fi
+
 
 	#IFS='.' read -r -a array_version <<< "$PACKAGE_VERSION" && echo $array_version[0]
 	#column -t -s '\ $PACKAGE_VERSION
@@ -212,6 +220,7 @@ AC_DEFUN([AX_AFTER_FEATURES],
 	AC_SUBST(FEAT_DB_PGSQL)
 	AC_SUBST(FEAT_SCHED_SLURM)
 	AC_SUBST(FEAT_SCHED_PBS)
+  AC_SUBST(FEAT_SCHED_OAR)
 	AC_SUBST(EAR_TMP)
 	AC_SUBST(VERSION_MAJOR)
 	AC_SUBST(VERSION_MINOR)

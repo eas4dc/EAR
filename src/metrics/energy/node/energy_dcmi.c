@@ -10,10 +10,12 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
+
+//#define SHOW_DEBUGS 1
 
 #include <math.h>
 #include <errno.h>
@@ -27,11 +29,8 @@
 #include <pthread.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
-#include <sys/select.h>
-
-//#define SHOW_DEBUGS 1
-
-#include <common/states.h> 
+#include <common/states.h>
+#include <common/system/poll.h>
 #include <common/math_operations.h>
 #include <common/types/generic.h> 
 #include <common/output/verbose.h>
@@ -41,6 +40,12 @@
 
 #define MAX_LOCK_TRIES  1000000000
 #define MIN_READ_PERIOD 2000       /*!< The minimum period time to for the periodic thread to read the power. */
+
+/* For error control */
+#define MAX_TIMES_POWER_SUPPORTED 10
+#define VPOWER_ERROR 0
+static        unsigned long     dcmi_last_power_measurement = 0;
+
 
 static struct ipmi_intf         dcmi_context_for_pool;
 static        dcmi_power_data_t dcmi_current_power_reading;
@@ -53,6 +58,7 @@ static        ulong           dcmi_accumulated_energy = 0;
 static        pthread_mutex_t ompi_lock               = PTHREAD_MUTEX_INITIALIZER;
 
 static state_t dcmi_thread_init(void *p);
+static        timestamp_t     last_timestamp;
 
 static int opendev(struct ipmi_intf *intf)
 {
@@ -90,7 +96,7 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	static struct ipmi_rs rsp;
 	uint8_t *data = NULL;
 	static int curr_seq = 0;
-	fd_set rset;
+	afd_set_t rset;
 
 	if (intf == NULL || req == NULL)
 		return NULL;
@@ -121,16 +127,16 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 		return NULL;
 	};
 
-	FD_ZERO(&rset);
-	FD_SET(intf->fd, &rset);
+	AFD_ZERO(&rset);
+	AFD_SET(intf->fd, &rset);
 
-	if (select(intf->fd + 1, &rset, NULL, NULL, NULL) < 0) {
+	if (aselectv(&rset, NULL) < 0) {
 		debug("I/O Error\n");
 		if (data != NULL)
 			free(data);
 		return NULL;
 	};
-	if (FD_ISSET(intf->fd, &rset) == 0) {
+	if (AFD_ISSET(intf->fd, &rset) == 0) {
 		debug("No data available\n");
 		if (data != NULL)
 			free(data);
@@ -405,6 +411,18 @@ state_t dcmi_power_reading(struct ipmi_intf *intf, struct ipmi_data *out,dcmi_po
     cpower->timeframe     = (ulong)timeframe;
     cpower->timestamp     = (ulong)timestamp;
 
+    /* For error control */
+    if (cpower->current_power > cpower->max_power){
+      verbose(VPOWER_ERROR,"enery_dcmi: New max power reading current:%lu max %lu", cpower->current_power, cpower->max_power);
+    }
+    if ((cpower->current_power < (cpower->max_power * MAX_TIMES_POWER_SUPPORTED)) && ( cpower->current_power > 0)){
+      dcmi_last_power_measurement = cpower->current_power;
+    }else{
+      verbose(VPOWER_ERROR, "enery_dcmi:warning, invalid power detected. current %lu, corrected to last valid power %lu", cpower->current_power, dcmi_last_power_measurement);
+       cpower->current_power = dcmi_last_power_measurement;
+    }
+
+
     return EAR_SUCCESS;
 }
 
@@ -418,6 +436,8 @@ state_t dcmi_thread_main(void *p)
     debug("dcmi_thread_main");
 
     ulong current_elapsed, current_energy;
+		timestamp_t   curr_time;
+    ullong        dcmi_elapsed;
 
     while ((lret = pthread_mutex_trylock(&ompi_lock)) && (etries < MAX_LOCK_TRIES)) {
         etries++;
@@ -433,8 +453,15 @@ state_t dcmi_thread_main(void *p)
         return st;
     }
 
+    /* We use this timestamp because DCMI fails */
+    timestamp_get(&curr_time);
+    dcmi_elapsed = timestamp_diff(&curr_time, &last_timestamp, TIME_SECS);
+    last_timestamp = curr_time;
+
+
     if (dcmi_current_power_reading.current_power > 0) {
-        current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
+        //current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
+        current_elapsed = (ulong) dcmi_elapsed;
         current_energy = current_elapsed * dcmi_current_power_reading.avg_power;
 
         /* Energy is reported in MJ */
@@ -459,6 +486,9 @@ state_t dcmi_thread_init(void *p)
         debug("opendev fails in dcmi energy plugin when initializing pool");
         return EAR_ERROR;
     } 
+
+    timestamp_get(&last_timestamp);
+
 
     debug("thread_init for dcmi_power OK");
     return EAR_SUCCESS;
@@ -594,6 +624,9 @@ state_t energy_accumulated(unsigned long *e, edata_t init, edata_t end) {
 state_t energy_dc_read(void *c, edata_t energy_mj)
 {
     ulong *penergy_mj = (ulong *) energy_mj;
+    timestamp_t   curr_time;
+    ullong        dcmi_elapsed;
+
 
     debug("energy_dc_read");
 
@@ -618,8 +651,15 @@ state_t energy_dc_read(void *c, edata_t energy_mj)
         return st;
     }
 
+    /* We use this timestamp because DCMI fails */
+    timestamp_get(&curr_time);
+    dcmi_elapsed = timestamp_diff(&curr_time, &last_timestamp, TIME_SECS);
+    last_timestamp = curr_time;
+
+
     if (dcmi_current_power_reading.current_power > 0) {
-        current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
+        //current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
+        current_elapsed = (ulong) dcmi_elapsed;
         current_energy = current_elapsed * dcmi_current_power_reading.avg_power;
 
         /* Energy is reported in MJ */

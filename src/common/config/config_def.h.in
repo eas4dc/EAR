@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef EAR_CONFIG_DEF_H
@@ -27,7 +27,7 @@
 #define DEF_EXT			"gen.so"
 
 // Maximum number of tries when doing non-blocking communications
-#define MAX_SOCKET_COMM_TRIES   1000000
+#define MAX_SOCKET_COMM_TRIES   100000000
 //
 #define EARDBD_TYPES            7
 /* These flags configures EARL */
@@ -45,8 +45,8 @@
 #define MAX_ERROR_POWER                     1000.0
 #define MAX_TEMP							150
 #define MAX_POWER_CAP					0
-#define DEF_POWER_CAP					-1
 #define POWER_CAP_UNLIMITED             1
+#define DEF_POWER_CAP					POWER_CAP_UNLIMITED
 #define POWER_CAP_TYPE				"node"
 
 #define MAX_CPUF_PSTATE 5
@@ -89,7 +89,6 @@
 #define MAX_ENERGY                          300
 #define DEFAULT_POWER                      	300 
 #define GRACE_T1                            3
-#define EAR_OVERHEAD_CONTROL                1
 #define MAX_TIME_DYNAIS_WITHOUT_SIGNATURE   15
 #define MPI_CALLS_TO_CHECK_PERIODIC         1000
 /* Maximum power error supported. It is used to compute the min time to compute
@@ -138,11 +137,7 @@
 #define  EAR_USE_PHASES 			1
 #define  EAR_USE_LB           1
 #define  EAR_USE_TURBO_CP     1
-#if NEW_LB_EFF
 #define  EAR_LB_TH						0.8
-#else
-#define  EAR_LB_TH						15.0
-#endif
 
 
 
@@ -158,6 +153,13 @@
  *  * of jumps per node. */
 #define NUM_PROPS     3
 
+
+/** Specifies the maximum number of nodes a communication range can have. Propagations always
+ * occur within a range, and the depth of propagations is calculated by taking 
+ * sum = NUM_PROPS + NUM_PROPS² + ... + NUM_PROPS^n
+ * and getting the number of elements that constitue the sum such as the minimum sum >= MAX_RANGE.
+ * Ex: MAX_RANGE 30 and NUM_PROPS 3 -> sum = 3 + 9 + 27 -> depth of propagation = 3 */
+#define MAX_RANGE 30
 
 #endif //EAR_CONFIG_DEF_H
 

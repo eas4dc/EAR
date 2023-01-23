@@ -1,4 +1,4 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(CONSTANTS) -Wall $(DB_CFLAGS)
+CFLAGS  = $(CC_FLAGS) -O2 -I$(SRCDIR) $(CONSTANTS) -Wall $(DB_CFLAGS)
 LDFLAGS = $(DB_LDFLAGS) -lm -pthread -ldl -rdynamic 
 
 ######## INSTALLATION
@@ -20,7 +20,7 @@ remote_api_OBJS= \
     remote_api/dynamic_configuration.o 
 
 report_OBJ=\
-		$(SRCDIR)/report/report.o
+    $(SRCDIR)/report/report.o
 
 powercap_OBJS = \
 	powercap/powercap_status.o \
@@ -59,7 +59,7 @@ eard: eard.c $(eard_OBJS)
 
 
 power_monitor.o: power_monitor.c power_monitor.h 
-	$(CC) $(CFLAGS) -c $< $(SLURM_CFLAGS)
+	$(CC) $(CFLAGS) -c $<  $(SLURM_CFLAGS)
 
 node_metrics.o:node_metrics.c node_metrics.h
 	$(CC) $(CFLAGS) -c $<

@@ -1,24 +1,67 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #ifndef _MPI_SUPPORT_
 #define _MPI_SUPPORT_
 
-#include <math.h>
+#define p2i unsigned long
+
+#define BUSY_WAITING_BLOCK  0
+#define YIELD_BLOCK         1
+
+#define is_mpi_blocking(call)    (call&Only_Blocking)
+
+#define is_collective(call)      ((call == Only_Reduce) || \
+                                  (call == Only_Scatter) || \
+                                  (call == Only_Gather) || \
+                                  (call == Only_All2All) || \
+                                  (call == Only_Bcast))
+
+#define is_synchronization(call) ((call == Only_Wait) || \
+                                  (call == Only_Barrier) || \
+                                  (call == Only_Test))
+
+#define remove_blocking(call)    (call&~Only_Blocking)
+
+#define is_barrier(call)         (call == Only_Barrier)
+
+#define is_gather(call)			 (call == Only_Gather)
+
+#define is_wait(call)            (call == Only_Wait);
+
+
+#define N_CALL_TYPES 15
+
+#define UNKNOWN  0
+#define SEND     1
+#define RECEIVE  2
+#define BARRIER  3
+#define WAIT     4
+#define BCAST    5
+#define ALL2ALL  6
+#define GATHER   7
+#define SCATTER  8
+#define SCAN     9
+#define REDUCE   10
+#define SENDRECV 11
+#define TEST     12
+#define COMM     13
+#define IO       14
+
 
 enum type_mpi_call {
     _Unknown  = 0,
@@ -38,6 +81,7 @@ enum type_mpi_call {
     _IO       = 14,
     _Blocking = 0x10
 };
+
 
 typedef enum
 {
@@ -149,60 +193,10 @@ typedef enum
     Only_Test = _Test,
     Not_implemented
 } mpi_call;
-#define p2i unsigned long
-
-#define is_mpi_blocking(call)    (call&Only_Blocking)
-#define is_collective(call)      ((call == Only_Reduce) || (call == Only_Scatter) || (call == Only_Gather)\
-        || (call == Only_All2All) || (call == Only_Bcast))
-#define is_synchronization(call) ((call == Only_Wait) || (call == Only_Barrier) || (call == Only_Test))
-#define remove_blocking(call)    (call&~Only_Blocking)
-#define is_recv(call)            ((call == Only_Receive) || (call == Only_SendRecv))
 
 
 int is_mpi_enabled();
 int is_intelmpi();
 int is_openmpi();
 int openmpi_num_nodes();
-
-
-#define BUSY_WAITING_BLOCK  0
-#define YIELD_BLOCK					1
-
-/* New */
-#if 0
-#define is_scatter(call) (call & Only_Scatter)
-#define is_gather(call) (call & Only_Gather)
-#define is_alltoall(call) (call & Only_All2All)
-#define is_reduce(call) (call & Only_Reduce)
-#define is_barrier(call) (call & Only_Barrier)
-#define is_receive(call) (call & Only_Receive)
-#define is_sendrecv(call) (call & Only_SendRecv)
-#define is_bcast(call) (call & Only_Bcast)
-#define is_wait(call) (call & Only_Wait)
-#define is_test(call) (call & Only_Test)
-
-#define remove_call(call, call_type) (call & ~call_type)
-#endif
-
-#define N_CALL_TYPES 16
-
-// #define log2(x) (log(x) * M_LOG2E)
-
-#define UNKNOWN  0
-#define SEND     1
-#define RECEIVE  2
-#define BARRIER  3
-#define WAIT     4
-#define BCAST    5
-#define ALL2ALL  6
-#define GATHER   7
-#define SCATTER  8
-#define SCAN     9
-#define REDUCE   10
-#define SENDRECV 11
-#define TEST     12
-#define COMM     13
-#define IO       14
-#define BLOCKING 15
-
 #endif

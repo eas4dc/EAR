@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _EAR_TYPES_APPLICATION
@@ -36,13 +36,15 @@ typedef struct application
 } application_t;
 
 
-/** Resets the data. */
+/** Resets the memory region pointed by \p app. */
 void init_application(application_t *app);
 
-/** Replicates the application in *source to *destiny */
+
+/** Replicates the application in *source to *destiny. */
 void copy_application(application_t *destiny, application_t *source);
 
-/** Cleaned remake of the classic print 'fd' function */
+
+/** Cleaned remake of the classic print 'fd' function. */
 void application_print_channel(FILE *file, application_t *app);
 
 /*
@@ -62,7 +64,10 @@ int read_application_text_file(char *path, application_t **apps, char is_extende
 *   of the following states: EAR_SUCCESS or EAR_ERROR. */
 int append_application_text_file(char *path, application_t *app, char is_extended, int add_header, int single_column);
 
-int create_app_header(char * header, char *path, uint num_gpus, char is_extended, int single_column);
+/** Outputs an application to the fd given in CSV format. Returns EAR_SUCCESS */
+int print_application_fd(int fd, application_t *app, int new_line, char is_extended, int single_column);
+
+int create_app_header(char *header, char *path, uint num_gpus, char is_extended, int single_column);
 
 
 
@@ -91,11 +96,13 @@ void mark_as_eard_disconnected(int jid,int sid,int pid);
  *
  */
 
-/** Prints the contents of app to the STDOUT*/
+/** Prints the contents of app to the STDOUT. */
 int print_application(application_t *app);
 
-/** Prints a summary of the application to STDOUT */
+/** Prints a summary of the application to STDOUT. */
 void report_application_data(application_t *app);
+
+/** \todo */
 void verbose_application_data(uint vl,application_t *app);
 
 /** Prints a summary of the application (only mpi part,power signature is not reported) to STDOUT */

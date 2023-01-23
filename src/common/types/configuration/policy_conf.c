@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdio.h>
@@ -84,16 +84,41 @@ void init_policy_conf(policy_conf_t *p)
     memset(p->settings, 0, sizeof(double)*MAX_POLICY_SETTINGS);
 }
 
+void report_policy_conf(policy_conf_t *p)
+{
+  char buffer[128], settings_buffer[256];
+  int i;
+  if (p == NULL) return;
+  snprintf(buffer, sizeof(buffer), "policy %s id %d privileged (%s) \n", p->name, p->policy, (p->is_available)?"no":"yes");
+  printf("%s", buffer);
+  settings_buffer[0] = '\0';
+  snprintf(buffer, sizeof(buffer), "\tdefault pstate %u",  p->p_state);
+  strncat(settings_buffer, buffer, sizeof(settings_buffer));
+  if (p->def_freq){
+    snprintf(buffer, sizeof(buffer), "  default CPU freq = %.3lf GHz", p->def_freq);
+    strncat(settings_buffer, buffer, sizeof(settings_buffer));
+  }
+  for (i = 0; i < MAX_POLICY_SETTINGS; i++){
+    if (p->settings[i] > 0){
+      snprintf(buffer, sizeof(buffer), " Th[%d]= %.2lf",  i, p->settings[i]); 
+      strncat(settings_buffer, buffer, sizeof(settings_buffer));
+    }
+  }
+  printf("%40.40s\n", settings_buffer);
+}
+
 void print_policy_conf(policy_conf_t *p) 
 {
     int i;
 	if (p==NULL) return;
 
-    verbosen(VCCONF,"---> policy %s p_state %u def_freq %.3f NormalUsersAuth %u", p->name ,p->p_state,p->def_freq,p->is_available);
-    for (i = 0; i < MAX_POLICY_SETTINGS; i++)
+    verbosen(VCCONF,"---> policy %s id %d p_state %u def_freq %.3f NormalUsersAuth %u", p->name, p->policy,p->p_state,p->def_freq,p->is_available);
+    for (i = 0; i < MAX_POLICY_SETTINGS; i++){
+      if (p->settings[i] > 0){
         verbosen(VCCONF, " setting%d  %.2lf ", i, p->settings[i]);
-    verbosen(VCCONF, " tag: %s", p->tag);
-    verbosen(VCCONF, "\n");
+      }
+    }
+    verbose(VCCONF, " tag: %s", p->tag);
 }
 
 state_t POLICY_token(unsigned int *num_policiesp, policy_conf_t **power_policiesl,char *line)

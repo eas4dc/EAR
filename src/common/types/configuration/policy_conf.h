@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 /**
@@ -59,6 +59,7 @@ void copy_policy_conf(policy_conf_t *dest,policy_conf_t *src);
 
 /** prints in the stdout policy configuration */
 void print_policy_conf(policy_conf_t *p);
+void report_policy_conf(policy_conf_t *p);
 
 /** Sets all pointers to NULL and all values to their default*/
 void init_policy_conf(policy_conf_t *p);

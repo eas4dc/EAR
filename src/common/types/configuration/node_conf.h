@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _NODE_CONF_H
@@ -21,7 +21,7 @@
 #include <common/config.h>
 #include <common/types/generic.h>
 #include <common/types/configuration/policy_conf.h>
-#include <common/types/configuration/cluster_conf.h>
+//#include <common/types/configuration/cluster_conf.h>
 
 /**
 * @file node_conf.h
@@ -70,6 +70,7 @@ typedef struct my_node_conf
     char          *coef_file;
     char          *energy_plugin;
     char          *energy_model;
+    char          *idle_governor;
     char          *powercap_plugin;
     char          *powercap_gpu_plugin;
     uint           num_policies;
@@ -86,8 +87,9 @@ typedef struct my_node_conf
 	ulong          gpu_def_freq;
     int            cpu_max_pstate; /* Used by policies as lower limit */
     int            imc_max_pstate; /* Used by policies as lower limit */
-		ulong 				 imc_max_freq;   /* Used to create the imcf list */
-		ulong          imc_min_freq;   /* Used to create the imcf list */
+    int            idle_pstate; 
+	ulong          imc_max_freq;   /* Used to create the imcf list */
+	ulong          imc_min_freq;   /* Used to create the imcf list */
     uint           use_log;
 	char           tag[GENERIC_NAME];
 } my_node_conf_t;
@@ -130,6 +132,7 @@ void copy_my_node_conf(my_node_conf_t *dest,my_node_conf_t *src);
 
 /** prints in the stderr the node configuration */
 void print_node_conf(node_conf_t *node_conf);
+void report_my_node_conf(my_node_conf_t *my_node_conf);
 
 /** prints in the stderr the specific node configuration */
 void print_my_node_conf(my_node_conf_t *my_node_conf);
@@ -141,6 +144,10 @@ void read_my_node_conf_fd_binary(int fd,my_node_conf_t *myconf);
 
 /** Given a  node and policy, returns the policy configuration for that cluser,node,policy */
 policy_conf_t *get_my_policy_conf(my_node_conf_t *my_node,uint p_id);
+int is_smaller_unit(int small, int big);
+
+/** TODO: Declared here because it's used by cluster_conf module. */
+int is_smaller_unit(int small, int big);
 
 
 #else

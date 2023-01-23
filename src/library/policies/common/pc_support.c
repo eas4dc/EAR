@@ -10,42 +10,49 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include <common/config.h>
 //#define SHOW_DEBUGS 1
+
+#include <common/config.h>
 #include <common/includes.h>
-#include <library/common/externs.h>
-#include <library/common/verbose_lib.h>
-#include <daemon/powercap/powercap_status.h>
 #include <common/types/signature.h>
-#include <management/cpufreq/frequency.h>
-#include <library/metrics/gpu.h>
-#include <library/policies/policy_ctx.h>
 #include <common/types/projection.h>
 #include <common/types/pc_app_info.h>
-extern pc_app_info_t *pc_app_info_data;
-static const ulong **gpu_freq_list;
-static const uint *gpu_freq_num;
+
+#include <daemon/powercap/powercap_status.h>
+
+#include <management/cpufreq/frequency.h>
+#include <management/gpu/gpu.h>
+
+
+#include <library/common/externs.h>
+#include <library/common/verbose_lib.h>
+#include <library/metrics/metrics.h>
+#include <library/policies/policy_ctx.h>
+
+extern       pc_app_info_t  *pc_app_info_data;
+static const ulong         **gpu_freq_list;
+static const uint           *gpu_freq_num;
+
 state_t pc_support_init(polctx_t *c)
 {
-	#if USE_GPUS
-	state_t ret;
-	if ((ret = gpu_lib_freq_list(&gpu_freq_list,&gpu_freq_num)) != EAR_SUCCESS){
-		debug("Error accessing gpu_freq list");
-		return ret;
-	}
-	pc_app_info_data->num_gpus_used=c->num_gpus;
-	#endif
-	return EAR_SUCCESS;
+#if USE_GPUS
+    gpu_freq_list = (const ulong **) metrics_gpus_get(MGT_GPU)->avail_list;
+    gpu_freq_num  = (const uint *)   metrics_gpus_get(MGT_GPU)->avail_count;
+
+    pc_app_info_data->num_gpus_used=c->num_gpus;
+#endif // USE_GPUS
+    return EAR_SUCCESS;
 }
+
 #if USE_GPUS
 
 #if 0
@@ -104,42 +111,42 @@ void pc_support_adapt_gpu_freq(polctx_t *c,node_powercap_opt_t *pc,ulong *f,sign
 {
     uint plimit;
     double gpower;
-	  signature_t new_s;
+    signature_t new_s;
 
-		signature_copy(&new_s,s);
-		new_s.DC_power = sig_total_gpu_power(s);
+    signature_copy(&new_s,s);
+    new_s.DC_power = sig_total_gpu_power(s);
     plimit = pc->pper_domain[DOMAIN_GPU];        /* limit */
-		gpower = new_s.DC_power;
+    gpower = new_s.DC_power;
     debug("checking gpu frequency: gpu_power %lf gpu_powercap %u",gpower,plimit);
-		gpu_lib_freq_limit_get_current(&c->gpu_mgt_ctx,f);
-    if ((uint)gpower <= plimit){
-      pc_app_info_data->pc_gpu_status = PC_STATUS_OK;
-			debug("GPU power is enough");
-      return ;
-    }else{
-      pc_app_info_data->pc_status = PC_STATUS_GREEDY;
-			debug("GPU power is NOT enough,reducing GPU freq");
-			estimate_gpu_freq(f,&new_s,plimit);
-		}
-    return;
+    mgt_gpu_freq_limit_get_current(no_ctx, f);
 
+    if ((uint)gpower <= plimit) {
+        pc_app_info_data->pc_gpu_status = PC_STATUS_OK;
+        debug("GPU power is enough");
+        return;
+    } else {
+        pc_app_info_data->pc_status = PC_STATUS_GREEDY;
+        debug("GPU power is NOT enough,reducing GPU freq");
+        estimate_gpu_freq(f, &new_s, plimit);
+    }
+    return;
 }
 #endif
 
 ulong pc_support_adapt_freq(polctx_t *c,node_powercap_opt_t *pc,ulong f,signature_t *s)
 {
-		ulong req_f,cfreq;
+    ulong req_f,cfreq;
     uint plimit,cpstate,ppstate,power_status;
-		uint numpstates,adapted=0;
-		double ppower;
-	  signature_t new_s;
-		signature_copy(&new_s,s);
-		new_s.DC_power = sig_node_power(s);
+    uint numpstates,adapted=0;
+    double ppower;
+    signature_t new_s;
+    signature_copy(&new_s,s);
+    new_s.DC_power = sig_node_power(s);
     req_f  = f;
     plimit = pc->pper_domain[DOMAIN_NODE]; 				/* limit */
-		cfreq=frequency_closest_high_freq(new_s.avg_f,1); 	/* current freq */
-		cpstate=frequency_closest_pstate(cfreq);			 	/* current pstate */
-		ppstate=frequency_closest_pstate(req_f);				/* pstate for freq selected */
+    cfreq=frequency_closest_high_freq(new_s.avg_f,1); 	/* current freq */
+    cpstate=frequency_closest_pstate(cfreq);			 	/* current pstate */
+    ppstate=frequency_closest_pstate(req_f);				/* pstate for freq selected */
 		if (projection_available(cpstate,ppstate)==EAR_SUCCESS){
 			project_power(&new_s,cpstate,ppstate,&ppower);				/* Power at freq selected */
 			adapted = 1;

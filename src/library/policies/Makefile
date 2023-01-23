@@ -1,7 +1,7 @@
 all: all.components policy.o
  
 %.o: %.c 
-	$(CC) $(CC_FLAGS) $(CFLAGS) $(LIB_CFLAGS) -c $<
+	$(CC) $(CC_FLAGS) $(LIB_CFLAGS) $(CFLAGS) -c $<
 
 ######## OPTIONS 
 .PRECIOUS: %.o

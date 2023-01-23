@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <math.h>
@@ -73,7 +73,7 @@ uint equal_with_th_ul(ulong a,ulong b,double th)
     return eq;
 
 }
-unsigned int equal_with_th(double a, double b, double th)
+uint equal_with_th(double a, double b, double th)
 {
     int eq = 1;
     if (a == b) return eq;

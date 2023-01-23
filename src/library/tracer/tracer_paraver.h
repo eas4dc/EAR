@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _EAR_TRACES_H_
@@ -36,6 +36,8 @@
 #include <common/config.h>
 #include <common/types/generic.h>
 #include <common/types/signature.h>
+
+#include <library/tracer/tracer_paraver_comp.h>
 
 #define MIN_FREQ_FOR_SAMPLING 500000
 

@@ -1,8 +1,10 @@
-CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
+CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC -Wall
 
 ######## FILES
 
-gpu_BINS = gpu.o
+gpu_BINS = \
+    gpu.o \
+    gpuproc.o
 
 ######## RULES
 
@@ -15,8 +17,12 @@ all: $(gpu_BINS) all.components
 
 %.components:
 	@ $(MAKE) -C 'archs' $* || exit
+	@ $(MAKE) -C 'test'  $* || exit
 
 ######## OPTIONS
+
+post:
+	@ $(MAKE) -C 'test' $@ || exit
 
 install: install.components
 

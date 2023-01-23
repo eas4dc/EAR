@@ -1,8 +1,8 @@
 ########
 OBJS = \
     metrics.o \
-	energy_node_lib.o \
-    gpu.o
+	energy_node_lib.o 
+#    gpu.o
 
 all: $(OBJS)
 

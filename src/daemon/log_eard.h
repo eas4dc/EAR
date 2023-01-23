@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #ifndef _EARD_LOG_H
 #define _EARD_LOG_H
@@ -28,7 +28,7 @@
 
 
 
-
+#if 0
 /* EARD Init events */
 
 #define PM_CREATION_ERROR       100
@@ -63,27 +63,19 @@
 #define EARD_RT_ERRORS  6
 #define FIRST_RT_ERROR  300
 
+#endif
 
-
-
-
-
-/** Creates the log file and starts it with the current time. If it can't
- *   create the file it reports it to stderr */
+/** Creates the log file and starts it with the current time.
+ * If it can't create the file it reports it to stderr. */
 void init_eard_rt_log();
-
-
 
 /** Sets the minimum interval between two runtime errors to avoid saturating the DB */
 void log_report_eard_min_interval(uint secs);
 /** Reports a RT error from EARD */
-void log_report_eard_rt_error(report_id_t *rid,job_id job,job_id sid,uint eventid,ulong value);
+void log_report_eard_rt_error(report_id_t *rid, job_id job, job_id sid, uint eventid, llong value);
 /* Reports and error when initializing EARD */
-void log_report_eard_init_error(report_id_t *rid,uint eventid,ulong value);
+void log_report_eard_init_error(report_id_t *rid, uint eventid, llong value);
 /* Reports powercap events from EARD */
-void log_report_eard_powercap_event(report_id_t *rid,job_id job,job_id sid,uint eventid,ulong value);
+void log_report_eard_powercap_event(report_id_t *rid, job_id job, job_id sid, uint eventid, llong value);
 
-void log_report_eard_powercap_event(report_id_t *rid,job_id job,job_id sid,uint eventid,ulong value);
-
-
-#endif
+#endif // _EARD_LOG_H

@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdio.h>
@@ -21,15 +21,19 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+
 #include <common/config.h>
 #include <common/states.h>
 #include <common/output/debug.h>
+
 #include <library/common/externs.h>
+#include <library/common/verbose_lib.h>
+#include <management/gpu/gpu.h>
+#include <metrics/gpu/gpu.h>
+#include <library/metrics/metrics.h>
+#include <library/api/clasify.h>
 #include <library/policies/policy_api.h>
 #include <library/policies/policy_state.h>
-#include <library/common/verbose_lib.h>
-#include <library/metrics/gpu.h>
-#include <library/api/clasify.h>
 
 #ifdef EARL_RESEARCH
 extern unsigned long ext_def_freq;
@@ -45,33 +49,43 @@ extern unsigned long ext_def_freq;
 #define MED_GPU_FREQ_RED 0.25
 #define HIGH_GPU_FREQ_RED 0.1
 
-static const ulong **gpuf_list;
-static const uint *gpuf_list_items;
-static	ulong *gfreqs;
-extern gpu_state_t last_gpu_state;
+static const ulong       **gpuf_list;
+static const uint         *gpuf_list_items;
+static	     ulong        *gfreqs;
+extern       gpu_state_t   last_gpu_state;
+extern       uint          gpu_ready;
 
 state_t policy_init(polctx_t *c)
 {
     int i,j;
     ulong g_freq = 0;
-    char *gpu_freq=getenv(FLAG_GPU_DEF_FREQ);
-    if ((gpu_freq!=NULL) && (c->app->user_type==AUTHORIZED)){
-        g_freq=atol(gpu_freq);
+    char *gpu_freq = getenv(FLAG_GPU_DEF_FREQ);
+
+    if ((gpu_freq != NULL) && (c->app->user_type==AUTHORIZED)) {
+        g_freq = atol(gpu_freq);
     }
-    gpu_lib_freq_list(&gpuf_list, &gpuf_list_items);
-    for (i=0;i<c->num_gpus;i++){
+
+    gpuf_list       = (const ulong **) metrics_gpus_get(MGT_GPU)->avail_list;
+    gpuf_list_items = (const uint *)   metrics_gpus_get(MGT_GPU)->avail_count;
+
+    for (i = 0; i < c->num_gpus; i++) {
         verbose_master(3,"Freqs in GPU[%d]=%u",i,gpuf_list_items[i]);
-        for (j=0;j<gpuf_list_items[i];j++){
-            verbose_master(3,"GPU[%d][%d]=%.2f",i,j,(float)gpuf_list[i][j]/1000000.0);
+        for (j = 0; j < gpuf_list_items[i]; j++) {
+            verbose_master(3, "GPU[%d][%d]=%.2f",i,j,(float)gpuf_list[i][j]/1000000.0);
         }
     }
-    gpu_lib_alloc_array(&gfreqs);
-    for (i=0;i<c->num_gpus;i++){
-        if (g_freq) gfreqs[i] = g_freq;
-        else 				gfreqs[i] = gpuf_list[i][0];
+
+    mgt_gpu_data_alloc(&gfreqs);
+    for (i = 0;i < c->num_gpus; i++) {
+        if (g_freq) {
+            gfreqs[i] = g_freq;
+        } else {
+            gfreqs[i] = gpuf_list[i][0];
+        }
         verbose_master(2,"Setting GPUgreq[%d] = %.2f",i,(float)gfreqs[i]/1000000.0);
     }
-    gpu_lib_freq_limit_set(gfreqs);
+
+    mgt_gpu_freq_limit_set(no_ctx, gfreqs);
 
     return EAR_SUCCESS;
 }
@@ -134,4 +148,20 @@ state_t policy_restore_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *fr
 #endif
     return EAR_SUCCESS;
 }
+
+state_t policy_cpu_gpu_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *freqs)
+{
+  return policy_apply(c, my_sig, freqs, (int *)&gpu_ready);
+}
+
+state_t policy_io_settings(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs)
+{
+  return policy_apply(c, my_sig, freqs, (int *)&gpu_ready);
+}
+
+state_t policy_busy_wait_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *freqs)
+{
+  return policy_apply(c, my_sig, freqs, (int *)&gpu_ready);
+}
+
 

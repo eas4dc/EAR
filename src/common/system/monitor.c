@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -60,7 +60,7 @@ static void monitor_sleep(int wait_units, int *pass_units, int *alignment)
 
 	//
 	units = ((ullong) wait_units) * 100LL;
-	timestamp_revert(&time, &units, TIME_MSECS);
+	timestamp_revert(&time, units, TIME_MSECS);
 
 	// Sleeping
 	timestamp_t t2;

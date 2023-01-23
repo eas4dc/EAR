@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef EAR_PRIVATE_SPANK_INTERPOSER_H
@@ -21,6 +21,7 @@
 #ifndef ERUN
 #include <slurm/slurm.h>
 #include <slurm/spank.h>
+#include <common/config/config_sched.h>
 #else
 #endif
 
@@ -28,10 +29,10 @@
  * Defines
  */
 
-#define ESPANK_STOP     -1
+#define ESPANK_STOP -1
 
 #ifdef ERUN
-#define NO_VAL (0xfffffffe)
+#define BATCH_STEP -2
 #endif
 
 #ifndef ERUN

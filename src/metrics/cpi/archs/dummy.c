@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -61,6 +61,7 @@ state_t cpi_dummy_data_diff(cpi_t *ci2, cpi_t *ci1, cpi_t *ciD, double *cpi)
 	ciD->cycles = overflow_magic_u64(ci2->cycles, ci1->cycles, MAXBITS64);
 	ciD->stalls = overflow_magic_u64(ci2->stalls, ci1->stalls, MAXBITS64);
 	// Computing cycles per instructions
+    ciD->instructions = ear_max(ciD->instructions, 1);
 	if (ciD->cycles > 0) {
 		*cpi = ((double) ciD->cycles) / ((double) ciD->instructions);
 	}

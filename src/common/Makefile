@@ -1,9 +1,7 @@
 include ./Makefile.files
 
-CFLAGS = -fPIC -I$(SRCDIR) $(CONSTANTS) -O2
-ifeq ($(FEAT_RESEARCH), 1)
-	CFLAGS += -DNEW_LB_EFF=1
-endif
+# If USER_TEST is set to 1, any user can execute the hacks with the library
+CFLAGS = -O2 -fPIC -I$(SRCDIR) $(CONSTANTS) -DUSER_TEST=0
 
 ######## FILES
 

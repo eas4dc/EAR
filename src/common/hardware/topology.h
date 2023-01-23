@@ -10,14 +10,15 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef COMMON_HARDWARE_TOPOLOGY_H_
 #define COMMON_HARDWARE_TOPOLOGY_H_
 
+#include <common/states.h>
 #include <common/types/generic.h>
 
 // https://en.wikichip.org/wiki/intel/cpuid
@@ -36,11 +37,13 @@
 #define FAMILY_JAGUAR				22
 #define FAMILY_ZEN					0x17 // Also 23
 #define FAMILY_ZEN3					25
+//
+#define MODEL_A8                    0x01
+#define MODEL_A9                    0x02
 // Supported vendors
 #define VENDOR_INTEL				0
 #define VENDOR_AMD					1
-
-#include <common/states.h>
+#define VENDOR_ARM                  2
 
 struct tp_select_s
 {
@@ -66,8 +69,7 @@ struct tp_group_s
 	.merge = 2,
 };
 
-typedef struct core_s
-{
+typedef struct core_s {
 	int id;
 	int apicid;
 	int is_thread;      // If is the second thread in a core.
@@ -76,24 +78,26 @@ typedef struct core_s
 	int socket_id;
 } core_t;
 
-typedef struct topology_s
-{
-	core_t *cpus;       // Take a look to core_t structure.
-	int cpu_count;      // Total CPUs including threads.
-	int core_count;     // Total cores (not counting threads).
-	int socket_count;   //
-	int threads_per_core; // Number or threads per core (not the whole system).
-	int smt_enabled;    // Multithreading enabled = 1, disabled = 0.
-	int l3_count;       // Chunks of L3 in the system.
-	int cache_line_size; //
-	int vendor;         // Take a look to top defines.
-	int family;         // Take a look to top defines.
-	int model;          // Take a look to top defines.
-	int gpr_count;		// Number of general purpose registers.
-	int gpr_bits;		// General purpose registers bit width.
-	int nmi_watchdog;	// NMI watdog enabled.
-    int apicids_found;  // List of CPUs ApicId's found.
-    int initialized;    // 1 if the topology is initialized
+typedef struct topology_s {
+	core_t *cpus;         // Take a look to core_t structure.
+	int   cpu_count;      // Total CPUs including threads.
+	int   core_count;     // Total cores (not counting threads).
+	int   socket_count;   //
+	int   threads_per_core; // Number or threads per core (not the whole system).
+	int   smt_enabled;    // Multithreading enabled = 1, disabled = 0.
+	int   l3_count;       // Chunks of L3 in the system.
+	int   cache_line_size;
+	int   vendor;         // Take a look to top defines.
+	int   family;         // Take a look to top defines.
+	int   model;          // Take a look to top defines.
+    char  brand[48];
+	int   gpr_count;      // Number of general purpose registers.
+	int   gpr_bits;       // General purpose registers bit width.
+	int   nmi_watchdog;	  // NMI watdog enabled.
+    int   apicids_found;  // List of CPUs ApicId's found.
+    int   initialized;    // 1 if the topology is initialized
+    ulong base_freq;      // Nominal CPU clock, in KHz
+    int   tdp;
 } topology_t;
 
 state_t topology_select(topology_t *t, topology_t *s, int component, int group, int val);
@@ -107,7 +111,7 @@ state_t topology_close(topology_t *topo);
 state_t topology_print(topology_t *topo, int fd);
 
 state_t topology_tostr(topology_t *topo, char *buffer, size_t n);
-
+// This function won't be public, use topo.base_freq value instead.
 state_t topology_freq_getbase(uint cpu, ulong *freq_base);
 
 #endif

@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -31,10 +31,9 @@
 #include <sys/time.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
-#include <sys/select.h>
-
 #include <common/config.h>
 #include <common/states.h> //clean
+#include <common/system/poll.h>
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
 #include <metrics/energy/node/energy_nm.h>
@@ -42,7 +41,6 @@
 
 #include <metrics/gpu/gpu.h>
 
-static ctx_t   gpu_context;
 static uint    gpu_sel_model;
 static uint    gpu_num;
 
@@ -93,7 +91,7 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	static struct ipmi_rs rsp;
 	uint8_t *data = NULL;
 	static int curr_seq = 0;
-	fd_set rset;
+	afd_set_t rset;
 
 	if (intf == NULL || req == NULL)
 		return NULL;
@@ -129,16 +127,16 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 		return NULL;
 	};
 
-	FD_ZERO(&rset);
-	FD_SET(intf->fd, &rset);
+	AFD_ZERO(&rset);
+	AFD_SET(intf->fd, &rset);
 
-	if (select(intf->fd + 1, &rset, NULL, NULL, NULL) < 0) {
+	if (aselectv(&rset, NULL) < 0) {
 		debug("I/O Error\n");
 		if (data != NULL)
 			free(data);
 		return NULL;
 	};
-	if (FD_ISSET(intf->fd, &rset) == 0) {
+	if (AFD_ISSET(intf->fd, &rset) == 0) {
 		debug("No data available\n");
 		if (data != NULL)
 			free(data);
@@ -391,24 +389,24 @@ state_t energy_init(void **c)
 
 	verbose(VGPU,"GPU part");
 
-  state_t s;
+    state_t s;
+    // Loading GPU
+    gpu_load(EARD);
+    // Getting the loaded internal API
+    gpu_get_api(&gpu_sel_model); 
 
-  if (xtate_fail(s, gpu_load(empty, none, &gpu_sel_model))) {
-    verbose(VGPU, "gpu_load returned %d (%s)", s, state_msg);
-    gpu_sel_model = MODEL_DUMMY;
-  }
-  if (xtate_fail(s, gpu_init(&gpu_context))) {
-    verbose(VGPU, "gpu_init returned %d (%s)", s, state_msg);
-    gpu_sel_model = MODEL_DUMMY;
-  }
-  if (gpu_sel_model == MODEL_DUMMY) {
-    gpu_num = 0;
-  }else{
-	  if (xtate_fail(s, gpu_count(&gpu_context, &gpu_num))) {
-	    verbose(VGPU, "gpu_count returned %d (%s)", s, state_msg);
-	  }
+    if (state_fail(s = gpu_init(no_ctx))) {
+        verbose(VGPU, "gpu_init returned %d (%s)", s, state_msg);
+        gpu_sel_model = API_DUMMY;
+    }
+    if (gpu_sel_model == API_DUMMY) {
+        gpu_num = 0;
+    }else{
+        if (state_fail(s = gpu_count_devices(no_ctx, &gpu_num))) {
+            verbose(VGPU, "gpu_count returned %d (%s)", s, state_msg);
+        }
 	}
-	verbose(VGPU, "GPU model %d DUMMY %d GPUS detected %d", gpu_sel_model, gpu_sel_model == MODEL_DUMMY, gpu_num);
+	verbose(VGPU, "GPU model %d DUMMY %d GPUS detected %d", gpu_sel_model, gpu_sel_model == API_DUMMY, gpu_num);
 	return EAR_SUCCESS;
 }
 
@@ -452,7 +450,7 @@ state_t energy_dc_read(void *c, edata_t energy_mj) {
 	penergy_mj->gpu_num   = (uint)gpu_num;
 	if (gpu_num){
 		state_t s;
-		if (xtate_fail(s, gpu_read(&gpu_context, penergy_mj->gpus_energy))) {
+		if (state_fail(s = gpu_read(no_ctx, penergy_mj->gpus_energy))) {
     	verbose(VGPU,"gpu_read returned %d (%s)", s, state_msg);
   	}
 		verbose(VGPU, "GPU read done");
@@ -488,12 +486,12 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms) {
 	penergy_mj->dc_energy = (unsigned long) be64toh(*energyp);
 	penergy_mj->gpu_num   = (uint)gpu_num;
 	if (gpu_num){
-    state_t s;
-    if (xtate_fail(s, gpu_read(&gpu_context, penergy_mj->gpus_energy))) {
-      verbose(VGPU, "gpu_read returned %d (%s)", s, state_msg);
-    }
+        state_t s;
+        if (state_fail(s = gpu_read(no_ctx, penergy_mj->gpus_energy))) {
+            verbose(VGPU, "gpu_read returned %d (%s)", s, state_msg);
+        }
 		verbose(VGPU, "GPU read done");
-  }
+    }
 
 	gettimeofday(&t, NULL);
 	*time_ms = t.tv_sec * 1000 + t.tv_usec / 1000;
@@ -531,7 +529,7 @@ state_t energy_accumulated(unsigned long *e, edata_t init, edata_t end) {
 	verbose(0, "Enode init %lu Enode end %lu Ediff %lu", pinit->dc_energy,pend->dc_energy, total);
 	if (pinit->gpu_num) {
 			verbose(VGPU, "Computing energy per GPU");
-		  gpu_data_diff_gpus(pend->gpus_energy, pinit->gpus_energy, gpu_diff,pinit->gpu_num);
+            gpu_data_diff(pend->gpus_energy, pinit->gpus_energy, gpu_diff);
 			for (uint i = 0; i < pinit->gpu_num; i++){ 
 				verbose(0, "GPU[%d]=%lu acum %lu", i, (unsigned long)gpu_diff[i].energy_j, total_gpu);
 				total_gpu += (unsigned long)gpu_diff[i].energy_j;

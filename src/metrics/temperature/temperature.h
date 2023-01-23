@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef METRICS_TEMPERATURE_H
@@ -42,23 +42,24 @@
 
 state_t temp_load(topology_t *tp);
 
+void temp_get_api(uint *api);
+
 state_t temp_init(ctx_t *c);
 
 state_t temp_dispose(ctx_t *c);
-
-/** It returns the number of sockets. */
-state_t temp_count_devices(ctx_t *c, uint *count);
-
-// Data
-state_t temp_data_alloc(ctx_t *c, llong **temp_list, uint *temp_count);
-
-/* Copies temp1 in temp2. */
-state_t temp_data_copy(ctx_t *c, llong *temp_list2, llong *temp_list1);
-
-state_t temp_data_free(ctx_t *c, llong **temp_list);
-
-// Getter
-/** Requires a llong array of a length of total node sockets. */
+/** It returns the number of devices (normally sockets). */
+state_t temp_count_devices(ctx_t *c, uint *devs_count);
+/** Reads the last temperature value and the average per device. */
 state_t temp_read(ctx_t *c, llong *temp_list, llong *average);
+// Data
+state_t temp_data_alloc(llong **temp_list);
+
+state_t temp_data_copy(llong *temp_list2, llong *temp_list1);
+
+state_t temp_data_free(llong **temp_list);
+
+void temp_data_print(llong *list, llong avrg, int fd);
+
+void temp_data_tostr(llong *list, llong avrg, char *buffer, int length);
 
 #endif

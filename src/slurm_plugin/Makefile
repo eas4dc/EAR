@@ -1,4 +1,4 @@
-CFLAGS  = -fPIC -O2 $(SLURM_CFLAGS) -I$(SRCDIR)
+CFLAGS  = -fPIC $(SLURM_CFLAGS) -I$(SRCDIR) $(CONSTANTS)
 LDFLAGS = -lm
 
 ######## INSTALLATION
@@ -18,7 +18,8 @@ plug_PERM = 0775
 erun_SRCS = \
         erun.c \
         erun_sim.c \
-        erun_lock.c
+        erun_lock.c \
+        erun_signals.c
 
 plug_OBJS = \
         $(SRCDIR)/daemon/remote_api/eard_rapi.o \

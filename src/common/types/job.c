@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <time.h>
@@ -44,9 +44,9 @@ void end_job(job_t *job)
 
 void start_mpi(job_t *job)
 {
-		time_t j_time;
+    time_t j_time;
     j_time=time(NULL);
-		job->start_mpi_time=j_time;
+    job->start_mpi_time=j_time;
 }
 
 void end_mpi(job_t *job)

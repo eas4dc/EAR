@@ -10,9 +10,9 @@
  * BSC Contact   mailto:ear-support@bsc.es
  * Lenovo contact  mailto:hpchelp@lenovo.com
  *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
+ * EAR is an open source software, and it is licensed under both the BSD-3 license
+ * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+ * and COPYING.EPL files.
  */
 
 /**
@@ -226,7 +226,8 @@ typedef struct power_check {
 #define EARGM_STATUS    803
 #define EARGM_INC_PC    804
 #define EARGM_RED_PC    805
-#define EARGM_RESET_PC  806
+#define EARGM_SET_PC    806
+#define EARGM_RESET_PC  807
 
 
 /******************* IMPORTANT ***********************/

@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef EAR_ERROR_H
@@ -40,7 +40,7 @@ int error_enabled	__attribute__((weak)) = 1;
 	{ \
 		if (!log_bypass) { \
 			timestamp(error_channel); \
-			dprintf(error_channel, COL_RED "Error:" COL_CLR ", " __VA_ARGS__); \
+			dprintf(error_channel, COL_RED "Error:" COL_CLR " " __VA_ARGS__); \
 			dprintf(error_channel, "\n"); \
 		} else { \
 			vlog(__VA_ARGS__); \

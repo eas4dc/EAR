@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #define _GNU_SOURCE
@@ -28,6 +28,7 @@
 //#define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/states.h>
+#include <common/system/poll.h>
 #include <common/output/verbose.h>
 #include <common/types/generic.h>
 #include <common/types/configuration/cluster_conf.h>
@@ -57,8 +58,7 @@ typedef struct connect{
 }connect_t;
 static int connections=0;
 static connect_t apps_eard[MAX_FDS];
-static fd_set rfds_basic;
-static int numfds_req;
+static afd_set_t rfds_basic;
 
 extern cluster_conf_t my_cluster_conf;
 extern my_node_conf_t my_node_conf;
@@ -158,11 +158,10 @@ void accept_new_connection(char *root,int pid)
 
 	if ((apps_eard[i].recv>=0) && (apps_eard[i].send>=0)){
 		debug("Connection established pos %d  fds=%d-%d\n",i,apps_eard[i].recv,apps_eard[i].send);
-		FD_SET(apps_eard[i].recv,&rfds_basic);
-		if (apps_eard[i].recv>=numfds_req) numfds_req=apps_eard[i].recv+1;
+		AFD_SET(apps_eard[i].recv,&rfds_basic);
 		apps_eard[i].pid=pid;
 		connections++;
-		debug("connections %d numfds_req %d",connections,numfds_req);
+		debug("connections %d fds %d", connections, rfds_basic.fds_count);
 	}else{
 		debug("Not connected %d-%d",apps_eard[i].recv,apps_eard[i].send);
 		close(apps_eard[i].recv);
@@ -200,7 +199,7 @@ void remove_connection(char *root,int i)
 	close(fd_in);
 	apps_eard[i].recv=-1;
 	apps_eard[i].pid=-1;
-	FD_CLR(fd_in,&rfds_basic);
+	AFD_CLR(fd_in,&rfds_basic);
     /* We reconfigure the arguments */
     for (i=0;i<MAX_FDS;i++){
         if (apps_eard[i].recv>=0){
@@ -209,7 +208,6 @@ void remove_connection(char *root,int i)
         }
     }
     connections=new_con;
-    numfds_req=max+1;
 	unlink(app_to_eard);
 	unlink(eard_to_app);
 }
@@ -227,7 +225,7 @@ static void close_connection(int fd_in,int fd_out)
 			apps_eard[i].recv=-1;
 			apps_eard[i].send=-1;
 			apps_eard[i].pid=-1;
-			FD_CLR(fd_in,&rfds_basic);
+			AFD_CLR(fd_in,&rfds_basic);
 		}
 	}
 	/* We reconfigure the arguments */
@@ -239,8 +237,7 @@ static void close_connection(int fd_in,int fd_out)
 		}
 	}
 	connections=new_con+1;
-	numfds_req=max+1;
-	debug("connections %d numfds_req %d\n",connections,numfds_req);
+	debug("connections %d fds %d\n", connections, rfds_basic.fds_count);
 	
 }
 
@@ -396,12 +393,12 @@ static void ear_set_gpufreq(int fd_out,uint gpuid,ulong gpu_freq)
 		data.ret = ret;
 		send_app_answer(fd_out,&data);
 	}
-	mgt_gpu_count(&c,&gnum);
+	mgt_gpu_count_devices(no_ctx, &gnum);
 	if (gpuid >= gnum){
 		data.ret =EAR_ERROR;
 		send_app_answer(fd_out,&data);
 	}
-	if ((ret = mgt_gpu_alloc_array(&c, &array, NULL)) != EAR_SUCCESS){
+	if ((ret = mgt_gpu_data_alloc(&array)) != EAR_SUCCESS){
     data.ret = ret;
     send_app_answer(fd_out,&data);
   }
@@ -510,62 +507,56 @@ void app_api_process_request(int fd_in)
 
 void *eard_non_earl_api_service(void *noinfo)
 {
-	fd_set rfds;
-	int numfds_ready;
-	int max_fd,i;
+    int numfds_ready;
+    int i;
 
-	app_api_set_sigterm();
+    app_api_set_sigterm();
 
-	if (pthread_setname_np(pthread_self(),TH_NAME)) {
-		error("Setting name for %s thread %s",TH_NAME,strerror(errno));
-	}
+    if (pthread_setname_np(pthread_self(),TH_NAME)) {
+        error("Setting name for %s thread %s", TH_NAME, strerror(errno));
+    }
 
-	/* Create connections */
-	if (create_app_connection(my_cluster_conf.install.dir_temp)!= EAR_SUCCESS){
-		error("Error creating files for non-EARL requests\n");
-		pthread_exit(0);
-	}
+    /* Create connections */
+    if (create_app_connection(my_cluster_conf.install.dir_temp) != EAR_SUCCESS) {
+        error("Error creating files for non-EARL requests\n");
+        pthread_exit(0);
+    }
 
-	if (energy_init(&my_cluster_conf, &my_eh_app_api) != EAR_SUCCESS){
-		error("Error initializing energy_init in No-EARL_API thread");
-		pthread_exit(0);
-	}
+    if (energy_init(&my_cluster_conf, &my_eh_app_api) != EAR_SUCCESS) {
+        error("Error initializing energy_init in No-EARL_API thread");
+        pthread_exit(0);
+    }
 
-	energy_datasize(&my_eh_app_api,&node_energy_datasize);
-	if (node_energy_datasize!=sizeof(unsigned long)){
-		error("Application api for energy readings not yet supported,exiting thread for app api");
-  	energy_dispose(&my_eh_app_api);
-  	pthread_exit(0);
-	}
+    energy_datasize(&my_eh_app_api, &node_energy_datasize);
+    if (node_energy_datasize != sizeof(unsigned long)) {
+        error("Application api for energy readings not yet supported,exiting thread for app api");
+        energy_dispose(&my_eh_app_api);
+        pthread_exit(0);
+    }
 
-	FD_ZERO(&rfds);
-	FD_SET(fd_app_to_eard, &rfds);
-	/* fd_eard_to_app is created the last */
-    max_fd=fd_app_to_eard;
-    numfds_req=max_fd+1;
-	rfds_basic=rfds;
+    AFD_ZERO(&rfds_basic);
+    AFD_SET(fd_app_to_eard, &rfds_basic);
+    /* fd_eard_to_app is created the last */
 
-	/* Wait for messages */
-	verbose(VAPP_API,"Waiting for non-earl requestst\n");
-	while ((eard_must_exit==0) && (numfds_ready=select(numfds_req,&rfds,NULL,NULL,NULL))>=0){
-		verbose(VAPP_API,"New APP_API connections");
-		if (numfds_ready>0){
-			for (i=0;i<numfds_req;i++){
-				if (FD_ISSET(i,&rfds)){
-					if (i==fd_app_to_eard){
-						app_api_process_connection(my_cluster_conf.install.dir_temp);
-					}else{
-						app_api_process_request(i);	
-					}
-				}
-			}	
-		}
-		rfds=rfds_basic;	
-	}
-	/* Close and remove files , never reached if thread is killed */
-	energy_dispose(&my_eh_app_api);
-	dispose_app_connection();
-	pthread_exit(0);
+    /* Wait for messages */
+    verbose(VAPP_API,"Waiting for non-earl requestst\n");
+
+    while ((eard_must_exit==0) && (numfds_ready=aselectv(&rfds_basic, NULL))>=0){
+        verbose(VAPP_API,"New APP_API connections");
+        for (i = rfds_basic.fd_min; numfds_ready > 0 && i <= rfds_basic.fd_max; i++){
+            if (AFD_ISSET(i, &rfds_basic)){
+                if (i==fd_app_to_eard){
+                    app_api_process_connection(my_cluster_conf.install.dir_temp);
+                }else{
+                    app_api_process_request(i);
+                }
+            }
+        }
+    }
+    /* Close and remove files , never reached if thread is killed */
+    energy_dispose(&my_eh_app_api);
+    dispose_app_connection();
+    pthread_exit(0);
 }
 
 

@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _EAR_GLOBAL_H
@@ -27,8 +27,6 @@
 #include <library/common/library_shared_data.h>
 #include <daemon/shared_configuration.h>
 
-extern loop_t loop;
-extern application_t loop_signature;
 extern application_t application;
 extern settings_conf_t *system_conf;
 extern resched_t *resched_conf;
@@ -64,7 +62,6 @@ extern ulong last_loop_size;
 extern ulong last_loop_level;
 extern uint dynais_enabled;
 extern uint check_periodic_mode;
-extern uint EAR_STATE;
 
 // Shared regions for processes in same node
 extern lib_shared_data_t *lib_shared_region;

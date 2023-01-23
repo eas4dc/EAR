@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef MANAGEMENT_GPU_NVML
@@ -20,40 +20,38 @@
 
 #include <management/gpu/gpu.h>
 
-state_t mgt_nvml_status();
+void mgt_gpu_nvml_load(mgt_gpu_ops_t *ops);
 
-state_t mgt_nvml_init(ctx_t *c);
+void mgt_gpu_nvml_get_api(uint *api);
 
-state_t mgt_nvml_init_unprivileged(ctx_t *c);
+state_t mgt_gpu_nvml_init(ctx_t *c);
 
-state_t mgt_nvml_dispose(ctx_t *c);
+state_t mgt_gpu_nvml_dispose(ctx_t *c);
 
-state_t mgt_nvml_count(ctx_t *c, uint *dev_count);
+state_t mgt_gpu_nvml_get_devices(ctx_t *c, gpu_devs_t **devs, uint *devs_count);
 
-state_t nvml_freq_limit_get_current(ctx_t *c, ulong *khz);
+state_t mgt_gpu_nvml_count_devices(ctx_t *c, uint *dev_count);
 
-state_t nvml_freq_limit_get_default(ctx_t *c, ulong *khz);
+state_t mgt_gpu_nvml_freq_limit_get_current(ctx_t *c, ulong *khz);
 
-state_t nvml_freq_limit_get_max(ctx_t *c, ulong *khz);
+state_t mgt_gpu_nvml_freq_limit_get_default(ctx_t *c, ulong *khz);
 
-state_t nvml_freq_limit_reset(ctx_t *c);
+state_t mgt_gpu_nvml_freq_limit_get_max(ctx_t *c, ulong *khz);
 
-state_t nvml_freq_limit_set(ctx_t *c, ulong *khz);
+state_t mgt_gpu_nvml_freq_limit_reset(ctx_t *c);
 
-state_t nvml_freq_get_valid(ctx_t *c, uint dev, ulong freq_ref, ulong *freq_near);
+state_t mgt_gpu_nvml_freq_limit_set(ctx_t *c, ulong *khz);
 
-state_t nvml_freq_get_next(ctx_t *c, uint dev, ulong freq_ref, uint *freq_idx, uint flag);
+state_t mgt_gpu_nvml_freq_list(ctx_t *c, const ulong ***list_khz, const uint **list_len);
 
-state_t nvml_freq_list(ctx_t *c, const ulong ***list_khz, const uint **list_len);
+state_t mgt_gpu_nvml_power_cap_get_current(ctx_t *c, ulong *watts);
 
-state_t nvml_power_cap_get_current(ctx_t *c, ulong *watts);
+state_t mgt_gpu_nvml_power_cap_get_default(ctx_t *c, ulong *watts);
 
-state_t nvml_power_cap_get_default(ctx_t *c, ulong *watts);
+state_t mgt_gpu_nvml_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts_max);
 
-state_t nvml_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts_max);
+state_t mgt_gpu_nvml_power_cap_reset(ctx_t *c);
 
-state_t nvml_power_cap_reset(ctx_t *c);
-
-state_t nvml_power_cap_set(ctx_t *c, ulong *watts);
+state_t mgt_gpu_nvml_power_cap_set(ctx_t *c, ulong *watts);
 
 #endif

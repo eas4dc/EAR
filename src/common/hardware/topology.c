@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdio.h>
@@ -23,8 +23,7 @@
 #include <common/states.h>
 #include <common/system/file.h>
 #include <common/output/debug.h>
-#include <common/hardware/cpuid.h>
-#include <common/hardware/topology.h>
+#include <common/hardware/topology_asm.h>
 
 static topology_t topo_static;
 
@@ -192,12 +191,16 @@ static void topology_watchdog(topology_t *topo)
 	}
 }
 
-static void topology_apicid(topology_t *topo)
+static void topology_cpuinfo(topology_t *topo)
 {
+    char *taux = NULL;
     char *twop = NULL;
     char *line = NULL;
     size_t len = 0;
     int cpu    = 0;
+
+    // If not found 1GHz
+    topo->base_freq = 1000000;
 
     FILE *cpuinfo = fopen("/proc/cpuinfo", "r");
     while(getline(&line, &len, cpuinfo) != -1) {
@@ -210,89 +213,21 @@ static void topology_apicid(topology_t *topo)
                 ++cpu;
             }
         }
+        if (strncmp(line,"model name", 10) == 0){
+            if ((twop = strchr(line, '@')) != NULL) {
+                twop++;
+                while (*twop == ' ') twop++;
+                taux = twop;
+                while (*twop != 'G') twop++;
+                *twop = '\0';
+                // Converted to KHz
+                topo->base_freq = atof(taux)*1000000;
+            }
+        }
     }
     topo->apicids_found = (cpu == topo->cpu_count);
     fclose(cpuinfo);
     free(line);
-}
-
-static void topology_cpuid(topology_t *topo)
-{
-	cpuid_regs_t r;
-	int buffer[4];
-
-	/* Vendor */
-	CPUID(r,0,0);
-	buffer[0] = r.ebx;
-	buffer[1] = r.edx;
-	buffer[2] = r.ecx;
-	topo->vendor = !(buffer[0] == 1970169159); // Intel
-	
-	/* Family */
-	CPUID(r,1,0);
-	buffer[0] = cpuid_getbits(r.eax, 11,  8);
-	buffer[1] = cpuid_getbits(r.eax, 27, 20); // extended
-	buffer[2] = buffer[0]; // auxiliar
-	
-	if (buffer[0] == 0x0F) {
-		topo->family = buffer[1] + buffer[0];
-	} else {
-		topo->family = buffer[0];
-	}
-
-	/* Model */
-	CPUID(r,1,0);
-	buffer[0] = cpuid_getbits(r.eax,  7,  4);
-	buffer[1] = cpuid_getbits(r.eax, 19, 16); // extended
-	
-	if (buffer[2] == 0x0F || (buffer[2] == 0x06 && topo->vendor == VENDOR_INTEL)) {
-		topo->model = (buffer[1] << 4) | buffer[0];
-	} else {
-		topo->model = buffer[0];
-	}
-
-	/* Cache line size */
-	uint max_level = 0;
-	uint cur_level = 0;
-	int index      = 0;
-
-	if (topo->vendor == VENDOR_INTEL)
-	{
-		while (1)
-		{
-			CPUID(r,4,index);
-
-			if (!(r.eax & 0x0F)) break;
-			cur_level = cpuid_getbits(r.eax, 7, 5);
-
-			if (cur_level >= max_level) {
-				topo->cache_line_size = cpuid_getbits(r.ebx, 11, 0) + 1;
-				max_level = cur_level;
-			}
-
-			index = index + 1;
-		}
-	} else {
-		CPUID(r,0x80000005,0);
-		topo->cache_line_size = r.edx & 0xFF;
-	}
-
-	/* General-purpose/fixed registers */
-    CPUID(r, 0x0a, 0);
-
-	if (topo->vendor == VENDOR_INTEL) {
-		//  Intel Vol. 2A
-		// 	bits   7,0: version of architectural performance monitoring
-		// 	bits  15,8: number of GPR counters per logical processor
-		//	bits 23,16: bit width of GPR counters
-		topo->gpr_count = cpuid_getbits(r.eax, 15,  8);
-		topo->gpr_bits  = cpuid_getbits(r.eax, 23, 16);
-	} else {
-		if (topo->family >= FAMILY_ZEN) {
-			topo->gpr_count = 6;
-			topo->gpr_bits  = 48;
-		}
-	}
 }
 
 static int is_online(const char *path)
@@ -315,8 +250,9 @@ state_t topology_init(topology_t *topo)
 	char path[SZ_NAME_LARGE];
 	int i, j;
 
-	if (topo_static.cpu_count != 0) {
+	if (topo_static.initialized) {
 		topology_copy(topo, &topo_static);
+        return EAR_SUCCESS;
 	}
 
 	topo->cpu_count        = 0;
@@ -329,7 +265,8 @@ state_t topology_init(topology_t *topo)
     topo->initialized      = 1;
 
 	/* First characteristics */
-	topology_cpuid(topo);
+	topology_asm_getid(topo);
+	topology_asm_getbrand(topo);
 
 	/* Number of CPUs */
 	do {
@@ -364,8 +301,13 @@ state_t topology_init(topology_t *topo)
 		//}
 	}
 
-    topology_apicid(topo);
+    // TDP definition (to avoid redundancy)
+    void topology_tdp(topology_t *topo);
+
+    topology_cpuinfo(topo);
 	topology_watchdog(topo);
+    topology_tdp(topo);
+
 	topology_copy(&topo_static, topo);
 
 	return EAR_SUCCESS;
@@ -393,9 +335,12 @@ state_t topology_close(topology_t *topo)
     	"l3_count         : %d\n" \
 		"vendor           : %d\n" \
 		"family           : %d\n" \
+        "brand            : %s\n" \
 		"gpr_count        : %d\n" \
 		"gpr_bits         : %d\n" \
 		"nmi_watchdog     : %d\n" \
+		"base_freq        : %lu\n" \
+		"tdp              : %d\n" \
 	, \
 		topo->cpu_count, \
 		topo->socket_count, \
@@ -404,9 +349,12 @@ state_t topology_close(topology_t *topo)
 		topo->l3_count, \
 		topo->vendor, \
 		topo->family, \
+		topo->brand, \
 		topo->gpr_count, \
 		topo->gpr_bits, \
-		topo->nmi_watchdog);
+		topo->nmi_watchdog, \
+		topo->base_freq, \
+		topo->tdp);
 
 state_t topology_print(topology_t *topo, int fd)
 {
@@ -446,9 +394,8 @@ state_t topology_freq_getbase(uint cpu, ulong *freq_base)
 	int fd;
 
 	sprintf(path,"/sys/devices/system/cpu/cpu%d/cpufreq/scaling_available_frequencies", cpu);
-	if ((fd = open(path, O_RDONLY)) < 0)
-	{
-		*freq_base = 1000000LU;
+	if ((fd = open(path, O_RDONLY)) < 0) {
+		*freq_base = topo_static.base_freq;
     	return EAR_ERROR;
 	}
 
@@ -461,9 +408,17 @@ state_t topology_freq_getbase(uint cpu, ulong *freq_base)
 	} else {
 		*freq_base = f0;
 	}
-
 	close(fd);
 
 	return EAR_SUCCESS;
 }
 
+#if TEST
+int main(int argc, char *argv[])
+{
+    topology_t tp;
+    topology_init(&tp);
+    topology_print(&tp, verb_channel);
+    return 0;
+}
+#endif

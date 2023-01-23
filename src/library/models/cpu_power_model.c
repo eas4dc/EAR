@@ -39,9 +39,11 @@
 extern uint node_mgr_index;
 
 typedef struct cpu_power_model_symbols {
-    state_t (*init)       (settings_conf_t *libconf, conf_install_t *conf, architecture_t *arch );
+    state_t (*init)       (settings_conf_t *libconf, conf_install_t *conf,
+            architecture_t *arch );
     state_t (*status)     ();
-    state_t (*project)    (lib_shared_data_t *data,shsignature_t *sig, node_mgr_sh_data_t *nmgr, uint who);
+    state_t (*project)    (lib_shared_data_t *data, shsignature_t *sig,
+        node_mgr_sh_data_t *nmgr, uint who);
 } cpu_power_models_sym_t;
 
 // Static data
@@ -79,7 +81,7 @@ state_t cpu_power_model_load(settings_conf_t *libconf, architecture_t *arch_desc
         model = dummy_model;
     }
 
-    if ((obj_path == NULL && ins_path == NULL) || libconf->user_type != AUTHORIZED) {
+    if (libconf->user_type != AUTHORIZED || (obj_path == NULL && ins_path == NULL)) {
 
         xsnprintf(basic_path, sizeof(basic_path), "%s/models/%s",
                   libconf->installation.dir_plug, model);
@@ -130,7 +132,8 @@ state_t cpu_power_model_init()
     // If coefficients are not available, we will load the dummy cpu power model.
     if (state_ok(cpu_power_model_load(copy_settings, &copy_arch, 1))) {
         if (cpu_power_models_syms_fun.init != NULL) {
-            init_status = cpu_power_models_syms_fun.init(copy_settings, &copy_settings->installation, &copy_arch);
+            init_status = cpu_power_models_syms_fun.init(copy_settings,
+                &copy_settings->installation, &copy_arch);
         }
     } else {
         return EAR_ERROR;
@@ -148,6 +151,8 @@ state_t cpu_power_model_status()
 
 state_t cpu_power_model_project(lib_shared_data_t *data, shsignature_t *sig, node_mgr_sh_data_t *nmgr)
 {
-	if (cpu_power_models_syms_fun.project != NULL) cpu_power_models_syms_fun.project(data, sig, nmgr, node_mgr_index);
-	return EAR_SUCCESS;
+    if (cpu_power_models_syms_fun.project != NULL) {
+        cpu_power_models_syms_fun.project(data, sig, nmgr, node_mgr_index);
+    }
+    return EAR_SUCCESS;
 }

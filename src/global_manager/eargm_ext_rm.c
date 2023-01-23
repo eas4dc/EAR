@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #define _XOPEN_SOURCE 700 //to get rid of the warning
@@ -117,6 +117,10 @@ void process_remote_requests(int clientfd)
             cluster_powercap_reset_pc();
             debug("received eargm powercap reset");
             break;
+		case EARGM_SET_PC:
+			debug("received eargm powercap set");
+			cluster_powercap_set_pc(command.my_req.eargm_data.pc_change);
+			break;
         default:
             error("Invalid remote command");
     }  

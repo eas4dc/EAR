@@ -10,16 +10,19 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
-#ifndef MANAGEMENT_GOVERNOR
-#define MANAGEMENT_GOVERNOR
+#ifndef MANAGEMENT_GOVERNOR_H
+#define MANAGEMENT_GOVERNOR_H
 
+#define _GNU_SOURCE
+#include <sched.h>
 #include <common/types.h>
 #include <common/states.h>
+#include <common/plugins.h>
 
 // Governors
 //
@@ -68,10 +71,16 @@ struct goverstr_s {
 	.other = "other",
 };
 
-state_t mgt_governor_tostr(uint governor, char *buffer);
+// To compile well
+#define mgt_governor_tostr(g, b)       governor_tostr(g, b)
+#define mgt_governor_toint(b, g)       governor_toint(b, g)
+#define mgt_governor_is(b, g)          governor_is(b, g)
 
-state_t mgt_governor_toint(char *buffer, uint *governor);
+/* Returns a governor name given a governor id. */
+char *governor_tostr(uint governor, char *buffer);
+/* Returns a governor id given a governor name. */
+state_t governor_toint(char *buffer, uint *governor);
+/* Given a governor name and id, returns true if it is the same. */
+int governor_is(char *buffer, uint governor);
 
-int mgt_governor_is(char *buffer, uint governor);
-
-#endif //MANAGEMENT_GOVERNOR
+#endif //MANAGEMENT_GOVERNOR_H

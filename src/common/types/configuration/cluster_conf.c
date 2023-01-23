@@ -10,9 +10,9 @@
  * BSC Contact   mailto:ear-support@bsc.es
  * Lenovo contact  mailto:hpchelp@lenovo.com
  *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
+ * EAR is an open source software, and it is licensed under both the BSD-3 license
+ * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+ * and COPYING.EPL files.
  */
 
 //#define SHOW_DEBUGS 1
@@ -176,9 +176,9 @@ int get_ip_ranges(cluster_conf_t *my_conf, int **num_ips, int ***ips)
             int total_ips = range.end-range.start + 1;
             int it = 0;
             sec_aux_ips = calloc(total_ips, sizeof(int));
-            for (k = range.start; k <= range.end ; k++)
+            for (k = range.start; k <= range.end; k++)
             {
-                if (k < 10 && range.end > 10)
+                if (is_smaller_unit(k, range.end))
                     sprintf(aux_name, "%s0%u", range.prefix, k);
                 else
                     sprintf(aux_name, "%s%u", range.prefix, k);
@@ -378,6 +378,7 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
         n->gpu_def_freq   = my_conf->tags[tag_id].gpu_def_freq;
         n->cpu_max_pstate = my_conf->tags[tag_id].cpu_max_pstate;
         n->imc_max_pstate = my_conf->tags[tag_id].imc_max_pstate;
+        n->idle_pstate    = my_conf->tags[tag_id].idle_pstate;
         n->imc_max_freq   = my_conf->tags[tag_id].imc_max_freq;
         n->imc_min_freq   = my_conf->tags[tag_id].imc_min_freq;
 
@@ -389,6 +390,7 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
         if (my_conf->tags[tag_id].energy_model != NULL && strlen(my_conf->tags[tag_id].energy_model) > 0)
             n->energy_model = my_conf->tags[tag_id].energy_model;
 
+        n->idle_governor = my_conf->tags[tag_id].idle_governor;
         n->powercap_plugin = my_conf->tags[tag_id].powercap_plugin;
         n->powercap_gpu_plugin = my_conf->tags[tag_id].powercap_gpu_plugin;
 
@@ -411,6 +413,10 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
                 {
                     if (!strcmp(my_conf->power_policies[i].name, n->policies[j].name)) //two policies are the same if they are have the same name, so we replace them
                     {
+						if (i == my_conf->default_policy) {
+							printf("Found default policy and changing it!");
+							my_conf->default_policy = j; //if the default policy is the one we are replacing, change the pointer
+						}
                         memcpy(&n->policies[j], &my_conf->power_policies[i], sizeof(policy_conf_t));
                         found = 1;
                         break;
@@ -624,6 +630,7 @@ void set_default_tag_values(tag_t *tag)
     tag->powercap_type  = POWERCAP_TYPE_NODE;
 
     tag->max_power      = MAX_SIG_POWER;
+    tag->max_powercap   = DEF_POWER_CAP; //1 -> unlimited and not clipping new values
     tag->error_power    = MAX_ERROR_POWER;
     tag->powercap       = POWER_CAP_UNLIMITED;
     tag->min_power      = MIN_SIG_POWER;
@@ -631,6 +638,7 @@ void set_default_tag_values(tag_t *tag)
     tag->gpu_def_freq   = 0;
     tag->cpu_max_pstate = MAX_CPUF_PSTATE; /* Used by policies */
     tag->imc_max_pstate = MAX_IMCF_PSTATE; /* Used by policies */
+    tag->idle_pstate    = 1000; 
     tag->imc_max_freq   = MAX_IMCF_FREQ;   /* To create the imcf list */
     tag->imc_min_freq   = MIN_IMCF_FREQ;
 
@@ -639,6 +647,7 @@ void set_default_tag_values(tag_t *tag)
     strcpy(tag->energy_plugin, "");
     strcpy(tag->powercap_plugin, "");
     strcpy(tag->powercap_gpu_plugin, "");
+    strcpy(tag->idle_governor, "default");
 }
 
 
@@ -702,7 +711,7 @@ int get_node_server_mirror(cluster_conf_t *conf, const char *hostname, char *mir
     char *p;
 
     //
-    strncpy(hostalias, hostname, SZ_NAME_MEDIUM);
+    strncpy(hostalias, hostname, SZ_NAME_MEDIUM - 1);
     found_both   = 0;
     found_server = 0;
     found_mirror = 0;
@@ -1164,7 +1173,7 @@ state_t deserialize_cluster_conf(cluster_conf_t *conf, char *ear_conf_buf, size_
 
     /* Priv accounts */
     serial_copy_elem(&ear_conf_serial, (char *)&conf->num_acc, NULL);
-    if (conf->priv_acc){
+    if (conf->num_acc){
         conf->priv_acc = calloc(sizeof(char *), conf->num_acc);
         for (uint auth = 0; auth < conf->num_acc; auth ++){
             uint size_auth;

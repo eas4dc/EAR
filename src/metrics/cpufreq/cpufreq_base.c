@@ -10,18 +10,18 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
 
+#include <common/hardware/cpuid.h>
+#include <common/hardware/bithack.h>
 #include <common/hardware/topology.h>
 #include <metrics/common/msr.h>
 #include <metrics/cpufreq/cpufreq_base.h>
-#include <common/hardware/cpuid.h>
-#include <common/hardware/bithack.h>
 
 #define ZEN_REG_P0     0xc0010064
 #define ZEN_REG_HWCONF 0xc0010015

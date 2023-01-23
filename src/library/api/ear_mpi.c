@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -33,9 +33,17 @@ void after_init()
 	ear_init();
 }
 
+#if MPI_OPTIMIZED
+p2i last_buf, last_dest;
+#endif
+
 void before_mpi(mpi_call call_type, p2i buf, p2i dest)
 {
 	debug("before_mpi");
+#if MPI_OPTIMIZED
+        last_buf  = buf;
+        last_dest = dest;
+#endif
 	policy_mpi_init(call_type);
 	ear_mpi_call(call_type,buf,dest);
 }

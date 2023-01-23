@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef STATES_H
@@ -55,7 +55,7 @@ int state_no    __attribute__((weak));
 	(state1 == state2)
 
 #define serror(str) \
-  error("%s: %s (%d)", str, state_msg, state_no);
+    error("%s: %s (%d)", str, state_msg, state_no);
 
 #define sserror(format, ...) \
 	error(format ": %s (%d)", __VA_ARGS__, state_msg, state_no);
@@ -85,6 +85,8 @@ struct generr_s {
 	char *cpu_invalid;
 	char *no_permissions;
 	char *not_found;
+    char *gpus_not;
+    char *dlopen;
 } Generr __attribute__((weak)) = {
 	.api_undefined = "the API is undefined",
 	.api_incompatible = "current hardware is not supported by the API",
@@ -99,6 +101,8 @@ struct generr_s {
 	.cpu_invalid = "invalid CPU",
 	.no_permissions = "not enough privileges to perform this action.",
 	.not_found = "Not found",
+    .gpus_not = "no GPUs detected",
+    .dlopen = "error during dlopen",
 };
 
 /*

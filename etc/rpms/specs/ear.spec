@@ -10,7 +10,7 @@
 
 %define name    ear
 %define release   4
-%define version   4.1
+%define version   4.2
 
 # Information
 # Prefix  Just for when missing any prefix

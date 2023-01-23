@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _EAR_LOG_H
@@ -23,14 +23,6 @@
 #include <common/types/generic.h>
 #include <common/types/job.h>
 #include <common/types/event_type.h>
-
-#define ENERGY_POLICY_NEW_FREQ	0
-#define GLOBAL_ENERGY_POLICY	1
-#define ENERGY_POLICY_FAILS		2
-#define DYNAIS_OFF				3
-#define ENERGY_SAVING     4
-#define POWER_SAVING      5
-#define PERF_PENALTY      6
 
 
 

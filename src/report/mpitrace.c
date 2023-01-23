@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 // #define SHOW_DEBUGS 1
 
@@ -81,10 +81,10 @@ static state_t append_data(report_id_t *id, shsignature_t *data)
         return EAR_ERROR;
     }
 
-    
+
     if (!report_file_created) {
         char header[] = "JOBID;STEPID;NODENAME;L_RANK;G_RANK;MPI_CALLS;TIME_USECS;TIME_MPI;"
-            "BLOCK;T_BLOCK;SYNC;T_SYNC;COLLEC;T_COLLEC;GFLOPS;CPI;L3_MISS";
+            "BLOCK;T_BLOCK;SYNC;T_SYNC;COLLEC;T_COLLEC;GFLOPS;CPI;L3_MISS;GBS";
         if (fprintf(fd, "%s\n", header) < 0) {
             return EAR_ERROR;
         }
@@ -95,12 +95,12 @@ static state_t append_data(report_id_t *id, shsignature_t *data)
     mpi_calls_types_t *mpi_types = &data->mpi_types_info;
     ssig_t            *sig       = &data->sig;
 
-    fprintf(fd, "%s;%d;%s;%d;%d;%u;%llu;%llu;%lu;%lu;%lu;%lu;%lu;%lu;%f;%f;%llu\n",
+    fprintf(fd, "%s;%d;%s;%d;%d;%u;%llu;%llu;%lu;%lu;%lu;%lu;%lu;%lu;%f;%f;%llu;%f\n",
             jobid, 0, nodename, id->local_rank, id->global_rank,
             mpi_info->total_mpi_calls, mpi_info->exec_time, mpi_info->mpi_time,
             mpi_types->mpi_block_call_cnt, mpi_types->mpi_block_call_time,
             mpi_types->mpi_sync_call_cnt, mpi_types->mpi_sync_call_time, mpi_types->mpi_collec_call_cnt,
-            mpi_types->mpi_collec_call_time, sig->Gflops, sig->CPI, sig->L3_misses);
+            mpi_types->mpi_collec_call_time, sig->Gflops, sig->CPI, sig->L3_misses,sig->GBS);
 
     fclose(fd);
 

@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <errno.h>
@@ -144,8 +144,11 @@ static int set_powercap_value(uint domain, uint limit)
 {
   char c_date[128];
   int i;
+  uint max_powercap;
   verbose(VCONF,"%spowercap_set_powercap_value domain %u limit %u (current pc %u)%s",COL_BLU,domain,limit,my_pc_opt.current_pc, COL_CLR);
-  limit = ear_min(limit, powermon_get_max_powercap_def());
+  max_powercap = powermon_get_max_powercap_def();
+  if (max_powercap > 1)
+  	limit = ear_min(limit, powermon_get_max_powercap_def());
   if (limit == my_pc_opt.current_pc) return EAR_SUCCESS;
   get_date_str(c_date,sizeof(c_date));
   if (fd_powercap_values>=0){

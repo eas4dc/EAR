@@ -1,24 +1,29 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #ifndef _CPU_SUPPORT_H
 #define _CPU_SUPPORT_H
 
 #include <library/metrics/metrics.h>
+
+#define DOM_CPU 0
+#define DOM_MEM 1
+#define DOM_GPU 2
+#define DOM_GPU_MEM 3
 
 #ifdef EARL_RESEARCH
 extern unsigned long ext_def_freq;
@@ -57,7 +62,9 @@ void set_default_settings(node_freqs_t *freqs, node_freqs_t * def);
 
 void verbose_node_freqs(int vl, node_freqs_t *freqs);
 void node_freqs_alloc(node_freqs_t *node_freq);
+void node_freqs_free(node_freqs_t *node_freq);
 void node_freqs_copy(node_freqs_t * dst, node_freqs_t *src);
+uint node_freqs_are_diff(uint flag, node_freqs_t * nf1, node_freqs_t *nf2);
 
 /*  Copy current information to use it in the next iteration as last information. */
 state_t copy_cpufreq_sel(ulong *to, ulong *from, size_t size);

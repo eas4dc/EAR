@@ -1,5 +1,5 @@
 .\" Manpage for eacct.
-.TH man 1 "July 2021" "4.0" "eacct man page"
+.TH man 1 "June 2022" "4.1" "eacct man page"
 .SH NAME
 eacct \- See a report of the last job executions reported by EAR's daemons.
 .SH SYNOPSIS
@@ -72,6 +72,31 @@ To easily transfer eacct's output, -c option saves it in .csv format. Both aggre
 
 [user@host EAR]$ eacct -j 175966.1 -c -l test.csv
  Successfully written applications to csv. Only applications with EARL will have its information properly written.
+
+Eacct shows a pre-selected set of columns. Some flags sligthly modifies the set of columns reported:
+
+- JOB-STEP: JobID and Step ID. sb is shown for the sbatch.
+- USER: Username who executed the job.
+- APP=APPLICATION: Job's name or executable name if job name is not provided.
+- POLICY: Energy optimization policy name (MO = Monitoring).
+- NODES: Number of nodes which ran the job.
+- AVG/DEF/IMC(GHz): Average CPU frequency, default frequency and average uncore frequency.
+    Includes all the nodes for the step. In KHz.
+- TIME(s) : Step execution time, in seconds.
+- POWER Average node power including all the nodes, in Watts.
+- GBS : CPU Main memory bandwidth (GB/second). Hint for CPU/Memory bound classification.
+- CPI : CPU Cycles per Instruction. Hint for CPU/Memory bound classification.
+- ENERGY(J) : Accumulated node energy. Includes all the nodes. In Joules.
+- GFLOPS/WATT : CPU GFlops per Watt. Hint for energy efficiency.
+- IO(MBs) : IO (read and write) Mega Bytes per second.
+- MPI% : Percentage of MPI time over the total execution time. It's the average including all
+    the processes and nodes.
+- GPU metrics
+  - G-POW (T/U)  : Average GPU power. Accumulated per node and average of all the nodes.
+    - T= Total (GPU power consumed even if the process is not using them).
+    - U = GPUs used by the job.
+  - G-FREQ :   Average GPU frequency. Per node and average of all the nodes.
+  - G-UTIL(G/MEM) : GPU utilization and GPU memory utilization.
 
 .SH BUGS
     - Saving the output to a file with the -c option and then reading it with -f may cause some issues if there are empty fields.

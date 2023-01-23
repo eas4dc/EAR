@@ -10,13 +10,15 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
 
+#define _GNU_SOURCE
+#include <sched.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -54,7 +56,7 @@ static state_t read_word(int fd, char *word, int reset_position)
 	char c;
 	if (reset_position) {
 		if(lseek(fd, 0, SEEK_SET) < 0) {
-			return_msg(EAR_ERROR, strerror(errno));
+            return_print(EAR_ERROR, "while trying to read cpufreq file (%s)", strerror(errno));
 		}
 	}
 	// Does not read ' ' nor '\n'
@@ -65,7 +67,8 @@ static state_t read_word(int fd, char *word, int reset_position)
 	word[i] = '\0';
 	debug("read the word '%s'", word);
 	if (i == 0) {
-		return_msg(EAR_ERROR, strerror(errno));
+        return_print(EAR_ERROR, "while reading '%s' in cpufreq file (%s)",
+             word, strerror(errno));
 	}
 	return EAR_SUCCESS;
 }
@@ -78,7 +81,7 @@ static state_t write_word(int fd, char *word, int s, int line_break)
 	if (line_break) {
 		s += 1;
 		word[s-1] = '\n';
-		word[s-0] = '\0';
+		word[s] = '\0';
 	}
 	for (i = 0, r = 1, p = s; i < s && r > 0;) {
 		r = pwrite(fd, (void*) &word[i], p, i);
@@ -86,7 +89,8 @@ static state_t write_word(int fd, char *word, int s, int line_break)
 		p = s - i;
 	}
 	if (r == -1) {
-		return_msg(EAR_ERROR, strerror(errno));
+        return_print(EAR_ERROR, "while writing '%s' in cpufreq file (%s)",
+             word, strerror(errno));
 	}
 	return EAR_SUCCESS;
 }
@@ -95,13 +99,14 @@ static state_t write_word(int fd, char *word, int s, int line_break)
 static state_t write_multi(int *fds, char *word, int line_break)
 {
 	state_t s = EAR_SUCCESS;
-	int len = strlen(word)+1;
+	int len = strlen(word);
 	int cpu;
 	debug("Multiple writing a word '%s'", word);
 	// Adding a line break
 	if (line_break) {
-		word[len-1] = '\n';
-		word[len-0] = '\0';
+		word[len]   = '\n';
+		word[len+1] = '0';
+        len++; 
 	}
 	for (cpu = 0; cpu < tp.cpu_count && state_ok(s); ++cpu) {
 		s = write_word(fds[cpu], word, len, 0);
@@ -163,18 +168,21 @@ state_t mgt_cpufreq_linux_load(topology_t *tp_in, mgt_ps_driver_ops_t *ops)
 		}
 	}
 	// Driver references
-	replace_ops(ops->init,             mgt_cpufreq_linux_init);
-	replace_ops(ops->dispose,          mgt_cpufreq_linux_dispose);
+	replace_ops(ops->init,              mgt_cpufreq_linux_init);
+	replace_ops(ops->dispose,           mgt_cpufreq_linux_dispose);
 	replace_ops(ops->get_available_list, mgt_cpufreq_linux_get_available_list);
-	replace_ops(ops->get_current_list, mgt_cpufreq_linux_get_current_list);
-	replace_ops(ops->get_boost,        mgt_cpufreq_linux_get_boost);
-	replace_ops(ops->get_governor,     mgt_cpufreq_linux_get_governor);
+	replace_ops(ops->get_current_list,  mgt_cpufreq_linux_get_current_list);
+	replace_ops(ops->get_boost,         mgt_cpufreq_linux_get_boost);
+	replace_ops(ops->get_governor,      mgt_cpufreq_linux_governor_get);
+	replace_ops(ops->get_governor_list, mgt_cpufreq_linux_governor_get_list);
 	if (set_frequency) {
-	replace_ops(ops->set_current_list, mgt_cpufreq_linux_set_current_list);
-	replace_ops(ops->set_current,      mgt_cpufreq_linux_set_current);
+	replace_ops(ops->set_current_list,  mgt_cpufreq_linux_set_current_list);
+	replace_ops(ops->set_current,       mgt_cpufreq_linux_set_current);
 	}
 	if (set_governor) {
-	replace_ops(ops->set_governor,     mgt_cpufreq_linux_set_governor);
+	replace_ops(ops->set_governor,      mgt_cpufreq_linux_governor_set);
+	replace_ops(ops->set_governor_mask, mgt_cpufreq_linux_governor_set_mask);
+	replace_ops(ops->set_governor_list, mgt_cpufreq_linux_governor_set_list);
 	}
 
 	return EAR_SUCCESS;
@@ -183,6 +191,8 @@ state_t mgt_cpufreq_linux_load(topology_t *tp_in, mgt_ps_driver_ops_t *ops)
 static state_t static_dispose(ctx_t *c, state_t s, char *msg)
 {
 	int cpu;
+
+    if (f == NULL) return_msg(s, msg);
 	
 	for (cpu = 0; cpu < tp.cpu_count; ++cpu) {
 		if (f->fds_freq != NULL && f->fds_freq[cpu] >= 0) {
@@ -398,18 +408,6 @@ state_t mgt_cpufreq_linux_get_boost(ctx_t *c, uint *boost_enabled)
 	return EAR_SUCCESS;
 }
 
-state_t mgt_cpufreq_linux_get_governor(ctx_t *c, uint *governor)
-{
-	char data[SZ_NAME_SHORT];
-	state_t s = EAR_SUCCESS;
-	debug("cpufreq_linux_get_governor");
-	if (xtate_fail(s, read_word(f->fds_govr[0], data, 1))) {
-		*governor = Governor.other;
-	} else if (xtate_fail(s, mgt_governor_toint(data, governor))) {
-	}
-	return s;
-}
-
 /** Setters */
 state_t mgt_cpufreq_linux_set_current_list(ctx_t *c, uint *freqs_index)
 {
@@ -427,9 +425,9 @@ state_t mgt_cpufreq_linux_set_current_list(ctx_t *c, uint *freqs_index)
 		if (freqs_index[cpu] > f->freqs_count) {
 			freqs_index[cpu] = f->freqs_count-1;
 		}
+
 		sprintf(data, "%llu", f->freqs_avail[freqs_index[cpu]]);
 		s1 = write_word(f->fds_freq[cpu], data, strlen(data), 1);
-		//debug("writing a word '%s' returned %d", data, s1);
 		if (state_fail(s1)) {
 			s2 = s1;
 		}
@@ -462,7 +460,36 @@ state_t mgt_cpufreq_linux_set_current(ctx_t *c, uint freq_index, int cpu)
 	return_msg(EAR_ERROR, Generr.cpu_invalid);
 }
 
-state_t mgt_cpufreq_linux_set_governor(ctx_t *c, uint governor)
+state_t mgt_cpufreq_linux_governor_get(ctx_t *c, uint *governor)
+{
+	char data[SZ_NAME_SHORT];
+	state_t s = EAR_SUCCESS;
+	debug("cpufreq_linux_get_governor");
+	if (state_fail(s = read_word(f->fds_govr[0], data, 1))) {
+		*governor = Governor.other;
+	} else if (state_fail(s = mgt_governor_toint(data, governor))) {
+	}
+	return s;
+}
+
+state_t mgt_cpufreq_linux_governor_get_list(ctx_t *c, uint *governors)
+{
+	char data[SZ_NAME_SHORT];
+	state_t s = EAR_SUCCESS;
+    int cpu;
+
+	debug("cpufreq_linux_get_governor_list");
+    for (cpu = 0; cpu < tp.cpu_count; ++cpu) {
+        governors[cpu] = Governor.other;     
+    	if (state_ok(s = read_word(f->fds_govr[cpu], data, 1))) {
+            mgt_governor_toint(data, &governors[cpu]);
+	    }
+    }
+	return s;
+}
+
+/* You can recover the governor (and its frequency) by setting Governor.last and Governor.init. */
+state_t mgt_cpufreq_linux_governor_set(ctx_t *c, uint governor)
 {
 	char govr_aux[SZ_NAME_SHORT];
 	char freq_aux[SZ_NAME_SHORT];
@@ -470,7 +497,7 @@ state_t mgt_cpufreq_linux_set_governor(ctx_t *c, uint governor)
 	uint current;
 	state_t s;
 
-	if (state_fail(s = mgt_cpufreq_linux_get_governor(c, &current))) {
+	if (state_fail(s = mgt_cpufreq_linux_governor_get(c, &current))) {
 		return s;
 	}
 	if (governor == current) {
@@ -492,15 +519,13 @@ state_t mgt_cpufreq_linux_set_governor(ctx_t *c, uint governor)
 	} else if (governor == Governor.last) {
 		set_freq = mgt_governor_is(f->govr_last, Governor.userspace);
 	} else {
-		if (state_fail(s = mgt_governor_tostr(governor, govr_aux))) {
-			return s;
-		}
+		mgt_governor_tostr(governor, govr_aux);
 	}
 	//
 	debug("setting governor '%s'", govr_aux);
 	debug("last governor is '%s'", f->govr_last);
 	debug("last frequency is '%s'", f->freq_last);
-	if (xtate_fail(s, write_multi(f->fds_govr, govr_aux, 1))) {
+	if (state_fail(s = write_multi(f->fds_govr, govr_aux, 1))) {
 		return s;
 	}
 	if (!set_freq) {
@@ -508,3 +533,28 @@ state_t mgt_cpufreq_linux_set_governor(ctx_t *c, uint governor)
 	}
 	return write_multi(f->fds_freq, freq_aux, 1);
 }
+
+
+state_t mgt_cpufreq_linux_governor_set_mask(ctx_t *c, uint governor, cpu_set_t mask)
+{
+    int cpu;
+    char buffer[128];
+    governor_tostr(governor, buffer);
+    for (cpu = 0; cpu < tp.cpu_count; ++cpu) {
+        if (CPU_ISSET(cpu, &mask)) {
+            write_word(f->fds_govr[cpu], buffer, strlen(buffer), 1);
+        }
+    }
+    return EAR_SUCCESS;
+}
+
+state_t mgt_cpufreq_linux_governor_set_list(ctx_t *c, uint *governors)
+{
+    int cpu;
+    char buffer[128];
+    for (cpu = 0; cpu < tp.cpu_count; ++cpu) {
+        write_word(f->fds_govr[cpu], governor_tostr(governors[cpu], buffer), strlen(buffer), 1);
+    }
+    return EAR_SUCCESS;
+}
+

@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #define _GNU_SOURCE
 #include <errno.h>
@@ -57,7 +57,6 @@ static uint c_mode=PC_MODE_LIMIT;
 
 static gpu_t *values_gpu_init,*values_gpu_end,*values_gpu_diff,*values_gpu_idle;
 
-static ctx_t gpu_pc_ctx,gpu_metric_ctx;
 static uint gpu_pc_num_gpus;
 static ulong *gpu_pc_min_power;
 static ulong *gpu_pc_max_power;
@@ -73,7 +72,6 @@ static float *pdist;
 static ulong *c_freq,*t_freq,*n_freq;
 static const ulong **gpu_freq_list=NULL;
 static const uint *gpu_num_freqs=NULL;
-static gpu_ops_t     *ops_met;
 static uint gpu_dvfs_status = PC_STATUS_OK;
 static uint gpu_dvfs_ask_def = 0;
 static uint gpu_dvfs_monitor_initialized = 0;
@@ -81,6 +79,8 @@ static uint gpu_dvfs_util = 0;
 static suscription_t *sus_gpu;
 
 static state_t int_set_powercap_value(ulong limit,ulong *gpu_util);
+
+static domain_settings_t settings = { .node_ratio = 0.02, .security_range = 0.01 }; 
 
 static char gpu_dvfs_greedy = 0;
 
@@ -156,12 +156,8 @@ debug("Freq[%d]=%lu",j,f[i][j]);
 /************************ This function is called by the monitor before the iterative part ************************/
 state_t gpu_dvfs_pc_thread_init(void *p)
 {
-    if (gpu_load(&ops_met,0,NULL)!=EAR_SUCCESS){
-        debug("Error at gpu load");
-        gpu_dvfs_pc_enabled = 0;
-        return EAR_ERROR;
-    }
-    if (gpu_init(&gpu_metric_ctx) != EAR_SUCCESS){
+    gpu_load(NO_EARD);
+    if (gpu_init(no_ctx) != EAR_SUCCESS){
         debug("Error at gpu initialization");
         gpu_dvfs_pc_enabled = 0;
         return EAR_ERROR;
@@ -169,11 +165,11 @@ state_t gpu_dvfs_pc_thread_init(void *p)
     gpu_data_alloc(&values_gpu_init);
     gpu_data_alloc(&values_gpu_end);
     gpu_data_alloc(&values_gpu_diff);
-    mgt_gpu_freq_list(&gpu_pc_ctx, &gpu_freq_list, &gpu_num_freqs);
+    mgt_gpu_freq_list(no_ctx, &gpu_freq_list, &gpu_num_freqs);
     // printf_gpu_freq_list(gpu_freq_list,gpu_num_freqs);
     gpu_dvfs_pc_enabled=1;
     debug("Power measurement initialized in gpu_dvfs_pc thread initialization");
-    if (gpu_read(&gpu_metric_ctx,values_gpu_init)!= EAR_SUCCESS){
+    if (gpu_read(no_ctx,values_gpu_init)!= EAR_SUCCESS){
         debug("Error in gpu_read in gpu_dvfs_pc");
         gpu_dvfs_pc_enabled=0;
     }
@@ -189,7 +185,7 @@ state_t gpu_dvfs_pc_thread_main(void *p)
     uint gpu_dvfs_local_util = 0;
 
     if (!gpu_dvfs_pc_enabled) return EAR_SUCCESS;
-    if (gpu_read(&gpu_metric_ctx,values_gpu_end)!=EAR_SUCCESS){
+    if (gpu_read(no_ctx,values_gpu_end)!=EAR_SUCCESS){
         debug("Error in gpu_read gpu_dvfs_pc");
         return EAR_ERROR;
     }
@@ -198,7 +194,7 @@ state_t gpu_dvfs_pc_thread_main(void *p)
     /* Calcular power */
     gpu_data_diff(values_gpu_end,values_gpu_init,values_gpu_diff);
     if (values_gpu_diff[0].power_w == 0 ) return EAR_SUCCESS;
-    mgt_gpu_freq_limit_get_current(&gpu_pc_ctx,c_freq);
+    mgt_gpu_freq_limit_get_current(no_ctx,c_freq);
     /* Copiar init=end */
     gpu_data_copy(values_gpu_init,values_gpu_end);
     /* If utilisation has changed we internally redistribute powercap */
@@ -212,7 +208,8 @@ state_t gpu_dvfs_pc_thread_main(void *p)
     }
 
     gpu_dvfs_greedy = 0;
-    if ((current_gpu_pc <= 1) || (c_status != PC_STATUS_RUN)){
+    //if ((current_gpu_pc <= 1) || (c_status != PC_STATUS_RUN)){
+    if (current_gpu_pc <= 1){
         return EAR_SUCCESS;
     }
 
@@ -294,7 +291,7 @@ state_t gpu_dvfs_pc_thread_main(void *p)
         }
     } /* end for loop */
 
-    mgt_gpu_freq_limit_set(&gpu_metric_ctx,n_freq);
+    mgt_gpu_freq_limit_set(no_ctx, n_freq);
 
     return EAR_SUCCESS;
 }
@@ -323,12 +320,12 @@ state_t enable(suscription_t *sus)
     sus->time_burst = 1000;
     /* Init data */
     debug("GPU_DVFS: power cap  enable");
-    mgt_gpu_load(NULL);
-    if ((ret = mgt_gpu_init(&gpu_pc_ctx)) != EAR_SUCCESS){
+    mgt_gpu_load(NO_EARD);
+    if ((ret = mgt_gpu_init(no_ctx)) != EAR_SUCCESS){
         debug("Error in mgt_gpu_init");
     }else{
         gpu_pc_enabled = 1;
-        mgt_gpu_count(&gpu_pc_ctx,&gpu_pc_num_gpus);
+        mgt_gpu_count_devices(no_ctx, &gpu_pc_num_gpus);
         debug("%d GPUS detectd in gpu_powercap",gpu_pc_num_gpus);
         gpu_pc_min_power = calloc(gpu_pc_num_gpus,sizeof(ulong));
         if (gpu_pc_min_power == NULL){
@@ -381,7 +378,7 @@ state_t enable(suscription_t *sus)
         c_freq=calloc(gpu_pc_num_gpus,sizeof(ulong));
         t_freq=calloc(gpu_pc_num_gpus,sizeof(ulong));
         n_freq=calloc(gpu_pc_num_gpus,sizeof(ulong));
-        mgt_gpu_power_cap_get_rank(&gpu_pc_ctx,gpu_pc_min_power,gpu_pc_max_power);
+        mgt_gpu_power_cap_get_rank(no_ctx,gpu_pc_min_power,gpu_pc_max_power);
         gpu_data_alloc(&values_gpu_idle);
     }
     sus->suscribe(sus);
@@ -401,6 +398,11 @@ state_t plugin_set_relax()
     return monitor_relax(sus_gpu);
 }
 
+void plugin_get_settings(domain_settings_t *s) 
+{
+	memcpy(s, &settings, sizeof(domain_settings_t));
+}
+
 void restore_frequency()
 {
     int i;
@@ -409,7 +411,7 @@ void restore_frequency()
         if (t_freq[i] == 0) t_freq[i] = gpu_freq_list[i][0]; //set the nominal if no GPU freq was specified
         n_freq[i] = t_freq[i];
     }
-    mgt_gpu_freq_limit_set(&gpu_metric_ctx,n_freq);
+    mgt_gpu_freq_limit_set(no_ctx,n_freq);
 }
 
 state_t set_powercap_value(uint pid,uint domain,ulong limit,ulong *gpu_util)
@@ -458,7 +460,7 @@ static state_t int_set_powercap_value(ulong limit,ulong *gpu_util)
         return EAR_SUCCESS;
     }
 
-    if (gpu_read_raw(&gpu_metric_ctx,values_gpu_idle)!=EAR_SUCCESS){
+    if (gpu_read_raw(no_ctx,values_gpu_idle)!=EAR_SUCCESS){
         debug("Error in gpu_read_raw gpu_dvfs_pc (int_set_powercap)");
         return EAR_ERROR;
     }

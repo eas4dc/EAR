@@ -21,7 +21,7 @@ export SLURM_HACK_LIBRARY_FILE=
 export SLURM_HACK_NVML_FILE=
 # Forces the loader lo load a non-std mpi version. For example, setting to 
 # "dummy" will load libear.dummy.so
-export SLRURM_HACK_MPI_VERSION=
+export SLURM_HACK_MPI_VERSION=
 
 # EAR library Plugins
 # Path to the .so file with the energy plugin
@@ -36,6 +36,8 @@ export SLURM_HACK_POWER_MODEL=
 export SLURM_HACK_CPU_POWER_MODEL=
 # List of report plugins to be added to the default ones: myplug1.so:myplug2.so
 export SLURM_EAR_REPORT_ADD=
+# Forces to load a specific coefficient file
+export SLURM_HACK_EARL_COEFF_FILE=
 
 # Verbosity
 # Sets the EARL verbosity level: 1..4
@@ -50,6 +52,10 @@ export SLURM_EAR_LOADER_VERBOSE=
 export SLURM_EAR_GET_MPI_STATS=
 # Only for SLURM scheduler: Enables the verbosity of the SLURM plugin. Applies also to erun: 1..4
 export SLURM_COMP_VERBOSE=
+# Generate extra events during the execution of the Library
+export SLURM_REPORT_EARL_EVENTS=
+# Enables (default) the reporting of loop signatures.
+export SLURM_REPORT_EARL_LOOPS=
 
 # Policy options
 # Defines a default CPU frequency (in KHz)
@@ -60,7 +66,7 @@ export SLURM_EAR_GPU_DEF_FREQ=
 export SLURM_EAR_MAX_IMCFREQ=
 # Defines a minimum memory frequency (in KHz). Data Fabric in AMD.
 export SLURM_EAR_MIN_IMCFREQ=
-# Sets maximum and minimum memory frequency to same value (in KHz). Data Fabric in AMD.
+# Enables/disables eUFS 0 = disable 1 = enable
 export SLURM_EAR_SET_IMCFREQ=
 # Defines the maximum extra threshold used by energy policies when reducing the memory frequency: 0..1
 export SLURM_EAR_POLICY_IMC_TH=
@@ -87,6 +93,10 @@ export SLURM_EAR_NTWRK_IMC=
 export SLURM_EAR_TRY_TURBO=
 # Enables(1)/Disables(0) the utilization of energy models in energy polciies 
 export SLURM_EAR_USE_ENERGY_MODELS=
+# Enables(1)/Disables(0) the utilization of MPI optimizations
+export SLURM_EAR_MPI_OPTIMIZATION=
+# Sets the minimum CPU frequency (in kHz) policies can set.
+export SLURM_EAR_MIN_CPUFREQ=
 
 
 # Tracing
@@ -95,4 +105,10 @@ export SLURM_EAR_TRACE_PATH=
 # Trace plugin to be used (.so file)
 export SLURM_EAR_TRACE_PLUGIN=
 
-
+# Other
+# Disables automatic Countdown loading
+export SLURM_EAR_DISABLE_CNTD=
+# Set a list of priorities for each CPU.
+export SLURM_EAR_CPUPRIO_LIST=
+# Enables the collection of CUPTI metrics
+export EAR_USE_CUPTI=

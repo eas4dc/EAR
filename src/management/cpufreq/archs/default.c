@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -34,6 +34,8 @@ static uint                 boost_enabled;
 state_t mgt_cpufreq_default_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_driver_ops_t *ops_driver)
 {
 	state_t s;
+    int cond1;
+    int cond2;
 
 	// When is AMD ZEN or ZEN2, it has to load the AMD17 API. Set
 	// AMD_OSCPUFREQ compilation variable to switch to DEFAULT.
@@ -53,22 +55,25 @@ state_t mgt_cpufreq_default_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_dr
 	}
 	// Setting our own driver variable
 	driver = ops_driver;
+    // Conditional 1, if can set frequencies
+	cond1 = (driver->set_current_list != NULL);
+    // Conditional 2, if can set governor
+	cond2 = (driver->set_governor != NULL);
 	// Setting references
-	replace_ops(ops->init,             mgt_cpufreq_default_init);
-	replace_ops(ops->dispose,          mgt_cpufreq_default_dispose);
-	replace_ops(ops->count_available,  mgt_cpufreq_default_count_available);
-	replace_ops(ops->get_available_list, mgt_cpufreq_default_get_available_list);
-	replace_ops(ops->get_current_list, mgt_cpufreq_default_get_current_list);
-	replace_ops(ops->get_nominal,      mgt_cpufreq_default_get_nominal);
-	replace_ops(ops->get_governor,     mgt_cpufreq_default_get_governor);
-	replace_ops(ops->get_index,        mgt_cpufreq_default_get_index);
-	if (driver->set_current_list != NULL) {
-	replace_ops(ops->set_current_list, mgt_cpufreq_default_set_current_list);
-	replace_ops(ops->set_current,      mgt_cpufreq_default_set_current);
-	}
-	if (driver->set_governor != NULL) {
-	replace_ops(ops->set_governor,     mgt_cpufreq_default_set_governor);
-	}
+	apis_put(ops->init,               mgt_cpufreq_default_init);
+	apis_put(ops->dispose,            mgt_cpufreq_default_dispose);
+	apis_put(ops->count_available,    mgt_cpufreq_default_count_available);
+	apis_put(ops->get_available_list, mgt_cpufreq_default_get_available_list);
+	apis_put(ops->get_current_list,   mgt_cpufreq_default_get_current_list);
+	apis_put(ops->get_nominal,        mgt_cpufreq_default_get_nominal);
+	apis_put(ops->get_index,          mgt_cpufreq_default_get_index);
+	apis_pin(ops->set_current_list,   mgt_cpufreq_default_set_current_list, cond1);
+	apis_pin(ops->set_current,        mgt_cpufreq_default_set_current, cond1);
+	apis_put(ops->get_governor,       mgt_cpufreq_default_governor_get);
+	apis_put(ops->get_governor_list,  mgt_cpufreq_default_governor_get_list);
+	apis_pin(ops->set_governor,       mgt_cpufreq_default_governor_set, cond2);
+	apis_pin(ops->set_governor_mask,  mgt_cpufreq_default_governor_set_mask, cond2);
+	apis_pin(ops->set_governor_list,  mgt_cpufreq_default_governor_set_list, cond2);
 
 	return EAR_SUCCESS;
 }
@@ -204,11 +209,6 @@ state_t mgt_cpufreq_default_get_nominal(ctx_t *c, uint *pstate_index)
 	return EAR_SUCCESS;
 }
 
-state_t mgt_cpufreq_default_get_governor(ctx_t *c, uint *governor)
-{
-	return driver->get_governor(&driver_c, governor);
-}
-
 state_t mgt_cpufreq_default_get_index(ctx_t *c, ullong freq_khz, uint *pstate_index, uint closest)
 {
 	return static_get_index(freq_khz, pstate_index, closest);
@@ -239,7 +239,28 @@ state_t mgt_cpufreq_default_set_current(ctx_t *c, uint pstate_index, int cpu)
 	return driver->set_current(&driver_c, pstate_index, cpu);
 }
 
-state_t mgt_cpufreq_default_set_governor(ctx_t *c, uint governor)
+/** Governors */
+state_t mgt_cpufreq_default_governor_get(ctx_t *c, uint *governor)
+{
+	return driver->get_governor(&driver_c, governor);
+}
+
+state_t mgt_cpufreq_default_governor_get_list(ctx_t *c, uint *governors)
+{
+	return driver->get_governor_list(&driver_c, governors);
+}
+
+state_t mgt_cpufreq_default_governor_set(ctx_t *c, uint governor)
 {
 	return driver->set_governor(&driver_c, governor);
+}
+
+state_t mgt_cpufreq_default_governor_set_mask(ctx_t *c, uint governor, cpu_set_t mask)
+{
+	return driver->set_governor_mask(&driver_c, governor, mask);
+}
+
+state_t mgt_cpufreq_default_governor_set_list(ctx_t *c, uint *governors)
+{
+	return driver->set_governor_list(&driver_c, governors);
 }

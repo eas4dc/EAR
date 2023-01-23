@@ -10,14 +10,16 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef _EXECUTE_ACTIONS_H
 #define _EXECUTE_ACTIONS_H
 __attribute__ ((used)) int execute(char *cmd);
 int execute_with_fork(char *cmd);
+void print_stack(int fd);
+void *get_stack(int lv);
 #endif
 

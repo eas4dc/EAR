@@ -10,22 +10,11 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
-/*
-typedef struct ear_event{
-	job_id jid,step_id;
-	uint event;
-	ulong freq;
-}ear_event_t;
-
-#define ENERGY_POLICY_NEW_FREQ	0
-#define GLOBAL_ENERGY_POLICY	1
-#define ENERGY_POLICY_FAILS		2
-*/
 
 #include <time.h>
 #include <fcntl.h>
@@ -196,5 +185,7 @@ void log_report_global_policy_freq(job_id job,job_id sid,ulong newf)
     report_new_event(&new_event);
 #endif
 }
+
+
 
 	

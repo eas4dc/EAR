@@ -9,7 +9,7 @@
 #
 #  DESCRIPTION:
 #    Check the usual suspects for a cuda installation,
-#    updating CPPFLAGS and LDFLAGS as necessary.
+#    updating CFLAGS and LDFLAGS as necessary.
 #
 #  WARNINGS:
 #    This macro must be placed after AC_PROG_CC and before AC_PROG_LIBTOOL.
@@ -62,16 +62,16 @@ AC_DEFUN([X_AC_CUDA],
 	fi
 
 	if test -z "$_cv_cuda_dir_root"; then
-		echo checking for CUDA CPPFLAGS... no
+		echo checking for CUDA CFLAGS... no
 		FEAT_GPUS=0
 	else
 		CUDA_DIR=$_cv_cuda_dir_root
-		CUDA_CPPFLAGS="-I$CUDA_DIR/include"
-		echo checking for CUDA CPPFLAGS... $CUDA_CPPFLAGS
+		CUDA_CFLAGS="-I\$(CUDA_BASE)/include -DCUDA_BASE=\\\"\$(CUDA_BASE)\\\""
+		echo checking for CUDA CFLAGS... $CUDA_CFLAGS
 	fi
 
-	AC_SUBST(CUDA_CPPFLAGS)
 	AC_SUBST(CUDA_DIR)
+    AC_SUBST(CUDA_CFLAGS)
 
 	AM_CONDITIONAL(WITH_CUDA, test -n "$_cv_cuda_dir_root")
 ])

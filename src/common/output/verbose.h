@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #ifndef EAR_VERBOSE_H
@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <common/output/error.h>
 #include <common/output/debug.h>
 #include <common/output/output_conf.h>
@@ -46,6 +47,7 @@ int warn_channel	__attribute__((weak)) = 2;
 #define VERB_SET_FD(fd)	  verb_channel = fd;
 #define VERB_SET_EN(en)	  verb_enabled = en;
 #define VERB_SET_LV(lv)	  verb_level   = lv;
+#define VERB_GET_LV()	    (verb_level)
 
 #define verbose(v, ...) \
 	{ \

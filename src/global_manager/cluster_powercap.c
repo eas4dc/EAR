@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #define _GNU_SOURCE 
 
@@ -66,6 +66,7 @@ powercap_opt_t cluster_options;
 extern uint policy;
 extern char **nodes;
 extern int num_eargm_nodes;
+extern char host[GENERIC_NAME];
 static uint must_send_pc_options;
 static ulong current_extra_power; 
 static uint total_free;
@@ -73,6 +74,7 @@ static uint total_free;
 
 void check_powercap_actions(uint cluster_powercap);
 void write_shared_data(ulong current_power, ulong freeable_power, ulong requested);
+
 void eargm_report_event(uint event_type, ulong value)
 {
     ear_event_t event;
@@ -80,7 +82,14 @@ void eargm_report_event(uint event_type, ulong value)
     event.timestamp = time(NULL);
     event.jid 			= 0;
     event.step_id		= 0;
-    strcpy(event.node_id,"eargm");
+
+    int ret = snprintf(event.node_id, sizeof(event.node_id), "eargm-%s", host);
+    if (ret < 0) {
+        verbose(VGM_PC, "%sERROR%s Writing the hostname to the event.", COL_RED, COL_CLR);
+    } else if (ret >= sizeof(event.node_id)) {
+        verbose(VGM_PC, "%sWARNING%s The node id field of the event was truncated. Required size: %d", COL_YLW, COL_CLR, ret);
+    }
+
     event.event     = event_type;
     event.freq      = value;
     db_insert_ear_event(&event);
@@ -327,6 +336,7 @@ void cluster_only_powercap()
          * For homogeneous clusters we can simply divide the current power between the number of active nodes. */
         if (max_num_nodes > 0) {
             //if (risk == 0) cluster_set_powerlimit_all_nodes(current_cluster_powercap/max_num_nodes, &my_cluster_conf); 
+            //if (risk == 0) ear_set_powerlimit(&my_cluster_conf, current_cluster_powercap/max_num_nodes, nodes, num_eargm_nodes);; 
             if (risk == 0) ear_set_powerlimit(&my_cluster_conf, UINT_MAX, nodes, num_eargm_nodes); 
             verbose(VGM_PC, "cluster_only_powercap: sending new limit %u", current_cluster_powercap/max_num_nodes);
 						eargm_report_event(NODE_POWERCAP, (ulong)current_cluster_powercap/max_num_nodes);
@@ -357,6 +367,7 @@ void cluster_only_powercap()
 		free(my_cluster_power_status);
 }
 
+
 void *eargm_powercap_th(void *noarg)
 {
     if (pthread_setname_np(pthread_self(), "cluster_powercap")!=0) error("Setting name forcluster_powercap thread %s", strerror(errno));
@@ -370,14 +381,18 @@ void *eargm_powercap_th(void *noarg)
             check_pending_processes();
         }
         if (cluster_power_limited()){
-            if (powercap_unlimited) {
-                cluster_only_powercap();
-            }
-            else if (my_cluster_conf.eargm.powercap_mode){
-                    cluster_check_powercap();
-            } else {
-                    cluster_power_monitor();
-            }
+			switch(my_cluster_conf.eargm.powercap_mode) {
+				case SOFT_POWERCAP:
+					cluster_only_powercap();
+					break;
+				case HARD_POWERCAP:
+					cluster_check_powercap();
+					break;
+				case MONITOR:
+				default:
+					cluster_power_monitor();
+					break;
+			}
         }
 
     }
@@ -389,6 +404,24 @@ void cluster_powercap_reset_pc()
     verbose(VGM_PC, "Resetting cluster powercap to %ld", default_cluster_powercap);
     current_cluster_powercap = default_cluster_powercap;
     current_extra_power = 0;
+}
+
+void cluster_powercap_set_pc(uint limit)
+{
+    verbose(VGM_PC, "Setting cluster powercap to %u", limit);
+
+	current_cluster_powercap = limit;
+
+	if (default_cluster_powercap < current_cluster_powercap)
+		current_extra_power = current_cluster_powercap - default_cluster_powercap;
+	else
+		current_extra_power = 0;
+#if 0
+    pthread_mutex_lock(&ext_mutex);
+    ext_powercap_data.current_powercap = current_cluster_powercap;
+    pthread_mutex_unlock(&ext_mutex);
+#endif
+
 }
 
 void cluster_powercap_red_pc(uint red)
@@ -592,6 +625,7 @@ void cluster_check_powercap()
     }
     memset(&cluster_options,0,sizeof(powercap_opt_t));
     must_send_pc_options=0;
+	eargm_report_event(CLUSTER_POWER, (ulong)my_cluster_power_status->current_power);
     print_cluster_power_status(my_cluster_power_status);
     aggregate_data(my_cluster_power_status);
     if (powercap_reallocation(my_cluster_power_status, &cluster_options) == 0){

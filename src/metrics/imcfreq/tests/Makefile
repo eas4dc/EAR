@@ -1,6 +1,6 @@
 SRCDIR   = ../../..
 CC       = /hpc/base/ctt/packages/compiler/gnu/9.1.0/bin/gcc
-CC_FLAGS = -Wall -fPIC -O2 -I ../../.. -g
+CC_FLAGS = -Wall -fPIC -O2 -I ../../..
 
 DEPS = \
     $(SRCDIR)/management/libmgt.a \

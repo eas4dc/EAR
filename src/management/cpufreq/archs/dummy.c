@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 //#define SHOW_DEBUGS 1
@@ -29,22 +29,26 @@ state_t mgt_cpufreq_dummy_load(topology_t *tp_in, mgt_ps_ops_t *ops)
 {
 	cpu_count = tp_in->cpu_count;
 	// Base freq
-	cpufreq_get_base(tp_in, (ulong *) &base_freq);
+	topology_freq_getbase(0, (ulong *) &base_freq);
 	if (base_freq == 0LLU) {
-		base_freq = 1000000LLU;
+		base_freq = tp_in->base_freq;
 	}
 	//
-	replace_ops(ops->init,             mgt_cpufreq_dummy_init);
-	replace_ops(ops->dispose,          mgt_cpufreq_dummy_dispose);
-	replace_ops(ops->count_available,  mgt_cpufreq_dummy_count_available);
-	replace_ops(ops->get_available_list, mgt_cpufreq_dummy_get_available_list);
-	replace_ops(ops->get_current_list, mgt_cpufreq_dummy_get_current_list);
-	replace_ops(ops->get_nominal,      mgt_cpufreq_dummy_get_nominal);
-	replace_ops(ops->get_governor,     mgt_cpufreq_dummy_get_governor);
-	replace_ops(ops->get_index,        mgt_cpufreq_dummy_get_index);
-	replace_ops(ops->set_current_list, mgt_cpufreq_dummy_set_current_list);
-	replace_ops(ops->set_current,      mgt_cpufreq_dummy_set_current);
-	replace_ops(ops->set_governor,     mgt_cpufreq_dummy_set_governor);
+	apis_put(ops->init,               mgt_cpufreq_dummy_init);
+	apis_put(ops->dispose,            mgt_cpufreq_dummy_dispose);
+	apis_put(ops->count_available,    mgt_cpufreq_dummy_count_available);
+	apis_put(ops->get_available_list, mgt_cpufreq_dummy_get_available_list);
+	apis_put(ops->get_current_list,   mgt_cpufreq_dummy_get_current_list);
+	apis_put(ops->get_nominal,        mgt_cpufreq_dummy_get_nominal);
+	apis_put(ops->get_index,          mgt_cpufreq_dummy_get_index);
+	apis_put(ops->set_current_list,   mgt_cpufreq_dummy_set_current_list);
+	apis_put(ops->set_current,        mgt_cpufreq_dummy_set_current);
+	apis_put(ops->reset,              mgt_cpufreq_dummy_reset);
+    apis_put(ops->get_governor,       mgt_cpufreq_dummy_governor_get);
+    apis_put(ops->get_governor_list,  mgt_cpufreq_dummy_governor_get_list);
+	apis_put(ops->set_governor,       mgt_cpufreq_dummy_governor_set);
+	apis_put(ops->set_governor_mask,  mgt_cpufreq_dummy_governor_set_mask);
+	apis_put(ops->set_governor_list,  mgt_cpufreq_dummy_governor_set_list);
 
 	return EAR_SUCCESS;
 }
@@ -89,12 +93,6 @@ state_t mgt_cpufreq_dummy_get_nominal(ctx_t *c, uint *pstate_index)
 	return EAR_SUCCESS;
 }
 
-state_t mgt_cpufreq_dummy_get_governor(ctx_t *c, uint *governor)
-{
-	*governor = Governor.userspace;
-	return EAR_SUCCESS;
-}
-
 state_t mgt_cpufreq_dummy_get_index(ctx_t *c, ullong freq_khz, uint *pstate_index, uint closest)
 {
 	*pstate_index = 0;
@@ -113,12 +111,45 @@ state_t mgt_cpufreq_dummy_set_current(ctx_t *c, uint pstate_index, int cpu)
 	return EAR_SUCCESS;
 }
 
-state_t mgt_cpufreq_dummy_set_governor(ctx_t *c, uint governor)
+state_t mgt_cpufreq_dummy_reset(ctx_t *c)
 {
-	debug("mgt_cpufreq_dummy_set_governor");
+	debug("mgt_cpufreq_dummy_reset");
 	return EAR_SUCCESS;
 }
 
+// Governors
+state_t mgt_cpufreq_dummy_governor_get(ctx_t *c, uint *governor)
+{
+    debug("mgt_cpufreq_dummy_governor_get");
+	*governor = Governor.userspace;
+	return EAR_SUCCESS;
+}
+
+state_t mgt_cpufreq_dummy_governor_get_list(ctx_t *c, uint *governors)
+{
+    debug("mgt_cpufreq_dummy_governor_get_list");
+	return EAR_SUCCESS;
+}
+
+state_t mgt_cpufreq_dummy_governor_set(ctx_t *c, uint governor)
+{
+	debug("mgt_cpufreq_dummy_governor_set");
+	return EAR_SUCCESS;
+}
+
+state_t mgt_cpufreq_dummy_governor_set_mask(ctx_t *c, uint governor, cpu_set_t mask)
+{
+	debug("mgt_cpufreq_dummy_governor_set_mask");
+	return EAR_SUCCESS;
+}
+
+state_t mgt_cpufreq_dummy_governor_set_list(ctx_t *c, uint *governors)
+{
+	debug("mgt_cpufreq_dummy_governor_set_list");
+	return EAR_SUCCESS;
+}
+
+// ???
 state_t mgt_cpufreq_dummy_data_print(pstate_t *pstate_list, uint pstate_count, int fd)
 {
     int i;

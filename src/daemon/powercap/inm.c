@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <errno.h>
@@ -36,7 +36,6 @@
 #define POWERCAP_MON 0
 
 
-
 /* This version is a prototype and should be replaced by an INM plugin+GPU commands for powercap */
 
 #define INM_ENABLE_CMD	"ipmitool raw 0x3a 0xc7 0x01"
@@ -57,6 +56,9 @@ static uint pc_on=0;
 static ulong c_req_f;
 static suscription_t *sus_inm;
 
+static domain_settings_t settings = { .node_ratio = 0.02, .security_range = 0.01 }; //
+
+
 int do_cmd(char *cmd)
 {
   if (strcmp(cmd,"NO_CMD")==0) return 0;
@@ -76,6 +78,9 @@ state_t inm_disable_powercap_policy(uint pid)
   }
 	return EAR_SUCCESS;
 }
+
+
+
 state_t inm_disable_powercap_policies()
 {
 	char cmd[1024];
@@ -152,6 +157,11 @@ state_t plugin_set_relax()
     return monitor_relax(sus_inm);
 }
 
+void plugin_get_settings(domain_settings_t *s) 
+{
+	memcpy(s, &settings, sizeof(domain_settings_t));
+}
+
 state_t set_powercap_value(uint pid,uint domain,uint limit,uint *cpu_util)
 {
 	char cmd[1024];
@@ -164,6 +174,8 @@ state_t set_powercap_value(uint pid,uint domain,uint limit,uint *cpu_util)
 	debug(cmd);
 	return execute(cmd);
 }
+
+
 
 state_t get_powercap_value(uint pid,uint *powercap)
 {

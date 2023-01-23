@@ -1,19 +1,19 @@
 /*
- *
- * This program is part of the EAR software.
- *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+*
+* This program is part of the EAR software.
+*
+* EAR provides a dynamic, transparent and ligth-weigth solution for
+* Energy management. It has been developed in the context of the
+* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+*
+* Copyright © 2017-present BSC-Lenovo
+* BSC Contact   mailto:ear-support@bsc.es
+* Lenovo contact  mailto:hpchelp@lenovo.com
+*
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
+*/
 
 #include <errno.h>
 #include <stdio.h>
@@ -47,8 +47,6 @@ static uint gpu_pc_enabled=0;
 static uint c_status=PC_STATUS_IDLE;
 static uint c_mode=PC_MODE_LIMIT;
 
-static ctx_t gpu_pc_ctx;
-static ctx_t gpu_pc_ctx_data;
 static gpu_t *values_gpu_init,*values_gpu_end,*values_gpu_diff;
 static uint gpu_pc_num_gpus;
 static ulong *gpu_pc_min_power;
@@ -67,6 +65,7 @@ static double *gpu_cons_power;
 static ulong *gpu_freq;
 static suscription_t *sus_gpu;
 
+static domain_settings_t settings = { .node_ratio = 0.02, .security_range = 0.01 }; 
 
 #define MIN_GPU_IDLE_POWER 40
 
@@ -91,8 +90,8 @@ static state_t int_set_powercap_value(ulong limit,ulong *gpu_util);
 state_t gpu_pc_thread_init(void *p)
 {
 
-    mgt_gpu_freq_list(&gpu_pc_ctx, &gpu_freq_list, &gpu_num_freqs);    
-    if (gpu_read(&gpu_pc_ctx_data,values_gpu_init)!= EAR_SUCCESS){
+    mgt_gpu_freq_list(no_ctx, &gpu_freq_list, &gpu_num_freqs);    
+    if (gpu_read(no_ctx, values_gpu_init)!= EAR_SUCCESS){
         debug("Error in gpu_read in gpu_dvfs_pc");
         return EAR_ERROR;
     }
@@ -107,7 +106,7 @@ state_t gpu_pc_thread_main(void *p)
     if (current_gpu_pc <= 1) return EAR_SUCCESS;
 
     if (!gpu_pc_enabled) return EAR_SUCCESS;
-    if (gpu_read(&gpu_pc_ctx_data,values_gpu_end) != EAR_SUCCESS){
+    if (gpu_read(no_ctx, values_gpu_end) != EAR_SUCCESS){
         debug("Error in gpu_read gpu_dvfs_pc");
         return EAR_ERROR;
     }
@@ -171,12 +170,12 @@ state_t enable(suscription_t *sus)
 {
     state_t ret=EAR_SUCCESS;
     debug("GPU: power cap  enable");
-    mgt_gpu_load(NULL);
-    if ((ret = mgt_gpu_init(&gpu_pc_ctx)) != EAR_SUCCESS){
+    mgt_gpu_load(NO_EARD);
+    if ((ret = mgt_gpu_init(no_ctx)) != EAR_SUCCESS){
         debug("Error in mgt_gpu_init");
     }else{
         gpu_pc_enabled = 1;
-        mgt_gpu_count(&gpu_pc_ctx,&gpu_pc_num_gpus);
+        mgt_gpu_count_devices(no_ctx, &gpu_pc_num_gpus);
         debug("%d GPUS detectd in gpu_powercap",gpu_pc_num_gpus);
         gpu_pc_min_power = calloc(gpu_pc_num_gpus,sizeof(ulong));
         if (gpu_pc_min_power == NULL){
@@ -184,59 +183,35 @@ state_t enable(suscription_t *sus)
             ret = EAR_ERROR;
             debug("Error allocating memory in GPU enable");
         }
-        gpu_pc_max_power = calloc(gpu_pc_num_gpus,sizeof(ulong));
-        if (gpu_pc_max_power == NULL){
-            gpu_pc_enabled = 0;
-            ret = EAR_ERROR;
-            debug("Error allocating memory in GPU enable");
-        }
-        gpu_pc_curr_power = calloc(gpu_pc_num_gpus,sizeof(ulong));
-        if (gpu_pc_curr_power == NULL){
-            gpu_pc_enabled = 0;
-            ret = EAR_ERROR;
-            debug("Error allocating memory in GPU enable");
-        }
-        gpu_cons_power = calloc(gpu_pc_num_gpus,sizeof(ulong));
-        if (gpu_cons_power == NULL){
-            gpu_pc_enabled = 0;
-            ret = EAR_ERROR;
-            debug("Error allocating memory in GPU enable");
-        }
 
-        gpu_pc_excess = calloc(gpu_pc_num_gpus, sizeof(ulong));
-        if (gpu_pc_excess == NULL){
+        mgt_gpu_data_alloc(&gpu_pc_max_power);
+        mgt_gpu_data_alloc(&gpu_pc_curr_power);
+        mgt_gpu_data_alloc(&gpu_freq);
+        mgt_gpu_data_alloc(&t_freq);
+     
+        if (gpu_pc_max_power == NULL || gpu_pc_curr_power == NULL ||
+            gpu_freq         == NULL || t_freq           == NULL) {
             gpu_pc_enabled = 0;
             ret = EAR_ERROR;
             debug("Error allocating memory in GPU enable");
         }
-
-        gpu_freq = calloc(gpu_pc_num_gpus, sizeof(ulong));
-        if (gpu_freq == NULL){
-            gpu_pc_enabled = 0;
-            ret = EAR_ERROR;
-            debug("Error allocating memory in GPU enable");
-        }
-
+    
+        gpu_cons_power = calloc(gpu_pc_num_gpus,sizeof(double));
+        gpu_pc_excess = calloc(gpu_pc_num_gpus,sizeof(int));
         gpu_pc_util = calloc(gpu_pc_num_gpus,sizeof(uint));
-        if (gpu_pc_util == NULL){
-            gpu_pc_enabled = 0;
-            ret = EAR_ERROR;
-            debug("Error allocating memory in GPU enable");
-        }
         pdist = calloc(gpu_pc_num_gpus,sizeof(float));
-        if (pdist == NULL){
+        
+        if (gpu_cons_power == NULL || gpu_pc_excess == NULL ||
+            gpu_pc_util    == NULL || pdist == NULL){
             gpu_pc_enabled = 0;
             ret = EAR_ERROR;
             debug("Error allocating memory in GPU enable");
         }
-        t_freq=calloc(gpu_pc_num_gpus,sizeof(ulong));
-
-        mgt_gpu_power_cap_get_rank(&gpu_pc_ctx,gpu_pc_min_power,gpu_pc_max_power);
+        
+        mgt_gpu_power_cap_get_rank(no_ctx, gpu_pc_min_power, gpu_pc_max_power);
     }
-    if (gpu_load(NULL,0,NULL)!= EAR_SUCCESS){
-        error("Initializing GPU(load) in gpu plugin");
-    }
-    if (gpu_init(&gpu_pc_ctx_data)!=EAR_SUCCESS){
+    gpu_load(NO_EARD);
+    if (gpu_init(no_ctx)!=EAR_SUCCESS){
         error("Initializing GPU in GPU powercap plugin");
     }
     if (gpu_data_alloc(&gpu_pc_power_data)!=EAR_SUCCESS){
@@ -269,6 +244,11 @@ state_t plugin_set_burst()
 state_t plugin_set_relax()
 {
     return monitor_relax(sus_gpu);
+}
+
+void plugin_get_settings(domain_settings_t *s) 
+{
+	memcpy(s, &settings, sizeof(domain_settings_t));
 }
 
 state_t set_powercap_value(uint pid,uint domain,ulong limit,ulong *gpu_util)
@@ -309,7 +289,7 @@ state_t restore_powercap()
     {
         gpu_pc_curr_power[i] = gpu_pc_max_power[i];
     }
-    return mgt_gpu_power_cap_set(&gpu_pc_ctx,gpu_pc_curr_power);
+    return mgt_gpu_power_cap_set(no_ctx, gpu_pc_curr_power);
 }
 
 static state_t int_set_powercap_value(ulong limit,ulong *gpu_util)
@@ -349,7 +329,7 @@ static state_t int_set_powercap_value(ulong limit,ulong *gpu_util)
             gpu_pc_curr_power[i] = ualloc;
         }
     }
-    ret = mgt_gpu_power_cap_set(&gpu_pc_ctx,gpu_pc_curr_power);
+    ret = mgt_gpu_power_cap_set(no_ctx, gpu_pc_curr_power);
     if (ret == EAR_ERROR) debug("Error setting powercap");
     for (i=0;i<gpu_pc_num_gpus;i++) {
         debug("GPU: util_gpu[%d]=%lu power_alloc=%lu",i,gpu_util[i],gpu_pc_curr_power[i]);
@@ -424,6 +404,8 @@ void set_app_req_freq(ulong *f)
         t_freq[i]=f[i];
     }
 }
+
+
 #define MIN_GPU_POWER_MARGIN 10
 /* Returns 0 when 1) No info, 2) No limit 3) We cannot share power. */
 /* Returns 1 when power can be shared with other modules */

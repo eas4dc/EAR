@@ -10,11 +10,10 @@
  * BSC Contact   mailto:ear-support@bsc.es
  * Lenovo contact  mailto:hpchelp@lenovo.com
  *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
+ * EAR is an open source software, and it is licensed under both the BSD-3 license
+ * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+ * and COPYING.EPL files.
  */
-
 
 #include <errno.h>
 #include <fcntl.h>
@@ -40,7 +39,6 @@
 #include <library/common/verbose_lib.h>
 #include <library/api/clasify.h>
 #include <library/metrics/metrics.h>
-#include <library/metrics/gpu.h>
 #include <library/policies/policy_api.h>
 #include <library/policies/policy_state.h>
 #include <library/policies/common/gpu_support.h>
@@ -48,6 +46,18 @@
 #include <library/policies/common/mpi_stats_support.h>
 #include <library/policies/common/imc_policy_support.h>
 #include <library/policies/common/generic.h>
+
+#define MASTER (masters_info.my_master_rank >= 0)
+#define MASTER_ID masters_info.my_master_rank
+
+#ifdef EARL_RESEARCH
+extern unsigned long ext_def_freq;
+#define FREQ_DEF(f) (!ext_def_freq?f:ext_def_freq)
+#else
+#define FREQ_DEF(f) f
+#endif
+
+
 
 /*  IMC management */
 extern uint dyn_unc;
@@ -94,6 +104,8 @@ extern uint use_turbo_for_cp;
 static uint network_use_imc = 0;
 extern uint try_turbo_enabled;
 extern uint use_energy_models;
+extern uint policy_cpu_bound;
+extern uint policy_mem_bound;
 
 #define SELECT_CPUFREQ      100
 #define SELECT_IMCFREQ      101
@@ -234,16 +246,15 @@ state_t policy_init(polctx_t *c)
             gpus.init(c);
         }
 
-        if (gpu_lib_freq_list(&gpuf_pol_list, &gpuf_pol_list_items) != EAR_SUCCESS){
-            verbose_master(2, "%sError%s Asking for gpu frequency list.", COL_RED, COL_CLR);
-        }
+        gpuf_pol_list       = (const ulong **) metrics_gpus_get(MGT_GPU)->avail_list;
+        gpuf_pol_list_items = (const uint *)   metrics_gpus_get(MGT_GPU)->avail_count;
 
         /* Replace by default_setting in gpu policy */
         for (i = 0; i < c->num_gpus; i++) {
             min_time_def_freqs.gpu_freq[i] = gpuf_pol_list[i][0];
         }
     }
-    verbose_node_freqs(2, &min_time_def_freqs);
+    verbose_node_freqs(3, &min_time_def_freqs);
 #endif
 
     node_freqs_copy(&last_nodefreq_sel, &min_time_def_freqs);
@@ -265,7 +276,7 @@ state_t policy_loop_init(polctx_t *c, loop_id_t *loop_id)
     if (c != NULL) {
         projection_reset(c->num_pstates);
         if (!use_energy_models) {
-            memset(sig_ready, 0, sizeof(uint)*c->num_pstates);
+            memset(sig_ready, 0, sizeof(uint) * c->num_pstates);
         }
     } else {
         return EAR_ERROR;
@@ -307,11 +318,9 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
     ulong curr_freq;
     ulong curr_pstate, def_freq, def_pstate;
 
-    double sig_vpi, node_sig_vpi, max_vpi, lvpi; // master, node, max, local
-    uint local_process_with_high_vpi;
     sig_ext_t *se;
 
-    uint cbound, mbound, turbo_set = 0;
+    uint cbound, turbo_set = 0; // , mbound
 
     ulong curr_imc_freq;
     uint eUFS = dyn_unc;
@@ -420,15 +429,20 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
 
         last_cpu_pstate = curr_pstate;
         last_imc_pstate = curr_imc_pstate;
-        is_cpu_bound(my_app, &cbound);
-        is_mem_bound(my_app, &mbound);
+        //  NEW CLASSIFY
+        //is_cpu_bound(&lib_shared_region->job_signature, lib_shared_region->num_cpus, &cbound);
+        //is_mem_bound(&lib_shared_region->job_signature, lib_shared_region->num_cpus, &mbound);
+
+        /* Computd in policy */
+        cbound = policy_cpu_bound;
+        // mbound = policy_mem_bound; - not used.
         debug("App CPU bound %u MEM bound %u", cbound, mbound);
 
         // If is not the default P_STATE selected in the environment, a projection
         // is made for the reference P_STATE in case the projections were available.
         if (use_energy_models && !are_default_settings(&last_nodefreq_sel, &min_time_def_freqs)){
-            verbose_node_freqs(2, &last_nodefreq_sel);
-            verbose_node_freqs(2, &min_time_def_freqs);
+            verbose_node_freqs(3, &last_nodefreq_sel);
+            verbose_node_freqs(3, &min_time_def_freqs);
 
             set_default_settings(freqs, &min_time_def_freqs);
             if (gpus.restore_settings != NULL){
@@ -446,21 +460,8 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
         for (uint i = 0; i < nump; i++) {
             verbose_master(3, "Processing proc %d / freq per core %d", i, freq_per_core);
             local_eff_gain = base_eff_gain;
-            if (!freq_per_core) {
-                compute_total_node_metrics();
-                compute_vpi(&sig_vpi, sig);
-                compute_vpi(&node_sig_vpi, my_app);
-                local_process_with_high_vpi = compute_max_vpi(lib_shared_region, sig_shared_region, &max_vpi);
-                my_app->CPI = (double)my_app->cycles/(double)my_app->instructions;
-                debug("Node signature MR[%d] CPI %.3lf VPI %.3lf/Node CPI %.3lf VPI %3lf/MAX VPI %.3lf",
-                        my_globalrank, sig->CPI, sig_vpi, my_app->CPI, node_sig_vpi, max_vpi);
-
-                /*  With this two lines, we force the VPI of the signature to the most loaded in the node */
-                my_app->instructions = sig_shared_region[local_process_with_high_vpi].sig.instructions;
-                memcpy(my_app->FLOPS, sig_shared_region[local_process_with_high_vpi].sig.FLOPS, sizeof(ull) * FLOPS_EVENTS);
-            } else {
-                compute_ssig_vpi(&lvpi, &sig_shared_region[i].sig);
-                from_minis_to_sig(my_app, &sig_shared_region[i].sig);
+            if (freq_per_core) {
+                signature_from_ssig(my_app, &sig_shared_region[i].sig);
                 double ltpi, lgbs, lpower;
 
                 ltpi = my_app->TPI;
@@ -470,23 +471,36 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
                 my_app->GBS      = lgbs * lib_shared_region->num_processes;
                 my_app->DC_power = lpower * lib_shared_region->num_processes;
 
-                verbose_master(3,"CPI %.2f TPI %.2lf/%.2lf GBS %.2lf/%.2lf Power %.2lf/%.2lf", my_app->CPI, ltpi, my_app->TPI, lgbs, my_app->GBS, lpower, my_app->DC_power);
+                verbose_master(3,"CPI %.2f TPI %.2lf/%.2lf GBS %.2lf/%.2lf Power %.2lf/%.2lf",
+                        my_app->CPI, ltpi, my_app->TPI, lgbs, my_app->GBS, lpower, my_app->DC_power);
 
-
+                #if 0
                 double factor = ear_math_exp(-5 * ear_math_scale(percs_mpi[min_mpi],
                             percs_mpi[max_mpi], percs_mpi[i])) * cbound * (1 - mbound) * critical_path[i];
+                #endif
+                double factor = ear_math_exp(-5 * ear_math_scale(percs_mpi[min_mpi],
+                            percs_mpi[max_mpi], percs_mpi[i])) * critical_path[i];
                 if (factor < 0.01) {
                     factor = 0.0;
                 }
                 local_eff_gain = base_eff_gain * (1 - factor);
             }
             if (use_energy_models) {
-                verbose_master(2, "Local efficiency gain for process %d: %lf", i, local_eff_gain);
+                //verbose_master(2, "Local efficiency gain for process %d: %lf", i, local_eff_gain);
                 compute_reference(c, my_app, &curr_freq, &def_freq, &best_freq, &time_ref, &power_ref);
                 best_pstate = frequency_closest_pstate(best_freq);
                 verbose_master(3, "Time ref %lf Power ref %lf Freq ref %lu", time_ref, power_ref, best_freq);
                 compute_cpu_freq_min_time(my_app, min_pstate, time_ref, local_eff_gain, curr_pstate,
                         best_pstate, best_freq, def_freq, &new_freq[i]);
+                if (critical_path[i]){
+                  new_freq[i] = frequency_pstate_to_freq(min_pstate);
+                }
+                  
+                if (freq_per_core){
+                  verbose_master(2, "PROC[%u][%u] CPI %.2f TPI %.2f GFlops %.2f Power %.2f PMPI %.2f penalty %.2lf", MASTER_ID, i,
+                  sig_shared_region[i].sig.CPI, sig_shared_region[i].sig.TPI, sig_shared_region[i].sig.Gflops, sig_shared_region[i].sig.DC_power,
+                  my_node_mpi_calls[i].perc_mpi, local_eff_gain);
+                }
                 if (use_turbo_for_cp) {
                     debug("Try to boost: freq per core ? %u already using turbo ? %u min_mpi ? %u",
                             freq_per_core, c->use_turbo, min_mpi);
@@ -548,6 +562,9 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
         }
 
         copy_cpufreq_sel(last_nodefreq_sel.cpu_freq, new_freq, sizeof(ulong) * num_processes);
+        /* We copy in shared  memory to be used later in MPI init/end if needed */
+        for (uint lp = 0 ; lp < lib_shared_region->num_processes; lp++) sig_shared_region[lp].new_freq = new_freq[lp];
+
 
         /*  We will use this signature to detect changes in the sig compared when the one used to compute the CPU freq */
         verbose_master(3, "Updating cpufreq_signature");
@@ -562,7 +579,10 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
             /*  If we are compute bound, and CPU freq is nominal, we can reduce the IMC freq
              *  IMC_MAX means the maximum frequency, lower pstate, IMC_MIN means minimum frequency and maximum pstate */
             if ((min_cpufreq_sel == nominal_node) && cbound) {
-                if (sig->GBS <= GBS_BUSY_WAITING){
+                //if (sig->GBS <= GBS_BUSY_WAITING){
+                uint lowm;
+                low_mem_activity(&lib_shared_region->job_signature, lib_shared_region->num_cpus, &lowm);
+                if (lowm){
                     debug("GBS LEQ GBS_BUSY_WAITING (%lf, %lf)", sig->GBS, GBS_BUSY_WAITING);
                     for (sid=0; sid < imc_devices; sid ++){
                         freqs->imc_freq[sid*IMC_VAL+IMC_MAX] = imc_max_pstate[sid] - 1;
@@ -781,9 +801,8 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
 
 static state_t int_policy_ok(signature_t *curr_sig, signature_t *last_sig, int *ok)
 {
-
     debug("%spolicy ok evaluation%s", COL_YLW, COL_CLR);
-    *ok=1;
+    *ok = 1;
 
     sig_ext_t *se           = (sig_ext_t *) curr_sig->sig_ext;
     my_node_mpi_calls       = se->mpi_stats;
@@ -795,19 +814,9 @@ static state_t int_policy_ok(signature_t *curr_sig, signature_t *last_sig, int *
         verbose_mpi_calls_types(3, my_node_mpi_types_calls);
 
         uint unbalance;
-#if 0
-        double lb_eff;
-        mpi_support_evaluate_lb(my_node_mpi_calls, num_processes, &lb_eff, &unbalance);
-
-        debug("%sNode Load Balance Efficiency%s LB_TH %lf LB_EFF %lf unbalance ? %u",
-                COL_MGT, COL_CLR, LB_TH, lb_eff, unbalance);
-#endif
         double mean, sd, mag;
         if (state_ok(mpi_support_evaluate_lb(my_node_mpi_calls, num_processes, percs_mpi,
                         &mean, &sd, &mag, &unbalance))) {
-            debug("%sNode load unbalance%s: LB_TH %lf mean %lf"
-                    " standard deviation %lf magnitude %lf unbalance ? %u",
-                    COL_MGT, COL_CLR, LB_TH, mean, sd, mag, unbalance);
             /*  Check whether application has changed from unbalanced to balanced and viceversa */
             if (unbalance != signature_is_unbalance) {
                 if (!unbalance) {
@@ -836,25 +845,27 @@ static state_t int_policy_ok(signature_t *curr_sig, signature_t *last_sig, int *
                     mpi_support_verbose_perc_mpi_stats(2, last_percs_mpi, num_processes, last_mpi_stats_perc_mpi_mean,
                             last_mpi_stats_perc_mpi_median, last_mpi_stats_perc_mpi_sd, last_mpi_stats_perc_mpi_mag);
 
-                    /*  This code has not been encapsulated because is (by now) only for verbose purposes */
                     double similarity;
-                    mpi_stats_evaluate_similarity(percs_mpi, last_percs_mpi, num_processes, &similarity);
-                    verbose_master(2, "(Orientation) Similarity between last and current: %lf", similarity);
-                    /* *************************************************************************** */
+                    if (VERB_ON(3)) {
+                        /* This code has not been encapsulated because is (by now) only for verbose purposes */
+                        mpi_stats_evaluate_similarity(percs_mpi, last_percs_mpi, num_processes, &similarity);
+                        verbose_master(2, "(Orientation) Similarity between last and current: %lf", similarity);
+                        /* *************************************************************************** */
+                    }
 
                     uint mpi_changed;
                     mpi_support_mpi_changed(mag, last_mpi_stats_perc_mpi_mag, critical_path, last_critical_path,
                             num_processes, &similarity, &mpi_changed);
 
-                    if (mpi_changed){
+                    if (mpi_changed) {
+                        verbose_master(2, "%sMPI stats changed. Starting again%s",
+                                COL_RED, COL_CLR);
                         *ok = 0;
                     }
 
                 } else if (*ok) {
                     first_time_unbalanced = 0;
                 }
-
-                verbose_master(3, "Copying data...");
 
                 /*  Save current stats and critical path to be used later */
                 memcpy(last_percs_mpi, percs_mpi, sizeof(double) * num_processes);
@@ -881,7 +892,7 @@ static state_t int_policy_ok(signature_t *curr_sig, signature_t *last_sig, int *
         if (signatures_different(last_sig, curr_sig, 0.2)) {
             verbose_master(2, "%sSignature is too different from the one used for CPU freq, starting again.%s",
                     COL_RED, COL_CLR);
-            *ok=0;
+            *ok = 0;
         }
     }
 
@@ -921,7 +932,7 @@ state_t policy_max_tries(polctx_t *c, int *intents)
     return EAR_SUCCESS;
 }
 
-state_t policy_mpi_init(polctx_t *c, mpi_call call_type)
+state_t policy_mpi_init(polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id)
 {
     if (c != NULL) {
         return mpi_call_init(c,call_type);
@@ -929,7 +940,7 @@ state_t policy_mpi_init(polctx_t *c, mpi_call call_type)
     return EAR_ERROR;
 }
 
-state_t policy_mpi_end(polctx_t *c,mpi_call call_type)
+state_t policy_mpi_end(polctx_t *c,mpi_call call_type, node_freqs_t *freqs, int *process_id)
 {
     if (c != NULL) {
         return mpi_call_end(c,call_type);
@@ -986,8 +997,13 @@ state_t policy_io_settings(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs
     }
 
 #if USE_GPUS
-    gpu_ready = EAR_POLICY_READY;
+    if (gpus.io_settings != NULL){
+      return gpus.io_settings(c, my_sig, freqs);
+    }else{
+      gpu_ready = EAR_POLICY_READY;
+    }
     return EAR_SUCCESS;
+
 #else
     gpu_ready = EAR_POLICY_READY;
 #endif
@@ -1021,8 +1037,13 @@ state_t policy_busy_wait_settings(polctx_t *c, signature_t *my_sig, node_freqs_t
     }
 
 #if USE_GPUS
-    gpu_ready = EAR_POLICY_READY;
+    if (gpus.busy_wait_settings != NULL){
+      return gpus.busy_wait_settings(c, my_sig, freqs);
+    }else{
+      gpu_ready = EAR_POLICY_READY;
+    }
     return EAR_SUCCESS;
+
 #else
     gpu_ready = EAR_POLICY_READY;
 #endif
@@ -1030,6 +1051,41 @@ state_t policy_busy_wait_settings(polctx_t *c, signature_t *my_sig, node_freqs_t
 
     return EAR_SUCCESS;
 }
+
+state_t policy_cpu_gpu_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *freqs)
+{
+    if (c == NULL) return EAR_ERROR;
+    verbose_master(2,"%sCPU-GPU  phase%s",COL_BLU,COL_CLR);
+    cpu_ready = EAR_POLICY_READY;
+    ulong def_freq = FREQ_DEF(c->app->def_freq);
+    uint def_pstate = frequency_closest_pstate(def_freq);
+    for (uint i=0;i<num_processes;i++) freqs->cpu_freq[i] = frequency_pstate_to_freq(def_pstate);
+    memcpy(last_nodefreq_sel.cpu_freq,freqs->cpu_freq,MAX_CPUS_SUPPORTED*sizeof(ulong));
+    if (dyn_unc){
+        for (uint sock_id=0;sock_id<arch_desc.top.socket_count;sock_id++){
+            freqs->imc_freq[sock_id*IMC_VAL+IMC_MAX] = imc_min_pstate[sock_id];
+            freqs->imc_freq[sock_id*IMC_VAL+IMC_MIN] = imc_min_pstate[sock_id];
+        }
+        memcpy(last_nodefreq_sel.imc_freq,freqs->imc_freq,imc_devices*IMC_VAL*sizeof(ulong));
+    }
+#if USE_GPUS
+    if (gpus.cpu_gpu_settings != NULL){
+      return gpus.cpu_gpu_settings(c, my_sig, freqs);
+    }else{
+      /* GPU mem is pending */
+      for (uint i = 0; i < c->num_gpus; i++) {
+          freqs->gpu_freq[i] = min_time_def_freqs.gpu_freq[i];
+      }
+      gpu_ready = EAR_POLICY_READY;
+    }
+    return EAR_SUCCESS;
+#else
+    gpu_ready = EAR_POLICY_READY;
+#endif
+
+    return EAR_SUCCESS;
+}
+
 
 state_t policy_restore_settings(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs)
 {
@@ -1046,9 +1102,9 @@ state_t policy_restore_settings(polctx_t *c, signature_t *my_sig, node_freqs_t *
 }
 
 state_t compute_total_node_metrics() {
-    compute_total_node_instructions(lib_shared_region, sig_shared_region, &my_app->instructions);
-    compute_total_node_flops(lib_shared_region, sig_shared_region, my_app->FLOPS);
-    compute_total_node_cycles(lib_shared_region, sig_shared_region, &my_app->cycles);
+    compute_job_node_instructions(sig_shared_region, num_processes, &my_app->instructions);
+    compute_job_node_flops(sig_shared_region, num_processes, my_app->FLOPS);
+    compute_job_node_cycles(sig_shared_region, num_processes, &my_app->cycles);
 
     return EAR_SUCCESS;
 }

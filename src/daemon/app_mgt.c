@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdio.h>
@@ -27,17 +27,24 @@ void app_mgt_new_job(app_mgt_t *a)
 	if (a==NULL) return;
 	memset(a,0,sizeof(app_mgt_t));
 }
+
+
 void app_mgt_end_job(app_mgt_t *a)
 {
 	if (a==NULL) return;
 	memset(a,0,sizeof(app_mgt_t));
 }
+
+
 void print_app_mgt_data(app_mgt_t *a)
 {
 	if (a==NULL) return;
 
-	verbose(VEARD_NMGR,"App_info:master_rank %u ppn %u nodes %u total_processes %u max_ppn %u",a->master_rank,a->ppn,a->nodes,a->total_processes,a->max_ppn);
+	verbose(VEARD_NMGR,"App_info: master_rank %u ppn %u nodes %u total_processes %u max_ppn %u",
+            a->master_rank,a->ppn,a->nodes,a->total_processes,a->max_ppn);
 }
+
+
 uint is_app_master(app_mgt_t *a)
 {
 	if (a==NULL) return 0;

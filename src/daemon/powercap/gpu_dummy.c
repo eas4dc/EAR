@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <errno.h>
@@ -36,6 +36,7 @@
 
 
 
+static domain_settings_t settings = { .node_ratio = 0.00, .security_range = 0.00 }; 
 
 static uint current_gpu_pc=0;
 static uint gpu_pc_enabled=0;
@@ -67,6 +68,11 @@ state_t plugin_set_relax()
 state_t plugin_set_burst()
 {
     return EAR_SUCCESS;
+}
+
+void plugin_get_settings(domain_settings_t *s) 
+{
+	memcpy(s, &settings, sizeof(domain_settings_t));
 }
 
 state_t set_powercap_value(uint pid,uint domain,uint limit,uint *gpu_util)

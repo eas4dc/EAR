@@ -10,9 +10,9 @@
 * BSC Contact   mailto:ear-support@bsc.es
 * Lenovo contact  mailto:hpchelp@lenovo.com
 *
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
+* EAR is an open source software, and it is licensed under both the BSD-3 license
+* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+* and COPYING.EPL files.
 */
 
 #include <stdlib.h>
@@ -98,7 +98,7 @@
 #define PERIODIC_METRIC_QUERY_SIMPLE    "INSERT INTO Periodic_metrics (start_time, end_time, DC_energy, node_id, job_id, step_id) "\
                                         "VALUES "
 
-#define EAR_EVENT_PSQL_QUERY         "INSERT INTO Events (timestamp, event_type, job_id, step_id, freq, node_id) VALUES "
+#define EAR_EVENT_PSQL_QUERY         "INSERT INTO Events (timestamp, event_type, job_id, step_id, value, node_id) VALUES "
 
 #define PERIODIC_AGGREGATION_PSQL_QUERY "INSERT INTO Periodic_aggregations (DC_energy, start_time, end_time, eardbd_host) VALUES "
 
@@ -628,8 +628,9 @@ int postgresql_retrieve_signatures(PGconn *connection, char *query, signature_t 
 
 int postgresql_retrieve_applications(PGconn *connection, char *query, application_t **apps, char is_learning)
 {
+	is_learning &= USE_LEARNING_APPS;
 
-    int i, num_rows, job_id, step_id, sig_id, pow_sig_id;
+    long long i, num_rows, job_id, step_id, sig_id, pow_sig_id;
     char job_query[256], pow_sig_query[256], sig_query[256];
     job_t *job_aux;
     application_t *apps_aux;
@@ -668,9 +669,9 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
 
         /* JOB RETRIEVAL */
         if (is_learning)
-            sprintf(job_query, "SELECT * FROM Learning_jobs WHERE id = %d AND step_id = %d", job_id, step_id);
+            sprintf(job_query, "SELECT * FROM Learning_jobs WHERE id = %lld AND step_id = %lld", job_id, step_id);
         else
-            sprintf(job_query, "SELECT * FROM Jobs WHERE id = %d AND step_id = %d", job_id, step_id);
+            sprintf(job_query, "SELECT * FROM Jobs WHERE id = %lld AND step_id = %lld", job_id, step_id);
 
         if (postgresql_retrieve_jobs(connection, job_query, &job_aux) < 1)
         {
@@ -683,7 +684,7 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
         }
 
         /* POWER SIGNATURE RETRIEVAL */
-        sprintf(pow_sig_query, "SELECT * FROM Power_signatures WHERE id = %d", pow_sig_id);
+        sprintf(pow_sig_query, "SELECT * FROM Power_signatures WHERE id = %lld", pow_sig_id);
 
         if (postgresql_retrieve_power_signatures(connection, pow_sig_query, &pow_sig_aux) < 1)
         {
@@ -699,9 +700,9 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
         if (sig_id > 0)
         {
             if (is_learning)
-                sprintf(sig_query, "SELECT * FROM Learning_signatures WHERE id = %d", sig_id);
+                sprintf(sig_query, "SELECT * FROM Learning_signatures WHERE id = %lld", sig_id);
             else
-                sprintf(sig_query, "SELECT * FROM Signatures WHERE id = %d", sig_id);
+                sprintf(sig_query, "SELECT * FROM Signatures WHERE id = %lld", sig_id);
 
 
             if (postgresql_retrieve_signatures(connection, sig_query, &sig_aux) < 1)
@@ -727,7 +728,7 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
 int postgresql_retrieve_loops(PGconn *connection, char *query, loop_t **loops)
 {
 
-    int i, num_rows, sig_id;
+    long long i, num_rows, sig_id;
     char sig_query[256];
     loop_t *loops_aux;
     signature_t *sig_aux;
@@ -768,7 +769,7 @@ int postgresql_retrieve_loops(PGconn *connection, char *query, loop_t **loops)
         /* SIGNATURE RETRIEVAL */
         if (sig_id > 0)
         {
-            sprintf(sig_query, "SELECT * FROM Signatures WHERE id = %d", sig_id);
+            sprintf(sig_query, "SELECT * FROM Signatures WHERE id = %lld", sig_id);
 
             if (postgresql_retrieve_signatures(connection, sig_query, &sig_aux) < 1)
             {
@@ -867,7 +868,7 @@ int postgresql_batch_insert_ear_events(PGconn *connection, ear_event_t *events, 
         param_lengths[2  + offset] = sizeof(int);
         param_lengths[3  + offset] = sizeof(int);
         param_lengths[4  + offset] = sizeof(int);
-        param_lengths[5  + offset] = sizeof(events[i].node_id);
+        param_lengths[5  + offset] = strlen(events[i].node_id);
 
         /* Parameter formats, 1 is binary 0 is string */
         for (j = 0; j < EAR_EVENTS_ARGS; j++)
@@ -965,7 +966,7 @@ int postgresql_batch_insert_gm_warnings(PGconn *connection, gm_warning_t *warns,
         param_lengths[6  + offset] = sizeof(int);
         param_lengths[7  + offset] = sizeof(int);
         param_lengths[8  + offset] = sizeof(int);
-        param_lengths[9  + offset] = sizeof(warns[i].policy);
+        param_lengths[9  + offset] = strlen(warns[i].policy);
 
         /* Parameter formats, 1 is binary 0 is string */
         for (j = 0; j < 10; j++)
@@ -1051,7 +1052,7 @@ int postgresql_batch_insert_periodic_aggregations(PGconn *connection, periodic_a
         param_lengths[0  + offset] = sizeof(int);
         param_lengths[1  + offset] = sizeof(int);
         param_lengths[2  + offset] = sizeof(int);
-        param_lengths[3  + offset] = sizeof(per_aggs[i].eardbd_host);
+        param_lengths[3  + offset] = strlen(per_aggs[i].eardbd_host);
 
         /* Parameter formats, 1 is binary 0 is string */
         for (j = 0; j < PERIODIC_AGGREGATION_ARGS; j++)
@@ -1149,7 +1150,7 @@ int postgresql_batch_insert_periodic_metrics(PGconn *connection, periodic_metric
         param_lengths[0  + offset] = sizeof(int);
         param_lengths[1  + offset] = sizeof(int);
         param_lengths[2  + offset] = sizeof(int);
-        param_lengths[3  + offset] = sizeof(per_mets[i].node_id);
+        param_lengths[3  + offset] = strlen(per_mets[i].node_id);
         param_lengths[4  + offset] = sizeof(int);
         param_lengths[5  + offset] = sizeof(int);
         if (node_detail)
@@ -1392,9 +1393,11 @@ int postgresql_insert_gpu_signature(PGconn *connection, signature_t *sig)
 
 int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, char is_learning,  int num_sigs)
 {
-    if (num_sigs < 0 || sigs == NULL)
+    if (num_sigs < 0 || sigs == NULL) {
         return EAR_ERROR;
+	}
 
+	is_learning &= USE_LEARNING_APPS;
     char **param_values;
     int i, j, offset, *param_lengths, *param_formats;
     char *query;
@@ -1409,7 +1412,7 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
     query = calloc((strlen(SIGNATURE_QUERY_FULL)+(num_sigs*sig_args*10)+strlen("ON CONFLICT DO NOTHING")), sizeof(char));
 #if USE_GPUS
 
-    int starter_gpu_sig_id, num_gpu_sigs = 0, *gpu_sig_ids, current_gpu_sig_id = 0;
+    long long starter_gpu_sig_id, num_gpu_sigs = 0, *gpu_sig_ids, current_gpu_sig_id = 0;
     /* Insert gpu signatures */
     starter_gpu_sig_id = postgresql_batch_insert_gpu_signatures(connection, sigs, num_sigs);
     if (starter_gpu_sig_id != EAR_SUCCESS)
@@ -1617,7 +1620,7 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
     query = calloc((strlen(JOB_PSQL_QUERY)+(num_jobs*JOB_ARGS*10)+strlen("ON CONFLICT DO NOTHING")), sizeof(char));
 
     strcpy(query, JOB_PSQL_QUERY);
-    if (apps[0].is_learning)
+    if (apps[0].is_learning &= USE_LEARNING_APPS)
     {
         strcpy(lock_query, LOCK_LEARNING_JOBS_PSQL_QUERY);
         strcpy(insert_query, INSERT_NEW_LEARNING_JOBS);
@@ -1668,20 +1671,20 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
         /* Parameter sizes */
         param_lengths[0  + offset] = sizeof(int);
         param_lengths[1  + offset] = sizeof(int);
-        param_lengths[2  + offset] = sizeof apps[i].job.user_id;
-        param_lengths[3  + offset] = sizeof apps[i].job.app_id;
+        param_lengths[2  + offset] = strlen(apps[i].job.user_id);
+        param_lengths[3  + offset] = strlen(apps[i].job.app_id);
         param_lengths[4  + offset] = sizeof(int);
         param_lengths[5  + offset] = sizeof(int);
         param_lengths[6  + offset] = sizeof(int);
         param_lengths[7  + offset] = sizeof(int);
-        param_lengths[8  + offset] = sizeof apps[i].job.policy;
-        param_lengths[9  + offset] = sizeof apps[i].job.th;
+        param_lengths[8  + offset] = strlen(apps[i].job.policy);
+        param_lengths[9  + offset] = sizeof(apps[i].job.th);
         param_lengths[10 + offset] = sizeof(int);
         param_lengths[11 + offset] = sizeof(short);
         param_lengths[12 + offset] = sizeof(int);
-        param_lengths[13 + offset] = sizeof apps[i].job.user_acc;
-        param_lengths[14 + offset] = sizeof apps[i].job.group_id;
-        param_lengths[15 + offset] = sizeof apps[i].job.energy_tag;
+        param_lengths[13 + offset] = strlen(apps[i].job.user_acc);
+        param_lengths[14 + offset] = strlen(apps[i].job.group_id);
+        param_lengths[15 + offset] = strlen(apps[i].job.energy_tag);
 
         /* Parameter formats, 1 is binary 0 is string */
         param_formats[0  + offset] = 1;
@@ -1760,7 +1763,8 @@ int postgresql_batch_insert_loops(PGconn *connection, loop_t *loops, int num_loo
         return EAR_ERROR;
 
     char **param_values;
-    int i, j, offset, sig_id, *param_lengths, *param_formats, *sig_ids;
+    int i, j, offset, *param_lengths, *param_formats;
+	long long sig_id, *sig_ids;
     signature_t *sigs;
     char *query, arg_number[16];
 
@@ -1768,7 +1772,7 @@ int postgresql_batch_insert_loops(PGconn *connection, loop_t *loops, int num_loo
 
     /* Memory allocation */
     sigs = calloc(num_loops, sizeof(signature_t));
-    sig_ids = calloc(num_loops, sizeof(int));
+    sig_ids = calloc(num_loops, sizeof(long long));
     param_values = calloc(LOOP_ARGS*num_loops, sizeof(char *));
     param_lengths = calloc(LOOP_ARGS*num_loops, sizeof(int));
     param_formats = calloc(LOOP_ARGS*num_loops, sizeof(int));
@@ -1872,18 +1876,19 @@ int postgresql_batch_insert_applications(PGconn *connection, application_t *apps
         return EAR_ERROR;
 
     char **param_values;
-    int i, j, offset, pow_sig_id, sig_id, *param_lengths, *param_formats, *sig_ids, *pow_sig_ids;
+    int i, j, offset, *param_lengths, *param_formats;
+	long long sig_id, pow_sig_id, *sig_ids, *pow_sig_ids;
     signature_t *sigs;
     power_signature_t *pow_sigs;
     char *query, arg_number[16];
-    char is_learning = apps[0].is_learning; 
+    char is_learning = apps[0].is_learning &= USE_LEARNING_APPS; 
     char is_mpi      = apps[0].is_mpi; 
 
     /* Memory allocation */
     sigs = calloc(num_apps, sizeof(signature_t));
     pow_sigs = calloc(num_apps, sizeof(power_signature_t));
-    sig_ids = calloc(num_apps, sizeof(int));
-    pow_sig_ids = calloc(num_apps, sizeof(int));
+    sig_ids = calloc(num_apps, sizeof(long long));
+    pow_sig_ids = calloc(num_apps, sizeof(long long));
     param_values = calloc(APPLICATION_ARGS*num_apps, sizeof(char *));
     param_lengths = calloc(APPLICATION_ARGS*num_apps, sizeof(int));
     param_formats = calloc(APPLICATION_ARGS*num_apps, sizeof(int));
@@ -1923,7 +1928,7 @@ int postgresql_batch_insert_applications(PGconn *connection, application_t *apps
         }
     }
     if ((pow_sig_id = postgresql_get_current_autoincrement_val(connection, "power_signatures")) < 1)
-        verbose(VMYSQL, "Unknown error while retrieving power signature id (%d)\n", pow_sig_id);
+        verbose(VMYSQL, "Unknown error while retrieving power signature id (%lld)\n", pow_sig_id);
 
     for (i = 0; i < num_apps; i++)
     {
@@ -2011,14 +2016,15 @@ int postgresql_batch_insert_applications_no_mpi(PGconn *connection, application_
         return EAR_ERROR;
 
     char **param_values;
-    int i, j, offset, pow_sig_id, *param_lengths, *param_formats, *sig_ids, *pow_sig_ids;
+    int i, j, offset, *param_lengths, *param_formats;
+	long long pow_sig_id, *pow_sig_ids;
     power_signature_t *pow_sigs;
     char *query, arg_number[16];
-    char is_learning = apps[0].is_learning; 
+    char is_learning = apps[0].is_learning &= USE_LEARNING_APPS; 
 
     /* Memory allocation */
     pow_sigs = calloc(num_apps, sizeof(power_signature_t));
-    pow_sig_ids = calloc(num_apps, sizeof(int));
+    pow_sig_ids = calloc(num_apps, sizeof(long long));
     param_values = calloc(APPLICATION_ARGS*num_apps, sizeof(char *));
     param_lengths = calloc(APPLICATION_ARGS*num_apps, sizeof(int));
     param_formats = calloc(APPLICATION_ARGS*num_apps, sizeof(int));
@@ -2038,7 +2044,7 @@ int postgresql_batch_insert_applications_no_mpi(PGconn *connection, application_
 
 
     if ((pow_sig_id = postgresql_get_current_autoincrement_val(connection, "power_signatures")) < 1)
-        verbose(VMYSQL, "Unknown error while retrieving power signature id (%d)\n", pow_sig_id);
+        verbose(VMYSQL, "Unknown error while retrieving power signature id (%lld)\n", pow_sig_id);
 
     for (i = 0; i < num_apps; i++)
         pow_sig_ids[num_apps - 1 - i] = htonl(pow_sig_id - i);
@@ -2074,7 +2080,7 @@ int postgresql_batch_insert_applications_no_mpi(PGconn *connection, application_
         param_lengths[0  + offset] = sizeof(int);
         param_lengths[1  + offset] = sizeof(int);
         param_lengths[2  + offset] = strlen(apps[i].node_id);
-        param_lengths[3  + offset] = sizeof(sig_ids[i]);
+        param_lengths[3  + offset] = sizeof(long long);
         param_lengths[4  + offset] = sizeof(pow_sig_ids[i]);
 
         /* Parameter formats, 1 is binary 0 is string */
