@@ -144,7 +144,7 @@ void print_full_apps(application_t *apps, int num_apps)
 			avg_f = (double) apps[i].signature.avg_f/1000000;
 			imc = (double) apps[i].signature.avg_imc_f/1000000;
 			compute_sig_vpi(&vpi, &apps[i].signature);
-			if (apps[i].job.step_id != BATCH_STEP)
+			if (apps[i].job.step_id != (uint) BATCH_STEP)
 			{
 				printf("%8lu-%-4lu\t %-10s %-10s %-16s %5.2lf/%-5.2lf %-10.2lf %-10.2lf %-10.2lf %-10.2lf %-10.0lf %-7.1lf %-5.1lf %-7.2lf",
 						apps[i].job.id, apps[i].job.step_id, apps[i].node_id, apps[i].job.user_id, apps[i].job.app_id, 
@@ -194,7 +194,7 @@ void print_full_apps(application_t *apps, int num_apps)
 		else
 		{
 			avg_f = (double) apps[i].power_sig.avg_f/1000000;
-			if (apps[i].job.step_id != BATCH_STEP)
+			if (apps[i].job.step_id != (uint) BATCH_STEP)
 			{
 				printf("%8lu-%-4lu\t %-10s %-10s %-16s %5.2lf/%-5s %-10.2lf %-10.2lf %-10s %-10s %-10.0lf %-7s %-5s %-7s",
 						apps[i].job.id, apps[i].job.step_id, apps[i].node_id, apps[i].job.user_id, apps[i].job.app_id, 
