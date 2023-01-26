@@ -47,7 +47,7 @@ int lock_master(char *path_tmp, int job_id)
     plug_verbose(_sp, 3, "function lock_master");
     // Creating temp folder
     if ((access(path_tmp, W_OK) != 0) && (errno == ENOENT)) {
-        mkdir(path_job, PERMS(111,000,000)); 
+        mkdir(path_tmp, PERMS(111,000,000)); 
     }
     // Creating erun folder
     sprintf(path_job, "%s/erun", path_tmp);

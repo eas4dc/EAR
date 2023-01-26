@@ -145,6 +145,8 @@ src/tools/get_active_nodes*
 src/tools/learning_validate*
 src/tools/ear_events*
 src/tools/ear_conf
+src/tools/get_periodic
+src/tools/metrics_show
 src/commands/ear-info
 
 
