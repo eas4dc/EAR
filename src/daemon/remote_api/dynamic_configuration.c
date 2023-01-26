@@ -809,7 +809,9 @@ state_t process_remote_requests(int clientfd) {
             return EAR_SUCCESS;
     }
 
-    send_answer(clientfd, &ack); //send ack BEFORE processing the message to avoid delays
+    if (req != EAR_RC_NEW_JOB && req != EAR_RC_NEW_JOB_LIST) {
+        send_answer(clientfd, &ack); //send ack BEFORE processing the message to avoid delays
+    }
 
     verbose(VRAPI,"New command accepted");
     new_command_received(&command);
@@ -828,6 +830,7 @@ state_t process_remote_requests(int clientfd) {
 			//begin the new_job
             adap_new_job_req_to_app(&req_app,&command.my_req.new_job);
             powermon_new_job(NULL, &my_eh_rapi, &req_app, 0, req == EAR_RC_NEW_JOB_LIST);
+            send_answer(clientfd, &ack);
             break;
         case EAR_RC_END_JOB:
 #if SLURM_FAKE_ERROR
