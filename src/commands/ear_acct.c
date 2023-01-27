@@ -128,6 +128,7 @@ void print_full_apps(application_t *apps, int num_apps)
 	double gpu_power, gpu_total_power;
 	unsigned long gpu_freq, gpu_util, gpu_mem_util;
 	char tmp[64];
+    char is_sbatch;
 	if (print_gpus) 
 		printf(" %-13s %-6s %-13s ", "G-POW(T/U)", "G-FREQ", "G-UTIL(G/M)");
 #endif
@@ -135,6 +136,7 @@ void print_full_apps(application_t *apps, int num_apps)
 
 	for (i = 0; i < num_apps; i++)
 	{
+		is_sbatch = ((uint)apps[i].job.step_id == BATCH_STEP) ? 1 : 0;
 		if (strlen(apps[i].job.app_id) > 30)
 			if (strchr(apps[i].job.app_id, '/') != NULL)
 				strcpy(apps[i].job.app_id, strrchr(apps[i].job.app_id, '/')+1);
@@ -144,7 +146,7 @@ void print_full_apps(application_t *apps, int num_apps)
 			avg_f = (double) apps[i].signature.avg_f/1000000;
 			imc = (double) apps[i].signature.avg_imc_f/1000000;
 			compute_sig_vpi(&vpi, &apps[i].signature);
-			if (apps[i].job.step_id != (uint) BATCH_STEP)
+			if (!is_sbatch)
 			{
 				printf("%8lu-%-4lu\t %-10s %-10s %-16s %5.2lf/%-5.2lf %-10.2lf %-10.2lf %-10.2lf %-10.2lf %-10.0lf %-7.1lf %-5.1lf %-7.2lf",
 						apps[i].job.id, apps[i].job.step_id, apps[i].node_id, apps[i].job.user_id, apps[i].job.app_id, 
@@ -194,7 +196,7 @@ void print_full_apps(application_t *apps, int num_apps)
 		else
 		{
 			avg_f = (double) apps[i].power_sig.avg_f/1000000;
-			if (apps[i].job.step_id != (uint) BATCH_STEP)
+			if (!is_sbatch)
 			{
 				printf("%8lu-%-4lu\t %-10s %-10s %-16s %5.2lf/%-5s %-10.2lf %-10.2lf %-10s %-10s %-10.0lf %-7s %-5s %-7s",
 						apps[i].job.id, apps[i].job.step_id, apps[i].node_id, apps[i].job.user_id, apps[i].job.app_id, 
