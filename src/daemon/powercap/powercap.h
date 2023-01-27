@@ -23,6 +23,8 @@
 
 
 
+#define DEFAULT_CPU_TDP 150
+
 int powercap_init();
 void powercap_end();
 //void get_powercap_status(powercap_status_t *my_status);

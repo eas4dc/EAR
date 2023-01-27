@@ -262,14 +262,17 @@ void init_tdps()
 	if (read_rapl_pck_tdp(fd_rapl, rapl_pck_tdps) == EAR_ERROR){
        error("Reading CPU TDPs");
        error_rapl=1;
+       rapl_pck_tdps[0] = DEFAULT_CPU_TDP;
     }
     if (read_rapl_dram_tdp(fd_rapl, rapl_dram_tdps) == EAR_ERROR){
        error("Reading DRAM TDPs");
        error_rapl=1;
+          rapl_pck_tdps[0] = DEFAULT_CPU_TDP;
     }
   } else if (node_desc.vendor == VENDOR_AMD){
 	  if (!hsmp_scan(&node_desc)) {
 		error("Reading CPU TDPs");
+        rapl_pck_tdps[0] = DEFAULT_CPU_TDP;
 		error_rapl = 1;
 		return;
 	  }
@@ -278,6 +281,7 @@ void init_tdps()
 
 	  if (!hsmp_send(0, 0x07, args, reps)) { // get max_power_limit which is the TDP
 		  error("Reading CPU TDPs");
+          rapl_pck_tdps[0] = DEFAULT_CPU_TDP;
 		  error_rapl = 1;
 		  return;
 	  }
