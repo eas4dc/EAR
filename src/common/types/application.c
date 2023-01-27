@@ -161,13 +161,14 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
     }
 		debug("Creating header with %d GPUS", num_gpus);
 #if USE_GPUS
-		if (single_column) num_gpus = ear_min(num_gpus, 1);
-    for (int i = 0; i < num_gpus; i++){
-        char gpu_hdr[128];
-        xsnprintf(gpu_hdr, sizeof(gpu_hdr), ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC",
-                i, i, i, i, i);
-        xstrncat(HEADER, gpu_hdr, sizeof(gpu_hdr));
-    }
+        num_gpus = MAX_GPUS_SUPPORTED;
+        if (single_column) num_gpus = ear_min(num_gpus, 1);
+        for (int i = 0; i < num_gpus; i++){
+            char gpu_hdr[128];
+            xsnprintf(gpu_hdr, sizeof(gpu_hdr), ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC",
+                    i, i, i, i, i);
+            xstrncat(HEADER, gpu_hdr, sizeof(gpu_hdr));
+        }
 #endif
 	  int fd = open(path, OPTIONS, PERMISSION);
     if (fd >= 0) {

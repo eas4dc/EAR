@@ -175,7 +175,7 @@ int append_loop_text_file(char *path, loop_t *loop,job_t *job, int add_header, i
     num_gpus = loop->signature.gpu_sig.num_gpus;
 #endif
 
-	if (add_header)   create_loop_header(NULL, path, 0, num_gpus);
+	if (add_header) create_loop_header(NULL, path, 0, num_gpus);
     int fd, ret;
     fd = open(path, O_WRONLY | O_APPEND);
     if (fd < 0){
@@ -208,7 +208,7 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
 
 #if USE_GPUS
     char gpu_header[128];
-    char *HEADER_GPU_SIG = ";GPU%d_POWER;GPU%d_FREQ;GPU%d_MEM_FREQ;GPU%d_UTIL;GPU%d_MEM_UTI";
+    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
 #endif
 #if REPORT_TIMESTAMP
     char *HEADER_LOOP = ";LOOPID;LOOP_NEST_LEVEL;LOOP_SIZE;TIMESTAMP";
@@ -281,7 +281,7 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts, ull
     uint num_gpus = 0;
 
 #if USE_GPUS
-    num_gpus = loop->signature.gpu_sig.num_gpus;
+    num_gpus = MAX_GPUS_SUPPORTED; // loop->signature.gpu_sig.num_gpus;
     if (single_column) num_gpus = ear_min(num_gpus,1);
 #endif
 
