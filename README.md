@@ -1,6 +1,10 @@
+<div align="center">
+    <img src="etc/images/logo.png">
+</div>
+
 # Energy Aware Runtime version 4.2
 
-<img src="etc/images/logo.png" align="right" width="440">
+
 Energy Aware Runtime (EAR) package provides an energy management framework for super computers. EAR contains different components, all together provide three main services:
 
 1) A **easy-to-use and lightweight optimizarion service** to automatically select the optimal CPU frequency according to the application and the node characteristics. This service is provided by two components: the EAR library (**EARL**) and the EAR daemon (**EARD**). EARL is a smart component which is loaded next to the application, intercepting  MPI calls and selecting the CPU frequency based on the application behaviour on the fly. The library is loaded automatically through the EAR SLURM plugin (**EARPLUG, earplug.so**).
