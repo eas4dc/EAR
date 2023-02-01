@@ -150,3 +150,4 @@ src/tools/metrics_show
 src/commands/ear-info
 
 
+deployment.sh
