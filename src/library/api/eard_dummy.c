@@ -119,7 +119,7 @@ static void create_dummy_conf_paths(cluster_conf_t *dummycc, char *ear_tmp)
 	else 			strcpy(dummycc->install.dir_conf, DEFAULT_EAR_ETC_PATH);
 	strcpy(dummycc->install.dir_plug, dummycc->install.dir_inst);
 	strcat(dummycc->install.dir_plug, "/lib/plugins");
-	strcpy(dummycc->install.obj_power_model, "cpu_power_model_dummy.so");
+	strcpy(dummycc->install.obj_power_model, "avx512_model.so");
 	strcpy(dummycc->install.obj_ener, DEFAULT_ENERGY_PLUGIN);
 }
 state_t eard_dummy_cluster_conf(char *ear_tmp, uint ID)
