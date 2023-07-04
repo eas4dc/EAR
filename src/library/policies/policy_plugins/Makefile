@@ -7,7 +7,6 @@ endif
 poli_BINS = \
     min_energy.so \
     min_time.so  \
-		optimize.so \
     monitoring.so \
 
 ifdef CUDA_BASE
@@ -17,7 +16,6 @@ ifeq ($(FEAT_GPU_OPT),1)
 poli_BINS += \
     gpu_min_energy.so \
     gpu_min_time.so \
-		gpu_optimize.so
 endif
 endif
 
