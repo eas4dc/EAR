@@ -138,7 +138,3 @@ src/tools/time_test
 src/tools/external_attach
 src/tools/enode_control
 src/commands/ear-info
-src/pbs_hook
-
-
-deployment.sh
