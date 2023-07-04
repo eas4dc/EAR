@@ -1,6 +1,26 @@
+### EAR 4.2
+- Improved support for node sharing : save/restore configurations
+- AMD(Zen3) CPUs
+- Intel(r) SST support ondemand
+- Improved Phases classification
+- GPU idle optimization in all the application phases 
+- MPI load balance for energy optimization integrated on EAR policies
+- On demand COUNTDOWN support for MPI calls energy optimization
+- Energy savings estimates reported to the DB (available with eacct)
+- Application phases reported to the DB (available with eacct)
+- MPI statistics reports: CSV file with MPI statistics
+- New Intel Node Manager powercap node plugin
+- Improvements in the Meta-EARGM and node powercap
+- Improvements in the Soft cluster powercap
+- New report plugins for non-relational DB: EXAMON, Cassandra, DCDB
+- Improvements in the ear.conf parsing
+- Improved metrics and management API
+- Changes in the environment variables have been done for homogeneity
+
 ### EAR4.1.1
 - Select replaced by poll to support bigger nodes
 - Minor changes in edb_create and FP exceptions fixes
+
 ### EAR4.1
 - Meta EARGM
 - Support for N jobs in node
@@ -28,6 +48,7 @@
 - Node powercap and cluster powercap implemented: Intel CPU and NVIDIA GPUS tested. Meta EAR-GM not released
 - IO, Percentage of MPI and Uncore frequency reported to DB and included in eacct
 - econtrol extensions for EAR health-check
+
 ### EAR3.4
 - AMD monitoring support
 - TAGS support included in policies
