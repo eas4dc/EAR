@@ -49,7 +49,7 @@ state_t mgt_imcfreq_load(topology_t *tp, int eard, my_node_conf_t *conf)
 		api = API_AMD17;
 		debug("Loaded AMD17");
 	}
-	if (state_ok(s = mgt_imcfreq_intel63_load(tp, &ops, conf))) {
+	if (state_ok(s = mgt_imcfreq_intel63_load(tp, &ops, eard, conf))) {
 		api = API_INTEL63;
 		debug("Loaded INTEL63");
 	}

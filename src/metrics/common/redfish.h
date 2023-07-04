@@ -70,7 +70,11 @@
 /* Given a host, a username and password initializes redfish data. */
 state_t redfish_open(char *host, char *user, char *pass);
 
-state_t redfish_get(char *field, void *content, void *accum, uint *count, int type_flag);
+/* accum : When asking for arrays, accum is set to the aggregated value for the array member (out)
+ * count : number of elements in the array (out)
+ */
+state_t redfish_read(char *field, void *content, void *accum, uint *count, int type_flag);
+
 /* Count the array items of a field when the returned field is a JSON array. */
 state_t redfish_count_members(char *field, uint *count);
 

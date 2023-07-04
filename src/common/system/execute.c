@@ -42,6 +42,7 @@ int execute_with_fork(char *cmd)
     }else if (ret<0){
       return EAR_ERROR;
     }else return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 __attribute__ ((used))int execute(char *cmd)
 {

@@ -42,20 +42,20 @@
 
 #if USE_GPUS
 #define SIGNATURE_QUERY_FULL    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
-                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
-                                "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
+                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, L1_misses, L2_misses, L3_misses, "\
+                                "FLOPS1, FLOPS2, FLOPS3, FLOPS4, FLOPS5, FLOPS6, FLOPS7, FLOPS8, "\
                                 "instructions, cycles, avg_f, avg_imc_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "\
-                                "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #define SIGNATURE_QUERY_SIMPLE  "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
                                 "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "\
                                 "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 #else
 #define SIGNATURE_QUERY_FULL    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
-                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
-                                "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
-                                "instructions, cycles, avg_f, avg_imc_f, def_f) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,"\
-                                "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, L1_misses, L2_misses, L3_misses, "\
+                                "FLOPS1, FLOPS2, FLOPS3, FLOPS4, FLOPS5, FLOPS6, FLOPS7, FLOPS8, "\
+                                "instructions, cycles, avg_f, avg_imc_f, def_f) VALUES "\
+                                "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #define SIGNATURE_QUERY_SIMPLE  "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
                                 "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "\
@@ -123,20 +123,21 @@
                                     "signature_id, power_signature_id) VALUES (?, ?, ?, ?, ?)"
 #if USE_GPUS
 #define LEARNING_SIGNATURE_QUERY_FULL    "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"\
-                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
-                                "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
+                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, L1_misses, L2_misses, L3_misses, "\
+                                "FLOPS1, FLOPS2, FLOPS3, FLOPS4, FLOPS5, FLOPS6, FLOPS7, FLOPS8, "\
                                 "instructions, cycles, avg_f, avg_imc_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "\
-                                "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,?, ?, ?)"
+                                "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,?, ?, ?)"
 
 #define LEARNING_SIGNATURE_QUERY_SIMPLE  "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
                                 "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "\
                                 "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #else
-#define LEARNING_SIGNATURE_QUERY_FULL   "INSERT INTO Learning_signatures (DC_power, DRAM_power,"\
-                                        "PCK_power, EDP, GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
-                                        "FLOPS5, FLOPS6, FLOPS7, FLOPS8, instructions, cycles, avg_f, avg_imc_f, def_f) "\
-                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+#define LEARNING_SIGNATURE_QUERY_FULL    "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"\
+                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, L1_misses, L2_misses, L3_misses, "\
+                                "FLOPS1, FLOPS2, FLOPS3, FLOPS4, FLOPS5, FLOPS6, FLOPS7, FLOPS8, "\
+                                "instructions, cycles, avg_f, avg_imc_f, def_f) "\
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #define LEARNING_SIGNATURE_QUERY_SIMPLE    "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"\
                                            "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f) "\
@@ -933,15 +934,16 @@ int mysql_retrieve_loops(MYSQL *connection, char *query, loop_t **loops)
     loops_aux = (loop_t*) xcalloc(num_loops, sizeof(loop_t));
     char sig_query[128];
     signature_t *sig_aux;
+    int ret;
     //fetching and storing of jobs
     i = 0;
     status = mysql_stmt_fetch(statement);
     while (status == 0 || status == MYSQL_DATA_TRUNCATED)
     {
         sprintf(sig_query, "SELECT * FROM Signatures WHERE id=%lld", sig_id);
-        mysql_retrieve_signatures(connection, sig_query, &sig_aux);
+        ret = mysql_retrieve_signatures(connection, sig_query, &sig_aux);
 
-        if (sig_aux != NULL) { //to prevent it from crashing
+        if (ret > 0 && sig_aux != NULL) { //to prevent it from crashing
             signature_copy(&loop_aux->signature, sig_aux);
             free(sig_aux);
         }
@@ -1012,8 +1014,8 @@ int mysql_retrieve_jobs(MYSQL *connection, char *query, job_t **jobs)
     bind[11].buffer = &job_aux->type;
     bind[12].buffer = &job_aux->def_f;
     bind[13].buffer = &job_aux->user_acc;
-    bind[14].buffer = &job_aux->energy_tag;
-    bind[15].buffer = &job_aux->group_id;
+    bind[14].buffer = &job_aux->group_id;
+    bind[15].buffer = &job_aux->energy_tag;
 
     int ret = EAR_SUCCESS;
     if (mysql_stmt_bind_result(statement, bind)) ret = mysql_statement_error(statement);
@@ -1185,8 +1187,8 @@ long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t
 #if USE_GPUS
     if (full_signature)
     {
-        params = ", (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        num_params = 26;
+        params = ", (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        num_params = 29;
     }
     else
     {
@@ -1196,8 +1198,8 @@ long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t
 #else
     if (full_signature)
     {
-        params = ", (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        num_params = 24;
+        params = ", (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        num_params = 27;
     }
     else
     {
@@ -1318,34 +1320,37 @@ long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t
         bind[10+offset].buffer = (char *)&signature->perc_MPI;
         if (full_signature)
         {
-            bind[11+offset].buffer = (char *)&signature->FLOPS[0];
-            bind[12+offset].buffer = (char *)&signature->FLOPS[1];
-            bind[13+offset].buffer = (char *)&signature->FLOPS[2];
-            bind[14+offset].buffer = (char *)&signature->FLOPS[3];
-            bind[15+offset].buffer = (char *)&signature->FLOPS[4];
-            bind[16+offset].buffer = (char *)&signature->FLOPS[5];
-            bind[17+offset].buffer = (char *)&signature->FLOPS[6];
-            bind[18+offset].buffer = (char *)&signature->FLOPS[7];
-            bind[19+offset].buffer = (char *)&signature->instructions;
-            bind[20+offset].buffer = (char *)&signature->cycles;
-            bind[21+offset].buffer = (char *)&signature->avg_f;
-            bind[22+offset].buffer = (char *)&signature->avg_imc_f;
-            bind[23+offset].buffer = (char *)&signature->def_f;
+            bind[11+offset].buffer = (char *)&signature->L1_misses;
+            bind[12+offset].buffer = (char *)&signature->L2_misses;
+            bind[13+offset].buffer = (char *)&signature->L3_misses;
+            bind[14+offset].buffer = (char *)&signature->FLOPS[0];
+            bind[15+offset].buffer = (char *)&signature->FLOPS[1];
+            bind[16+offset].buffer = (char *)&signature->FLOPS[2];
+            bind[17+offset].buffer = (char *)&signature->FLOPS[3];
+            bind[18+offset].buffer = (char *)&signature->FLOPS[4];
+            bind[19+offset].buffer = (char *)&signature->FLOPS[5];
+            bind[20+offset].buffer = (char *)&signature->FLOPS[6];
+            bind[21+offset].buffer = (char *)&signature->FLOPS[7];
+            bind[22+offset].buffer = (char *)&signature->instructions;
+            bind[23+offset].buffer = (char *)&signature->cycles;
+            bind[24+offset].buffer = (char *)&signature->avg_f;
+            bind[25+offset].buffer = (char *)&signature->avg_imc_f;
+            bind[26+offset].buffer = (char *)&signature->def_f;
 #if USE_GPUS
             if (signature->gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0) // if there are gpu signatures and no error occured
             {
-                bind[24+offset].buffer = (char *)&gpu_sig_ids[current_gpu_sig_id];
+                bind[27+offset].buffer = (char *)&gpu_sig_ids[current_gpu_sig_id];
 
                 current_gpu_sig_id += signature->gpu_sig.num_gpus - 1; //we get max_sig_id
-                bind[25+offset].buffer = (char *)&gpu_sig_ids[current_gpu_sig_id];
+                bind[28+offset].buffer = (char *)&gpu_sig_ids[current_gpu_sig_id];
 
                 current_gpu_sig_id++; //we prepare for the next signature_id
             }
             else // if no gpu_signatures we set the values to null
             {
-                bind[24+offset].buffer_type = bind[25+offset].buffer_type = MYSQL_TYPE_NULL;
-                bind[24+offset].is_null = bind[25+offset].is_null = (my_bool *) 1;
-                bind[24+offset].buffer  = bind[25+offset].buffer  = NULL;
+                bind[27+offset].buffer_type = bind[28+offset].buffer_type = MYSQL_TYPE_NULL;
+                bind[27+offset].is_null = bind[28+offset].is_null = (my_bool *) 1;
+                bind[27+offset].buffer  = bind[28+offset].buffer  = NULL;
             }
 #endif
         }
@@ -1426,12 +1431,12 @@ int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs
 #if USE_GPUS
     long int min_gpu_sig_id = -1, max_gpu_sig_id = -1;
     if (full_signature)
-        num_params = 27;
+        num_params = 30;
     else 
         num_params = 17;
 #else
     if (full_signature)
-        num_params = 25;
+        num_params = 28;
     else 
         num_params = 15;
 #endif
@@ -1486,22 +1491,25 @@ int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs
     bind[11].buffer = &sig_aux->perc_MPI;
     if (full_signature)
     {
-        bind[12].buffer = &sig_aux->FLOPS[0];
-        bind[13].buffer = &sig_aux->FLOPS[1];
-        bind[14].buffer = &sig_aux->FLOPS[2];
-        bind[15].buffer = &sig_aux->FLOPS[3];
-        bind[16].buffer = &sig_aux->FLOPS[4];
-        bind[17].buffer = &sig_aux->FLOPS[5];
-        bind[18].buffer = &sig_aux->FLOPS[6];
-        bind[19].buffer = &sig_aux->FLOPS[7];
-        bind[20].buffer = &sig_aux->instructions;
-        bind[21].buffer = &sig_aux->cycles;
-        bind[22].buffer = &sig_aux->avg_f;
-        bind[23].buffer = &sig_aux->avg_imc_f;
-        bind[24].buffer = &sig_aux->def_f;
+        bind[12].buffer = &sig_aux->L1_misses;
+        bind[13].buffer = &sig_aux->L2_misses;
+        bind[14].buffer = &sig_aux->L3_misses;
+        bind[15].buffer = &sig_aux->FLOPS[0];
+        bind[16].buffer = &sig_aux->FLOPS[1];
+        bind[17].buffer = &sig_aux->FLOPS[2];
+        bind[18].buffer = &sig_aux->FLOPS[3];
+        bind[19].buffer = &sig_aux->FLOPS[4];
+        bind[20].buffer = &sig_aux->FLOPS[5];
+        bind[21].buffer = &sig_aux->FLOPS[6];
+        bind[22].buffer = &sig_aux->FLOPS[7];
+        bind[23].buffer = &sig_aux->instructions;
+        bind[24].buffer = &sig_aux->cycles;
+        bind[25].buffer = &sig_aux->avg_f;
+        bind[26].buffer = &sig_aux->avg_imc_f;
+        bind[27].buffer = &sig_aux->def_f;
 #if USE_GPUS
-        bind[25].buffer = &min_gpu_sig_id;
-        bind[26].buffer = &max_gpu_sig_id;
+        bind[28].buffer = &min_gpu_sig_id;
+        bind[29].buffer = &max_gpu_sig_id;
 #endif
     }
     else
@@ -2205,7 +2213,7 @@ int mysql_insert_ear_event(MYSQL *connection, ear_event_t *ear_ev)
     bind[1].buffer = (char *)&ear_ev->event;
     bind[2].buffer = (char *)&ear_ev->jid;
     bind[3].buffer = (char *)&ear_ev->step_id;
-    bind[4].buffer = (char *)&ear_ev->freq;
+    bind[4].buffer = (char *)&ear_ev->value;
     bind[5].buffer = (char *)&ear_ev->node_id;
 
     if (mysql_stmt_bind_param(statement, bind)) return mysql_statement_error(statement);
@@ -2236,7 +2244,7 @@ int mysql_batch_insert_ear_events(MYSQL *connection, ear_event_t *ear_ev, int nu
 
     //Prevent freq from going over max value
     for (i = 0; i < num_evs; i++) {
-        ear_ev[i].freq = ear_ev[i].freq > INT_MAX ? INT_MAX : ear_ev[i].freq;
+        ear_ev[i].value = ear_ev[i].value > INT_MAX ? INT_MAX : ear_ev[i].value;
     }
 
     if (mysql_stmt_prepare(statement, query, strlen(query))) {
@@ -2263,7 +2271,7 @@ int mysql_batch_insert_ear_events(MYSQL *connection, ear_event_t *ear_ev, int nu
         bind[1+offset].buffer = (char *)&ear_ev[i].event;
         bind[2+offset].buffer = (char *)&ear_ev[i].jid;
         bind[3+offset].buffer = (char *)&ear_ev[i].step_id;
-        bind[4+offset].buffer = (char *)&ear_ev[i].freq;
+        bind[4+offset].buffer = (char *)&ear_ev[i].value;
         bind[5+offset].buffer = (char *)&ear_ev[i].node_id;
     }
 

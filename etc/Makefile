@@ -5,6 +5,7 @@ gen_FOLDERS = $(DESTDIR)/bin \
               $(DESTDIR)/bin/tools \
               $(DESTDIR)/include \
               $(DESTDIR)/lib \
+              $(DESTDIR)/lib/pbs \
               $(DESTDIR)/lib/plugins \
               $(DESTDIR)/lib/plugins/energy \
               $(DESTDIR)/lib/plugins/powercap \
@@ -26,7 +27,7 @@ conf_BINS = ear.conf.template ear.conf.full.template
 conf_FOLD = conf
 conf_PATH = $(ETCDIR)/ear
 conf_PERM = 0660
-modl_BINS = ear
+modl_BINS = ear ear-lite
 modl_FOLD = module
 modl_PATH = $(ETCDIR)/module
 modl_PERM = 0666

@@ -63,9 +63,12 @@ ullong timestamp_convert(timestamp *ts, ullong time_unit);
 /* A combination of getfast and convert. */
 ullong timestamp_getconvert(ullong time_unit);
 
-/* Computes the difference between two timestamp_t values (ts2-ts1) and converts to the
- * selected time units. time_unit=1 means ns. */
+/* Computes the difference between two timestamp_t values (ts2-ts1) and converts
+ * to the selected time units. Use the TIME_* macros to select the unit. */
 ullong timestamp_diff(timestamp *ts2, timestamp *ts1, ullong time_unit);
+
+/* Float diff. Precision unit is used to compute the decimals. */
+double timestamp_fdiff(timestamp *ts2, timestamp *ts1, ullong time_unit, ullong prec_unit);
 
 /* Gets the current time and diffs between now and ts1. */
 ullong timestamp_diffnow(timestamp *ts1, ullong time_unit);

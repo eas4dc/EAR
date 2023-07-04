@@ -38,7 +38,7 @@ state_t report_init(report_id_t *id,cluster_conf_t *cconf)
 	gethostname(nodename, sizeof(nodename));
 	strtok(nodename, ".");
 
-	csv_log_file_env = getenv(VAR_OPT_USDB);
+	csv_log_file_env = ear_getenv(ENV_FLAG_PATH_USERDB);
 	/* Loop filename is automatically generated */
 	if (csv_log_file_env != NULL){
 		xsnprintf(csv_log_file,sizeof(csv_log_file),"%s",csv_log_file_env);

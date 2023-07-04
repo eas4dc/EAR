@@ -366,7 +366,7 @@ state_t pmgt_init()
 
     /* DOMAIN_NODE is not cmpatible with CPU+DRAM */
     /* DOMAIN_NODE */
-    char *obj_path = getenv("EAR_POWERCAP_POLICY_NODE");
+    char *obj_path = ear_getenv("EAR_POWERCAP_POLICY_NODE");
     if (obj_path==NULL){
         /* Plugin per domain node defined */
         if (strcmp(DEFAULT_PC_PLUGIN_NAME_NODE,"noplugin")){
@@ -390,7 +390,7 @@ state_t pmgt_init()
     debug("Static NODE utilization set to 100");
     if (!domains_loaded[DOMAIN_NODE]){
         /* DOMAIN_CPU */
-        obj_path = getenv("EAR_POWERCAP_POLICY_CPU"); //environment variable takes priority
+        obj_path = ear_getenv("EAR_POWERCAP_POLICY_CPU"); //environment variable takes priority
         if (obj_path == NULL){ //if envar is not defined, we try with the ear.conf var
             obj_path = my_node_conf->powercap_plugin;
             if (obj_path != NULL && strlen(obj_path) > 1) {
@@ -423,7 +423,7 @@ state_t pmgt_init()
         debug("Static CPU utilization set to 100 for %d cpus",pc_topology_info.cpu_count);
 
         /* DOMAIN_DRAM */
-        obj_path = getenv("EAR_POWERCAP_POLICY_DRAM");
+        obj_path = ear_getenv("EAR_POWERCAP_POLICY_DRAM");
         if (obj_path==NULL){
             /* Plugin per domain node defined */
             if (strcmp(DEFAULT_PC_PLUGIN_NAME_DRAM,"noplugin")){
@@ -448,7 +448,7 @@ state_t pmgt_init()
 
 #if USE_GPUS
     /* DOMAIN_GPU */
-    obj_path = getenv("EAR_POWERCAP_POLICY_GPU");
+    obj_path = ear_getenv("EAR_POWERCAP_POLICY_GPU");
     if (gpu_pc_model != API_DUMMY) {
         if (obj_path==NULL){
             obj_path = my_node_conf->powercap_gpu_plugin;
@@ -847,7 +847,7 @@ void pmgt_powercap_node_reallocation()
 void pmgt_new_job(pwr_mgt_t *phandler)
 {
 #if USE_GPUS
-    monitor_burst(sus_util_detection);
+    monitor_burst(sus_util_detection, 0);
 #endif
     memcpy(pdomains,pdomains_def,sizeof(float)*NUM_DOMAINS);
     reallocate_power_between_domains();

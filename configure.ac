@@ -10,15 +10,16 @@ m4_include([m4/ac_oneapi.m4])
 m4_include([m4/ac_pgsql.m4])
 m4_include([m4/ac_mysql.m4])
 m4_include([m4/ac_slurm.m4])
-m4_include([m4/ac_cuda.m4])
 m4_include([m4/ac_cupti.m4])
+m4_include([m4/ac_cuda.m4])
+m4_include([m4/ac_rsmi.m4])
 m4_include([m4/ac_pbs.m4])
-m4_include([m4/x_ac_oar.m4])
+m4_include([m4/ac_oar.m4])
 m4_include([m4/ac_gsl.m4])
 
 # INIT
 AC_PREREQ([2.69])
-AC_INIT([EAR], [4.2], [ear-support@bsc.es])
+AC_INIT([EAR], [4.3], [ear-support@bsc.es])
 AC_LANG(C)
 
 # PROGRAMS TEST
@@ -41,9 +42,11 @@ AX_BEFORE_FEATURES
 
 X_AC_CUDA
 X_AC_CUPTI
+X_AC_RSMI
+X_AC_ONEAPI
+X_AC_LIKWID
 X_AC_FREEIPMI
 X_AC_GSL
-X_AC_LIKWID
 X_AC_PGSQL
 X_AC_MYSQL
 X_AC_ONEAPI
@@ -99,14 +102,12 @@ echo "----------------------------------------------------------"
 
 AC_CONFIG_FILES([Makefile
                  etc/module/ear
+                 etc/module/ear-lite
                  etc/slurm/ear.plugstack.conf
                  etc/systemd/eard.service
                  etc/systemd/eardbd.service
                  etc/systemd/eargmd.service
                  src/common/config/config_install.h
-                 src/common/config/config_dev.h
-                 src/common/config/config_def.h
-                 src/common/config/config_env.h
                  etc/conf/ear.conf.full.template
                  etc/conf/ear.conf.template
                  etc/rpms/specs/ear.spec])

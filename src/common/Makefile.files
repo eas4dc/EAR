@@ -51,17 +51,23 @@ libc_OBJS = \
     $(SRCDIR)/common/hardware/bithack.o \
     $(SRCDIR)/common/hardware/hardware_info.o \
     $(SRCDIR)/common/hardware/cpuid.o \
+    $(SRCDIR)/common/hardware/mrs.o \
     $(SRCDIR)/common/hardware/topology.o \
     $(SRCDIR)/common/hardware/topology_asm.o \
     $(SRCDIR)/common/hardware/topology_tdp.o \
     $(SRCDIR)/common/hardware/architecture.o \
 	$(SRCDIR)/common/messaging/msg_internals.o \
-	$(SRCDIR)/common/utils/keeper.o \
+	$(SRCDIR)/common/utils/args.o \
 	$(SRCDIR)/common/utils/data_register.o \
+	$(SRCDIR)/common/utils/keeper.o \
 	$(SRCDIR)/common/utils/overhead.o \
-	$(SRCDIR)/common/utils/string.o \
 	$(SRCDIR)/common/utils/serial_buffer.o \
-	$(SRCDIR)/common/utils/stress.o
+	$(SRCDIR)/common/utils/string.o \
+	$(SRCDIR)/common/utils/strscreen.o \
+	$(SRCDIR)/common/utils/strtable.o \
+	$(SRCDIR)/common/utils/special.o \
+	$(SRCDIR)/common/utils/stress.o \
+	$(SRCDIR)/common/external/ear_external.o
 
 ifdef DB_BASE
 libc_OBJS += \

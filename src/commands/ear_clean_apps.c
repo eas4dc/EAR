@@ -20,7 +20,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <termios.h>
-#include <mysql/mysql.h>
 #include <common/config.h>
 #include <common/types/version.h>
 #include <common/output/verbose.h>

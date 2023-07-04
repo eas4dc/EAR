@@ -107,6 +107,7 @@ typedef struct plug_subject {
 } plug_subject_t;
 
 typedef struct plug_erun {
+    int is_step_id;
 	int is_master;
 	int is_erun;
 	int step_id;

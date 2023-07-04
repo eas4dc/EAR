@@ -44,6 +44,9 @@ void before_mpi(mpi_call call_type, p2i buf, p2i dest)
         last_buf  = buf;
         last_dest = dest;
 #endif
+#if EAR_OFF
+  return;
+#endif
 	policy_mpi_init(call_type);
 	ear_mpi_call(call_type,buf,dest);
 }
@@ -51,6 +54,9 @@ void before_mpi(mpi_call call_type, p2i buf, p2i dest)
 void after_mpi(mpi_call call_type)
 {
 	debug("after_mpi");
+#if EAR_OFF
+  return;
+#endif
 	policy_mpi_end(call_type);
 }
 

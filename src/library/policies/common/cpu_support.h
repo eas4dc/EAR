@@ -32,6 +32,14 @@ extern unsigned long ext_def_freq;
 #define DEF_FREQ(f) f
 #endif
 
+/* 
+ * Used to compute energy savings in policy.c
+ */
+double get_power_projected(signature_t *my_app, ulong f);
+double get_time_projected(signature_t *my_app, ulong f);
+double  get_time_nominal(signature_t *my_app);
+double  get_power_nominal(signature_t *my_app);
+
 /* Compute reference metrics used before applying any policy projection/decision. */
 state_t compute_reference(polctx_t *c, signature_t *my_app, ulong *curr_freq, ulong *def_freq, ulong *freq_ref, double *time_ref, double *power_ref);
 

@@ -43,7 +43,7 @@
 
 extern masters_info_t masters_info;
 extern float ratio_PPN;
-extern uint total_mpi;
+extern unsigned long long int total_mpi;
 extern uint using_verb_files;
 extern uint per_proc_verb_file;
 
@@ -58,7 +58,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
     float AVGF = 0, AVGGPUF = 0, PFREQ = 0, NFREQ = 0;
     float l1_sec=0,l2_sec=0,l3_sec=0;
     float IO_MBS;
-    ulong GPU_UTIL = 0, GPU_FREQ = 0, gpu_used_cnt=0;
+    ulong GPU_UTIL = 0, GPU_FREQ = 0, gpu_used_cnt=0, GPU_mem_util = 0;
     ulong elapsed;
     timestamp end;
     char mode[32];
@@ -156,7 +156,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
             ulong freq_avg, cpus_count;
 
             pstate_freqtoavg(*mask, lib_shared_region->avg_cpufreq,
-                    metrics_get(MET_CPUFREQ)->devs_count, &freq_avg, &cpus_count);
+                             metrics_get(MET_CPUFREQ)->devs_count, &freq_avg, &cpus_count);
 
             AVGF = (float) freq_avg / 1000000.0;
         } else {
@@ -212,6 +212,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
                     GPU_POWER    += sig->signature.gpu_sig.gpu_data[i].GPU_power; 
                     GPU_FREQ     += sig->signature.gpu_sig.gpu_data[i].GPU_freq; 
                     GPU_UTIL     += sig->signature.gpu_sig.gpu_data[i].GPU_util; 
+                    GPU_mem_util     += sig->signature.gpu_sig.gpu_data[i].GPU_mem_util; 
                 }
             } 
             verbose_master(3, "-------------------------------------");
@@ -220,6 +221,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
                 GPU_POWER /= (float) gpu_used_cnt;
                 AVGGPUF = (float) GPU_FREQ / (float) (gpu_used_cnt * 1000000.0); 
                 GPU_UTIL = GPU_UTIL / gpu_used_cnt; 
+                GPU_mem_util = GPU_mem_util / gpu_used_cnt; 
             }
 
             gpu_freq_sum /= gpu_cnt;
@@ -233,7 +235,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
                 mode, aname, PFREQ, nname, sig->id.event, sig->id.size, sig->id.level, iterations); 
 
         debug("%swriting nname at elapsed%s", COL_YLW, COL_CLR)
-        verbosen(1, "EAR%s(%s) at %.2f in %s MR[%d] elapsed %lu sec.: ",
+        verbosen(1, "EAR%s(%s) at %.3f in %s MR[%d] elapsed %lu sec.: ",
                 mode, aname, PFREQ, nname, master_rank, elapsed); 
         verbosen(1, "%s", COL_GRE);
 
@@ -244,7 +246,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
         strcpy(gpu_buff," ");
         if (GPU_UTIL) {
             snprintf(gpu_buff, sizeof(gpu_buff), "\n\t(Used GPUS %lu GPU_power %.2lfW (avg) "
-                    "GPU_freq %.2fGHz (avg) GPU_util %lu (avg))", gpu_used_cnt, GPU_POWER, AVGGPUF, GPU_UTIL);
+                    "GPU_freq %.2fGHz (avg) GPU_util %lu (avg) GPU_mem_util %lu (avg))", gpu_used_cnt, GPU_POWER, AVGGPUF, GPU_UTIL, GPU_mem_util);
         }
 
         debug("%swriting CPI GBS power...%s", COL_YLW, COL_CLR);
@@ -264,9 +266,9 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
 
         verbosen(2,"\n\t L1GB/sec %.2f L2GB/sec %.2f L3GB/sec %.2f TPI %.2lf ",l1_sec,l2_sec,l3_sec, sig->signature.TPI);
 
-        uint n_mpi_calls = (per_proc_verb_file) ? sig_shared_region[my_node_id].mpi_info.total_mpi_calls : total_mpi;
+        ullong n_mpi_calls = (per_proc_verb_file) ? sig_shared_region[my_node_id].mpi_info.total_mpi_calls : total_mpi;
 
-        verbosen(2," VPI %.2f Total MPI calls %u",VPI, n_mpi_calls);
+        verbosen(2," VPI %.2f Total MPI calls %llu",VPI, n_mpi_calls);
         verbosen(2,"\n\t IO DATA: %s ",io_info);
 
         verbose(1,"%s",COL_CLR);

@@ -69,7 +69,7 @@
                                         "GBS, TPI, CPI, Gflops, time, avg_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES"
 
 #define LEARNING_SIGNATURE_QUERY_FULL   "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"\
-                                        "GBS, TPI, CPI, Gflops, time, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
+                                        "GBS, TPI, CPI, Gflops, time, L1_misses, L2_misses, L3_misses, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
                                         "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
                                         "instructions, cycles, avg_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "
 #else
@@ -107,8 +107,8 @@
                                         "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES"
 
 #define SIGNATURE_QUERY_FULL    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
-                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "\
-                                "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
+                                "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, L1_misses, L2_misses, L3_misses, "\
+                                "FLOPS1, FLOPS2, FLOPS3, FLOPS4, FLOPS5, FLOPS6, FLOPS7, FLOPS8,"\
                                 "instructions, cycles, avg_f, avg_imc_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "
 #else
 #define SIGNATURE_QUERY_SIMPLE  "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"\
@@ -160,7 +160,7 @@ void set_signature_simple(char full_sig)
     {
         LEARNING_SIGNATURE_PSQL_QUERY = LEARNING_SIGNATURE_QUERY_FULL;
         SIGNATURE_PSQL_QUERY = SIGNATURE_QUERY_FULL;    
-        sig_args = 24;
+        sig_args = 27;
     }
     else
     {
@@ -240,7 +240,7 @@ void reverse_ear_event_bytes(ear_event_t *events, int num_events)
         events[i].jid = htonl(events[i].jid);
         events[i].step_id = htonl(events[i].step_id);
         events[i].event = htonl(events[i].event);
-        events[i].freq = htonl(events[i].freq);
+        events[i].value = htonl(events[i].value);
         events[i].timestamp = htonl(events[i].timestamp);
     }
 }
@@ -578,22 +578,25 @@ int postgresql_retrieve_signatures(PGconn *connection, char *query, signature_t 
         sig_aux[i].perc_MPI = double_swap( *((double *)PQgetvalue(res, i, 11)));
         if (full_signature)
         {
-            sig_aux[i].FLOPS[0] = htonll( *((ulong *)PQgetvalue(res, i, 12)));
-            sig_aux[i].FLOPS[1] = htonll( *((ulong *)PQgetvalue(res, i, 13)));
-            sig_aux[i].FLOPS[2] = htonll( *((ulong *)PQgetvalue(res, i, 14)));
-            sig_aux[i].FLOPS[3] = htonll( *((ulong *)PQgetvalue(res, i, 15)));
-            sig_aux[i].FLOPS[4] = htonll( *((ulong *)PQgetvalue(res, i, 16)));
-            sig_aux[i].FLOPS[5] = htonll( *((ulong *)PQgetvalue(res, i, 17)));
-            sig_aux[i].FLOPS[6] = htonll( *((ulong *)PQgetvalue(res, i, 18)));
-            sig_aux[i].FLOPS[7] = htonll( *((ulong *)PQgetvalue(res, i, 19)));
-            sig_aux[i].instructions = htonll( *((ulong *)PQgetvalue(res, i, 20)));
-            sig_aux[i].cycles = htonll( *((ulong *)PQgetvalue(res, i, 21)));
-            sig_aux[i].avg_f = htonl( *((ulong *)PQgetvalue(res, i, 22)));
-            sig_aux[i].avg_imc_f = htonl( *((ulong *)PQgetvalue(res, i, 23)));
-            sig_aux[i].def_f = htonl( *((ulong *)PQgetvalue(res, i, 24)));
+            sig_aux[i].L1_misses = htonll( *((ulong *)PQgetvalue(res, i, 12)));
+            sig_aux[i].L2_misses = htonll( *((ulong *)PQgetvalue(res, i, 13)));
+            sig_aux[i].L3_misses = htonll( *((ulong *)PQgetvalue(res, i, 14)));
+            sig_aux[i].FLOPS[0] = htonll( *((ulong *)PQgetvalue(res, i, 15)));
+            sig_aux[i].FLOPS[1] = htonll( *((ulong *)PQgetvalue(res, i, 16)));
+            sig_aux[i].FLOPS[2] = htonll( *((ulong *)PQgetvalue(res, i, 17)));
+            sig_aux[i].FLOPS[3] = htonll( *((ulong *)PQgetvalue(res, i, 18)));
+            sig_aux[i].FLOPS[4] = htonll( *((ulong *)PQgetvalue(res, i, 19)));
+            sig_aux[i].FLOPS[5] = htonll( *((ulong *)PQgetvalue(res, i, 20)));
+            sig_aux[i].FLOPS[6] = htonll( *((ulong *)PQgetvalue(res, i, 21)));
+            sig_aux[i].FLOPS[7] = htonll( *((ulong *)PQgetvalue(res, i, 22)));
+            sig_aux[i].instructions = htonll( *((ulong *)PQgetvalue(res, i, 23)));
+            sig_aux[i].cycles = htonll( *((ulong *)PQgetvalue(res, i, 24)));
+            sig_aux[i].avg_f = htonl( *((ulong *)PQgetvalue(res, i, 25)));
+            sig_aux[i].avg_imc_f = htonl( *((ulong *)PQgetvalue(res, i, 26)));
+            sig_aux[i].def_f = htonl( *((ulong *)PQgetvalue(res, i, 27)));
 #if USE_GPUS
-            min_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 25)));
-            max_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 26)));
+            min_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 28)));
+            max_gpu_sig_id = htonl( *((ulong *)PQgetvalue(res, i, 29)));
 #endif
         }
         else
@@ -859,7 +862,7 @@ int postgresql_batch_insert_ear_events(PGconn *connection, ear_event_t *events, 
         param_values[1  + offset] = (char *) &events[i].event;
         param_values[2  + offset] = (char *) &events[i].jid;
         param_values[3  + offset] = (char *) &events[i].step_id;
-        param_values[4  + offset] = (char *) &events[i].freq;
+        param_values[4  + offset] = (char *) &events[i].value;
         param_values[5  + offset] = (char *) &events[i].node_id;
 
         /* Parameter sizes */
@@ -1477,25 +1480,28 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
         param_values[10 + offset] = (char *) &sigs[i].perc_MPI;
         if (full_signature)
         {
-            param_values[11 + offset] = (char *) &sigs[i].FLOPS[0];
-            param_values[12 + offset] = (char *) &sigs[i].FLOPS[1];
-            param_values[13 + offset] = (char *) &sigs[i].FLOPS[2];
-            param_values[14 + offset] = (char *) &sigs[i].FLOPS[3];
-            param_values[15 + offset] = (char *) &sigs[i].FLOPS[4];
-            param_values[16 + offset] = (char *) &sigs[i].FLOPS[5];
-            param_values[17 + offset] = (char *) &sigs[i].FLOPS[6];
-            param_values[18 + offset] = (char *) &sigs[i].FLOPS[7];
-            param_values[19 + offset] = (char *) &sigs[i].instructions;
-            param_values[20 + offset] = (char *) &sigs[i].cycles;
-            param_values[21 + offset] = (char *) &sigs[i].avg_f;
-            param_values[22 + offset] = (char *) &sigs[i].avg_imc_f;
-            param_values[23 + offset] = (char *) &sigs[i].def_f;
+            param_values[11 + offset] = (char *) &sigs[i].L1_misses;
+            param_values[12 + offset] = (char *) &sigs[i].L2_misses;
+            param_values[13 + offset] = (char *) &sigs[i].L3_misses;
+            param_values[14 + offset] = (char *) &sigs[i].FLOPS[0];
+            param_values[15 + offset] = (char *) &sigs[i].FLOPS[1];
+            param_values[16 + offset] = (char *) &sigs[i].FLOPS[2];
+            param_values[17 + offset] = (char *) &sigs[i].FLOPS[3];
+            param_values[18 + offset] = (char *) &sigs[i].FLOPS[4];
+            param_values[19 + offset] = (char *) &sigs[i].FLOPS[5];
+            param_values[20 + offset] = (char *) &sigs[i].FLOPS[6];
+            param_values[21 + offset] = (char *) &sigs[i].FLOPS[7];
+            param_values[22 + offset] = (char *) &sigs[i].instructions;
+            param_values[23 + offset] = (char *) &sigs[i].cycles;
+            param_values[24 + offset] = (char *) &sigs[i].avg_f;
+            param_values[25 + offset] = (char *) &sigs[i].avg_imc_f;
+            param_values[26 + offset] = (char *) &sigs[i].def_f;
 #if USE_GPUS
             if (sigs[i].gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0)
             {
-                param_values[24 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                param_values[27 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
                 current_gpu_sig_id += sigs[i].gpu_sig.num_gpus - 1;
-                param_values[25 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                param_values[28 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
             }
             else
             {
@@ -1538,22 +1544,25 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
         param_lengths[10 + offset] = sizeof(sigs[i].perc_MPI);
         if (full_signature)
         {
-            param_lengths[11 + offset] = sizeof(sigs[i].FLOPS[0]);
-            param_lengths[12 + offset] = sizeof(sigs[i].FLOPS[0]);
-            param_lengths[13 + offset] = sizeof(sigs[i].FLOPS[0]);
+            param_lengths[11 + offset] = sizeof(sigs[i].L1_misses);
+            param_lengths[12 + offset] = sizeof(sigs[i].L2_misses);
+            param_lengths[13 + offset] = sizeof(sigs[i].L3_misses);
             param_lengths[14 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[15 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[16 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[17 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[18 + offset] = sizeof(sigs[i].FLOPS[0]);
-            param_lengths[19 + offset] = sizeof(sigs[i].instructions);
-            param_lengths[20 + offset] = sizeof(sigs[i].cycles);
-            param_lengths[21 + offset] = sizeof(int);
-            param_lengths[22 + offset] = sizeof(int);
-            param_lengths[23 + offset] = sizeof(int);
+            param_lengths[19 + offset] = sizeof(sigs[i].FLOPS[0]);
+            param_lengths[20 + offset] = sizeof(sigs[i].FLOPS[0]);
+            param_lengths[21 + offset] = sizeof(sigs[i].FLOPS[0]);
+            param_lengths[22 + offset] = sizeof(sigs[i].instructions);
+            param_lengths[23 + offset] = sizeof(sigs[i].cycles);
+            param_lengths[24 + offset] = sizeof(int);
+            param_lengths[25 + offset] = sizeof(int);
+            param_lengths[26 + offset] = sizeof(int);
 #if USE_GPUS
-            param_lengths[24 + offset] = sizeof(ulong);
-            param_lengths[25 + offset] = sizeof(ulong);
+            param_lengths[27 + offset] = sizeof(ulong);
+            param_lengths[28 + offset] = sizeof(ulong);
 #endif
         }
         else 

@@ -15,48 +15,11 @@
 * and COPYING.EPL files.
 */
 
-#ifndef _STRING_ENHANCED_H_
-#define _STRING_ENHANCED_H_
+#ifndef COMMON_STRING_ENHANCED_H
+#define COMMON_STRING_ENHANCED_H
 
-#include <stdio.h>
 #include <getopt.h>
-#include <linux/limits.h>
-#include <common/utils/string.h>
-#include <common/output/verbose.h>
-
-#define STR_MAX_COLUMNS		20
-#define STR_SIZE_BUFFER		PIPE_BUF
-#define STR_SYMBOL			"||"
-#define STR_SYMBOL_VIS		"|||"
-#define STR_RED				"<red>"
-#define STR_GRE 			"<gre>"
-#define STR_YLW 			"<ylw>"
-#define STR_BLU 			"<blu>"
-#define STR_MGT 			"<mgt>"
-#define STR_CYA 			"<cya>"
-#define STR_COL_CHR			5
-#define STR_MODE_DEF		0
-#define STR_MODE_COL		1
-#define STR_MODE_CSV		2
-
-char tprintf_ibuf[STR_SIZE_BUFFER] __attribute__((weak));
-char tprintf_obuf[STR_SIZE_BUFFER] __attribute__((weak));
-
-#define tprintf(...) \
-	snprintf(tprintf_ibuf, STR_SIZE_BUFFER-1, __VA_ARGS__); \
-	tprintf_format();
-
-/** **/
-int tprintf_init(int fd, int mode, char *format);
-
-/** Using this version the output is redirected to verbose. */
-int tprintf_init_v2(int v, int mode, char *format);
-
-/** **/
-int tprintf_format();
-
-/** **/
-void tprintf_close();
+#include <common/utils/strtable.h>
 
 /** Cleans the character pointed by 'chr', adding an '\0' in its position. */
 char* strclean(char *string, char chr);

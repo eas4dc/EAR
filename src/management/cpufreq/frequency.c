@@ -373,7 +373,7 @@ void get_governor(governor_t *_governor)
 	// Clear
 	_governor->max_f = 0LU;
 	_governor->min_f = 0LU;
-	sprintf(_governor->name, "%s", Goverstr.other);
+	sprintf(_governor->name, "%s", Goverstr.unknown);
 	//
 	if (!init) {
 		return;

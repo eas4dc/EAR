@@ -24,7 +24,9 @@
 #include <common/utils/string.h>
 #include <common/output/verbose.h>
 
-/* error definitions */
+// Error definitions. ALWAYS use EAR_ERROR instead more specific
+// definitions. Use specific errors ONLY when you are controlling
+// differently from outside.
 #define EAR_SUCCESS              0
 #define EAR_ERROR               -1
 #define EAR_WARNING             -2

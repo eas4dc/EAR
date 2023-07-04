@@ -32,7 +32,8 @@ double metric_ratio(double metric_ref, double metric_curr, uint type) {
 }
 
 uint above_max_penalty(double time_ref, double time_curr, double cpi_ref, double cpi_curr,
-        double gbs_ref, double gbs_curr, double penalty_th){
+                       double gbs_ref, double gbs_curr, double penalty_th)
+{
     double metric_max, metric_min;
     if (ear_periodic_mode == PERIODIC_MODE_OFF){
         /* We use TIME as our reference metric */

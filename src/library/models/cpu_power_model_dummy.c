@@ -114,6 +114,8 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data,shsignature_t *sig,
 	debug("There are %d jobs in node ", node_process);
 	#endif
 
+  if (used_cpus == 0) return EAR_SUCCESS;
+
 
 	uint lp = 0;
 	int cj = 0;
@@ -130,10 +132,19 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data,shsignature_t *sig,
     }else{
       /* If there is no cache misses, we distribute the GBs proportionally to the number of cpus, naive approach */
       cj = job_in_process[j];
-      float mem_ratio = ((float)nmgr[cj].libsh->num_cpus/(float)used_cpus)/(float)nmgr[cj].libsh->num_processes;
-      gbs[j] = lsig->GBS * mem_ratio;
-      tpi[j] = lsig->TPI * mem_ratio;
-      dram_power[j] = (gbs[j]/lsig->GBS) * lsig->DRAM_power;
+      if (nmgr[cj].libsh->num_processes == 0){
+        gbs[j] = 0;
+        tpi[j] = 0;
+        dram_power[j] = 0;
+      }else{
+
+        float mem_ratio = ((float)nmgr[cj].libsh->num_cpus/(float)used_cpus)/(float)nmgr[cj].libsh->num_processes;
+        gbs[j] = lsig->GBS * mem_ratio;
+        tpi[j] = lsig->TPI * mem_ratio;
+        if (lsig->GBS) dram_power[j] = (gbs[j]/lsig->GBS) * lsig->DRAM_power;
+        else           dram_power[j] = lsig->DRAM_power/(float)nmgr[cj].libsh->num_processes;
+      }
+
     }
     if ((L3[j] || gbs[j])  && (job_in_process[j] == node_mgr_index)){
 
@@ -172,6 +183,8 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data,shsignature_t *sig,
 	debug("Baseline CPU power %lf", CPU_power);
 	double GPU_process_power = 0;
 
+  if (data->num_processes == 0) return EAR_SUCCESS;
+
 	if (node_process == 0){
 		for (uint lp = 0; lp < data->num_processes; lp ++){
 			sig[lp].sig.DC_power	= (CPU_power + GPU_power) / data->num_processes;
@@ -182,6 +195,8 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data,shsignature_t *sig,
 		data->job_signature.PCK_power = CPU_power;
 		return EAR_SUCCESS;
 	}
+
+  if (cpu_count == 0) return EAR_SUCCESS;
 
 	/* Per job in node loop */
 	lp = 0;
@@ -203,6 +218,7 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data,shsignature_t *sig,
 	job_power_ratio = 0.0;
 	lp = 0;
 	for (uint proc =0; proc < node_process; proc++){
+    GPU_process_power = 0;
 	  if ((job_in_process[proc] == node_mgr_index) && (power_estimations[proc] > 0)){ 
 		  job_power_ratio += power_estimations[proc]/total_power_estimated;
 		  process_power_ratio[proc] = power_estimations[proc]/total_power_estimated;

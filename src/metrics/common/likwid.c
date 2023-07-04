@@ -28,6 +28,7 @@
 #include <common/types.h>
 #include <common/output/debug.h>
 #include <common/system/symplug.h>
+#include <common/environment_common.h>
 #include <metrics/common/likwid.h>
 
 // Likwid opens a daemon to read performance counters. But there is a compiling option
@@ -137,7 +138,7 @@ static int load_test(char *path)
 static state_t static_load()
 {
 	state_t s = EAR_SUCCESS;
-	if (load_test(getenv("HACK_FILE_LIKWID"))) return s;
+	if (load_test(ear_getenv("HACK_FILE_LIKWID"))) return s;
 	if (load_test(LIKWID_PATH "/lib64/liblikwid.so")) return s;
 	if (load_test(LIKWID_PATH "/lib/liblikwid.so")) return s;
 	return_msg(EAR_ERROR, "Can not load liblikwid.so");
@@ -159,8 +160,8 @@ static state_t static_init()
     // Forcing LIKWID to find its deaemon
     appenv("PATH", LIKWID_PATH "/sbin");
     // Summary
-    debug("LIKWID force: %s", getenv("LIKWID_FORCE"));
-    debug("LIKWID path : %s", getenv("PATH"));
+    debug("LIKWID force: %s", ear_getenv("LIKWID_FORCE"));
+    debug("LIKWID path : %s", ear_getenv("PATH"));
     
     //likwid.perfmon_setVerbosity(1);
     if (likwid.topology_init() < 0) {

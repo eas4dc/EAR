@@ -1,5 +1,7 @@
 # General
-/Makefile
+/Makefile*
+!/Makefile.in
+!/Makefile.exports
 *.o
 *.a
 *.so
@@ -7,8 +9,8 @@
 */bin/
 */lib/
 src/tests
-etc/rpms/rpmbuild.sh
 src/tests
+/*.sh
 
 # Autotools
 *aclocal.m4
@@ -25,26 +27,10 @@ CMake*
 *_trash
 *.idea
 
-# Julita's
-DB/
-OUTS/
-DB_Learning_phase/
-*romio_hints.txt
-*log.env
-*hostlist
-*sim_metrics.csv
-sim_metrics.csv
-tmp/*
-slurm-*.out
-coefficients_list.csv
-*accepted_intel_ptu_license
-*.csv
-*TOOLADMIN_NOTES.txt
-
-# Jordi's
-bench/
 
 # Build files
+/build
+etc/rpms/rpmbuild.sh
 etc/module/ear
 etc/conf/ear.conf
 etc/conf/ear.conf.template
@@ -53,6 +39,7 @@ etc/slurm/ear.plugstack.conf
 etc/systemd/eard.service
 etc/systemd/eardbd.service
 etc/systemd/eargmd.service
+etc/module/ear-lite
 src/common/config/config_install.h
 src/common/config/config_dev.h
 src/common/config/config_def.h
@@ -147,7 +134,11 @@ src/tools/ear_events*
 src/tools/ear_conf
 src/tools/get_periodic
 src/tools/metrics_show
+src/tools/time_test
+src/tools/external_attach
+src/tools/enode_control
 src/commands/ear-info
+src/pbs_hook
 
 
 deployment.sh

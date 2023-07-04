@@ -60,6 +60,6 @@ state_t temp_data_free(llong **temp_list);
 
 void temp_data_print(llong *list, llong avrg, int fd);
 
-void temp_data_tostr(llong *list, llong avrg, char *buffer, int length);
+char *temp_data_tostr(llong *list, llong avrg, char *buffer, int length);
 
 #endif

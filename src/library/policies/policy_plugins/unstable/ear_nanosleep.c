@@ -45,7 +45,7 @@ state_t policy_init(polctx_t *c)
 
                 optimize_call = 1;
 
-                char *sleep_time_ns_env = getenv("SLURM_EAR_SLEEP_TIME_NS");
+                char *sleep_time_ns_env = ear_getenv("SLURM_EAR_SLEEP_TIME_NS");
                 if (sleep_time_ns_env) {
                     sleep_time_ns = (ulong) strtol(sleep_time_ns_env, (char **)NULL, 10);
                 }

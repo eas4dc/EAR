@@ -33,8 +33,8 @@ typedef struct perf_s {
 } perf_t;
 
 state_t perf_open(perf_t *perf, perf_t *group, pid_t pid, uint type, ulong event);
-
-state_t perf_opex(perf_t *perf, perf_t *group, pid_t pid, uint type, ulong event, uint options);
+// Perf open extended/extra. With more options.
+state_t perf_open_ext(perf_t *perf, perf_t *group, pid_t pid, uint type, ulong event, uint options);
 
 state_t perf_reset(perf_t *perf);
 

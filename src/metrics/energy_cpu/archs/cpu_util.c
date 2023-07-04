@@ -32,7 +32,10 @@ static uint socket_count, cpu_count;
 static topology_t cpu_util_topo;
 static timestamp last;
 static ullong *last_energy_reported;
+
 #define NUM_EV NUM_PACKS
+#define IDLE_POWER_PERC       0.3
+
 state_t energy_cpu_util_load(topology_t *topo)
 {
 	if (socket_count == 0) {
@@ -98,8 +101,8 @@ state_t energy_cpu_util_read(ctx_t *c, ullong *values)
 	ratio = (float)min/cpu_util_topo.cpu_count;
 	
 	debug("Ratio %f", ratio);
-	float CPU_Power = (cpu_util_topo.tdp * socket_count) * ear_min(1.0, ratio);
-	
+	//float CPU_Power = (cpu_util_topo.tdp * socket_count) * ear_min(1.0, ratio);
+	float CPU_Power = ((float)(cpu_util_topo.tdp * socket_count) * ear_min(1.0, ratio) * (1.0 - IDLE_POWER_PERC)) + (IDLE_POWER_PERC * (float)cpu_util_topo.tdp * (float)socket_count); 
 	ullong CPU_energy = CPU_Power * elapsed * CPU_UTIL_ENERGY_UNITS;
 
 	debug("Estimated power %f energy %llu elapsed %lu ratio %f", CPU_Power, CPU_energy, elapsed, ratio);

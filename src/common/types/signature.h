@@ -145,7 +145,7 @@ void print_signature_fd_binary(int fd, signature_t *sig);
 void read_signature_fd_binary(int fd, signature_t *sig);
 
 /** \todo */
-void signature_to_str(signature_t *sig, char *msg, size_t limit);
+state_t signature_to_str(signature_t *sig, char *msg, size_t limit);
 
 /** \todo */
 void acum_sig_metrics(signature_t *dst,signature_t *src);

@@ -17,11 +17,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-// #define SHOW_DEBUGS 1
+#define SHOW_DEBUGS 1
 #if !SHOW_DEBUGS
 #define NDEBUG
 #endif
-#include <assert.h>
 #include <common/states.h>
 #include <common/output/verbose.h>
 #include <common/types/signature.h>
@@ -49,7 +48,7 @@ static int valid_range(ulong from,ulong to)
 state_t model_init(char *etc, char *tmp, architecture_t *myarch)
 {
   int i, ref;
-  char * hack_file = getenv(HACK_EARL_COEFF_FILE);
+  char * hack_file = ear_getenv(HACK_EARL_COEFF_FILE);
 
 	debug("Using avx512_model\n");
 	num_pstates=myarch->pstates;
@@ -63,14 +62,12 @@ state_t model_init(char *etc, char *tmp, architecture_t *myarch)
 
   coefficients = (coefficient_t **) malloc(sizeof(coefficient_t *) * num_pstates);
 
-  assert(coefficients != NULL);
   if (coefficients == NULL) {
 		return EAR_ERROR;
   }
   for (i = 0; i < num_pstates; i++)
   {
     coefficients[i] = (coefficient_t *) malloc(sizeof(coefficient_t) * num_pstates);
-    assert(coefficients[i] != NULL);
     if (coefficients[i] == NULL) {
 			return EAR_ERROR;
     }
@@ -247,7 +244,6 @@ state_t model_projections_available()
 			if ((ps != pt) && (model_projection_available(ps, pt) == EAR_SUCCESS)) ready = 1;	
 		}
 	}
-    assert(ready != 0);
 	if (ready) return EAR_SUCCESS;
 	return EAR_ERROR;	
 }

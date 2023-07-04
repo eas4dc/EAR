@@ -238,7 +238,7 @@ state_t enable(suscription_t *sus)
 
 state_t plugin_set_burst()
 {
-    return monitor_burst(sus_gpu);
+    return monitor_burst(sus_gpu, 0);
 }
 
 state_t plugin_set_relax()

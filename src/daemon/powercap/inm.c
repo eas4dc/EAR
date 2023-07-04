@@ -149,7 +149,7 @@ state_t enable(suscription_t *sus)
 
 state_t plugin_set_burst()
 {
-    return monitor_burst(sus_inm);
+    return monitor_burst(sus_inm, 0);
 }
 
 state_t plugin_set_relax()

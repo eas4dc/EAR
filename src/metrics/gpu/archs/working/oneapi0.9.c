@@ -117,7 +117,7 @@ static state_t static_load()
 {
 	state_t s = EAR_SUCCESS;
 	// Looking for nvidia library in tipical paths.
-	if (load_test(getenv(HACK_FILE_NVML))) return s;
+	if (load_test(ear_getenv(HACK_FILE_NVML))) return s;
 	if (load_test(ZE_PATH "/targets/x86_64-linux/lib/" ZE_LIB)) return s;
 	if (load_test(ZE_PATH "/lib64/" ZE_LIB)) return s;
 	if (load_test(ZE_PATH "/lib/" ZE_LIB)) return s;

@@ -8,12 +8,13 @@ tool_BINS = \
     coeffs_show \
     coeffs_default \
     coeffs_null \
-	get_periodic \
-	metrics_show \
+    enode_control \
     ear_conf
 ifdef DB_BASE
 tool_BINS += \
     learning_show \
+    get_periodic \
+    metrics_show \
     learning_delete
 endif
 ifdef GSL_BASE
@@ -63,6 +64,8 @@ learning_delete: learning_delete.c $(comm_OBJS)
 ear_conf: ear_conf.c $(comm_OBJS)
 	$(CCC) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
 
+enode_control: ear_node_control.c $(comm_OBJS) 
+	$(CCC) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS)
 ######## OPTIONS
 
 install: tool.ginstall;

@@ -40,7 +40,7 @@ static int _clean;
 static int _help;
 //
 static int _at;
-int _sp;
+       int _sp;
 //
 static char *args[128];
 char       **_argv;
@@ -140,6 +140,20 @@ static void program_parse(char *program, char *args[])
     }
 }
 
+static char *getenv_PBS_JOBID()
+{
+    static char job_id[32];
+    char *c;
+    char *p;
+    if (!(p = getenv("PBS_JOBID"))) {
+        return NULL;
+    }
+    if ((c = strchr(p, '[')) != NULL) { *c = '\0'; }
+    if ((c = strchr(p, '.')) != NULL) { *c = '\0'; }
+    sprintf(job_id, "%s", p);
+    return job_id;
+}
+
 int job(int argc, char *argv[])
 {
 	int err_pfx = 1;
@@ -154,7 +168,7 @@ int job(int argc, char *argv[])
     // Setting ERUN reference
     setenv(Var.is_erun.ear, "1", 1);
     // Enabling plugin and ERUN components
-	setenv(Var.comp_plug.cmp, "1", 1);
+	setenv(Var.comp_plug.comp, "1", 1);
 
 	// Clean
 	for (i = 0; i < argc; ++i) {
@@ -175,17 +189,17 @@ int job(int argc, char *argv[])
 		}
 	}
 
-	//
+    // Getting JOB_NAME
 	if (p != NULL) {
 		// Setting the job name
 		sprintf(path_app, "%s", p);
         program_parse(path_app, args);
-		setenv("SLURM_JOB_NAME", path_app, 1);
+		setenv(Var.name_app.slurm, path_app, 1);
 	} else {
 		_help = !_clean;
 	}
 
-	// Converting configuration enrivonment variables 
+    // Converting configuration enrivonment variables
 	// (INSTALL_PATH, ETC, TMP) in input parameters.
 	_argc = argc + 4;
 	_argv = malloc(sizeof(char **) * _argc);
@@ -198,7 +212,6 @@ int job(int argc, char *argv[])
 	for (i = 0; i < argc; ++i) {
 		_argv[i] = argv[i];
 	}
-
 	if ((p = getenv("EAR_INSTALL_PATH")) != NULL) {
 		sprintf(plug_pfx, "prefix=%s", p);
 		err_pfx = 0;
@@ -221,80 +234,87 @@ int job(int argc, char *argv[])
 		sprintf(plug_def, "default=on");
 		err_def = 0;
 	}
-	
 	for (i = 0; i < argc; ++i) {
 		_argv[i] = argv[i];
 	}
 
-	// Getting the number of nodes
-	char *nnodes;
+    // Getting N_NODES
+	char *n_nodes;
 	for (i = 0; i < argc; ++i) {
 		if ((strlen(argv[i]) > 7) && (strncmp("--nodes=", argv[i], 8) == 0)) {
-			setenv("SLURM_NNODES", &argv[i][8], 1);
+			setenv(Var.job_node_count.slurm, &argv[i][8], 1);
 		}
 	}
-	if ((nnodes = getenv("SLURM_NNODES")) == NULL) {
+    // OpenMPI version of N_NODES
+	if ((n_nodes = getenv(Var.job_node_count.slurm)) == NULL) {
 		char *size_world = getenv("OMPI_COMM_WORLD_SIZE");
 		char *size_local = getenv("OMPI_COMM_WORLD_LOCAL_SIZE");
-		char nnodes_b[8];
-		int  nnodes_i;
+		char buffer[8];
 
 		if (size_world != NULL && size_local != NULL) {
-			nnodes_i = atoi(size_world) / atoi(size_local);
-			sprintf(nnodes_b, "%d", nnodes_i);
-			nnodes = nnodes_b;
+			i = atoi(size_world) / atoi(size_local);
+			sprintf(buffer, "%d", i);
+			n_nodes = buffer;
 		}
 	}
-	if (nnodes != NULL) {
-		setenv("SLURM_STEP_NUM_NODES", nnodes, 1);
+	if (n_nodes != NULL) {
+		setenv(Var.step_node_count.slurm, n_nodes, 1);
 	}
 
-	// Getting the job id (it cant be created, depends on the queue manager:
-	if ((p = getenv("SLURM_JOB_ID")) == NULL) {
-		setenv("SLURM_JOB_ID", "0", 1);
-	} else {
-		sd.erun.job_id = atoi(p);
-	}
-	if ((p = getenv("SLURM_STEP_ID")) == NULL) {
-		setenv("SLURM_STEP_ID", "0", 1);
-	} else {
-		sd.erun.step_id = atoi(p);
-	}
+    // Getting JOB_ID
+    char *job_id;
+    char *step_id;
+    // Patching other job managers
+    if (!(job_id = getenv(Var.job_id.slurm))) {
+        if (!(job_id = getenv("OAR_JOB_ID")))
+            if (!(job_id = getenv_PBS_JOBID()))
+                if (!(job_id)) job_id = "0";
+        // Setting the SLURM version of the variable
+        setenv(Var.job_id.slurm, job_id, 1);
+    }
+    if ((step_id = getenv(Var.step_id.slurm)) == NULL) {
+        if (step_id == NULL) step_id = "0";
+        // Setting the SLURM version of the variable
+        setenv(Var.step_id.slurm, step_id, 1);
+    } else {
+        sd.erun.is_step_id = 1;
+    }
+    // Saving variables
+    sd.erun.job_id  = atoi(job_id);
+    sd.erun.step_id = atoi(step_id);
 
 	// Input parameters final
 	print_argv(_argc, _argv);
 	
 	// Going inactive?
-	_inactive = isenv_agnostic(_sp, Var.was_srun.rem, "1");
+	_inactive = isenv_agnostic(_sp, Var.was_srun.mod, "1");
 
 	if (_inactive) {
 		_error = 2;
 	}
-	
 	if (err_pfx | err_etc | err_tmp | err_def) {
 		_error = 1;
 	}
-
 	return 0;
 }
 
 int step(int argc, char *argv[])
 {
-    // Setting STEP_ID
-	sprintf(buffer, "%d", sd.erun.step_id);
-	setenv("SLURM_STEP_ID", buffer, 1);
-
+    // If STEP_ID wasn't read
+    if (!sd.erun.is_step_id) {
+        sprintf(buffer, "%d", sd.erun.step_id);
+        setenv("SLURM_STEP_ID", buffer, 1);
+    }
     // Currently, SLURM_LOCALID is only used to determine the master node. In
     // case its value gains new uses, a lock would have to be used to numerate
     // each local task id.
-    if (getenv("SLURM_LOCALID") == NULL) {
+    if (getenv(Var.local_id.slurm) == NULL) {
         if (sd.erun.is_master) {
-            setenv("SLURM_LOCALID", "0", 1);
+            setenv(Var.local_id.slurm, "0", 1);
         } else {
-            setenv("SLURM_LOCALID", "1", 1);
+            setenv(Var.local_id.slurm, "1", 1);
         }
     }
-
 	plug_verbose(_sp, 2, "program: '%s'", path_app);
 	plug_verbose(_sp, 2, "job/step id: '%d/%d'", sd.erun.job_id, sd.erun.step_id);
 
@@ -311,11 +331,11 @@ static int execute(int argc, char *argv[])
 	{
 		// Setting SLURMs task pid
 		sprintf(buffer, "%d", getpid());
-		setenv(Var.task_pid.rem, buffer, 1);
+		setenv(Var.task_pid.ear, buffer, 1);
 
 		// Executting
 		if (execvp(args[0], args) == -1) {
-			plug_verbose(_sp, 0, "failed to run the program (exec)");
+			plug_verbose(_sp, 0, "failed to run the program (%s: %s)", args[0], strerror(errno));
 			exit(0);
 		}
 		// No return

@@ -91,7 +91,7 @@ void eargm_report_event(uint event_type, ulong value)
     }
 
     event.event     = event_type;
-    event.freq      = value;
+    event.value     = value;
     db_insert_ear_event(&event);
 }
 
@@ -305,6 +305,7 @@ void print_cluster_power_status(powercap_status_t *my_cluster_power_status)
 
 pthread_t cluster_powercap_th;
 
+/* Cluster Soft powercap */
 void cluster_only_powercap()
 {
 
@@ -335,7 +336,7 @@ void cluster_only_powercap()
         /* For heterogeneous clusters we set the max powercap for each node, which should be set by the admin in ear.conf
          * For homogeneous clusters we can simply divide the current power between the number of active nodes. */
         if (max_num_nodes > 0) {
-            //if (risk == 0) cluster_set_powerlimit_all_nodes(current_cluster_powercap/max_num_nodes, &my_cluster_conf); 
+           //if (risk == 0) cluster_set_powerlimit_all_nodes(current_cluster_powercap/max_num_nodes, &my_cluster_conf); 
             //if (risk == 0) ear_set_powerlimit(&my_cluster_conf, current_cluster_powercap/max_num_nodes, nodes, num_eargm_nodes);; 
             if (risk == 0) ear_set_powerlimit(&my_cluster_conf, UINT_MAX, nodes, num_eargm_nodes); 
             verbose(VGM_PC, "cluster_only_powercap: sending new limit %u", current_cluster_powercap/max_num_nodes);
@@ -615,6 +616,8 @@ void cluster_power_monitor()
 }
 
 #define CLUSTER_PC_TO_SHARE 0.5
+
+/* Cluster HARD powercap */
 void cluster_check_powercap()
 {
     debug("%sSTART cluster_check_powercap---------%s",COL_BLU,COL_CLR);

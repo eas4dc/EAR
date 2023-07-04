@@ -15,29 +15,32 @@
 * and COPYING.EPL files.
 */
 
-#ifndef CONFIG_SCHED_H
-#define CONFIG_SCHED_H
+#ifndef COMMON_CONFIG_SCHED_H
+#define COMMON_CONFIG_SCHED_H
 
+// Config install first because by now is defining the SCHED_* macros.
 #include <common/config/config_install.h>
-
-/**
- * Different variables per scheduling manager.
- */
+// Including this because NULL_STEPID
+#include <common/config/config_env.h>
 
 #if SCHED_SLURM
 #include <slurm/slurm.h>
-#define BATCH_STEP    ((int) SLURM_BATCH_SCRIPT)
-#elif !SCHED_PBS && !SCHED_OAR
-#define BATCH_STEP    -2
+#endif
+
+#if SCHED_SLURM
+#define BATCH_STEP              ((int) SLURM_BATCH_SCRIPT)
 #endif
 
 #if SCHED_PBS
-#define BATCH_STEP     0
+#define BATCH_STEP              0
 #endif
 
 #if SCHED_OAR
-#define BATCH_STEP     0
+#define BATCH_STEP              0
 #endif
 
+#if !SCHED_SLURM && !SCHED_PBS && !SCHED_OAR
+#define BATCH_STEP              NULL_STEPID
+#endif
 
-#endif //CONFIG_SCHED_H
+#endif //COMMON_CONFIG_SCHED_H

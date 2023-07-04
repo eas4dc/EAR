@@ -26,6 +26,7 @@
 #include <metrics/gpu/archs/dummy.h>
 #include <metrics/gpu/archs/cupti.h>
 #include <metrics/gpu/archs/oneapi.h>
+#include <metrics/gpu/archs/rsmi.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static gpu_ops_t ops;
@@ -41,6 +42,7 @@ void gpu_load(int eard)
     // NVML and ONEAPI are fully loaded.
     // If not, EARD is fully loaded.
     gpu_nvml_load(&ops, eard);
+    gpu_rsmi_load(&ops, eard);
     gpu_oneapi_load(&ops);
     gpu_eard_load(&ops, eard);
     gpu_dummy_load(&ops);
@@ -239,7 +241,7 @@ void gpu_data_print(gpu_t *data, int fd)
 	for (i = 0; i < devs_count; ++i) {
 		dprintf(fd, "gpu%u: %0.2lfJ, %0.2lfW, %luMHz, %luMHz, %lu%%, %lu%%, %luº, %luº, %u, %lu\n", i,
 			data[i].energy_j, data[i].power_w,
-			data[i].freq_gpu, data[i].freq_mem,
+			data[i].freq_gpu / 1000LU, data[i].freq_mem / 1000LU,
 			data[i].util_gpu, data[i].util_mem,
 			data[i].temp_gpu, data[i].temp_mem,
 			data[i].working , data[i].samples);
@@ -254,7 +256,7 @@ void gpu_data_tostr(gpu_t *data, char *buffer, int length)
 
 	for (i = accuml = 0; i < devs_count && length > 0; ++i) {
 		s = snprintf(&buffer[accuml], length,
-			 "gpu%u: %0.2lfJ, %0.2lfW, %luKHz, %luMHz, %lu, %lu, %lu, %lu, %u, %lu correct=%u\n", i,
+			 "gpu%u: %0.2lfJ, %0.2lfW, %luKHz, %luKHz, %lu, %lu, %lu, %lu, %u, %lu correct=%u\n", i,
 			 data[i].energy_j, data[i].power_w,
 			 data[i].freq_gpu, data[i].freq_mem,
 			 data[i].util_gpu, data[i].util_mem,

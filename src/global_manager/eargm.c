@@ -215,7 +215,7 @@ void update_eargm_configuration(cluster_conf_t *conf)
     gethostname(host, sizeof(host));
     strtok(host, ".");
     int i, id;
-    char *idx = getenv("EARGMID");
+    char *idx = ear_getenv("EARGMID");
     e_def = NULL;
     if (idx != NULL) {
         id = atoi(idx);
@@ -236,7 +236,7 @@ void update_eargm_configuration(cluster_conf_t *conf)
         error("Couldn't find node in EARGMs list in ear.conf, exiting\n");
         exit(1);
     }
-    char *nnodes = getenv("EARGM_NODES");
+    char *nnodes = ear_getenv("EARGM_NODES");
     if (nnodes != NULL)
     {
         str_cut_list(nnodes, &nodes, &num_eargm_nodes, ",");

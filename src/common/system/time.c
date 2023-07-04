@@ -58,35 +58,33 @@ ullong timestamp_getconvert(ullong time_unit)
 
 ullong timestamp_diff(timestamp *ts2, timestamp *ts1, ullong time_unit)
 {
-	ullong initsec = 0, initnsec = 0;
-	ullong endsec = 0 , endnsec = 0;
-	ullong stamp = 0;
-  if ((ts1->tv_sec == ts2->tv_sec) && (ts1->tv_nsec == ts2->tv_nsec)) return (ullong)0;
+    ullong initsec  = 0;
+    ullong initnsec = 0;
+    ullong endsec   = 0;
+    ullong endnsec  = 0;
+    ullong stamp    = 0;
 
-	initsec  = (ullong)ts1->tv_sec;
-	initnsec = (ullong)ts1->tv_nsec;
-	endsec   = (ullong)ts2->tv_sec;
-	endnsec  = (ullong)ts2->tv_nsec;
-	
-	if (endnsec < initnsec){
-		endsec--;
-		endnsec += 1E9;
-	}
-        #if 0
-	endnsec  /= time_unit;
-	initnsec /= time_unit;
-
-	stamp = ((endsec - initsec) * (1E9 / time_unit));
-	if (endnsec < initnsec) {
-        return stamp;
-        #endif
-        stamp = ((endsec - initsec)) * 1E9 + (endnsec - initnsec);
-        return stamp / time_unit;
-        #if 0
+    if ((ts1->tv_sec == ts2->tv_sec) && (ts1->tv_nsec == ts2->tv_nsec)) {
+        return 0LLU;
     }
-    return stamp + (endnsec - initnsec);
-    #endif
+    initsec  = (ullong) ts1->tv_sec;
+    initnsec = (ullong) ts1->tv_nsec;
+    endsec   = (ullong) ts2->tv_sec;
+    endnsec  = (ullong) ts2->tv_nsec;
 
+    if (endnsec < initnsec){
+        endsec--;
+        endnsec += 1E9;
+    }
+    stamp = (((endsec - initsec)) * 1E9) + (endnsec - initnsec);
+    return stamp / time_unit;
+}
+
+double timestamp_fdiff(timestamp *ts2, timestamp *ts1, ullong diff_unit, ullong prec_unit)
+{
+    ullong idiff = timestamp_diff(ts2, ts1, prec_unit);
+    double fdiff = ((double) idiff) / (((double) diff_unit) / ((double) prec_unit));
+    return fdiff;
 }
 
 ullong timestamp_diffnow(timestamp *ts1, ullong time_unit)
@@ -112,7 +110,7 @@ void timestamp_print(timestamp *ts, int fd)
 
 void timestamp_tostr(timestamp *ts, char *buffer, size_t size)
 {
-	snprintf(buffer, size, "TS->SECS %ld TS->NSECS %ld", ts->tv_sec, ts->tv_nsec);
+    snprintf(buffer, size, "Timestamp: %ld s, %ld ns\n", ts->tv_sec, ts->tv_nsec);
 }
 
 ullong timeval_convert(struct timeval *ts, ullong time_unit)

@@ -33,7 +33,7 @@
 #include <common/types/pc_app_info.h>
 #include <common/utils/serial_buffer.h>
 #include <common/hardware/hardware_info.h>
-#include <management/test.h>
+#include <management/management.h>
 #include <metrics/common/msr.h>
 #include <metrics/gpu/gpu.h>
 #include <metrics/energy/cpu.h>
@@ -113,7 +113,7 @@ static char             big_chunk1[16384];
 static char             big_chunk2[16384];
 static wide_buffer_t    wb;
        manages_apis_t  *man;
-       metrics_apis_t  *met;
+       metrics_info_t  *met;
 static metrics_t        uc;
 static metrics_t        ui;
 static metrics_t        ub;
@@ -154,13 +154,13 @@ void services_init(topology_t *tp, my_node_conf_t *conf)
     #endif
     sf(cpufreq_count_devices(no_ctx, &uc.devs_count));
     sf(imcfreq_count_devices(no_ctx, &ui.devs_count));
-    sf( bwidth_count_devices(no_ctx, &ub.devs_count));
+        bwidth_count_devices(no_ctx, &ub.devs_count);
     #if USE_GPUS
     sf(      gpu_get_devices(no_ctx, (gpu_devs_t **) &ug.avail_list, &ug.devs_count));
     #endif
     sf(cpufreq_data_alloc((cpufreq_t **) &uc.current_list, empty));
     sf(imcfreq_data_alloc((imcfreq_t **) &ui.current_list, empty));
-    sf( bwidth_data_alloc((bwidth_t  **) &ub.current_list));
+        bwidth_data_alloc((bwidth_t  **) &ub.current_list);
     #if USE_GPUS
 	sf(    gpu_data_alloc(&eard_read_gpu));
     #endif
@@ -271,6 +271,32 @@ int services_mgt_cpufreq(eard_head_t *head, int req_fd, int ack_fd)
             if (state_fail(s = mgt_cpufreq_set_governor(no_ctx, (uint) big_chunk1[0]))) {
                 serror(Rpcerr.answer);
             }
+        }
+    break;
+    case RPC_MGT_CPUFREQ_SET_GOVERNOR_MASK:
+        size = sizeof(cpu_set_t) + sizeof(uint);
+        if (state_fail(s = eard_rpc_read_pending(req_fd, big_chunk1, head->size, size))) {
+            serror(Rpcerr.pending);
+        }
+        if (state_ok(s)) {
+            cpu_set_t mask = *((cpu_set_t *) &big_chunk1[0]);
+            uint governor  = *((uint *) &big_chunk1[sizeof(cpu_set_t)]);
+            if (state_fail(s = mgt_cpufreq_governor_set_mask(no_ctx, governor, mask))) {
+                serror("When setting CPU governors");
+            }
+            size = 0;
+        }
+    break;
+    case RPC_MGT_CPUFREQ_SET_GOVERNOR_LIST:
+        size =  man->cpu.devs_count * sizeof(uint);
+        if (state_fail(s = eard_rpc_read_pending(req_fd, man->cpu.list3, head->size, size))) {
+            serror(Rpcerr.pending);
+        }
+        if (state_ok(s)) {
+            if (state_fail(s = mgt_cpufreq_set_current_list(no_ctx, (uint *) man->cpu.list3))) {
+                serror("When setting a governors list");
+            }
+            size = 0;
         }
     break;
     default:
@@ -427,12 +453,12 @@ int services_mgt_imcfreq(eard_head_t *head, int req_fd, int ack_fd)
 int services_mgt_gpu(eard_head_t *head, int fd_req, int fd_ack)
 {
     uint     rpc_id   = head->req_service;
-    size_t   rpc_size = head->size;
     state_t  ret_s    = EAR_SUCCESS;
     char    *ret_data = NULL;
     size_t   ret_size = 0;
     uint     u1;
     #if USE_GPUS
+    size_t   rpc_size = head->size;
     ulong  **p1;
     uint    *p2;
     #endif

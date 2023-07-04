@@ -82,7 +82,7 @@ int get_ear_total_processes()
 
 char *getenv_ear_user_db_pathname()
 {
-	char *my_user_db_pathname = getenv("EAR_USER_DB_PATHNAME");
+	char *my_user_db_pathname = ear_getenv(ENV_FLAG_PATH_USERDB);
 
 	if (my_user_db_pathname != NULL && strcmp(my_user_db_pathname, "") != 0)
 	{
@@ -96,21 +96,22 @@ char *getenv_ear_user_db_pathname()
 char *getenv_ear_gui_pathname()
 {
 	char *my_gui_path;
-	my_gui_path=getenv("EAR_GUI_PATH");
+	my_gui_path=ear_getenv("EAR_GUI_PATH");
 	if (my_gui_path==NULL){
-		my_gui_path=getenv("HOME");	
+		my_gui_path=ear_getenv("HOME");
 	}
 	conf_ear_gui_pathname=malloc(strlen(my_gui_path)+1);
 	strcpy(conf_ear_gui_pathname,my_gui_path);
 	return conf_ear_gui_pathname;
 }
+
 char *getenv_ear_coeff_db_pathname()
 {
 	char *my_coeff_db;
 	char *install_path;
-	my_coeff_db=getenv("EAR_COEFF_DB_PATHNAME");
+	my_coeff_db=ear_getenv(ENV_FLAG_PATH_COEFFS);
 	if (my_coeff_db==NULL){
-		install_path=getenv("EAR_INSTALL_PATH");
+		install_path=ear_getenv(ENV_PATH_EAR);
 		if (install_path==NULL) return NULL;
 		my_coeff_db=malloc(strlen(install_path)+strlen(DEFAULT_COEFF_PATHNAME)+2);
 		sprintf(my_coeff_db,"%s/%s",install_path,DEFAULT_COEFF_PATHNAME);	
@@ -119,10 +120,11 @@ char *getenv_ear_coeff_db_pathname()
 	strcpy(conf_ear_coeff_db_pathname,my_coeff_db);
 	return conf_ear_coeff_db_pathname;
 }
+
 char *getenv_ear_app_name()
 {
 	char *my_name;
-	my_name=getenv("EAR_APP_NAME");
+	my_name=ear_getenv(ENV_APP_NAME);
 	if (my_name!=NULL){
 		if (strcmp(my_name,"")==0) return NULL;
 		conf_ear_app_name=malloc(strlen(my_name)+1);
@@ -138,7 +140,7 @@ void set_ear_app_name(char *name)
 }
 int getenv_ear_learning_phase()
 {
-	char *learning=getenv("EAR_LEARNING_PHASE");
+	char *learning=ear_getenv(ENV_FLAG_IS_LEARNING);
 	int learning_value;
 	if (learning!=NULL){
 		learning_value=atoi(learning);
@@ -150,7 +152,7 @@ int getenv_ear_power_policy()
 {
 	char *my_policy;
 	conf_ear_power_policy=DEFAULT_POWER_POLICY;
-	my_policy=getenv("EAR_POWER_POLICY");
+	my_policy=ear_getenv(ENV_FLAG_POLICY);
 	if (my_policy!=NULL){
 		conf_ear_power_policy=policy_name_to_nodeid(my_policy, my_node_conf);
 		if (conf_ear_power_policy==EAR_ERROR)	conf_ear_power_policy=DEFAULT_POWER_POLICY;
@@ -164,14 +166,14 @@ double getenv_ear_power_policy_th()
 	if (conf_ear_power_policy<0) getenv_ear_power_policy();
 	switch (conf_ear_power_policy){	
 		case MIN_ENERGY_TO_SOLUTION:
-			my_th=getenv("EAR_PERFORMANCE_PENALTY");
+			my_th=ear_getenv(ENV_FLAG_POLICY_PENALTY);
 			if (my_th!=NULL){ 
 				conf_ear_power_policy_th=strtod(my_th,NULL);
 				if ((conf_ear_power_policy_th>1.0) || (conf_ear_power_policy_th<0)) conf_ear_power_policy_th=DEFAULT_MIN_ENERGY_TH;
 			}else conf_ear_power_policy_th=DEFAULT_MIN_ENERGY_TH;
 			break;
 		case MIN_TIME_TO_SOLUTION:
-			my_th=getenv("EAR_MIN_PERFORMANCE_EFFICIENCY_GAIN");
+			my_th=ear_getenv(ENV_FLAG_POLICY_GAIN);
 			if (my_th!=NULL){
 				conf_ear_power_policy_th=strtod(my_th,NULL);
 				if ((conf_ear_power_policy_th<DEFAULT_MIN_TIME_TH) || (conf_ear_power_policy_th>1.0)) conf_ear_power_policy_th=DEFAULT_MIN_TIME_TH;
@@ -183,9 +185,10 @@ double getenv_ear_power_policy_th()
 	}
 	return conf_ear_power_policy_th;
 }
+
 int getenv_ear_reset_freq()
 {
-	char *my_reset=getenv("EAR_RESET_FREQ");	
+	char *my_reset=ear_getenv("EAR_RESET_FREQ");
 	if (my_reset!=NULL){
 		if (strcmp(my_reset,"1")==0) conf_ear_reset_freq=1;
 	}
@@ -194,7 +197,7 @@ int getenv_ear_reset_freq()
 
 unsigned long getenv_ear_p_state()
 {
-	char *my_pstate = getenv("EAR_P_STATE");
+	char *my_pstate = ear_getenv(ENV_FLAG_PSTATE);
 	int max_p_state;
 
 	// p_state depends on policy it must be called before getenv_ear_p_state, but we check it
@@ -206,7 +209,7 @@ unsigned long getenv_ear_p_state()
 			conf_ear_p_state = DEFAULT_MAX_P_STATE;
 			break;
 		case MIN_TIME_TO_SOLUTION:
-			my_pstate = getenv("EAR_MIN_P_STATE");
+			my_pstate = ear_getenv("EAR_MIN_P_STATE");
 
 			if (my_pstate == NULL) {
 				conf_ear_p_state = DEFAULT_MIN_P_STATE;
@@ -215,7 +218,7 @@ unsigned long getenv_ear_p_state()
 			}
 			break;
 		case MONITORING_ONLY:
-			my_pstate = getenv("EAR_P_STATE");
+			my_pstate = ear_getenv(ENV_FLAG_PSTATE);
 			
 			if (my_pstate != NULL)
 			{
@@ -240,7 +243,7 @@ unsigned long getenv_ear_p_state()
 
 double getenv_ear_performance_accuracy()
 {
-	char *my_perf_acu=getenv("EAR_PERFORMANCE_ACCURACY");
+	char *my_perf_acu=ear_getenv("EAR_PERFORMANCE_ACCURACY");
 	if (my_perf_acu!=NULL){
 		conf_ear_performance_accuracy=atof(my_perf_acu);
 		if (conf_ear_performance_accuracy<0) conf_ear_performance_accuracy=DEFAULT_PERFORMANCE_ACURACY;
@@ -251,7 +254,7 @@ double getenv_ear_performance_accuracy()
 int getenv_ear_local_id()
 {
 	//char *my_local_id;
-	//my_local_id=getenv("SLURM_LOCALID");
+	//my_local_id=ear_getenv("SLURM_LOCALID");
 	//if (my_local_id!=NULL){ 
 	//	conf_ear_local_id=atoi(my_local_id);
 	//}
@@ -261,16 +264,13 @@ int getenv_ear_local_id()
 
 int getenv_ear_num_nodes()
 {
-	char *my_num_nodes = getenv("EAR_NUM_NODES");
+	char *my_num_nodes = ear_getenv(ENV_APP_NUM_NODES);
 
-	if (my_num_nodes == NULL)
-	{ 
+	if (my_num_nodes == NULL) {
         // TODO: This call should be placed by SCHED_STEP_NUM_NODES
-		my_num_nodes = getenv("SLURM_STEP_NUM_NODES");
-
+		my_num_nodes = ear_getenv(SCHED_STEP_NUM_NODES);
 		if (my_num_nodes == NULL) conf_ear_num_nodes=1;
 		else conf_ear_num_nodes = atoi(my_num_nodes);
-
 	} else conf_ear_num_nodes = atoi(my_num_nodes);
 
 	return conf_ear_num_nodes;
@@ -280,12 +280,9 @@ void set_ear_num_nodes(int num_nodes)
 	conf_ear_num_nodes=num_nodes;
 }
 
-
-
-
 int getenv_ear_dynais_levels()
 {
-	char *dynais_levels=getenv("EAR_DYNAIS_LEVELS");
+	char *dynais_levels=ear_getenv("EAR_DYNAIS_LEVELS");
 	int dyn_level;
 	if (dynais_levels!=NULL){
 		dyn_level=atoi(dynais_levels);
@@ -293,9 +290,10 @@ int getenv_ear_dynais_levels()
 	}
 	return conf_ear_dynais_levels;
 }
+
 int getenv_ear_dynais_window_size()
 {
-        char *dynais_size=getenv("EAR_DYNAIS_WINDOW_SIZE");
+        char *dynais_size=ear_getenv("EAR_DYNAIS_WINDOW_SIZE");
         int dyn_size;
         if (dynais_size!=NULL){
                 dyn_size=atoi(dynais_size);
@@ -420,8 +418,6 @@ void ear_lib_environment()
 	getenv_ear_verbose();
 	// from cluster_conf
 	getenv_ear_tmp();
-	// Not needed
-	//getenv_ear_db_pathname();
 	getenv_ear_user_db_pathname();
 	getenv_ear_gui_pathname();
 	getenv_ear_app_name();
@@ -474,7 +470,7 @@ void ear_print_lib_environment()
 	write(fd,var,strlen(var));
 	sprintf(var,"EAR_P_STATE=%lu\n",get_ear_p_state());
 	write(fd,var,strlen(var));
-	sprintf(var,"EAR_NUM_NODES=%d\n",get_ear_num_nodes());
+	sprintf(var,"%s=%d\n",ENV_APP_NUM_NODES, get_ear_num_nodes());
 	write(fd,var,strlen(var));
 	sprintf(var,"EAR_PERFORMANCE_ACURACY=%lf\n",get_ear_performance_accuracy());
 	write(fd,var,strlen(var));
@@ -535,9 +531,10 @@ int get_total_resources()
 	return procs_per_node*get_num_threads();
 }
 
-state_t read_config_env(char **var, const char* sched_env_var){
-		*var = NULL;
-		char *loc = getenv(sched_env_var);
+state_t read_config_env(char **var, const char* sched_env_var)
+{
+    *var = NULL;
+    char *loc = ear_getenv(sched_env_var);
     if (loc != NULL){
 				*var = loc;
         return EAR_SUCCESS;
@@ -550,23 +547,3 @@ state_t read_config(uint *var, const char *config_var){
     return EAR_SUCCESS;
 }
 
-char *ear_getenv(const char *name)
-{
-    static char *pfx[] = { "EAR_", "SCHED_", "SLURM_", "OAR_", "PBS_" };
-    static int pfx_n = 5;
-    char buffer[32];
-    char *var;
-    int i;
-
-    for (i = 0; i < pfx_n; ++i) {
-        // clean and concat
-        buffer[0] = '\0';
-        strcat(buffer, pfx[i]);
-        strcat(buffer, name);
-        debug("%s", buffer);
-        if ((var = getenv((const char *) buffer)) != NULL) {
-            return var;
-        }
-    }
-    return NULL;
-}

@@ -30,7 +30,7 @@ state_t cpi_load(topology_t *tp, int eard)
 	while (pthread_mutex_trylock(&lock));
 	// Already initialized
 	if (api != API_NONE) {
-		return EAR_SUCCESS;
+		goto leave;
 	}
 	api = API_DUMMY;
 	if (state_ok(cpi_perf_load(tp, &ops))) {
@@ -38,6 +38,7 @@ state_t cpi_load(topology_t *tp, int eard)
 	}
 	cpi_dummy_load(tp, &ops);
 	init = 1;
+leave:
 	pthread_mutex_unlock(&lock);
 	return EAR_SUCCESS;
 }

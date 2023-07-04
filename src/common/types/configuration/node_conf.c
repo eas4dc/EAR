@@ -21,14 +21,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
 #include <common/config.h>
 #include <common/environment.h>
+#include <common/utils/string.h>
 #include <common/output/verbose.h>
 #include <common/types/configuration/policy_conf.h>
 #include <common/types/configuration/node_conf.h>
 #include <common/types/configuration/cluster_conf_tag.h>
-
 
 //#define __OLD__CONF__
 
@@ -168,21 +167,21 @@ void report_my_node_conf(my_node_conf_t *my_node_conf)
     int i;
     char buffer[128];
     if (my_node_conf!=NULL){
-        snprintf(buffer, sizeof(buffer), "My node: cpus %u max_pstate %lu island %u tag %s\n",
+        xsnprintf(buffer, sizeof(buffer), "My node: cpus %u max_pstate %lu island %u tag %s\n",
                 my_node_conf->cpus, my_node_conf->max_pstate,
                 my_node_conf->island, my_node_conf->tag);
         printf("%60.60s", buffer);
-        snprintf(buffer, sizeof(buffer), "eardbd main server %s eardbd mirror %s \n", my_node_conf->db_ip, (my_node_conf->db_sec_ip == NULL)?"not defined":my_node_conf->db_sec_ip);
+        xsnprintf(buffer, sizeof(buffer), "eardbd main server %s eardbd mirror %s \n", my_node_conf->db_ip, (my_node_conf->db_sec_ip == NULL)?"not defined":my_node_conf->db_sec_ip);
         printf("%60.60s", buffer);
-        snprintf(buffer, sizeof(buffer), "coefficients file %s\n", (my_node_conf->coef_file == NULL)?"not defined":my_node_conf->coef_file);
+        xsnprintf(buffer, sizeof(buffer), "coefficients file %s\n", (my_node_conf->coef_file == NULL)?"not defined":my_node_conf->coef_file);
         printf("%60.60s", buffer);
-        snprintf(buffer, sizeof(buffer), "energy plugin file %s\n ", (my_node_conf->energy_plugin == NULL)?"not defined":my_node_conf->energy_plugin);
+        xsnprintf(buffer, sizeof(buffer), "energy plugin file %s\n ", (my_node_conf->energy_plugin == NULL)?"not defined":my_node_conf->energy_plugin);
         printf("%60.60s", buffer);
-        snprintf(buffer, sizeof(buffer), "energy model file %s \n",(my_node_conf->energy_model == NULL)?"not defined":my_node_conf->energy_model);
+        xsnprintf(buffer, sizeof(buffer), "energy model file %s \n",(my_node_conf->energy_model == NULL)?"not defined":my_node_conf->energy_model);
         printf("%60.60s", buffer);
-        snprintf(buffer, sizeof(buffer), "powercap plugin file %s\n", (my_node_conf->powercap_plugin == NULL)?"not defined":my_node_conf->powercap_plugin);
+        xsnprintf(buffer, sizeof(buffer), "powercap plugin file %s\n", (my_node_conf->powercap_plugin == NULL)?"not defined":my_node_conf->powercap_plugin);
         printf("%60.60s", buffer);
-        snprintf(buffer, sizeof(buffer), "powercap_gpu_plugin %s\n", (my_node_conf->powercap_gpu_plugin != NULL)?"not defined":my_node_conf->powercap_gpu_plugin);
+        xsnprintf(buffer, sizeof(buffer), "powercap_gpu_plugin %s\n", (my_node_conf->powercap_gpu_plugin != NULL)?"not defined":my_node_conf->powercap_gpu_plugin);
         for (i=0;i<my_node_conf->num_policies;i++){
           report_policy_conf(&my_node_conf->policies[i]);
         }

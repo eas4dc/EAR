@@ -15,12 +15,12 @@
 * and COPYING.EPL files.
 */
 
-#ifndef _CONFIG_H_
-#define _CONFIG_H_
+#ifndef COMMON_CONFIG_H
+#define COMMON_CONFIG_H
 
-#include <common/config/config_install.h>
 #include <common/config/config_def.h>
 #include <common/config/config_dev.h>
 #include <common/config/config_env.h>
+#include <common/config/config_install.h>
 
 #endif

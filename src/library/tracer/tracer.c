@@ -108,7 +108,7 @@ const char     *trace_syms_nam[] = {
 void traces_init(settings_conf_t *conf, char *app, int global_rank, int local_rank, int nodes, int mpis, int ppn)
 {
     char *traces_plugin;
-    traces_plugin=getenv(FLAG_TRACE_PLUGIN);
+    traces_plugin=ear_getenv(FLAG_TRACE_PLUGIN);
 
     if (traces_plugin==NULL) {
         trace_plugin=0;
@@ -130,7 +130,7 @@ void traces_init(settings_conf_t *conf, char *app, int global_rank, int local_ra
 
     /* my_plug_path := [EAR_INSTALL_PATH/lib/plugins | HACK_EARL_INSTALL_PATH/plugins] */
     st = utils_create_plugin_path(my_plug_path, conf->installation.dir_plug,
-            getenv(HACK_EARL_INSTALL_PATH), conf->user_type);
+            ear_getenv(HACK_EARL_INSTALL_PATH), conf->user_type);
 
     // Using current directory if there's no plugins path
     if (state_fail(st)) {

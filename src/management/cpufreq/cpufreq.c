@@ -28,7 +28,8 @@
 #include <management/cpufreq/archs/dummy.h>
 #include <management/cpufreq/archs/amd17.h>
 #include <management/cpufreq/archs/default.h>
-#include <management/cpufreq/drivers/linux_cpufreq.h>
+#include <management/cpufreq/drivers/intel_pstate.h>
+#include <management/cpufreq/drivers/acpi_cpufreq.h>
 
 static pthread_mutex_t     lock = PTHREAD_MUTEX_INITIALIZER;
 static mgt_ps_driver_ops_t ops_driver;
@@ -46,9 +47,8 @@ state_t mgt_cpufreq_load(topology_t *tp, int eard)
 	}
 	cpu_count = tp->cpu_count;
 	// Driver API load
-	if (state_ok(mgt_cpufreq_linux_load(tp, &ops_driver))) {
-		debug("Loaded driver LINUX");
-	}
+    mgt_acpi_cpufreq_load(tp, &ops_driver);
+    mgt_intel_pstate_load(tp, &ops_driver);
 	// API load
 	api = API_DUMMY;
 	// AMD17 loads if MSR test is passed and driver can be initialized. But it
@@ -190,6 +190,12 @@ state_t mgt_cpufreq_governor_set_list(ctx_t *c, uint *governors)
 {
     preturn (ops.set_governor_list, c, governors);
 }
+
+int mgt_cpufreq_governor_is_available(ctx_t *c, uint governor)
+{
+    return ops_driver.is_governor_available(governor);
+}
+
 
 /** Data */
 state_t mgt_cpufreq_data_alloc(pstate_t **pstate_list, uint **index_list)

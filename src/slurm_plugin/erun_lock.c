@@ -50,10 +50,10 @@ int lock_master(char *path_tmp, int job_id)
         mkdir(path_tmp, PERMS(111,000,000)); 
     }
     // Creating erun folder
-    sprintf(path_job, "%s/erun", path_tmp);
+    sprintf(path_job, "%s/erun%d", path_tmp, job_id);
     mkdir(path_job, PERMS(111,110,110)); 
     // Creating job folder
-    sprintf(path_job, "%s/erun/%d", path_tmp, job_id);
+    sprintf(path_job, "%s/erun%d", path_tmp, job_id);
     mkdir(path_job, PERMS(111,110,110));
     // Setting the paths
     xsprintf(path_master_lock, "%s/master.lock", path_job);
@@ -95,13 +95,14 @@ int master_getstep(int job_id, int step_id)
     //          3.2 Read the %step_id in slave.step
 	if (step_id == 0) {
 		if (state_ok(ear_file_read(path_master_step, (char *) &step_id, sizeof(int)))) {
-        	plug_verbose(_sp, 2, "read %d step_id in the file '%s'", step_id, path_master_step);
+            plug_verbose(_sp, 2, "read step_id %d in the file '%s'", step_id, path_master_step);
 			step_id += 1;
 		} else {
 			// In case the reading fails, force step_id to 0
 			step_id = 0;
 		}
 	}
+    plug_verbose(_sp, 4, "returning step_id %d", step_id);
 	return step_id;
 }
 
@@ -158,14 +159,14 @@ void files_clean(int job_id, int step_id)
 void folder_clean(int job_id)
 {
 	// 1. Creating the cleaning command
-	xsprintf(command, "rm -rf %s 2> /dev/null", path_job);
+	xsprintf(command, "rm -rfd %s 2> /dev/null", path_job);
     system(command);
 }
 
 // Flag --clean
 void all_clean(char *path_tmp)
 {
-    xsprintf(command, "rm -rf %s/erun &> /dev/null", path_tmp);
+    xsprintf(command, "rm -rfd %s/erun* &> /dev/null", path_tmp);
 	plug_verbose(_sp, 3, "Executing %s", command);
     system(command);
 }

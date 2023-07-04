@@ -577,7 +577,7 @@ static state_t configuration(int argc, char *argv[], cluster_conf_t *conf, my_no
 			return s;
 		}
 	} else {
-		sprintf(buffer1, "%s", getenv("HOME"));
+		sprintf(buffer1, "%s", ear_getenv("HOME"));
 	}
 	// Adding island folder.
 	xsprintf(buffer2, "%s/island%d", buffer1, (*node)->island);

@@ -62,19 +62,19 @@ int plug_read_plugstack(spank_t sp, int ac, char **av, plug_serialization_t *sd)
 				// Library == 1: enable
 				// Library == 0: nothing
 				// Library == whatever: enable (bug protection)
-				if (!isenv_agnostic(sp, Var.comp_libr.cmp, "0")) {
+				if (!isenv_agnostic(sp, Var.comp_libr.comp, "0")) {
 					plug_component_setenabled(sp, Component.library, 1);
 					// CAUTION!!
 					// Enabling also the variable to reactivate Component.library
 					// in remote environments. It may produce unexpected problems.
-					setenv_agnostic(sp, Var.comp_libr.cmp, "1", 1);
+					setenv_agnostic(sp, Var.comp_libr.comp, "1", 1);
 				}
 			// If disabled by default or de administrator have misswritten
 			} else {
 				// Library == 1: nothing
 				// Library == 0: disable
 				// Library == whatever: disable (bug protection)
-				if (!isenv_agnostic(sp, Var.comp_libr.cmp, "1")) {
+				if (!isenv_agnostic(sp, Var.comp_libr.comp, "1")) {
 					plug_component_setenabled(sp, Component.library, 0);
 				}
 			}
@@ -190,7 +190,7 @@ int plug_read_application(spank_t sp, plug_serialization_t *sd)
 	strcpy(app->job.user_acc, sd->job.user.account);
     app->is_mpi = plug_component_isenabled(sp, Component.library);
     // Getenv things
-	if (!getenv_agnostic(sp, Var.name_app.rem, app->job.app_id, GENERIC_NAME)) {
+	if (!getenv_agnostic(sp, Var.name_app.slurm, app->job.app_id, GENERIC_NAME)) {
 		strcpy(app->job.app_id, "");
 	}
 	if (!getenv_agnostic(sp, Var.policy.ear, app->job.policy, POLICY_NAME)) {
@@ -242,40 +242,33 @@ int plug_print_variables(spank_t sp)
 
 	printenv_agnostic(sp, Component.plugin);
 	printenv_agnostic(sp, Component.library);
-	printenv_agnostic(sp, Var.comp_libr.cmp);
-	printenv_agnostic(sp, Var.comp_plug.cmp);
-	printenv_agnostic(sp, Var.comp_verb.cmp);
-	printenv_agnostic(sp, Var.hack_load.hck);
-	printenv_agnostic(sp, Var.verbose.loc);
-	printenv_agnostic(sp, Var.policy.loc);
-	printenv_agnostic(sp, Var.policy_th.loc);
-	printenv_agnostic(sp, Var.frequency.loc);
-	printenv_agnostic(sp, Var.p_state.loc);
-	printenv_agnostic(sp, Var.learning.loc);
-	printenv_agnostic(sp, Var.tag.loc);
-	printenv_agnostic(sp, Var.path_usdb.loc);
-	printenv_agnostic(sp, Var.cpus_nodn.rem);
-	//printenv_agnostic(sp, Var.path_trac.loc);
-	printenv_agnostic(sp, Var.version.loc);
-	//printenv_agnostic(sp, Var.gm_host.loc);
-	//printenv_agnostic(sp, Var.gm_port.loc);
-	printenv_agnostic(sp, Var.gm_secure.loc);
-	printenv_agnostic(sp, Var.user.rem);
-	printenv_agnostic(sp, Var.group.rem);
-	//printenv_agnostic(sp, Var.path_temp.rem);
-	//printenv_agnostic(sp, Var.path_inst.rem);
-	//printenv_agnostic(sp, Var.nodes_allowed.rem);
-	//printenv_agnostic(sp, Var.nodes_excluded.rem);
-	printenv_agnostic(sp, Var.ctx_last.rem);
-	printenv_agnostic(sp, Var.was_sbac.rem);
-	printenv_agnostic(sp, Var.was_srun.rem);
-	printenv_agnostic(sp, Var.node_num.loc);
-	printenv_agnostic(sp, Var.name_app.rem);
-	printenv_agnostic(sp, Var.account.rem);
-	printenv_agnostic(sp, Var.job_nodl.rem);
-	printenv_agnostic(sp, Var.job_nodn.rem);
-	printenv_agnostic(sp, Var.step_nodl.rem);
-	printenv_agnostic(sp, Var.step_nodn.rem);
+	printenv_agnostic(sp, Var.comp_libr.comp);
+	printenv_agnostic(sp, Var.comp_plug.comp);
+	printenv_agnostic(sp, Var.plug_verbose.mod);
+	printenv_agnostic(sp, Var.hack_loader.mod);
+	printenv_agnostic(sp, Var.verbose.flag);
+	printenv_agnostic(sp, Var.policy.flag);
+	printenv_agnostic(sp, Var.policy_th.flag);
+	printenv_agnostic(sp, Var.frequency.flag);
+	printenv_agnostic(sp, Var.p_state.flag);
+	printenv_agnostic(sp, Var.learning.flag);
+	printenv_agnostic(sp, Var.tag.flag);
+	printenv_agnostic(sp, Var.path_usdb.flag);
+	printenv_agnostic(sp, Var.cpus_node_num.slurm);
+	//printenv_agnostic(sp, Var.path_trac.flag);
+//	printenv_agnostic(sp, Var.version.flag);
+	printenv_agnostic(sp, Var.gm_secure.mod);
+	printenv_agnostic(sp, Var.user.info);
+	printenv_agnostic(sp, Var.group.info);
+	printenv_agnostic(sp, Var.ctx_last.mod);
+	printenv_agnostic(sp, Var.was_sbatch.mod);
+	printenv_agnostic(sp, Var.was_srun.mod);
+	printenv_agnostic(sp, Var.name_app.slurm);
+	printenv_agnostic(sp, Var.account.slurm);
+	printenv_agnostic(sp, Var.job_node_list.slurm);
+	printenv_agnostic(sp, Var.job_node_count.slurm);
+	printenv_agnostic(sp, Var.step_node_list.slurm);
+	printenv_agnostic(sp, Var.step_node_count.slurm);
 	printenv_agnostic(sp, Var.verbose.ear);
 	printenv_agnostic(sp, Var.policy.ear);
 	printenv_agnostic(sp, Var.policy_th.ear);
@@ -289,8 +282,11 @@ int plug_print_variables(spank_t sp)
 	printenv_agnostic(sp, Var.eff_gain.ear);
 	printenv_agnostic(sp, Var.name_app.ear);
 	printenv_agnostic(sp, Var.path_temp.ear);
-	printenv_agnostic(sp, Var.ld_prel.ear);
-	printenv_agnostic(sp, Var.ld_libr.ear);
+	printenv_agnostic(sp, Var.ld_preload.ear);
+	printenv_agnostic(sp, Var.ld_library.ear);
+  printenv_agnostic(sp, "EAR_INSTALL_PATH");
+  printenv_agnostic(sp, "EAR_ETC");
+  printenv_agnostic(sp, "EAR_TMP");
     printenv_agnostic(sp, "SLURM_JOBID");
     printenv_agnostic(sp, "SLURM_JOB_ID");
     printenv_agnostic(sp, "SLURM_STEPID");
@@ -383,10 +379,10 @@ int plug_deserialize_components(spank_t sp)
 	plug_component_setenabled(sp, Component.library, 0);
 
 	// Components
-	if (!isenv_agnostic(sp, Var.comp_plug.cmp, "0")) {
+	if (!isenv_agnostic(sp, Var.comp_plug.comp, "0")) {
 		plug_component_setenabled(sp, Component.plugin, 1);
 	}
-	if (isenv_agnostic(sp, Var.comp_libr.cmp, "1")) {
+	if (isenv_agnostic(sp, Var.comp_libr.comp, "1")) {
 		plug_component_setenabled(sp, Component.library, 1);
 	}
 	// Return
@@ -446,17 +442,17 @@ int plug_serialize_remote(spank_t sp, plug_serialization_t *sd)
 	plug_verbose(sp, 2, "function plug_serialize_remote");
 
 	// User
-	setenv_agnostic(sp, Var.user.rem,  sd->job.user.user,  1);
-	setenv_agnostic(sp, Var.group.rem, sd->job.user.group, 1);
+	setenv_agnostic(sp, Var.user.info,  sd->job.user.user,  1);
+	setenv_agnostic(sp, Var.group.info, sd->job.user.group, 1);
 	
 	// Subject
 	if (plug_context_is(sp, Context.srun)) {
-		setenv_agnostic(sp, Var.ctx_last.rem, Constring.srun, 1);
-		setenv_agnostic(sp, Var.was_srun.rem, "1", 1);
+		setenv_agnostic(sp, Var.ctx_last.mod, Constring.srun, 1);
+		setenv_agnostic(sp, Var.was_srun.mod, "1", 1);
 	} else
 	if (plug_context_is(sp, Context.sbatch)) {
-		setenv_agnostic(sp, Var.ctx_last.rem, Constring.sbatch, 1);
-		setenv_agnostic(sp, Var.was_sbac.rem, "1", 1);
+		setenv_agnostic(sp, Var.ctx_last.mod, Constring.sbatch, 1);
+		setenv_agnostic(sp, Var.was_sbatch.mod, "1", 1);
 	}
 	
 	return ESPANK_SUCCESS;
@@ -472,24 +468,24 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 	ERROR_SET_EN(0);
 
 	// Converting option variables to task directly
-	repenv_agnostic(sp, Var.verbose.loc,   Var.verbose.ear);
-	repenv_agnostic(sp, Var.policy.loc,    Var.policy.ear);
-	repenv_agnostic(sp, Var.policy_th.loc, Var.policy_th.ear);
-	repenv_agnostic(sp, Var.frequency.loc, Var.frequency.ear);
-	repenv_agnostic(sp, Var.learning.loc,  Var.learning.ear);
-	repenv_agnostic(sp, Var.tag.loc,       Var.tag.ear);
-	repenv_agnostic(sp, Var.path_usdb.loc, Var.path_usdb.ear);
-	//repenv_agnostic(sp, Var.path_trac.loc, Var.path_trac.ear);
+	repenv_agnostic(sp, Var.verbose.flag,   Var.verbose.ear);
+	repenv_agnostic(sp, Var.policy.flag,    Var.policy.ear);
+	repenv_agnostic(sp, Var.policy_th.flag, Var.policy_th.ear);
+	repenv_agnostic(sp, Var.frequency.flag, Var.frequency.ear);
+	repenv_agnostic(sp, Var.learning.flag,  Var.learning.ear);
+	repenv_agnostic(sp, Var.tag.flag,       Var.tag.ear);
+	repenv_agnostic(sp, Var.path_usdb.flag, Var.path_usdb.ear);
+	//repenv_agnostic(sp, Var.path_trac.flag, Var.path_trac.ear);
 
 	// User
-	getenv_agnostic(sp, Var.user.rem,      sd->job.user.user,    SZ_NAME_MEDIUM);
-	getenv_agnostic(sp, Var.group.rem,     sd->job.user.group,   SZ_NAME_MEDIUM);
-	getenv_agnostic(sp, Var.account.rem,   sd->job.user.account, SZ_NAME_MEDIUM);
+	getenv_agnostic(sp, Var.user.info,     sd->job.user.user,    SZ_NAME_MEDIUM);
+	getenv_agnostic(sp, Var.group.info,    sd->job.user.group,   SZ_NAME_MEDIUM);
+	getenv_agnostic(sp, Var.account.slurm,   sd->job.user.account, SZ_NAME_MEDIUM);
 
 	// Subject
-	if (isenv_agnostic(sp, Var.ctx_last.rem, Constring.srun)) {
+	if (isenv_agnostic(sp, Var.ctx_last.mod, Constring.srun)) {
 		sd->subject.context_local = Context.srun;
-	} else if (isenv_agnostic(sp, Var.ctx_last.rem, Constring.sbatch)) {
+	} else if (isenv_agnostic(sp, Var.ctx_last.mod, Constring.sbatch)) {
 		sd->subject.context_local = Context.sbatch;
 	} else {
 		sd->subject.context_local = Context.error;
@@ -514,11 +510,11 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 	s2 = 0;
 
 	if (plug_context_was(sd, Context.sbatch)) {
-		s1 = getenv_agnostic(sp, Var.job_nodl.rem , buffer1, SZ_BUFFER_EXTRA);
-		s2 = getenv_agnostic(sp, Var.job_nodn.rem , buffer2, SZ_BUFFER_EXTRA);
+		s1 = getenv_agnostic(sp, Var.job_node_list.slurm , buffer1, SZ_BUFFER_EXTRA);
+		s2 = getenv_agnostic(sp, Var.job_node_count.slurm , buffer2, SZ_BUFFER_EXTRA);
 	} else if (plug_context_was(sd, Context.srun)) {
-		s1 = getenv_agnostic(sp, Var.step_nodl.rem, buffer1, SZ_BUFFER_EXTRA);
-		s2 = getenv_agnostic(sp, Var.step_nodn.rem, buffer2, SZ_BUFFER_EXTRA);
+		s1 = getenv_agnostic(sp, Var.step_node_list.slurm, buffer1, SZ_BUFFER_EXTRA);
+		s2 = getenv_agnostic(sp, Var.step_node_count.slurm, buffer2, SZ_BUFFER_EXTRA);
 	}
 	if (s1 && s2) {
 		sd->job.nodes_count = atoi(buffer2);
@@ -571,7 +567,7 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 		sd->subject.host, sd->subject.is_master);
 
     // CPUs 
-    if (getenv_agnostic(sp, Var.cpus_nodn.rem, buffer1, SZ_BUFFER_EXTRA)) {
+    if (getenv_agnostic(sp, Var.cpus_node_num.slurm, buffer1, SZ_BUFFER_EXTRA)) {
         sd->job.app.job.procs = atoi(buffer1);
     }
     plug_verbose(sp, 2, "%lu cpus detected on plugin", sd->job.app.job.procs);
@@ -583,19 +579,19 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 	 * out of APP serialization.
 	 */
 	setenv_agnostic(sp, Var.path_temp.ear, sd->pack.path_temp, 1);
-	setenv_agnostic(sp, Var.path_inst.ear, sd->pack.path_inst, 1);
+	setenv_agnostic(sp, Var.path_install.ear, sd->pack.path_inst, 1);
 
 	// Cleaning
-	unsetenv_agnostic(sp, Var.user.rem);
-	unsetenv_agnostic(sp, Var.group.rem);
-	
+	unsetenv_agnostic(sp, Var.user.info);
+	unsetenv_agnostic(sp, Var.group.info);
+
 	// Last minute hack, if energy tag is present, disable library
-	if (exenv_agnostic(sp, Var.tag.loc)) {
+	if (exenv_agnostic(sp, Var.tag.flag)) {
 		plug_component_setenabled(sp, Component.library, 0);
 	}
 
 	// Last minute hack, if energy tag is present, disable library
-	if (exenv_agnostic(sp, Var.tag.loc)) {
+	if (exenv_agnostic(sp, Var.tag.flag)) {
 		plug_component_setenabled(sp, Component.library, 0);
 	}
 
@@ -648,7 +644,7 @@ int plug_serialize_task_preload(spank_t sp, plug_serialization_t *sd)
 	buffer1[0] = '\0';
 	buffer2[0] = '\0';
 
-	if (getenv_agnostic(sp, Var.hack_load.hck, buffer2, bsize)) {
+	if (getenv_agnostic(sp, Var.hack_loader.mod, buffer2, bsize)) {
 		xsprintf(buffer1, "%s", buffer2);
 	} else {	
 		// Copying INSTALL_PATH into buffer and adding library and the folder.
@@ -662,21 +658,21 @@ int plug_serialize_task_preload(spank_t sp, plug_serialization_t *sd)
 	{
 		char *ld_buf = sd->job.user.env.ld_preload;
 		// If LD_PRELOAD already exists.
-		if (getenv_agnostic(sp, Var.ld_prel.ear, ld_buf, bsize))
+		if (getenv_agnostic(sp, Var.ld_preload.ear, ld_buf, bsize))
 		{
 			xsprintf(buffer2, "%s:", buffer1);
 			// Append the current LD_PRELOAD content to our library.
 			xsprintf(buffer1, "%s%s", buffer2, ld_buf);
 		}
 		// Setting LD_PRELOAD environment variable.
-		setenv_agnostic(sp, Var.ld_prel.ear, buffer1, 1);
+		setenv_agnostic(sp, Var.ld_preload.ear, buffer1, 1);
 	} else {
 		plug_verbose(sp, 2, "this file can't be loaded '%s' (%d, %s)",
 			buffer1, errno, strerror(errno));
 	}
 
 	// These environment variables are required if loader is loaded.	
-	if (getenv_agnostic(sp, Var.name_app.rem, buffer1, sizeof(buffer1)) == 1) {
+	if (getenv_agnostic(sp, Var.name_app.slurm, buffer1, sizeof(buffer1)) == 1) {
 		setenv_agnostic(sp, Var.name_app.ear, buffer1, 1);
 	}
 

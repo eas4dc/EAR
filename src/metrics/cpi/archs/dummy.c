@@ -53,19 +53,25 @@ state_t cpi_dummy_read(ctx_t *c, cpi_t *ci)
 // Helpers
 state_t cpi_dummy_data_diff(cpi_t *ci2, cpi_t *ci1, cpi_t *ciD, double *cpi)
 {
+    static double cpi_copy = 0.0;
 
-	*cpi = 0.0;
 	memset(ciD, 0, sizeof(cpi_t));
-	//
-	ciD->instructions = overflow_magic_u64(ci2->instructions, ci1->instructions, MAXBITS64);
-	ciD->cycles = overflow_magic_u64(ci2->cycles, ci1->cycles, MAXBITS64);
-	ciD->stalls = overflow_magic_u64(ci2->stalls, ci1->stalls, MAXBITS64);
-	// Computing cycles per instructions
-    ciD->instructions = ear_max(ciD->instructions, 1);
-	if (ciD->cycles > 0) {
+	ciD->instructions = overflow_zeros_u64(ci2->instructions, ci1->instructions);
+	ciD->cycles       = overflow_zeros_u64(ci2->cycles, ci1->cycles);
+	ciD->stalls       = overflow_zeros_u64(ci2->stalls, ci1->stalls);
+    // If instructions is 0, we convert them to 1
+    if (ciD->instructions == 0 || ciD->cycles == 0) {
+        ciD->instructions = (ciD->instructions > 0) ? ciD->instructions : 1;
+        ciD->cycles       = (ciD->cycles       > 0) ? ciD->cycles       : 1;
+        // And if CPI is not NULL, we return the last valid CPI
+        if (cpi != NULL) {
+            *cpi = cpi_copy;
+        }
+    } else if (cpi != NULL) {
 		*cpi = ((double) ciD->cycles) / ((double) ciD->instructions);
+        // Saving valid CPI
+        cpi_copy = *cpi;
 	}
-
 	return EAR_SUCCESS;
 }
 
@@ -86,8 +92,6 @@ state_t cpi_dummy_data_print(cpi_t *ci, double cpi, int fd)
 
 state_t cpi_dummy_data_tostr(cpi_t *ci, double cpi, char *buffer, size_t length)
 {
-	snprintf(buffer, length,
-		"Instructions: %llu\nCycles: %llu\nStalls: %llu\nCPI: %0.2lf\n",
-		ci->instructions, ci->cycles, ci->stalls, cpi);
+	snprintf(buffer, length, "Instructions: %llu\nCycles: %llu (cpi: %0.2lf)\n", ci->instructions, ci->cycles, cpi);
 	return EAR_SUCCESS;
 }

@@ -25,6 +25,7 @@
 #include <common/system/file.h>
 #include <common/output/debug.h>
 #include <common/utils/keeper.h>
+#include <common/config/config_env.h>
 
 #define BUFFER_SIZE 2048
 
@@ -71,7 +72,7 @@ static void keeper_open()
     char *tmp;
 
     // Open file if not previously opened
-    if ((tmp = getenv("EAR_TMP")) == NULL) {
+    if ((tmp = ear_getenv(ENV_PATH_TMP)) == NULL) {
         tmp = "/tmp";
     }
     if (fd >= 0) {

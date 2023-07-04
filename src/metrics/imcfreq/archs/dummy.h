@@ -44,6 +44,6 @@ state_t imcfreq_dummy_data_diff(imcfreq_t *i2, imcfreq_t *i1, ulong *freq_list, 
 
 void imcfreq_dummy_data_print(ulong *freq_list, ulong *average, int fd);
 
-void imcfreq_dummy_data_tostr(ulong *freq_list, ulong *average, char *buffer, size_t length);
+char *imcfreq_dummy_data_tostr(ulong *freq_list, ulong *average, char *buffer, size_t length);
 
 #endif //METRICS_IMCFREQ_DUMMY_H

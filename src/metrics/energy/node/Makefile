@@ -16,6 +16,11 @@ ener_OBJS +=\
 		energy_inm_power_freeipmi.o
 endif
 
+ifdef REDFISH_BASE
+	ener_OBJS +=\
+				energy_redfish.o
+endif
+
 ener_BINS = \
     energy_nm.so \
     energy_rapl.so \
@@ -23,11 +28,16 @@ ener_BINS = \
     energy_sd650.so \
     energy_inm_power.so \
     energy_SD650N_V2.so \
-    energy_dummy.so
+    energy_dummy.so \
 
 ifdef FREEIPMI_BASE
 ener_BINS += \
 		energy_inm_power_freeipmi.so
+endif
+
+ifdef REDFISH_BASE
+ener_BINS += \
+		energy_redfish.so
 endif
 
 ener_PATH = $(DESTDIR)/lib/plugins/energy
@@ -38,6 +48,9 @@ rapl_DEPS = \
     $(SRCDIR)/metrics/common/omsr.o \
     $(SRCDIR)/metrics/energy/cpu/intel63.o
 
+redfish_DEPS = \
+	$(SRCDIR)/metrics/common/redfish.o
+
 ######## RULES
 
 all: $(ener_BINS)
@@ -47,6 +60,9 @@ energy_inm_power_freeipmi.o:energy_inm_power_freeipmi.c
 
 energy_inm_power_freeipmi.so:energy_inm_power_freeipmi.o
 	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ $(FREEIPMI_LDFLAGS) $(ener_DEPS)
+
+energy_redfish.so: energy_redfish.o $(ener_DEPS) $(redfish_DEPS)
+	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ $(redfish_DEPS) $(ener_DEPS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<

@@ -67,14 +67,15 @@ typedef struct powermon_app {
     pthread_mutex_t   powermon_app_mutex;
 } powermon_app_t;
 
+
 typedef struct job_context {
-    job_id id;
-    uint   num_ctx;
-    uint   num_cpus;
+    job_id id; /**< The Job ID. */
+    uint   num_ctx; /**< Number of contexts associated with the Job. */
+    uint   num_cpus; /**< The number of CPUs used by the Job. */
 } job_context_t;
 
 /** Periodically monitors the node power monitoring.
- * @param noinfo Argument required for the function to be executed by a thread. Not used. */
+ * \param noinfo Argument required for the function to be executed by a thread. Not used. */
 void *eard_power_monitoring(void *noinfo);
 
 

@@ -18,6 +18,11 @@
 #ifndef COMMON_UTILS_DTOOLS_H
 #define COMMON_UTILS_DTOOLS_H
 
-void dtools_set_address(void *address_in);
+// Given an address and a breakpoint in dtools_break() function, when the
+// address or a near address is detected in malloc or free, dtools_break() is
+// called, prompting the breakpoint in GDB.
+
+// Set the address to control by dtools.
+void dtools_set_address(void *address);
 
 #endif

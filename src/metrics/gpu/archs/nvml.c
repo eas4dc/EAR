@@ -43,7 +43,21 @@ void gpu_nvml_load(gpu_ops_t *ops, int eard)
     // If EARD is demanded we do not want pooling.
     // If EARD is not demanded but NVML is unprivileged
     // means that this function is called by the library.
-    ok_pool = (eard == 0) && (nvml_is_privileged() == 1);
+    // EARD = 0 and !root --> NO POOL
+    // EARD = 0 and root --> POOL
+    // EARD = 1 --> NO POOL
+    // EARD = 2 --> POOL (NEW)
+
+    //ok_pool = (eard == 0) && (nvml_is_privileged() == 1);
+
+		if (eard == 2) 			ok_pool = 1;
+		else if (eard == 1) ok_pool = 0;
+		else if (eard == 0){
+			if (nvml_is_privileged()) ok_pool = 1;
+			else                      ok_pool = 0;
+		} 
+
+
     debug("Pooling %d", ok_pool);
     // The locking and duplicate control is at higher level
     if (state_fail(nvml_open(&nvml))) {
@@ -235,7 +249,7 @@ state_t gpu_nvml_pool(void *p)
     #if 0	
 	if (working  > 0 && !monitor_is_bursting(sus)) {
 		debug("bursting");
-		monitor_burst(sus);
+		monitor_burst(sus, 0);
 	}
 	if (working == 0 &&  monitor_is_bursting(sus)) {
 		debug("relaxing");

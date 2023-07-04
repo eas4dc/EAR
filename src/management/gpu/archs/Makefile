@@ -6,7 +6,8 @@ gpu_OBJS = \
     eard.o \
     dummy.o \
     nvml.o \
-    oneapi.o
+    oneapi.o \
+    rsmi.o
 
 ifdef CUDA_BASE
 gpu_DEFS  = -DCUDA_BASE=\"$(CUDA_BASE)\"
@@ -18,7 +19,13 @@ all: $(gpu_OBJS)
 
 nvml.o: nvml.c nvml.h
 	$(CC) $(CFLAGS) -I$(CUDA_BASE)/include $(gpu_DEFS) -c $<
-	
+
+oneapi.o: oneapi.c oneapi.h
+	$(CC) $(CFLAGS) $(ONEAPI_CFLAGS) -c $<
+
+rsmi.o: rsmi.c rsmi.h
+	$(CC) $(CFLAGS) $(RSMI_CFLAGS) -c $<
+
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<
 

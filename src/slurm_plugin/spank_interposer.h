@@ -137,16 +137,42 @@ int slurm_spank_exit(spank_t sp, int ac, char *argv[]);
 #endif
 
 #ifdef ERUN
-spank_context_t	 spank_context (void);
-spank_err_t	 spank_getenv (spank_t spank, const char *var, char *buf, int len);
-spank_err_t		 spank_setenv (spank_t spank, const char *var, const char *val, int overwrite);
-spank_err_t		 spank_unsetenv (spank_t spank, const char *var);
-spank_err_t		 spank_get_item (spank_t spank, spank_item_t item, int *p);
-spank_err_t		 spank_option_register_print(spank_t sp, struct spank_option *opt);
-spank_err_t		 spank_option_register_call(int argc, char *argv[], spank_t sp, struct spank_option *opt);
-spank_err_t		 spank_option_register(spank_t sp, struct spank_option *opt);
+spank_context_t  spank_context (void);
+spank_err_t      spank_getenv (spank_t spank, const char *var, char *buf, int len);
+spank_err_t      spank_setenv (spank_t spank, const char *var, const char *val, int overwrite);
+spank_err_t      spank_unsetenv (spank_t spank, const char *var);
+spank_err_t      spank_get_item (spank_t spank, spank_item_t item, int *p);
+spank_err_t      spank_option_register_print(spank_t sp, struct spank_option *opt);
+spank_err_t      spank_option_register_call(int argc, char *argv[], spank_t sp, struct spank_option *opt);
+spank_err_t      spank_option_register(spank_t sp, struct spank_option *opt);
 char			*slurm_hostlist_shift (hostlist_t host_list);
-hostlist_t		 slurm_hostlist_create (char *node_list);
+hostlist_t       slurm_hostlist_create (char *node_list);
+#endif
+
+#ifdef ERUN
+struct strctx_s {
+	char *srun;
+	char *sbatch;
+	char *remote;
+    char *other;
+} Strctx __attribute__((weak)) = {
+	.srun   = "erun(srun)",
+	.sbatch = "erun(sbatch)",
+	.remote = "erun(remote)",
+    .other  = "erun",
+};
+#else
+struct strctx_s {
+    char *srun;
+    char *sbatch;
+    char *remote;
+    char *other;
+} Strctx __attribute__((weak)) = {
+    .srun   = "srun",
+    .sbatch = "sbatch",
+    .remote = "remote",
+    .other  = "other",
+};
 #endif
 
 #endif //EAR_PRIVATE_SPANK_INTERPOSER_H

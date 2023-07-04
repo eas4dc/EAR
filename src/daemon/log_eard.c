@@ -58,7 +58,7 @@ void log_report_eard_init_error(report_id_t *id, uint eventid, llong value)
     event.step_id   = 0;	
     event.timestamp = time(NULL);
     event.event     = eventid;
-    event.freq      = value;
+    event.value     = value;
 
     strcpy(event.node_id, log_nodename);
 
@@ -85,7 +85,7 @@ void log_report_eard_powercap_event(report_id_t *id, job_id job, job_id sid, uin
     event.jid       = job;
     event.step_id   = sid;	
     event.event     = eventid;
-    event.freq      = value;
+    event.valeu     = value;
 
     strcpy(event.node_id,log_nodename);
 
@@ -107,7 +107,7 @@ void log_report_eard_rt_error(report_id_t *id, job_id job, job_id sid, uint even
         event.jid                             = job;
         event.step_id                         = sid;	
         event.event                           = eventid;
-        event.freq                            = value;
+        event.value                           = value;
 
         strcpy(event.node_id, log_nodename);
 		report_events(id, &event, 1);

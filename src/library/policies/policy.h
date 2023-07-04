@@ -28,14 +28,30 @@
 
 #include <daemon/shared_configuration.h>
 
+/** This is the entry function of the module. It basically loads the policy plug-in,
+ * configures the context and reads and configure available P-States and max/min permitted.
+ * Finally, it calls policy_init method. */
 state_t init_power_policy(settings_conf_t *app_settings, resched_t *res);
+
+
+/** \todo */
 state_t policy_init();
+
+
+/** \todo */
 state_t policy_node_apply(signature_t *my_sig, ulong *freq_set, int *ready);
+
+/** \todo */
 state_t policy_app_apply(ulong *freq_set, int *ready);
+
+
 /** This function fills \p freq_set with the default freq (only CPU) configured by the policy plugin loaded.
- * Only if the master has called this function the parameter will be set. If called by other process just
- * returns EAR_SUCCESS. */
+ * If the plug-in has no entry method, the default frequency got from the context of the current instance is set.
+ * Only if the master has called this function the parameter will be set.
+ * If called by other process just returns EAR_SUCCESS. */
 state_t policy_get_default_freq(node_freqs_t *freq_set);
+
+
 state_t policy_get_current_freq(node_freqs_t *freq_set);
 state_t policy_set_default_freq(signature_t *sig);
 state_t policy_ok(signature_t *c_sig, signature_t *l_sig, int *ok);
@@ -51,9 +67,12 @@ state_t policy_domain_detail(int status, char *buff);
 state_t policy_show_domain(node_freq_domain_t *dom);
 
 state_t policy_force_global_frequency(ulong new_f);
+state_t policy_restore_to_mpi_pstate(uint index);
 
 /**
  * \todo These two functions needs to be reconsidered. */
 state_t policy_configure();
+
+
 
 #endif // EAR_POLICIES_H

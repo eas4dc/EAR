@@ -100,9 +100,17 @@
 #if USE_GPUS
 #define ALL_NODES   "select SUM(DC_energy), MIN(start_time), MAX(end_time), SUM(GPU_energy), node_id FROM Periodic_metrics WHERE start_time >= %d " \
                     " AND end_time <= %d GROUP BY node_id "
+#define FULL_METS   "select node_id, DC_energy/(end_time-start_time), PCK_energy/(end_time-start_time), "\
+                    "DRAM_energy/(end_time-start_time), GPU_energy/(end_time-start_time), temp, avg_f, "\
+                    "from_unixtime(start_time), from_unixtime(end_time) FROM Periodic_metrics "\
+                    "WHERE start_time >= %d AND end_time <= %d"
 #else
 #define ALL_NODES   "select SUM(DC_energy), MIN(start_time), MAX(end_time), node_id FROM Periodic_metrics WHERE start_time >= %d " \
                     " AND end_time <= %d GROUP BY node_id "
+#define FULL_METS   "select node_id, DC_energy/(end_time-start_time), PCK_energy/(end_time-start_time), "\
+                    "DRAM_energy/(end_time-start_time), temp, avg_f "\
+                    "from_unixtime(start_time), from_unixtime(end_time) FROM Periodic_metrics "\
+                    "WHERE start_time >= %d AND end_time <= %d"
 #endif
 
 #define ALL_ISLANDS "SELECT SUM(DC_energy), eardbd_host FROM Periodic_aggregations WHERE start_time >= %d "\
@@ -151,7 +159,8 @@ void usage(char *app)
         "\t-i eardbd_name|all\t indicates from which eardbd (island) the energy will be computed. Default: none (all islands computed) \n\t\t\t\t\t 'all' option shows all eardbds individually, not aggregated.\n"
         "\t\t-d                 expands the results of -i to individual records. If an island is not specified, it prints all of them.\n"
         "\t-g                \t shows the contents of EAR's database Global_energy table. The default option will show the records for the two previous T2 periods of EARGM.\n\t\t\t\t\t This option can only be modified with -s, not -e\n"
-        "\t-x                \t shows the daemon events from -s to -e. If no time frame is specified, it shows the last 20 events. \n"
+        "\t-x                \t shows the daemon events from -s to -e. If no time frame is specified, it uses the default start and end times. \n"
+        "\t-z                \t shows the detailed periodic metrics reported during that period. If no time frame is specified, it uses the default start and end times. \n"
         "\t-v                \t shows current EAR version. \n"
         "\t-h                \t shows this message.\n");
 	exit(0);
@@ -823,6 +832,52 @@ void print_warning_level(int warn_level)
     }
 }
 
+void print_mets(int start_time, int end_time, char *nodes, cluster_conf_t *my_conf) 
+{
+    char ***results;
+    int num_columns, num_rows = 0;
+    char query[1024];
+
+    init_db_helper(&my_conf->database);
+
+    sprintf(query, FULL_METS, start_time, end_time);
+    if (nodes != NULL) {
+        strcat(query, " AND node_id IN ('");
+        strcat(query, nodes);
+        strcat(query, "')");
+    }
+
+    db_run_query_string_results(query, &results, &num_columns, &num_rows);
+
+    if (num_rows < 1) {
+        printf("No periodic_metrics in the specified period of time\n");
+        return;
+    }
+
+#if USE_GPUS
+    printf("%10s\t%10s\t%10s\t%10s\t%10s\t%10s\t%15s\t%20s\t%20s\n",
+            "Node", "DC power", "PCK power", "DRAM Power", "GPU power", "Temperature", "Avg. CPU Freq", "Start time", "End time");
+    int total_fields = 7;
+#else
+    printf("%10s\t%10s\t%10s\t%10s\t%10s\t%15s\t%20s\t%20s\n",
+            "Node", "DC power", "PCK power", "DRAM Power", "Temperature", "Avg. CPU Freq", "Start time", "End time");
+    int total_fields = 6;
+#endif
+    int i, j;
+    for (i = 0; i < num_rows; i++) {
+        for (j = 0; j < num_columns; j++) {
+            if (j < total_fields - 1)
+                printf("%10s\t", results[i][j]);
+			else if (j < total_fields)
+                printf("%15s\t", results[i][j]);
+            else
+                printf("%20s\t", results[i][j]);
+
+        }
+        printf("\n");
+    }
+}
+
 #if DB_MYSQL
 void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query, char type)
 {
@@ -1086,6 +1141,7 @@ int main(int argc,char *argv[])
     char all_eardbds = 0;
     char report_events = 0;
     char global_energy = 0;
+    char report_detailed = 0;
     char islands_expanded = 0;
     struct tm tinfo = {0};
 
@@ -1153,6 +1209,7 @@ int main(int argc,char *argv[])
 		{"global-energy", no_argument, 0, 'g'},
 		{"events",        no_argument, 0, 'x'},
 		{"expanded",      no_argument, 0, 'd'},
+		{"detailed",      no_argument, 0, 'z'},
 		{"nodes",      required_argument, 0, 'n'},
 		{"users",      required_argument, 0, 'u'},
 		{"etags",      required_argument, 0, 't'},
@@ -1162,7 +1219,7 @@ int main(int argc,char *argv[])
 	};
 	while (1)
 	{
-		c = getopt_long(argc, argv, "t:vhdbn:u:s:e:i:gx", long_options, &option_idx);
+		c = getopt_long(argc, argv, "t:vhzdbn:u:s:e:i:gx", long_options, &option_idx);
 
 		if (c == -1) break;
 
@@ -1242,11 +1299,15 @@ int main(int argc,char *argv[])
 			case 'x':
 				report_events = 1;
 				break;
+            case 'z':
+                report_detailed = 1;
+                all_nodes = 0;
+                break;
 		}
 	}
 
 	if (start_time == 0) start_time = end_time - MAX(my_conf.eard.period_powermon, my_conf.db_manager.aggr_time)*4;
-	if (!all_users && !all_nodes && !all_tags && !all_eardbds && !global_energy && !report_events)
+	if (!all_users && !all_nodes && !all_tags && !all_eardbds && !global_energy && !report_events && !report_detailed)
 	{
 		long long result = get_sum(connection, start_time, end_time, divisor);
 		compute_pow(connection, start_time, end_time, result);
@@ -1306,10 +1367,14 @@ int main(int argc,char *argv[])
 	}
 	else if (report_events)
 	{
-		//read_events(char *user, int job_id, int limit, int step_id, char *job_ids) 
 		read_events(start_time, end_time, &my_conf); 
 
 	}
+    else if (report_detailed)
+    {
+        print_mets(start_time, end_time, node_name, &my_conf);
+
+    }
 #if DB_MYSQL
 	mysql_close(connection);
 #elif DB_PSQL

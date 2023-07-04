@@ -66,10 +66,9 @@ static int getenv_local(char *var, char *buf, int len)
 	if (var == NULL || buf == NULL) {
 		return 0;
 	}
-	if ((c = getenv(var)) == NULL) {
+	if ((c = ear_getenv(var)) == NULL) {
 		return 0;
 	}
-
 	snprintf(buf, len, "%s", c);
 	return 1;
 }
@@ -97,15 +96,12 @@ static int getenv_remote(spank_t sp, char *var, char *buf, int len)
 static int isenv_local(char *var, char *val)
 {
 	char *env;
-
 	if (var == NULL || val == NULL) {
 		return 0;
 	}
-
-	if ((env = getenv(var)) != NULL) {
+	if ((env = ear_getenv(var)) != NULL) {
         return (strcmp(env, val) == 0);
     }
-
     return 0;
 }
 
@@ -125,12 +121,10 @@ static int isenv_remote(spank_t sp, char *var, char *val)
 static int exenv_local(char *var)
 {
 	char *env;
-
 	if (var == NULL) {
 		return 0;
 	}
-
-	env = getenv(var);
+	env = ear_getenv(var);
 	return (env != NULL) && (strlen(env) > 0);
 }
 
@@ -207,7 +201,6 @@ int isenv_agnostic(spank_t sp, char *var, char *val)
 int repenv_agnostic(spank_t sp, char *var_old, char *var_new)
 {
 	unsetenv_agnostic(sp, var_new);
-
 	if (plug_context_is(sp, Context.local)) {
 		return repenv_local(var_old, var_new);
 	} else {
@@ -225,7 +218,6 @@ int apenv_agnostic(char *dst, char *src, int dst_capacity)
 	if ((dst == NULL) || (src == NULL) || (strlen(src) == 0)) {
 		return 0;
 	}
-
 	len_dst = strlen(dst);
 	len_src = strlen(src);
 	new_cap = len_dst + len_src + (len_dst > 0) + 1;
@@ -233,9 +225,7 @@ int apenv_agnostic(char *dst, char *src, int dst_capacity)
 	if (new_cap > dst_capacity) {
 		return 0;
 	}
-
-	if (len_dst > 0)
-	{
+	if (len_dst > 0) {
 		strcpy(buffer, dst);
 		pointer = &dst[len_src];
 		strcpy(&pointer[1], buffer);
@@ -244,7 +234,6 @@ int apenv_agnostic(char *dst, char *src, int dst_capacity)
 	} else {
 		strcpy(dst, src);
 	}
-
 	return 1;
 }
 
@@ -310,15 +299,14 @@ char *plug_host(spank_t sp)
 
 char *plug_context_str(spank_t sp)
 {
-        if (plug_context_is(sp, Context.srun)) {
-                return "srun";
-        } else if (plug_context_is(sp, Context.sbatch)) {
-                return "sbatch";
-        } else if (plug_context_is(sp, Context.remote)) {
-                return "remote";
-        } else {
-                return "erun";
-        }
+    if (plug_context_is(sp, Context.srun)) {
+        return Strctx.srun;
+    } else if (plug_context_is(sp, Context.sbatch)) {
+        return Strctx.sbatch;
+    } else if (plug_context_is(sp, Context.remote)) {
+        return Strctx.remote;
+    }
+    return Strctx.other;
 }
 
 int plug_context_is(spank_t sp, plug_context_t ctxt)
@@ -345,7 +333,7 @@ int plug_verbosity_test(spank_t sp, int level)
 {	
 	if (verbosity == -1)
 	{
-		if (getenv_agnostic(sp, Var.comp_verb.cmp, buffer, 8) == 1) {
+		if (getenv_agnostic(sp, Var.plug_verbose.mod, buffer, 8) == 1) {
 			verbosity = atoi(buffer);
 		} else {
 			verbosity = 0;

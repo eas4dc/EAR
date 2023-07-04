@@ -16,6 +16,7 @@
  */
 
 #include <stdio.h>
+#include <common/environment.h>
 #include <common/types/event_type.h>
 
 void event_type_to_str(ear_event_t *ev, char *str, size_t max)
@@ -74,13 +75,13 @@ void event_value_to_str(ear_event_t *ev, char *str, size_t max)
     if ((ev == NULL) || (str == NULL)) return;
 
     if (ev->event == EARL_OPT_ACCURACY) {
-        switch (ev->freq) {
+        switch (ev->value) {
             case OPT_NOT_READY  : strncpy(str, OPT_NOT_READY_TXT, max); break;
             case OPT_OK         : strncpy(str, OPT_OK_TXT, max); break;
             case OPT_NOT_OK     : strncpy(str, OPT_NOT_OK_TXT, max); break;
             case OPT_TRY_AGAIN  : strncpy(str, OPT_TRY_AGAIN_TXT, max); break;
         }
     } else {
-        snprintf(str, max,  "%lu", ev->freq);
+        snprintf(str, max,  "%lu", ev->value);
     }
 }

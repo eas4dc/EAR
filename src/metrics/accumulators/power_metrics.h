@@ -54,10 +54,10 @@ typedef struct power_data {
 } power_data_t;
 
 
-/**  Starts power monitoring */
+/**  Starts power monitoring. */
 int init_power_monitoring(ehandler_t *eh, topology_t *tp);
 
-/** Ends power monitoring */
+/** Ends power monitoring. */
 void end_power_monitoring(ehandler_t *eh);
 
 /*
@@ -67,21 +67,21 @@ void end_power_monitoring(ehandler_t *eh);
 /** Energy is returned in mili Joules */
 int read_enegy_data(ehandler_t *eh,energy_data_t *acc_energy);
 
-/** Computes the power between two energy measurements */
+/** Computes the power between two energy measurements. */
 void compute_power(energy_data_t *e_begin, energy_data_t *e_end, power_data_t *my_power);
 
 /*
  *
  */
 
-/** Prints the data from an energy measurement to stdout */
+/** Prints the data from an energy measurement to stdout. */
 void print_energy_data(energy_data_t *e);
 
 /** Prints power information to the stdout */
 void print_power(power_data_t *my_power,uint showdate,int out);
 
 /** Write (text mode) the power information in the provided file descriptor */
-void report_periodic_power(int fd,power_data_t *my_power);
+void report_periodic_power(int fd, power_data_t *my_power);
 
 /*
  *
@@ -91,7 +91,6 @@ void report_periodic_power(int fd,power_data_t *my_power);
 /*
  * Energy data
  */
-
 void alloc_energy_data(energy_data_t *e);
 
 void free_energy_data(energy_data_t *e);

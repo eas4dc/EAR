@@ -20,7 +20,19 @@
 
 #include <common/types.h>
 
-#define ENABLE_OVERHEAD 1
+#define ENABLE_OVERHEAD 0
+
+// Suscribes a section of code. It receives a description of that code section,
+// and returns a ID which will be used to circle the section by start-stop
+// marks. Later, you can all report to print all the gathered data.
+//
+// Ex:
+//  overhead_suscribe("get frequency", &id_freq);
+//  overhead_start(id_freq);
+//  ... (get frequency code)
+//  overhead_stop(id_freq);
+//  ... (things)
+//  overhead_report(1);
 
 void overhead_suscribe(const char *description, uint *id);
 

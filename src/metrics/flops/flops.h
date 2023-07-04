@@ -46,24 +46,23 @@
 //  ---------------------------------------------------------------------------|
 //
 
-// Old style, deprecated
+// Old style, deprecated and extinguish as soon as possible
 #define FLOPS_EVENTS 8
-#define INDEX_064F   0
-#define INDEX_064D   4
-#define INDEX_128F   1
-#define INDEX_128D   5
 #define INDEX_256F   2
 #define INDEX_256D   6
 #define INDEX_512F   3
 #define INDEX_512D   7
-#define WEIGHT_064F  1
-#define WEIGHT_064D  1
-#define WEIGHT_128F  4
-#define WEIGHT_128D  2
+#ifdef __ARCH_ARM
+#define WEIGHT_256F  1
+#define WEIGHT_256D  1
+#define WEIGHT_512F  1
+#define WEIGHT_512D  1
+#else
 #define WEIGHT_256F  8
 #define WEIGHT_256D  4
 #define WEIGHT_512F 16
 #define WEIGHT_512D  8
+#endif
 
 typedef struct flops_s {
 	ullong f64;
@@ -72,8 +71,8 @@ typedef struct flops_s {
 	ullong d128;
 	ullong f256;
 	ullong d256;
-	ullong f512;
-	ullong d512;
+    ullong f512; // 512 field is also used as MAX VECTOR LENGTH flops,
+	ullong d512; // i.e. the ARM's SVE. But in the future maybe union could be.
     union {
         timestamp_t time;
         double secs;
@@ -81,19 +80,19 @@ typedef struct flops_s {
 } flops_t;
 
 typedef struct flops_ops_s {
+    void    (*get_api)         (uint *api);
+    void    (*get_granularity) (uint *granularity);
+    void    (*get_weights)     (ullong **weights);
 	state_t (*init)            (ctx_t *c);
 	state_t (*dispose)         (ctx_t *c);
 	state_t (*read)            (ctx_t *c, flops_t *fl);
-    state_t (*data_diff)       (flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
-    state_t (*data_accum)      (flops_t *flA, flops_t *flD, double *gfs);
-	state_t (*data_copy)       (flops_t *dst, flops_t *src);
-	state_t (*data_print)      (flops_t *fl, double gfs, int fd);
-	state_t (*data_tostr)      (flops_t *fl, double gfs, char *buffer, size_t length);
 } flops_ops_t;
 
-state_t flops_load(topology_t *tp, int eard);
+void flops_load(topology_t *tp, int eard);
 
-state_t flops_get_api(uint *api);
+void flops_get_api(uint *api);
+
+void flops_get_granularity(uint *granularity);
 
 state_t flops_init(ctx_t *c);
 
@@ -101,24 +100,22 @@ state_t flops_dispose(ctx_t *c);
 
 state_t flops_read(ctx_t *c, flops_t *fl);
 
-// Data
 state_t flops_read_diff(ctx_t *c, flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
 
 state_t flops_read_copy(ctx_t *c, flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
 
-state_t flops_data_diff(flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
+void flops_data_diff(flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
 
 /* Accumulates flops differences and return its data in GFLOPs (accepts NULL). */
-state_t flops_data_accum(flops_t *fA, flops_t *fD, double *gfs);
+void flops_data_accum(flops_t *fA, flops_t *fD, double *gfs);
 
-state_t flops_data_copy(flops_t *dst, flops_t *src);
+void flops_data_copy(flops_t *dst, flops_t *src);
 
-state_t flops_data_print(flops_t *flD, double gfs, int fd);
+void flops_data_print(flops_t *flD, double gfs, int fd);
 
-state_t flops_data_tostr(flops_t *flD, double gfs, char *buffer, size_t length);
+void flops_data_tostr(flops_t *flD, double gfs, char *buffer, size_t length);
 
 // Helpers
-
 /* Converts a flops difference into old FLOPs array system. */
 ullong *flops_help_toold(flops_t *flD, ullong *flops);
 

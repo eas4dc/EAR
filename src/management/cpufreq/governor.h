@@ -41,18 +41,16 @@ struct governor_s {
     uint userspace;
     uint powersave;
     uint ondemand;
-    uint other;
+    uint unknown;
 	uint last;
-	uint init;
 } Governor __attribute__((weak)) = {
 	.conservative = 0,
 	.performance = 1,
     .userspace = 2,
 	.powersave = 3,
 	.ondemand = 4,
-	.other = 5,
+	.unknown = 5,
     .last = 6,
-	.init = 7,
 };
 
 struct goverstr_s {
@@ -61,14 +59,14 @@ struct goverstr_s {
 	char *userspace;
 	char *powersave;
 	char *ondemand;
-	char *other;
+	char *unknown;
 } Goverstr __attribute__((weak)) = {
 	.conservative = "conservative",
 	.performance = "performance",
 	.userspace = "userspace",
 	.powersave = "powersave",
 	.ondemand = "ondemand",
-	.other = "other",
+	.unknown = "unknown",
 };
 
 // To compile well
@@ -77,7 +75,7 @@ struct goverstr_s {
 #define mgt_governor_is(b, g)          governor_is(b, g)
 
 /* Returns a governor name given a governor id. */
-char *governor_tostr(uint governor, char *buffer);
+state_t governor_tostr(uint governor, char *buffer);
 /* Returns a governor id given a governor name. */
 state_t governor_toint(char *buffer, uint *governor);
 /* Given a governor name and id, returns true if it is the same. */

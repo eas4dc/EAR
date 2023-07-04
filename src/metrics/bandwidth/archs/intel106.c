@@ -15,7 +15,7 @@
 * and COPYING.EPL files.
 */
 
-//#define SHOW_DEBUGS 1
+#define SHOW_DEBUGS 1
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -54,19 +54,17 @@ static state_t load_icelake()
 
 	for (p = c = 0; p < pcis_count; ++p) {
 		addr_hi = 0x00;
-        // MMIO_BASE
+		// MMIO_BASE
 		if (state_fail(s = pci_read(&pcis[p], &addr_hi, sizeof(uint), 0xD0))) {
-			// Clean PCIs
 			return s;
 		}
 		addr_hi = (addr_hi & 0x1FFFFFFF) << 23;
-		debug("PCI%u base address %lx", p, addr_hi);
+		debug("PCI%u base address 0x%lx", p, addr_hi);
 
 		for (i = 0; i < 4; ++i) {
 			addr_lo = 0x00;
-            // MEMx_BAR
-	    	if (state_fail(s = pci_read(&pcis[p], &addr_lo, sizeof(uint), 0xD8+(i*0x04)))) {
-				// Clean PCIs
+			// MEMx_BA
+			if (state_fail(s = pci_read(&pcis[p], &addr_lo, sizeof(uint), 0xD8+(i*0x04)))) {
 				return s;
 			}
 			addr_lo = (addr_lo & 0x7FF) << 12;
@@ -74,8 +72,8 @@ static state_t load_icelake()
 			if (state_fail(s = pci_mmio_map(addr_fi, &imc_maps[(p*4)+i]))) {
 				return s;
 			}
-			debug("IMC%u address physical = 0x%lx (0x%lx | 0x%lx)", (p*4)+i, addr_fi, addr_hi, addr_lo);
-            debug("IMC%u address virtual  = 0x%lx", (p*4)+i, imc_maps[(p*4)+i]);
+			debug("IMC%u address physical = 0x%lx (0x%lx | 0x%lx + 0x2290) (map 0x%lx)",
+				(p*4)+i, addr_fi, addr_hi, addr_lo, imc_maps[(p*4)+i]);
 			// Filling RD and WR counters
 			imc_ctrs[c++] = 0x00;
 			imc_ctrs[c++] = 0x08;
@@ -91,7 +89,7 @@ state_t bwidth_intel106_load(topology_t *tp, bwidth_ops_t *ops)
 	if (tp->vendor == VENDOR_AMD || tp->model != MODEL_ICELAKE_X) {
 		return_msg(EAR_ERROR, Generr.api_incompatible);
 	}
-	debug("detected Intel ICE LAKE");
+	debug("Detected Intel Ice Lake");
 	if (state_fail(s = pci_scan(0x8086, ice_ids, ice_dfs, O_RDONLY, &pcis, &pcis_count))) {
 		serror("pci_scan");
 		return s;
@@ -100,17 +98,23 @@ state_t bwidth_intel106_load(topology_t *tp, bwidth_ops_t *ops)
 	debug("PCIs count: %d", pcis_count);
 	
     if (state_fail(s = load_icelake())) {
-		// serror("load_icelake");
 		return s;
 	}
 	// In the future it can be initialized in read only mode
-	replace_ops(ops->init,            bwidth_intel106_init);
-	replace_ops(ops->dispose,         bwidth_intel106_dispose);
-	replace_ops(ops->count_devices,   bwidth_intel106_count_devices);
-	replace_ops(ops->get_granularity, bwidth_intel106_get_granularity);
-	replace_ops(ops->read,            bwidth_intel106_read);
+	apis_put(ops->get_info, bwidth_intel106_get_info);
+	apis_put(ops->init,     bwidth_intel106_init);
+	apis_put(ops->dispose,  bwidth_intel106_dispose);
+	apis_put(ops->read,     bwidth_intel106_read);
 
 	return EAR_SUCCESS;
+}
+
+BWIDTH_F_GET_INFO(bwidth_intel106_get_info)
+{
+    info->api         = API_INTEL106;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_IMC;
+    info->devs_count  = imc_ctrs_count+1;
 }
 
 state_t bwidth_intel106_init(ctx_t *c)
@@ -129,12 +133,6 @@ state_t bwidth_intel106_count_devices(ctx_t *c, uint *devs_count_in)
 	return EAR_SUCCESS;
 }
 
-state_t bwidth_intel106_get_granularity(ctx_t *c, uint *granularity)
-{
-	*granularity = GRANULARITY_IMC;
-	return EAR_SUCCESS;
-}
-
 state_t bwidth_intel106_read(ctx_t *c, bwidth_t *bw)
 {
     addr_t addr0;
@@ -144,14 +142,13 @@ state_t bwidth_intel106_read(ctx_t *c, bwidth_t *bw)
 	timestamp_get(&bw[imc_ctrs_count].time);
 
 	for (i = j = 0; i < imc_maps_count; ++i, j+=2) {
-		debug("IMC%d: RD DDR addr 0x%lx", i, imc_maps[i]);
-        addr0 = ((addr_t) imc_maps[i]) + ((addr_t) imc_ctrs[j+0]);
-        addr1 = ((addr_t) imc_maps[i]) + ((addr_t) imc_ctrs[j+1]);
+		addr0 = ((addr_t) imc_maps[i]) + ((addr_t) imc_ctrs[j+0]);
+		addr1 = ((addr_t) imc_maps[i]) + ((addr_t) imc_ctrs[j+1]);
 		bw[j+0].cas = (ullong) *((ullong *) (addr0));
 		bw[j+1].cas = (ullong) *((ullong *) (addr1));
 		bw[j+0].cas = bw[j+0].cas & 0x0000ffffffffffff;
 		bw[j+1].cas = bw[j+1].cas & 0x0000ffffffffffff;
-		debug("IMC%d: %llu cas", i, bw[i].cas + bw[i].cas);
+		debug("IMC%d: %llu %llu cas", i, bw[j+0].cas, bw[j+1].cas);
 	}
 	return EAR_SUCCESS;
 }

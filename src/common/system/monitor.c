@@ -15,7 +15,8 @@
 * and COPYING.EPL files.
 */
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
+
 #include <error.h>
 #include <signal.h>
 #include <string.h>
@@ -24,164 +25,201 @@
 #include <common/output/debug.h>
 #include <common/system/monitor.h>
 
-#define N_QUEUE 128
-
-static pthread_t        thread;
-static pthread_mutex_t  lock_gen = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t  lock[N_QUEUE];
-static uint             enabled = 0;
-static uint             locked = 0;
+#define N_QUEUE  128
+#define SIGNAL   SIGCONT
 
 typedef struct wait_s {
 	int relax;
 	int burst;
 } wait_t;
 
-typedef struct register_s
-{
+// Register queue (suscription + meta data)
+typedef struct queue_s {
 	suscription_t suscription;
-	wait_t wait_units;
-	wait_t wait_saves;
-	int	suscribed;
-	int	delivered;
-	int	bursted;
-	int	aligned;
-	int	ok_init;
-	int	ok_main;
-} register_t;
+	wait_t        sleep_units;
+	wait_t        saved_units;
+    int	          delivered; // If the suscription has been given but maybe not registered
+	int	          registered; // if the suscription has been given and registered
+    int	          aligned;
+	int	          is_bursting;
+	int           ok_init; // Ready to call init
+	int           ok_main; // Ready to call main
+} queue_t;
 
-static register_t queue[N_QUEUE];
-static uint       queue_last;
+static queue_t          queue[N_QUEUE];
+static uint             queue_last;
+static pthread_t        thread;
+static pthread_mutex_t  lock_gen = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t  lock[N_QUEUE];
+static uint             locks_allocated;
+struct sigaction        action_new;
+struct sigaction        action_old;
+static uint             is_running;
 
-static void monitor_sleep(int wait_units, int *pass_units, int *alignment)
+static void goto_handler(int sig)
 {
-	timestamp_t time;
-	ullong units;
-
-	//
-	units = ((ullong) wait_units) * 100LL;
-	timestamp_revert(&time, units, TIME_MSECS);
-
-	// Sleeping
-	timestamp_t t2;
-	timestamp_t t1;
-
-	debug("waiting %llu units", units);
-
-	timestamp_getfast(&t1);
-	nanosleep(&time, NULL);
-	timestamp_getfast(&t2);
-
-	// If s is 0 then all want ok and the time
-	// processing continues normally.
-	*pass_units = ((int) timestamp_diff(&t2, &t1, TIME_MSECS)) + 1;
-	*pass_units = *pass_units / 100;
-
-	*alignment += *pass_units;
-	*alignment %= 10;
-
-	debug("waited %d units (alignment %d)", *pass_units, *alignment);
+    if (sigaction(SIGNAL, &action_old, NULL) < 0) {
+        error("SIGACTION2 on signal SIGCONT (%s)", strerror(errno));
+    }
 }
 
-static void monitor_time_calc(register_t *reg, int *wait_units, int pass_units, int alignment)
+static void goto_interrupt()
 {
-	int _bursted = reg->bursted;
-	int wait_required;
+    action_new.sa_handler = goto_handler;
+    action_new.sa_flags   = 0;
 
-	// Alignment processing
-	if (!reg->aligned)
-	{
+    if (sigaction(SIGNAL, &action_new, &action_old) < 0) {
+        error("SIGACTION1 on signal SIGCONT (%s)", strerror(errno));
+    }
+    pthread_kill(thread, SIGNAL);
+}
+
+static void goto_sleep(int sleep_units, int sleep_reason, int *passed_units, int *alignment)
+{
+    char       *sleep_str[3] = { "next call", "alignment", "wandering" };
+    char       *wake_str[2]  = { "time passed", "interruption" };
+    int         wake_reason;
+    timestamp_t tW; // Wait time
+	timestamp_t t2;
+	timestamp_t t1;
+    ullong      passed_time;
+	ullong      deciseconds;
+
+    // Converting sleep units to timesampt.
+    deciseconds = ((ullong) sleep_units) * 100LLU;
+	timestamp_revert(&tW, deciseconds, TIME_MSECS);
+	debug("going to sleep %d units (reason '%s')",
+          sleep_units, sleep_str[sleep_reason]);
+
+    // Last check
+    if (!is_running) {
+        return;
+    }
+	// Sleeping
+	timestamp_getfast(&t1);
+    wake_reason = nanosleep(&tW, NULL);
+	timestamp_getfast(&t2);
+	
+    // If s is 0 then all went ok and the time processing continues normally.
+    passed_time   = timestamp_diff(&t2, &t1, TIME_MSECS) + 1LLU;
+    *passed_units = ((int) passed_time);
+	*passed_units = *passed_units / 100;
+	*alignment   += *passed_units;
+	*alignment   %= 10;
+
+	debug("sleeped during %llu ms (%d units, alignment %d, reason '%s')",
+          passed_time, *passed_units, *alignment, wake_str[wake_reason != 0]);
+}
+
+static void goto_time(queue_t *reg, int *sleep_units, int *sleep_reason, int passed_units, int alignment)
+{
+	int is_bursting = reg->is_bursting;
+	int sleep_units_required;
+
+	// Alignment processing. If not aligned and impossible to align yet,
+    // set the sleep units to align.
+	if (!reg->aligned) {
 		reg->aligned = (alignment == 0);
 		reg->ok_init = reg->aligned && (reg->suscription.call_init != NULL);
 		reg->ok_main = reg->aligned;
 
 		if (!reg->ok_main) {
-			wait_required = 10 - alignment;
-
-			if (wait_required < *wait_units) {
-				*wait_units = wait_required;
+			sleep_units_required = 10 - alignment;
+			if (sleep_units_required < *sleep_units) {
+				*sleep_units = sleep_units_required;
+                *sleep_reason = 1; // Alignment
 			}
-		
 			return;
 		}
-
-		debug("sus %d, aligned suscription", reg->suscription.id);
+		debug("S%d aligned", reg->suscription.id);
 	}
-
-	// Normal processing
-	reg->wait_units.burst -= pass_units;
-	reg->wait_units.relax -= pass_units;
-
-	if (reg->wait_units.burst <= 0 &&  _bursted) reg->ok_main = 1;
-	if (reg->wait_units.relax <= 0 && !_bursted) reg->ok_main = 1;
-
-	if (reg->wait_units.burst <= 0) reg->wait_units.burst = reg->wait_saves.burst;
-	if (reg->wait_units.relax <= 0) reg->wait_units.relax = reg->wait_saves.relax;
-
-	if (_bursted && reg->wait_units.burst < *wait_units) {
-		*wait_units = reg->wait_units.burst;
-	} else 	if (!_bursted && reg->wait_units.relax < *wait_units) {
-		*wait_units = reg->wait_units.relax;
+    // The time is discounted from both counters (burst and relax). If currently
+    // the state has been changed, the wait counter will be switched too. 
+	reg->sleep_units.burst -= passed_units;
+	reg->sleep_units.relax -= passed_units;
+	if (reg->sleep_units.burst <= 0 &&  is_bursting) reg->ok_main = 1;
+	if (reg->sleep_units.relax <= 0 && !is_bursting) reg->ok_main = 1;
+	if (reg->sleep_units.burst <= 0) reg->sleep_units.burst = reg->saved_units.burst;
+	if (reg->sleep_units.relax <= 0) reg->sleep_units.relax = reg->saved_units.relax;
+   
+    // If current sleep units is greater than our burst/relax pending units,
+    // current wait units will be replaced by the suscription counter.
+	if (is_bursting && reg->sleep_units.burst < *sleep_units) {
+		*sleep_units = reg->sleep_units.burst;
+        *sleep_reason = 0; // Next call
+	} else if (!is_bursting && reg->sleep_units.relax < *sleep_units) {
+		*sleep_units = reg->sleep_units.relax;
+        *sleep_reason = 0; // Next call
 	}
 }
 
-static void _monitor_init()
+static void goto_init()
 {
-        sigset_t set;
-        sigfillset(&set);
-        sigdelset(&set, SIGALRM);
+    sigset_t set;
+    sigfillset(&set);
+    sigdelset(&set, SIGNAL);
 	pthread_sigmask(SIG_SETMASK, &set, NULL);
+    pthread_setschedprio(thread, 10);
+    debug("ready");
 }
 
-static void *ear_internal_monitor(void *p)
+static void *monitor_main(void *p)
 {
-	register_t *reg;
+	queue_t *reg;
 	suscription_t *sus;
-	int wait_units = 0;
-	int pass_units = 0;
-	int alignment = 0;
+    int sleep_reason = 0;
+	int sleep_units  = 0;
+	int passed_units = 0; // How many units have been passed
+	int alignment    = 0;
 	int i;
-	//verbose(2,"Monitor init queue_last %d enabled %d",queue_last,enabled);
 
-	// Initializing
-	_monitor_init();
-
-	while (enabled)
+	// Initializing thread signals
+	goto_init();
+    // Main loop
+	while (is_running)
 	{
-		for (i = 0, wait_units = 10; i < queue_last && enabled; ++i)
+        debug("running");
+		for (i = 0, sleep_units = 1000, sleep_reason = 0; i < queue_last && is_running; ++i)
 		{
+            // Locking the suscription [i]
 			while (pthread_mutex_trylock(&lock[i]));
-
+            // Getting pointers
 			reg = &queue[i];
 			sus = &reg->suscription;
-
-			if (!reg->suscribed) {
+            // If the suscription is not registered, discard
+			if (!reg->registered) {
 				pthread_mutex_unlock(&lock[i]);
 				continue;
 			}
+            // Time calculation, a unit is 100 ms:
+            //     - sleep_units: units to sleep
+            //     - passed_units: passed units since last sleep
+            //     - alignment: a number from 0 to 9
+            // The upper for while, set sleeping time to 100 seconds (1000 units)
+			goto_time(reg, &sleep_units, &sleep_reason, passed_units, alignment);
+            // Unlocking suscription i because time is calculated
+            pthread_mutex_unlock(&lock[i]);
 
-			monitor_time_calc(reg, &wait_units, pass_units, alignment);
-
-			if (reg->ok_init) {
-				debug("sus %d, called init", i);
+            if (reg->ok_init) {
+				//debug("S%d, called init", i);
 				sus->call_init(sus->memm_init);
 				reg->ok_init = 0;
 			}
 			if (reg->ok_main) {
-				debug("sus %d, called main", i);
+				//debug("S%d, called main", i);
 				sus->call_main(sus->memm_main);
 				reg->ok_main = 0;
 			}
-
-			pthread_mutex_unlock(&lock[i]);
-		}
-
-		monitor_sleep(wait_units, &pass_units, &alignment);
+ 		}
+        if (queue_last == 0) {
+            sleep_reason = 2;
+        }
+		goto_sleep(sleep_units, sleep_reason, &passed_units, &alignment);
 	}
 	return NULL;
 }
 
-static state_t monitor_lock_alloc()
+static state_t allocate_locks()
 {
 	int error = 0;
 	int i;
@@ -197,7 +235,6 @@ static state_t monitor_lock_alloc()
 	if (error) {
 		return_msg(EAR_ERROR, Generr.lock);
 	}
-	locked = 1;
 	return EAR_SUCCESS;
 }
 
@@ -207,42 +244,40 @@ state_t monitor_init()
 	state_t s;
 
 	while (pthread_mutex_trylock(&lock_gen));
-	if (enabled != 0) {
+    // If monitor is already running
+	if (is_running != 0) {
 		pthread_mutex_unlock(&lock_gen);
 		return EAR_SUCCESS;
 	}
-	if (!locked) {
-		if (xtate_fail(s, monitor_lock_alloc())) {
+	if (!locks_allocated) {
+		if (state_fail(s = allocate_locks())) {
 			pthread_mutex_unlock(&lock_gen);
 			return s;
 		}
+        locks_allocated = 1;
 	}
-	enabled = 1;
-	m_errno = pthread_create(&thread, NULL, ear_internal_monitor, NULL);
-	if (m_errno != 0){
-		return_msg(EAR_ERROR, strerror(m_errno));
-	}
-	enabled = (m_errno == 0);
-	if (!enabled) {
-		pthread_mutex_unlock(&lock_gen);
+	is_running = 1;
+	m_errno = pthread_create(&thread, NULL, monitor_main, NULL);
+	if (m_errno != 0) {
+        pthread_mutex_unlock(&lock_gen);
+        is_running =0;
 		return_msg(EAR_ERROR, strerror(m_errno));
 	}
 	pthread_mutex_unlock(&lock_gen);
+    debug("monitor_init");
 
 	return EAR_SUCCESS;
 }
 
 state_t monitor_dispose()
 {
-	if (!enabled) {
-		return_msg(EAR_BAD_ARGUMENT, "not initialized");
-	}
-
+	if (!is_running) return_msg(EAR_ERROR, "not initialized");
 	while (pthread_mutex_trylock(&lock_gen));
-	enabled = 0;
+    debug("disposing...");
+	is_running = 0;
+    goto_interrupt();
 	pthread_join(thread, NULL);
 	pthread_mutex_unlock(&lock_gen);
-
 	return EAR_SUCCESS;
 }
 
@@ -254,68 +289,71 @@ static state_t monitor_register_void(void *p)
 
 state_t monitor_register(suscription_t *s)
 {
-	if (s             == NULL) return_msg(EAR_BAD_ARGUMENT, "the suscription can't be NULL");
-	if (s->time_relax  < 100 ) return_msg(EAR_BAD_ARGUMENT, "time can't be zero");
-	if (s->call_main  == NULL) return_msg(EAR_BAD_ARGUMENT, "reading call is NULL");
-	if (s->id          < 0   ) return_msg(EAR_BAD_ARGUMENT, "incorrect suscription index");
+	if (s             == NULL) return_msg(EAR_ERROR, "the suscription can't be NULL");
+	if (s->time_relax  < 100 ) return_msg(EAR_ERROR, "time can't be zero");
+	if (s->call_main  == NULL) return_msg(EAR_ERROR, "reading call is NULL");
+	if (s->id          < 0   ) return_msg(EAR_ERROR, "incorrect suscription index");
 
 	while (pthread_mutex_trylock(&lock[s->id]));
+	queue[s->id].registered        = 1;
+	queue[s->id].aligned		   = 0;
+	queue[s->id].is_bursting       = 0;
+	queue[s->id].saved_units.relax = (s->time_relax / 100);
+	queue[s->id].saved_units.burst = (s->time_burst / 100);
 
-	queue[s->id].suscribed      = 1;
-	queue[s->id].aligned		= 0;
-	queue[s->id].bursted        = 0;
-	queue[s->id].wait_saves.relax = (s->time_relax / 100);
-	queue[s->id].wait_saves.burst = (s->time_burst / 100);
-
-	debug("registered suscription %d", s->id);
-  debug("aligned %d",  queue[s->id].aligned);
-	debug("times relax/burst: %d/%d", queue[s->id].wait_saves.relax, queue[s->id].wait_saves.burst);
-	debug("calls init/main: %p/%p (%d)", s->call_init, s->call_main, queue[s->id].ok_init);
-
+	debug("registered S%d (%d/%d)", s->id, s->time_relax, s->time_burst);
 	pthread_mutex_unlock(&lock[s->id]);
+    // Interrupt to wake monitor thread
+    goto_interrupt();
 
 	return EAR_SUCCESS;
 }
 
 state_t monitor_unregister(suscription_t *s)
 {
-	if (s     == NULL      ) return_msg(EAR_BAD_ARGUMENT, "the suscription can't be NULL");
-	if (s->id  > queue_last) return_msg(EAR_BAD_ARGUMENT, "incorrect suscription index");
-	if (s->id  < 0         ) return_msg(EAR_BAD_ARGUMENT, "incorrect suscription index");
+	if (s     == NULL      ) return_msg(EAR_ERROR, "the suscription can't be NULL");
+	if (s->id  > queue_last) return_msg(EAR_ERROR, "incorrect suscription index");
+	if (s->id  < 0         ) return_msg(EAR_ERROR, "incorrect suscription index");
 
 	while (pthread_mutex_trylock(&lock[s->id]));
-	memset(&queue[s->id], 0, sizeof(register_t));
+	memset(&queue[s->id], 0, sizeof(queue_t));
 	pthread_mutex_unlock(&lock[s->id]);
 
 	return EAR_SUCCESS;
 }
 
-int monitor_is_bursting(suscription_t *s)
+int monitor_is_initialized()
 {
-	return queue[s->id].bursted;
+    return is_running;
 }
 
-state_t monitor_burst(suscription_t *s)
+int monitor_is_bursting(suscription_t *s)
 {
-	if (s == NULL) {
-		return_msg(EAR_BAD_ARGUMENT, "the suscription can't be NULL");
-	}
-	if (s->time_burst == 0) {
-		return_msg(EAR_BAD_ARGUMENT, "time cant be zero");
-	}
-	if (s->time_burst  < 0) {
-		return_msg(EAR_BAD_ARGUMENT, "burst time cant be less than relax time");
-	}
-	queue[s->id].bursted = 1;
+	return queue[s->id].is_bursting;
+}
+
+state_t monitor_burst(suscription_t *s, uint interrupt)
+{
+	if (s             == NULL) return_msg(EAR_ERROR, "the suscription can't be NULL");
+	if (s->time_burst == 0   ) return_msg(EAR_ERROR, "time cant be zero");
+	if (s->time_burst  < 0   ) return_msg(EAR_ERROR, "burst time cant be less than relax time");
+
+	while (pthread_mutex_trylock(&lock[s->id]));
+    if (!queue[s->id].is_bursting) {
+    	queue[s->id].is_bursting = 1;
+        // Not sure if this have to be there or after unlocking
+        if (interrupt) {
+            goto_interrupt();
+        }
+    }
+    pthread_mutex_unlock(&lock[s->id]);
 	return EAR_SUCCESS;
 }
 
 state_t monitor_relax(suscription_t *s)
 {
-	if (s == NULL) {
-		return_msg(EAR_BAD_ARGUMENT, "the suscription can't be NULL");
-	}
-	queue[s->id].bursted = 0;
+	if (s == NULL) return_msg(EAR_ERROR, "the suscription can't be NULL");
+	queue[s->id].is_bursting = 0;
 	return EAR_SUCCESS;
 }
 
@@ -324,9 +362,8 @@ suscription_t *suscription()
 	int i = 0;
 
 	while (pthread_mutex_trylock(&lock_gen));
-
-	for (; i < N_QUEUE; ++i)
-	{
+    // Finding an empty suscription
+	for (; i < N_QUEUE; ++i) {
 		if (queue[i].delivered == 0) {
 			break;
 		}
@@ -335,17 +372,14 @@ suscription_t *suscription()
 		pthread_mutex_unlock(&lock_gen);
 		return NULL;
 	}
-
-	queue[i].suscription.id			= i;
-	queue[i].delivered				= 1;
-	queue[i].suscription.suscribe	= monitor_register_void;
-	queue[i].bursted				= 0;
-
+	queue[i].suscription.id       = i;
+	queue[i].delivered            = 1;
+	queue[i].suscription.suscribe = monitor_register_void;
+	queue[i].is_bursting          = 0;
+    //
 	if (queue[i].suscription.id >= queue_last) {
 		queue_last = queue[i].suscription.id + 1;
 	}
-
 	pthread_mutex_unlock(&lock_gen);
-
 	return &queue[i].suscription;
 }

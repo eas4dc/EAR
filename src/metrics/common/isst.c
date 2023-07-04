@@ -142,7 +142,7 @@ typedef struct envals_s {
     uint   *assocs;
 } envals_t;
 
-__attribute__((unused)) static char *strtype[2]  = { "proportional", "ordered" };
+__attribute__((unused)) static char *strtype[2] = { "proportional", "ordered" };
 static char      *strprio[2]  = { "high", "low" };
 static char      *driver_path = "/dev/isst_interface";
 static int        driver_fd   = -1;

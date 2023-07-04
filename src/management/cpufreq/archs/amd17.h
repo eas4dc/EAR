@@ -20,6 +20,9 @@
 
 #include <management/cpufreq/cpufreq.h>
 
+// Use this to set this AMD17 interface to virtual mode.
+#define AMD17_MODE_VIRTUAL "HACK_AMD_ZEN_VIRTUAL"
+
 // AMD Frequency limitations when using Virtual P_STATEs mode
 //	- Although you can change the frequency by MSR, when doing it, all socket MSR Px register
 //	  change together. This means that is not possible to set different range of frequencies

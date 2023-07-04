@@ -344,7 +344,7 @@ static void init_sockets(int argc, char **argv, cluster_conf_t *conf_clus)
 	int st3 = (fd3 == -1) + ((fd3 == -1) * (errno3 != 0));
 	int st4 = (fd4 == -1) + ((fd4 == -1) * (errno4 != 0));
 	// Summary header
-	tprintf_init_v2(VERB_LEVEL, STR_MODE_DEF, "18 8 7 10 8 8");
+	tprintf_init(verb_channel, STR_MODE_DEF, "18 8 7 10 8 8");
 	tprintf("type||port||prot||stat||fd||err");
 	tprintf("----||----||----||----||--||---");
 	// Summary
@@ -525,11 +525,7 @@ static void init_process_configuration(int argc, char **argv, cluster_conf_t *co
 	}
 
 	// Verbose
-	tprintf_init_v2(VERB_LEVEL, STR_MODE_DEF, "15 15 11 9 8");
-
-	if(!master_iam) {
-		tprintf_close();
-	}
+	tprintf_init(verb_channel, STR_MODE_DEF, "15 15 11 9 8");
 
 	// Summary
 	tprintf("type||memory||sample||elems||%%");
@@ -611,10 +607,10 @@ static state_t usage(int argc, char *argv[])
 		mirror_enabled = strinargs(argc, argv, "mirror:", server_host);
 	} else {
 		// Usage by environment
-		server_enabled = (getenv("EARDBD_SERVER") != NULL);
-		mirror_enabled = (getenv("EARDBD_MIRROR") != NULL);
+		server_enabled = (ear_getenv("EARDBD_SERVER") != NULL);
+		mirror_enabled = (ear_getenv("EARDBD_MIRROR") != NULL);
 		if (mirror_enabled) {
-			strcpy(server_host, getenv("EARDBD_MIRROR"));
+			strcpy(server_host, ear_getenv("EARDBD_MIRROR"));
 		}
 	}
 	// Mirror/server processing

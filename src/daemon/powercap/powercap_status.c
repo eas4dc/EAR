@@ -60,14 +60,6 @@ uint compute_power_to_release(node_powercap_opt_t *pc_opt,uint current)
 	return pc_opt->th_release;
 }
 
-uint limit_max_power(node_powercap_opt_t *pc_opt,uint extra)
-{
-	uint current=pc_opt->last_t1_allocated;
-	if ((current+extra) > pc_opt->max_node_power){
-		extra=pc_opt->max_node_power-pc_opt->last_t1_allocated;
-	}
-	return extra;
-}
 
 uint compute_extra_gpu_power(uint current,uint diff,uint target)
 {

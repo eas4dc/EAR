@@ -68,8 +68,8 @@ state_t cpu_power_model_load(settings_conf_t *libconf, architecture_t *arch_desc
 {
     char basic_path[SZ_PATH_INCOMPLETE];
 
-    char *obj_path = getenv(HACK_CPU_POWER_MODEL);
-    char *ins_path = getenv(HACK_EARL_INSTALL_PATH);
+    char *obj_path = ear_getenv(HACK_CPU_POWER_MODEL);
+    char *ins_path = ear_getenv(HACK_EARL_INSTALL_PATH);
 
     uint already_loaded = cpu_power_model_loaded;
 

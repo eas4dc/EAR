@@ -141,23 +141,32 @@ state_t cpufreq_data_free(cpufreq_t **f, ulong **freqs)
 	return EAR_SUCCESS;
 }
 
-state_t cpufreq_data_print(ulong *freqs, ulong average, int fd)
+void cpufreq_data_print(ulong *freqs, ulong average, int fd)
 {
-	double freq_ghz;
-	int i;
+    char buffer[SZ_BUFFER];
+    cpufreq_data_tostr(freqs, average, buffer, sizeof(buffer));
+    dprintf(fd, "%s", buffer);
+}
 
-	//
-	for (i = 0; i < cpu_count; ++i) {
-		if ((i != 0) && (i % 8 == 0)) {
-			dprintf(fd, "\n");
-		}
-		freq_ghz = ((double) freqs[i]) / 1000000.0;
-		dprintf(fd, "%0.1lf\t", freq_ghz);
-	}
-	//
-	freq_ghz = ((double) average) / 1000000.0;
-	dprintf(fd, " avg %0.1lf", freq_ghz);
-	dprintf(fd, " (GHz)\n");
+char *cpufreq_data_tostr(ulong *freqs, ulong average, char *buffer, size_t length)
+{
+    static int mod = 8;
+    double freq_ghz;
+    int acc = 0;
+    int i;
 
-	return EAR_SUCCESS;
+    if (cpu_count >= 128) {
+        mod = 16;
+    }
+    for (i = 0; i < cpu_count; ++i) {
+        if ((i != 0) && (i % mod == 0)) {
+            acc += sprintf(&buffer[acc], "\n");
+        }
+        freq_ghz = ((double) freqs[i]) / 1000000.0;
+        acc += sprintf(&buffer[acc], "%0.1lf ", freq_ghz);
+    }
+    freq_ghz = ((double) average) / 1000000.0;
+    acc += sprintf(&buffer[acc], "!%0.1lf", freq_ghz);
+    //acc += sprintf(&buffer[acc], " (GHz)\n");
+    return buffer;
 }

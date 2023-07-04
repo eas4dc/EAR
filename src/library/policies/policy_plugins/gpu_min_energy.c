@@ -68,7 +68,7 @@ state_t policy_init(polctx_t *c)
 {
     int i,j;
     ulong g_freq = 0;
-    char *gpu_freq=getenv(FLAG_GPU_DEF_FREQ);
+    char *gpu_freq=ear_getenv(FLAG_GPU_DEF_FREQ);
     if ((gpu_freq!=NULL) && (c->app->user_type==AUTHORIZED)){
         g_freq=atol(gpu_freq);
     }
@@ -139,16 +139,25 @@ state_t policy_restore_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *fr
     ulong util, tutil = 0;;
     int i;
 
+    /* WARNING: my_sig can be NULL */
     if (c == NULL) return EAR_ERROR;
 
 #if USE_GPUS
     verbose_master(2, "Restoring GPU freqs: restore settings");
+    if (my_sig == NULL){
+      for (i = 0 ; i < c->num_gpus ; i++) {
+        freqs->gpu_freq[i] = gfreqs[i];
+      }
+      return EAR_SUCCESS;
+    }
     for (i=0;i<my_sig->gpu_sig.num_gpus;i++) {
         util = my_sig->gpu_sig.gpu_data[i].GPU_util;
         tutil += util;
         if (util == 0){
+            verbose_master(2, "GPU[%d] freq %lu", i, gpuf_list[i][gpuf_list_items[i]-1]);
             freqs->gpu_freq[i] = gpuf_list[i][gpuf_list_items[i]-1];
         }else{
+            verbose_master(2, "GPU[%d] freq %lu", i, gfreqs[i]);
             freqs->gpu_freq[i] = gfreqs[i];
         }
     }

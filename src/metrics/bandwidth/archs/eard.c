@@ -34,9 +34,11 @@ state_t bwidth_eard_load(topology_t *tp, bwidth_ops_t *ops, uint eard)
 	state_t s;
 
 	if (!eard) {
+		debug("EARD (daemon) not required");
 		return_msg(EAR_ERROR, "EARD (daemon) not required");
 	}
 	if (!eards_connected()) {
+		debug("EARD (daemon) not connected");
 		return_msg(EAR_ERROR, "EARD (daemon) not connected");
 	}
 	// Get API
@@ -44,19 +46,30 @@ state_t bwidth_eard_load(topology_t *tp, bwidth_ops_t *ops, uint eard)
 		return s;
 	}
 	if (eard_api == API_NONE || eard_api == API_DUMMY) {
+		debug("EARD (daemon) has loaded DUMMY/NONE API");
 		return_msg(EAR_ERROR, "EARD (daemon) has loaded DUMMY/NONE API");
 	}
 	// Get devices
 	if (state_fail(s = eard_rpc(RPC_COUNT_DEVICES, NULL, 0, (char *) &devs_count, sizeof(uint)))) {
 		return s;
 	}
-	replace_ops(ops->init,            bwidth_eard_init);
-	replace_ops(ops->dispose,         bwidth_eard_dispose);
-	replace_ops(ops->count_devices,   bwidth_eard_count_devices);
-	replace_ops(ops->get_granularity, bwidth_eard_get_granularity);
-	replace_ops(ops->read,            bwidth_eard_read);
-
+	debug("Remote #devices: %u", devs_count);
+	apis_put(ops->get_info, bwidth_eard_get_info);
+	apis_put(ops->init,     bwidth_eard_init);
+	apis_put(ops->dispose,  bwidth_eard_dispose);
+	apis_put(ops->read,     bwidth_eard_read);
+	debug("Loaded EARD");
 	return EAR_SUCCESS;
+}
+
+BWIDTH_F_GET_INFO(bwidth_eard_get_info)
+{
+    info->api         = API_EARD;
+    // Granularity and scope are invented by now
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_IMC;
+    // EARD doesn't have to add 1
+    info->devs_count  = devs_count;
 }
 
 state_t bwidth_eard_init(ctx_t *c)
@@ -72,13 +85,6 @@ state_t bwidth_eard_dispose(ctx_t *c)
 state_t bwidth_eard_count_devices(ctx_t *c, uint *devs_count_in)
 {
 	*devs_count_in = devs_count;
-	return EAR_SUCCESS;
-}
-
-state_t bwidth_eard_get_granularity(ctx_t *c, uint *granularity_in)
-{
-	// By now the only granularity is this
-	*granularity_in = GRANULARITY_IMC;
 	return EAR_SUCCESS;
 }
 

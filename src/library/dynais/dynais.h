@@ -47,6 +47,11 @@
 
 #define MAX_LEVELS      10
 #define METRICS_WINDOW  40000
+#define DYNAIS_SVE      4
+#define DYNAIS_AVX512   3
+#define DYNAIS_AVX2     2
+#define DYNAIS_DUMMY    1
+#define DYNAIS_NONE     0 
 
 // DynAIS output states
 #define END_LOOP       -1

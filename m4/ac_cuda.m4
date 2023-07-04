@@ -43,27 +43,23 @@ AC_DEFUN([X_AC_CUDA],
 		]
 	)
 
-	if test $FEAT_GPUS = 1;
-	then
-		AC_CACHE_CHECK(
-			[for CUDA root directory],
-			[_cv_cuda_dir_root],
-			[
-				X_AC_CUDA_FIND_ROOT_DIR([])
-			
-				if test -z "$_cv_cuda_dir_root"; then
-					_x_ac_cuda_dirs_root="${_ax_ld_dirs_root}"
-					_x_ac_cuda_custom="yes"
-				
-					X_AC_CUDA_FIND_ROOT_DIR([])
-				fi
-			]
-		)
-	fi
+    AC_CACHE_CHECK(
+        [for CUDA root directory],
+        [_cv_cuda_dir_root],
+        [
+            X_AC_CUDA_FIND_ROOT_DIR([])
+
+            if test -z "$_cv_cuda_dir_root"; then
+                _x_ac_cuda_dirs_root="${_ax_ld_dirs_root}"
+                _x_ac_cuda_custom="yes"
+
+                X_AC_CUDA_FIND_ROOT_DIR([])
+            fi
+        ]
+    )
 
 	if test -z "$_cv_cuda_dir_root"; then
 		echo checking for CUDA CFLAGS... no
-		FEAT_GPUS=0
 	else
 		CUDA_DIR=$_cv_cuda_dir_root
 		CUDA_CFLAGS="-I\$(CUDA_BASE)/include -DCUDA_BASE=\\\"\$(CUDA_BASE)\\\""

@@ -26,7 +26,9 @@ repo_BINS = \
     heroes.so \
     dummy.so \
 		dcdb.so \
-    mpitrace.so
+		sysfs.so \
+    mpitrace.so \
+	mpi_node_metrics.so
 ifeq ($(FEAT_DB_PSQL),1)
 repo_BINS += \
 	psql.so 
@@ -45,6 +47,10 @@ repo_BINS += \
         examon.so
 endif
 
+ifeq ($(FEAT_DB_PROMETHEUS), 1)
+repo_BINS += \
+		prometheus.so
+endif
 
 
 ######## RULES
@@ -65,6 +71,9 @@ eard.so: eard.c $(SRCDIR)/daemon/local_api/eard_api.c $(repo_DEPS)
 
 eardbd.so: eardbd.c $(SRCDIR)/database_cache/eardbd_api.c $(repo_DEPS)
 	$(CC) $(CFLAGS) -shared -o $@ $^
+
+prometheus.so: prometheus.c $(repo_DEPS)
+	$(CC) $(CFLAGS) -shared -o prometheus.so prometheus.c -lmicrohttpd 
 
 mysql.so: mysql.c $(repo_DEPS)
 	$(CC) $(CFLAGS) -shared -o $@ $^ $(DB_LDFLAGS) $(SRCDIR)/common/libcommon.a

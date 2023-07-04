@@ -108,13 +108,13 @@ void report_new_event(ear_event_t *event)
 
 	switch(event->event){
 		case ENERGY_POLICY_NEW_FREQ:
-    		sprintf(my_log_buffer,"%s : job_id %u --> Frequency changed to %lu because of energy policy\n",s,event->jid,event->freq);
+    		sprintf(my_log_buffer,"%s : job_id %u --> Frequency changed to %lu because of energy policy\n",s,event->jid,event->value);
 			break;
 		case GLOBAL_ENERGY_POLICY:
-    		sprintf(my_log_buffer,"%s : job_id %u --> Frequency changed to %lu because of global Energy Budget\n",s,event->jid,event->freq);
+    		sprintf(my_log_buffer,"%s : job_id %u --> Frequency changed to %lu because of global Energy Budget\n",s,event->jid,event->value);
 			break;
 		case ENERGY_POLICY_FAILS:
-    		sprintf(my_log_buffer,"%s : job_id %u --> Frequency changed to %lu because of policy projections failure\n",s,event->jid,event->freq);
+    		sprintf(my_log_buffer,"%s : job_id %u --> Frequency changed to %lu because of policy projections failure\n",s,event->jid,event->value);
 			break;
 		case DYNAIS_OFF:
     		sprintf(my_log_buffer,"%s : job_id %u --> DynAIS off because of overhead\n",s,event->jid);
@@ -142,7 +142,7 @@ void log_report_new_freq(job_id job,job_id step_id,ulong newf)
     new_event.event=ENERGY_POLICY_NEW_FREQ;
     new_event.jid=job;
     new_event.step_id=step_id;
-    new_event.freq=newf ;
+    new_event.value=newf ;
     report_new_event(&new_event);
 #endif
 }
@@ -155,7 +155,7 @@ void log_report_dynais_off(job_id job,job_id sid)
     new_event.event=DYNAIS_OFF;
     new_event.jid=job;
     new_event.step_id=sid;
-    new_event.freq=0; //0 as it is not relevant and better than an uninitialised value
+    new_event.value=0; //0 as it is not relevant and better than an uninitialised value
     report_new_event(&new_event);
 #endif
 }
@@ -169,7 +169,7 @@ void log_report_max_tries(job_id job,job_id sid,ulong newf)
     new_event.event=ENERGY_POLICY_FAILS;
     new_event.jid=job;
     new_event.step_id=sid;
-    new_event.freq=newf;
+    new_event.value=newf;
     report_new_event(&new_event);
 #endif
 }
@@ -179,7 +179,7 @@ void log_report_global_policy_freq(job_id job,job_id sid,ulong newf)
 #if LOG_FILE
     ear_event_t new_event;
     new_event.event=GLOBAL_ENERGY_POLICY;
-    new_event.freq=newf;
+    new_event.value=newf;
     new_event.jid=job;
 	new_event.step_id=sid;
     report_new_event(&new_event);

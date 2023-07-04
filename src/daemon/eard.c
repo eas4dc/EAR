@@ -321,21 +321,22 @@ void create_tmp(char *tmp_dir) {
  *	Restarts again EARD
  */
 
-void eard_restart() {
-				char *ear_install;
-				char my_bin[MAX_PATH_SIZE];
-				ear_install = getenv("EAR_INSTALL_PATH");
-				if (ear_install == NULL) {
-								error("EAR_INSTALL_PATH is NULL\n");
-								sprintf(my_bin, "eard");
-				} else sprintf(my_bin, "%s/sbin/eard", ear_install);
-				verbose(VCONF, "LD_LIBRARY_PATH=%s\n", getenv("LD_LIBRARY_PATH"));
-				verbose(VCONF, "Restarting to %s p_state=1 ear_tmp=%s verbose=0\n", my_bin, ear_tmp);
-				end_service("eard");
-				// Do we want to maintain verbose level?
-				execlp(my_bin, my_bin, "1", NULL);
-				verbose(VCONF, "Restarting EARD %s\n", strerror(errno));
-				_exit(1);
+void eard_restart()
+{
+    char *ear_install;
+    char my_bin[MAX_PATH_SIZE];
+    ear_install = ear_getenv(ENV_PATH_EAR);
+    if (ear_install == NULL) {
+        error("%s is NULL\n", ENV_PATH_EAR);
+        sprintf(my_bin, "eard");
+    } else sprintf(my_bin, "%s/sbin/eard", ear_install);
+    verbose(VCONF, "LD_LIBRARY_PATH=%s\n", ear_getenv("LD_LIBRARY_PATH"));
+    verbose(VCONF, "Restarting to %s p_state=1 ear_tmp=%s verbose=0\n", my_bin, ear_tmp);
+    end_service("eard");
+    // Do we want to maintain verbose level?
+    execlp(my_bin, my_bin, "1", NULL);
+    verbose(VCONF, "Restarting EARD %s\n", strerror(errno));
+    _exit(1);
 }
 
 /*

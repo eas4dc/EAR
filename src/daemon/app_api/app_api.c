@@ -54,7 +54,7 @@ static int create_connection()
     /* Creating the connection */
 	debug("create_connection");
 
-    tmp=getenv("EAR_TMP");
+    tmp=ear_getenv(ENV_PATH_TMP);
     if (tmp==NULL){
         verbose(0, "Error, EAR_TMP not defined. Load ear module"); //error
         return EAR_ERROR;

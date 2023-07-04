@@ -29,7 +29,7 @@ typedef struct ear_event {
     job_id step_id;
 	char node_id[GENERIC_NAME];
 	uint event;                 /*!< The event type. */
-	long freq;                  /*!< The event value. TODO: The attribute name must be changed in future versions. */
+	long value;                  /*!< The event value. */
 	time_t timestamp;
 } ear_event_t;
 

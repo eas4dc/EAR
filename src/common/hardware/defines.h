@@ -18,12 +18,25 @@
 #ifndef HARDWARE_DEFINES_H
 #define HARDWARE_DEFINES_H
 
-#if defined(__aarch64__) || defined(_M_ARM64)
-#define __ARCH_ARM   1
-#define __ARCH_ARM64 1
+// Interesting compiler defines:
+//  __x86_64
+//  __AVX2__
+//  __AVX512F__
+//  ARCH_ARM
+//  ARCH_ARM64
+//  __ARM_ARCH
+//  __ARM_ARCH_8A
+//  __ARM_FEATURE_SVE
+// You can check it by "gcc -march=native -dM -E - < /dev/null"
+
+#if defined(ARCH_ARM) || defined(ARCH_ARM64) || defined(__ARM_ARCH)
+#define __ARCH_ARM 1
 #else
-#define __ARCH_X86   1
-#define __ARCH_X8664 1
+#define __ARCH_X86 1
+#endif
+
+#if defined(__AVX512F__)
+#define __X86_FEATURE_AVX512
 #endif
 
 #endif //HARDWARE_DEFINES_H

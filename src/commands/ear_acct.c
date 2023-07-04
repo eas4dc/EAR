@@ -32,6 +32,8 @@
 #include <common/types/application.h>
 #include <common/types/log.h>
 #include <common/types/event_type.h>
+#include <common/colors.h>
+#include <common/types/classification_limits.h>
 
 #if USE_DB
 #include <common/states.h>
@@ -41,6 +43,8 @@
 #include <common/types/configuration/cluster_conf.h>
 cluster_conf_t my_conf;
 #endif
+
+#define COLORS 1
 
 #define STANDARD_NODENAME_LENGTH	25
 #define APP_TEXT_FILE_FIELDS		22
@@ -66,6 +70,33 @@ typedef struct query_addons
 	char job_ids[64];
 } query_adds_t;
 
+#if COLORS
+static void print_colors_legend()
+{
+  printf("%s CPU busy waiting %s memory bound %s cpu bound %s IO bound%s\n", COL_CYA, COL_GRE, COL_RED, COL_MGT, COL_CLR);
+}
+static void select_color_by_phase(double CPI, double GBS, double IO, double GFLOPS)
+{
+  char *col = NULL;
+  printf("%s", COL_CLR);
+  fflush(stdout);
+  /* Memory bound */
+  if ((CPI > CPI_MEM_BOUND_DEF) && (GBS > GBS_MEM_BOUND_DEF))                                       col = COL_GRE;
+  /* CPU bound */
+  if (!col && (CPI < CPI_CPU_BOUND_DEF) && (GBS < GBS_CPU_BOUND_DEF) && (GFLOPS > GFLOPS_BUSY_WAITING_DEF)) col = COL_RED;
+  /* Busy waiting */
+  if (!col && (CPI < CPI_BUSY_WAITING_DEF) && (GBS < GBS_BUSY_WAITING_DEF) && (GFLOPS < GFLOPS_BUSY_WAITING_DEF))   col = COL_CYA;
+  /* IO */
+  if (!col && (IO > IO_TH_DEF))      col = COL_MGT;
+  if (col) printf("%s",col);
+  fflush(stdout);
+  
+}
+#else
+#define print_colors_legend()
+#define select_color_by_phase(A,B,C,D)
+#endif
+
 void usage(char *app)
 {
 #if DB_MYSQL
@@ -83,9 +114,9 @@ void usage(char *app)
 			"\t\t-s\tspecifies the minimum start time of the jobs that will be retrieved in YYYY-MM-DD. [default: no filter].\n" \
 			"\t\t-e\tspecifies the maximum end time of the jobs that will be retrieved in YYYY-MM-DD. [default: no filter].\n" \
 			"\t\t-l\tshows the information for each node for each job instead of the global statistics for said job.\n" \
-			"\t\t-x\tshows the last EAR events. Nodes, job ids, and step ids can be specified as if were showing job information.\n" \
+			"\t\t-x\tshows the last EAR events. Users, start and end times, job ids, and step ids can be specified as if were showing job information.\n" \
 			"\t\t-m\tprints power signatures regardless of whether mpi signatures are available or not.\n" \
-			"\t\t-r\tshows the EAR loop signatures. Nodes, job ids, and step ids can be specified as if were showing job information.\n" \
+			"\t\t-r\tshows the EAR loop signatures. Users, job ids, and step ids can be specified as if were showing job information.\n" \
 			"\t\t-o\tmodifies the -r option to also show the corresponding jobs. Should be used with -j.\n", app);
 	printf("\t\t-n\tspecifies the number of jobs to be shown, starting from the most recent one. [default: 20][to get all jobs use -n all]\n" );
 	printf("\t\t-f\tspecifies the file where the user-database can be found. If this option is used, the information will be read from the file and not the database.\n");
@@ -118,12 +149,12 @@ void print_full_apps(application_t *apps, int num_apps)
 {
 	int i;
 	double avg_f, imc, vpi;
+    char is_sbatch;
 
 	printf("%8s-%-4s\t %-10s %-10s %-16s %-5s/%-5s %-10s %-10s %-10s %-10s %-10s %-7s %-5s %-7s",
 			"JOB", "STEP", "NODE ID", "USER ID", "APPLICATION", "AVG-F", "IMC-F", "TIME(s)",
 			"POWER(s)", "GBS", "CPI", "ENERGY(J)", "IO(MBS)", "MPI%", "VPI(%)");
 
-    char is_sbatch;
 #if USE_GPUS
 	int j;
 	double gpu_power, gpu_total_power;
@@ -136,6 +167,7 @@ void print_full_apps(application_t *apps, int num_apps)
 
 	for (i = 0; i < num_apps; i++)
 	{
+    if (apps[i].is_mpi){ select_color_by_phase(apps[i].signature.CPI, apps[i].signature.GBS, apps[i].signature.IO_MBS, apps[i].signature.Gflops);}
 		is_sbatch = ((uint)apps[i].job.step_id == BATCH_STEP) ? 1 : 0;
 		if (strlen(apps[i].job.app_id) > 30)
 			if (strchr(apps[i].job.app_id, '/') != NULL)
@@ -148,14 +180,14 @@ void print_full_apps(application_t *apps, int num_apps)
 			compute_sig_vpi(&vpi, &apps[i].signature);
 			if (!is_sbatch)
 			{
-				printf("%8lu-%-4lu\t %-10s %-10s %-16s %5.2lf/%-5.2lf %-10.2lf %-10.2lf %-10.2lf %-10.2lf %-10.0lf %-7.1lf %-5.1lf %-7.2lf",
+				printf("%8lu-%-4lu\t %-10s %-10s %-16.16s %5.2lf/%-5.2lf %-10.2lf %-10.2lf %-10.2lf %-10.2lf %-10.0lf %-7.1lf %-5.1lf %-7.2lf",
 						apps[i].job.id, apps[i].job.step_id, apps[i].node_id, apps[i].job.user_id, apps[i].job.app_id, 
 						avg_f, imc, apps[i].signature.time, apps[i].signature.DC_power, apps[i].signature.GBS, apps[i].signature.CPI, 
 						apps[i].signature.time * apps[i].signature.DC_power, apps[i].signature.IO_MBS, apps[i].signature.perc_MPI, vpi*100);
 			}
 			else
 			{
-				printf("%8lu-%-4s\t %-10s %-10s %-16s %5.2lf/%-5.2lf %-10.2lf %-10.2lf %-10.2lf %-10.2lf %-10.0lf %-7.1lf %5.1lf %-7.2lf",
+				printf("%8lu-%-4s\t %-10s %-10s %-16.16s %5.2lf/%-5.2lf %-10.2lf %-10.2lf %-10.2lf %-10.2lf %-10.0lf %-7.1lf %5.1lf %-7.2lf",
 						apps[i].job.id, "sb", apps[i].node_id, apps[i].job.user_id, apps[i].job.app_id, 
 						avg_f, imc, apps[i].signature.time, apps[i].signature.DC_power, apps[i].signature.GBS, apps[i].signature.CPI, 
 						apps[i].signature.time * apps[i].signature.DC_power, apps[i].signature.IO_MBS, apps[i].signature.perc_MPI, vpi*100);
@@ -216,7 +248,6 @@ void print_full_apps(application_t *apps, int num_apps)
 #endif
 			printf("\n");
 		}
-
 	}
 }
 
@@ -328,6 +359,7 @@ void print_short_apps(application_t *apps, int num_apps, int fd, int is_csv)
 
 	for (i = 0; i < num_apps; i ++)
 	{
+    printf("%s", COL_CLR);fflush(stdout);
 		if (apps[i].job.id == current_job_id && apps[i].job.step_id == current_step_id)
 		{
 			if (current_is_mpi && !all_mpi)
@@ -407,7 +439,7 @@ void print_short_apps(application_t *apps, int num_apps, int fd, int is_csv)
 					strcpy(apps[idx].job.app_id, token);
 				}
 			}
-			if (strlen(apps[idx].job.app_id) > 16) {
+			if (strlen(apps[idx].job.app_id) > 16 && !is_csv) {
 				apps[idx].job.app_id[16] = '\0';
 			}
 
@@ -424,6 +456,7 @@ void print_short_apps(application_t *apps, int num_apps, int fd, int is_csv)
 				avg_CPI /= current_apps;
 				avg_VPI /= current_apps;
 				avg_perc /= current_apps;
+        select_color_by_phase(avg_CPI, avg_GBS, avg_io, gflops_watt * avg_power);
 #if USE_GPUS
 				if (print_gpus)
 				{
@@ -558,10 +591,10 @@ void print_short_apps(application_t *apps, int num_apps, int fd, int is_csv)
 			if (strchr(apps[i-1].job.app_id, '/') != NULL)
 				strcpy(apps[i-1].job.app_id, strrchr(apps[i-1].job.app_id, '/')+1);
 
-		if (strlen(apps[i-1].job.app_id) > 16) {
+		if (strlen(apps[i-1].job.app_id) > 16 && !is_csv) {
 			apps[i-1].job.app_id[16] = '\0';
 		}
-
+    printf("%s", COL_CLR);fflush(stdout);
 		if (apps[i-1].is_mpi && (apps[i-1].signature.avg_f > 0) && !all_mpi)
 		{
 			gflops_watt /= avg_power;
@@ -573,6 +606,8 @@ void print_short_apps(application_t *apps, int num_apps, int fd, int is_csv)
 			avg_imc /= current_apps;
 			avg_CPI /= current_apps;
 			avg_VPI /= current_apps;
+
+      select_color_by_phase(avg_CPI, avg_GBS, avg_io, gflops_watt * avg_power);
 #if USE_GPUS
 			if (print_gpus)
 			{
@@ -751,7 +786,7 @@ void print_event_type(int type, int fd)
     ear_event_t aux;
     aux.event = type;
     event_type_to_str(&aux, str, sizeof(str));
-    dprintf(fd, "%15s ", str);
+    dprintf(fd, "%20s ", str);
 }
 
 #if DB_MYSQL
@@ -770,7 +805,7 @@ void mysql_print_events(MYSQL_RES *result, int fd)
 	{
 		if (!has_records)
 		{
-			dprintf(fd, "%12s %20s %15s %8s %8s %20s %12s\n",
+			dprintf(fd, "%12s %20s %20s %8s %8s %20s %12s\n",
 					"Event_ID", "Timestamp", "Event_type", "Job_id", "Step_id", "Value", "node_id");
 			has_records = 1;
 		}
@@ -782,7 +817,8 @@ void mysql_print_events(MYSQL_RES *result, int fd)
 
 				print_event_type(event_type_int, fd);  
 
-                if (event_type_int == ENERGY_SAVING || event_type_int == POWER_SAVING) {
+                if (event_type_int == ENERGY_SAVING || event_type_int == POWER_SAVING ||
+                    event_type_int == POWER_SAVING_AVG || event_type_int == ENERGY_SAVING_AVG) {
                     possible_negative = 1;
                 }
             }
@@ -829,7 +865,7 @@ void postgresql_print_events(PGresult *res, int fd)
 	{
 		if (!has_records)
 		{
-			dprintf(fd, "%12s %22s %15s %8s %8s %20s %12s\n",
+			dprintf(fd, "%12s %22s %20s %8s %8s %20s %12s\n",
 					"Event_ID", "Timestamp", "Event_type", "Job_id", "Step_id", "Value", "node_id");
 			has_records = 1;
 		}
@@ -966,11 +1002,11 @@ void print_loops(loop_t *loops, int num_loops)
 #endif
 
 #if REPORT_TIMESTAMP
-	strcpy(line, "%6s-%-4s\t %-10s %-9s %-8s %-8s %-8s %-8s %-8s %-5s %-5s %-7s %-5s ");
-	printf(line, "JOB", "STEP", "NODE ID", "DATE", "POWER(W)", "GBS", "CPI", "GFLOPS/W", "TIME(s)", "AVG_F", "IMC_F", "IO(MBS)", "MPI%");
+	strcpy(line, "%6s-%-4s\t %-10s %-9s %-8s %-7s %-8s %-8s %-8s %-8s %-5s %-7s %-5s ");
+	printf(line, "JOB", "STEP", "NODE ID", "DATE", "POWER(W)", "GBS/TPI", "CPI", "GFLOPS/W", "TIME(s)", "AVG_F/F", "IMC_F", "IO(MBS)", "MPI%");
 #else
-	strcpy(line, "%6s-%-4s\t %-10s %-6s %-8s %-8s %-8s %-8s %-8s %-5s %-5s %-7s %-5s ");
-	printf(line, "JOB", "STEP", "NODE ID", "ITER.", "POWER(W)", "GBS", "CPI", "GFLOPS/W", "TIME(s)", "AVG_F", "IMC_F", "IO(MBS)", "MPI%");
+	strcpy(line, "%6s-%-4s\t %-10s %-6s %-8s %-8s %-8s %-8s %-8s %-8s %-5s %-7s %-5s ");
+	printf(line, "JOB", "STEP", "NODE ID", "ITER.", "POWER(W)", "GBS", "CPI", "GFLOPS/W", "TIME(s)", "AVG_F/F", "IMC_F", "IO(MBS)", "MPI%");
 #endif
 #if USE_GPUS
 	//GPU variable declaration
@@ -986,10 +1022,12 @@ void print_loops(loop_t *loops, int num_loops)
 #endif
 	printf("\n");
 
-	strcpy(line, "%6u-%-4u\t %-10s %-9s %-8.1lf %-8.1lf %-8.3lf %-8.3lf %-8.3lf %-5.2lf %-5.2lf %-7.1lf %-5.1lf ");
+	strcpy(line, "%6u-%-4u\t %-10s %-9s %-8.1lf %-3.0lf/%-3.0lf %-8.3lf %-8.3lf %-8.3lf %-4.2lf/%-3.1lf %-5.2lf %-7.1lf %-5.1lf ");
 	for (i = 0; i < num_loops; i++)
 	{
 		signature_copy(&sig, &loops[i].signature);
+    select_color_by_phase(sig.CPI, sig.GBS, sig.IO_MBS, sig.Gflops);
+
 #if USE_GPUS
 		if (print_gpus)
 		{				
@@ -1020,7 +1058,7 @@ void print_loops(loop_t *loops, int num_loops)
                 sprintf(date_iter,"%lu", loops[i].total_iterations);
 #endif
 		printf(line, loops[i].jid, loops[i].step_id, loops[i].node_id, date_iter,
-				sig.DC_power, sig.GBS, sig.CPI, sig.Gflops/sig.DC_power, sig.time, (double)(sig.avg_f)/1000000, (double)(sig.avg_imc_f)/1000000, sig.IO_MBS, sig.perc_MPI);
+				sig.DC_power, sig.GBS, sig.TPI,sig.CPI, sig.Gflops/sig.DC_power, sig.time, (double)(sig.avg_f)/1000000,(double)(sig.def_f)/1000000, (double)(sig.avg_imc_f)/1000000, sig.IO_MBS, sig.perc_MPI);
 #if USE_GPUS
 		sprintf(tmp, "%lu%%/%lu%%", gpuu, gpu_mem_util);
 		if (print_gpus) printf(gpu_line, gpup, gpupu, (double)gpuf/1000000.0, tmp);
@@ -1160,7 +1198,7 @@ void format_loop_query(char *user, char *query, char *base_query, query_adds_t *
 	else if (strlen(q_a->job_ids) > 0)
 		add_int_list_filter(query, "job_id", q_a->job_ids);
 	if (q_a->step_id >= 0)
-		add_int_filter(query, "step_id", q_a->step_id);
+		add_int_filter(query, "Loops.step_id", q_a->step_id);
 
 	if (q_a->limit > 0 && q_a->job_id < 0)
 	{
@@ -1506,6 +1544,10 @@ int main(int argc, char *argv[])
 		{"start-time", required_argument, 0, 's'},
 		{"end-time",   required_argument, 0, 'e'},
 	};
+  
+  #if COLORS
+  print_colors_legend();
+  #endif
 
 	while (1)
 	{
@@ -1623,6 +1665,10 @@ int main(int argc, char *argv[])
 	else if (is_events) read_events(user, &query_adds);
 	else if (is_loops) read_loops(user, &query_adds);
 	else read_from_database(user, &query_adds); 
+
+  #if COLORS
+  printf("%s",COL_CLR);
+  #endif
 
 	free_cluster_conf(&my_conf);
 	exit(0);

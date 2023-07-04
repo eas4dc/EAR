@@ -120,7 +120,7 @@ void signature_print_fd(int fd, signature_t *sig, char is_extended, int single_c
 
 void signature_print_simple_fd(int fd, signature_t *sig)
 {
-    dprintf(fd, "[AVGF=%.2f/%.2f DEFF=%.2f TIME=%.3lf CPI=%.3lf GBS=%.2lf TPI=%.2lf POWER=%.2lf]\n",
+    dprintf(fd, "[AVGF=%.2f/%.2f DEFF=%.2f TIME=%.3lf CPI=%.3lf GBS=%.2lf TPI=%.2lf POWER=%.2lf(%.2lf/%.2lf)]\n",
             (float) sig->avg_f / 1000000.0,
             (float) sig->avg_imc_f / 1000000.0,
             (float) sig->def_f / 1000000.0,
@@ -128,21 +128,33 @@ void signature_print_simple_fd(int fd, signature_t *sig)
             sig->CPI,
             sig->GBS,
             sig->TPI,
-            sig->DC_power);
+            sig->DC_power,
+            sig->PCK_power,
+            sig->DRAM_power);
 }
 
-void signature_to_str(signature_t *sig, char *msg, size_t limit)
+state_t signature_to_str(signature_t *sig, char *msg, size_t limit)
 {
-    snprintf(msg, limit, "[AVGF=%.2f/%.2f DEFF=%.2f TIME=%.3lf CPI=%.3lf GBS=%.2lf TPI=%.2lf GFLOPS %.2lf POWER=%.2lf]",
-            (float) sig->avg_f / 1000000.0,
-            (float) sig->avg_imc_f / 1000000.0,
-            (float) sig->def_f / 1000000.0,
-            sig->time,
-            sig->CPI,
-            sig->GBS,
-            sig->TPI,
-            sig->Gflops,
-            sig->DC_power);
+    int ret = snprintf(msg, limit,
+                       "[AVGF=%.2f/%.2f DEFF=%.2f TIME=%.3lf CPI=%.3lf GBS=%.2lf TPI=%.2lf GFLOPS %.2lf POWER=%.2lf((%.2lf/%.2lf)]",
+                       (float) sig->avg_f / 1000000.0,
+                       (float) sig->avg_imc_f / 1000000.0,
+                       (float) sig->def_f / 1000000.0,
+                       sig->time,
+                       sig->CPI,
+                       sig->GBS,
+                       sig->TPI,
+                       sig->Gflops,
+                       sig->DC_power,
+                       sig->PCK_power,
+                       sig->DRAM_power);
+    if (ret < limit && ret > 0)
+    {
+        return EAR_SUCCESS;
+    } else
+    {
+        return EAR_ERROR;
+    }
 }
 
 void compute_sig_vpi(double *vpi, const signature_t *sig)
@@ -192,7 +204,7 @@ void adapt_signature_to_node(signature_t *dest, signature_t *src, float ratio_PP
     double new_TPI,new_DC_power;
 
     signature_copy(dest,src);
-
+    #if 0
     verbose(3, " TPI %.3lf Power %.3lf ratio %.4f", src->TPI, src->DC_power, ratio_PPN);
 
     if ((ratio_PPN == 0) || (fpclassify(ratio_PPN) != FP_NORMAL)) return;
@@ -204,6 +216,7 @@ void adapt_signature_to_node(signature_t *dest, signature_t *src, float ratio_PP
 
     dest->TPI=new_TPI;
     dest->DC_power=new_DC_power;
+    #endif
 }
 
 void acum_sig_metrics(signature_t *dst,signature_t *src)

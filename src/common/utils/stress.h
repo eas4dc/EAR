@@ -23,7 +23,9 @@
 void stress_alloc();
 
 void stress_free();
-
-void stress_bandwidth(ullong seconds);
+// Stress the system bandwidth by memcpy during a period in miliseconds.
+void stress_bandwidth(ullong ms);
+// Stress the system through while-spinning during a period in miliseconds.
+void stress_spin(ullong ms);
 
 #endif

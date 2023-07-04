@@ -23,12 +23,9 @@
 
 #include <common/types/generic.h>
 
-#define MAXBITS32  0x00000000FFFFFFFF
-#define MAXBITS48  0x0000FFFFFFFFFFFF
-#define MAXBITS64  0xFFFFFFFFFFFFFFFF
-#define B_TO_KB    1E3
-#define B_TO_MB    1E6
-#define B_TO_GB    1E9
+#define B_TO_KB        1E3
+#define B_TO_MB        1E6
+#define B_TO_GB        1E9
 #define KB_TO_MB(n)    (n / 1000)
 #define KB_TO_HB(n)    (n / 100000) //Hundred of megahertz
 #define MB_TO_KB(n)    (n * 1000) 
@@ -45,6 +42,10 @@
  * 	mixed: like magic but returns zero if v1 isn't over the threshold (MAX >> bits)
  */
 
+#define MAXBITS32      0x00000000FFFFFFFF
+#define MAXBITS48      0x0000FFFFFFFFFFFF
+#define MAXBITS64      0xFFFFFFFFFFFFFFFF
+
 #define overflow_zeros(type, suffix) \
     type overflow_zeros_ ##suffix (type v2, type v1)
 #define overflow_magic(type, suffix) \
@@ -56,6 +57,18 @@ overflow_zeros(ullong, u64);
 overflow_mixed(ullong, u64);
 overflow_magic(ullong, u64);
 overflow_magic(uint, u32);
+
+/* Round functions:
+ *  ceil: given an integer number, rounds a value up to a specific digit.
+ *        Ex: given the value 2345 and digit 3, it returns 2400.
+ *  floor: pending.
+ */
+
+#define ceil_magic(type, suffix) \
+    type ceil_magic_ ##suffix (type value, uint digits)
+
+ceil_magic(ullong, u64);
+ceil_magic(  uint, u32);
 
 /** Given two doubles a and b, checks whether they are equal within a margin of th.*/
 uint equal_with_th(double a, double b, double th);

@@ -32,7 +32,7 @@
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
 
-extern uint cpu_ready, gpu_ready;
+// extern uint cpu_ready, gpu_ready;
 
 static const ulong **gpuf_list;
 static const uint *gpuf_list_items;
@@ -42,7 +42,7 @@ state_t policy_init(polctx_t *c)
 {
     int i,j;
     ulong g_freq = 0;
-    char *gpu_freq=getenv(FLAG_GPU_DEF_FREQ);
+    char *gpu_freq=ear_getenv(FLAG_GPU_DEF_FREQ);
 
     if ((gpu_freq!=NULL) && (c->app->user_type==AUTHORIZED)) {
         g_freq = atol(gpu_freq);

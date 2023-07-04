@@ -55,7 +55,17 @@
 overflow_zeros_def(ullong, u64);
 overflow_mixed_def(ullong, u64);
 overflow_magic_def(ullong, u64);
-overflow_magic_def(uint, u32);
+overflow_magic_def(  uint, u32);
+
+#define ceil_magic_def(type, suffix) \
+    type ceil_magic_ ##suffix (type value, uint digits) \
+    { \
+        double divisor = pow(10.0, ((double) digits - 1.0)); \
+        return ((type) ceil(((double) value) / divisor) * divisor); \
+    }
+
+ceil_magic_def(ullong, u64);
+ceil_magic_def(  uint, u32);
 
 uint equal_with_th_ul(ulong a,ulong b,double th)
 {

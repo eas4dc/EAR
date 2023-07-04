@@ -15,8 +15,8 @@
 * and COPYING.EPL files.
 */
 
-#ifndef _EAR_CONFIGURATION_H_
-#define _EAR_CONFIGURATION_H_
+#ifndef COMMON_ENVIRONMENT_H
+#define COMMON_ENVIRONMENT_H
 
 #include <common/states.h>
 
@@ -45,7 +45,7 @@ char * getenv_ear_tmp();
 char * getenv_ear_install_pathname();
 /** Tries to get the EAR_DB_PATHNAME value and returns it.*/
 char * getenv_ear_db_pathname();
-/** Tries to get the EAR_USER_DB_PATHNAME value and returns it.*/
+/** Tries to get the EAR_USER_DB value and returns it.*/
 char * getenv_ear_user_db_pathname();
 /** Tries to get the EAR_GUI_PATHNAME value and returns it.*/
 char * getenv_ear_gui_pathname();
@@ -158,7 +158,5 @@ void set_ear_learning(int learning);
 
 state_t read_config_env(char **var, const char* sched_env_var);
 state_t read_config(uint *var, const char *config_var);
-
-char *ear_getenv(const char *name);
 
 #endif

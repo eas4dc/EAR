@@ -44,7 +44,7 @@ void *create_shared_area(char *path,char *data,int area_size,int *shared_fd,int 
 	int fd;
 	mode_t my_mask;
 	if ((area_size==0) || (data==NULL) || (path==NULL)){
-		//error("creatinf shared region, invalid arguments. Not created\n");
+		debug("creating shared region, invalid arguments. Not created\n");
 		return NULL;
 	}
 	my_mask=umask(0);
@@ -52,7 +52,7 @@ void *create_shared_area(char *path,char *data,int area_size,int *shared_fd,int 
 	debug("creating file %s for shared memory",buff);
 	fd=open(buff,O_CREAT|O_RDWR|O_TRUNC,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 	if (fd<0){
-		//error("error creating sharing memory (%s)\n",strerror(errno));
+		debug("error creating sharing memory (%s)\n",strerror(errno));
 		umask(my_mask);
 		return NULL;
 	}
@@ -64,14 +64,14 @@ void *create_shared_area(char *path,char *data,int area_size,int *shared_fd,int 
 	debug("writting default values");
 	ret=write(fd,data,area_size);
 	if (ret<0){
-		//error("error creating sharing memory (%s)\n",strerror(errno));
+		debug("error creating sharing memory (%s)\n",strerror(errno));
 		close(fd);
 		return NULL;
 	}
 	debug(,"mapping shared memory");
 	my_shared_region= mmap(NULL, area_size,PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);                                     
 	if ((my_shared_region == MAP_FAILED) || (my_shared_region == NULL)){
-		error(" error creating sharing memory (%s)\n",strerror(errno));
+		debug(" error creating sharing memory (%s)\n",strerror(errno));
 		close(fd);
 		return NULL;
 	}
@@ -88,14 +88,20 @@ void * attach_shared_area(char *path,int area_size,uint perm,int *shared_fd,int 
 		int fd;
 		strcpy(buff,path);
     fd=open(buff,perm);
+    *shared_fd = fd;
     if (fd<0){
-        //error("error attaching to sharing memory (%s)\n",strerror(errno));
+				#if SHOW_DEBUGS
+        error("error attaching to sharing memory (%s)\n",strerror(errno));
+        char buffout[1024];
+        sprintf(buffout, "echo '%s, %s, %d, %u, %d' >> /tmp/PLUGIN", strerror(errno), path, area_size, perm, fd);
+        system(buffout);
+				#endif
         return NULL;
     }
 	if (area_size==0){
 		size=lseek(fd,0,SEEK_END);
 		if (size<0){
-			//error("Error computing shared memory size (%s) ",strerror(errno));
+			debug("Error computing shared memory size (%s) ",strerror(errno));
 		}else area_size=size;
 		if (s!=NULL) *s=size;
 	}
@@ -106,7 +112,7 @@ void * attach_shared_area(char *path,int area_size,uint perm,int *shared_fd,int 
 	}
     my_shared_region= mmap(NULL, area_size,flags, MAP_SHARED, fd, 0);
     if ((my_shared_region == MAP_FAILED) || (my_shared_region == NULL)){
-        //error("error attaching to sharing memory (%s)\n",strerror(errno));
+        debug("error attaching to sharing memory (%s)\n",strerror(errno));
         close(fd);
         return NULL;
     }

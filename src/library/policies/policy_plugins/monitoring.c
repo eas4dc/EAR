@@ -28,6 +28,7 @@
 #include <common/output/verbose.h>
 #include <common/types/projection.h>
 #include <common/system/file.h>
+#include <common/system/monitor.h>
 
 #include <management/cpufreq/frequency.h>
 
@@ -44,6 +45,18 @@
 #define MON_ERROR_LVL 2
 #define MON_INFO_LVL  3
 
+#if MPI_OPTIMIZED
+extern sem_t *lib_shared_lock_sem;
+extern uint ear_mpi_opt;
+extern suscription_t *earl_monitor;
+static void policy_end_summary(int verb_lvl);
+static state_t policy_mpi_init_optimize(polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id);
+static state_t policy_mpi_end_optimize(node_freqs_t *freqs, int *process_id);
+extern mpi_opt_policy_t mpi_opt_symbols;
+
+#endif
+
+
 extern uint cpu_ready, gpu_ready;
 
 static polsym_t gpus;
@@ -57,7 +70,14 @@ static state_t policy_mpi_end_optimize(node_freqs_t *freqs, int *process_id);
 state_t policy_init(polctx_t *c)
 {
     if (is_mpi_enabled()) {
+#if MPI_OPTIMIZED
+        mpi_opt_load(&mpi_opt_symbols);
+#endif
         mpi_app_init(c);
+    }
+    for (uint i = 0 ; i < lib_shared_region->num_processes; i++) {
+      sig_shared_region[i].new_freq = DEF_FREQ(c->app->def_freq);
+      sig_shared_region[i].mpi_freq = DEF_FREQ(c->app->def_freq);
     }
 
 #if USE_GPUS
@@ -86,6 +106,8 @@ state_t policy_init(polctx_t *c)
 
 state_t policy_end(polctx_t *c)
 {
+    policy_end_summary(2); // Summary of optimization
+
     if (c != NULL) {
         return mpi_app_end(c);
     }
@@ -101,6 +123,7 @@ state_t policy_apply(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs, int 
 
     for (uint i = 0 ; i < lib_shared_region->num_processes; i++) {
       sig_shared_region[i].new_freq = new_freq[0];
+      sig_shared_region[i].mpi_freq = new_freq[0];
     }
 
     // TODO: Should the below code be inside USE_GPUS?
@@ -111,6 +134,7 @@ state_t policy_apply(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs, int 
 
     cpu_ready = EAR_POLICY_READY; // TODO: This variable is not used.
     *ready = EAR_POLICY_READY;
+
 
     return EAR_SUCCESS;
 }
@@ -177,37 +201,41 @@ state_t policy_mpi_init(polctx_t *c, mpi_call call_type, node_freqs_t *freqs, in
         state_t st = mpi_call_init(c, call_type);
         policy_mpi_init_optimize(c, call_type, freqs, process_id);
         return st;
-    } else {
-        return EAR_ERROR;
-    }
-    return EAR_SUCCESS;
-
+    } 
+    return EAR_ERROR;
 }
 
 
 state_t policy_mpi_end(polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id)
 {
 	if (c != NULL) {
+        state_t st = mpi_call_end(c,call_type);
         policy_mpi_end_optimize(freqs, process_id);
-        return mpi_call_end(c,call_type);
+        return st;
     }
-	return EAR_ERROR;
+	  return EAR_ERROR;
 }
 
 static state_t policy_mpi_init_optimize(polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id)
 {
 #if !SINGLE_CONNECTION && MPI_OPTIMIZED
     // You can implement optimization at MPI call entry here.
-#endif
+    /* CPUfreq mgt is not ok we will not optimize */
+    if (!metrics_get(MGT_CPUFREQ)->ok) return EAR_SUCCESS;
 
+    if (mpi_opt_symbols.init_mpi != NULL){
+      return mpi_opt_symbols.init_mpi(c, call_type, freqs, process_id);
+    }
+#endif
     return EAR_SUCCESS;
 }
 
 
 static void policy_end_summary(int verb_lvl)
 {
-#if !SINGLE_CONNECTION && MPI_OPTIMIZED
     // You can show a summary of your optimization at MPI call level here.
+#if !SINGLE_CONNECTION && MPI_OPTIMIZED
+  if (mpi_opt_symbols.summary != NULL) mpi_opt_symbols.summary(VERB_GET_LV());
 #endif
 }
 
@@ -216,6 +244,10 @@ static state_t policy_mpi_end_optimize(node_freqs_t *freqs, int *process_id)
 {
 #if !SINGLE_CONNECTION && MPI_OPTIMIZED
     // You can implement optimization at MPI call exit here.
+    if  (mpi_opt_symbols.end_mpi != NULL){
+     
+      return mpi_opt_symbols.end_mpi(freqs, process_id);
+    }
 #endif
 
     return EAR_SUCCESS;

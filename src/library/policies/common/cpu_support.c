@@ -44,6 +44,8 @@
 #include <library/policies/common/mpi_stats_support.h>
 #include <library/policies/common/imc_policy_support.h>
 
+#define CPU_SAVINGS_LVL 0
+
 extern uint dyn_unc;
 extern polctx_t my_pol_ctx;
 extern ear_classify_t phases_limits;
@@ -76,6 +78,57 @@ state_t compute_reference(polctx_t *c,signature_t *my_app,ulong *curr_freq,ulong
         freq_ref[0] = curr_freq[0];
     }
     return EAR_SUCCESS;
+}
+
+double get_time_nominal(signature_t *my_app)
+{
+  double t = my_app->time;
+  uint curr, target;
+  if (my_app->def_f != frequency_get_nominal_freq()){
+    target = frequency_get_nominal_pstate();
+    curr   = frequency_closest_pstate(my_app->def_f);
+    project_time(my_app, curr, target, &t);
+  }
+  verbose_master(CPU_SAVINGS_LVL,"Policy savins[%s]: Projecting reference time from %u to %u %lf", node_name, curr, target, t);
+  return t;
+}
+
+double get_power_nominal(signature_t *my_app)
+{
+  double p = my_app->DC_power;
+  uint curr, target;
+  if (my_app->def_f != frequency_get_nominal_freq()){
+    target = frequency_get_nominal_pstate();
+    curr   = frequency_closest_pstate(my_app->def_f);
+    project_power(my_app, curr, target, &p);
+  }
+  verbose_master(CPU_SAVINGS_LVL,"Policy savins[%s]: Projecting reference power from %u to %u %lf", node_name, curr, target, p);
+  return p;
+}
+
+double get_time_projected(signature_t *my_app, ulong f)
+{
+  double t = my_app->time;
+  uint curr, target;
+  if (f != my_app->def_f){
+    curr   = frequency_closest_pstate(my_app->def_f);
+    target = frequency_closest_pstate(f);
+    project_time(my_app, curr, target, &t);
+  }
+  //verbose(0,"Policy savins[%s] Projecting from %lu-%u to %lu-%u time %lf (ref %.3lf)", node_name, my_app->def_f, curr, f,target, t, my_app->time);
+  return (float)t;
+}
+double get_power_projected(signature_t *my_app, ulong f)
+{
+  double p = my_app->DC_power;
+  uint curr, target;
+  if (f != my_app->def_f) {
+    curr   = frequency_closest_pstate(my_app->def_f);
+    target = frequency_closest_pstate(f);
+    project_power(my_app, curr, target, &p);
+  }
+  //verbose(0," Policy savins[%s] Projecting from %lu-%u to %lu-%u power %lf (ref %.2lf)", node_name, my_app->def_f, curr, f, target, p, my_app->DC_power);
+  return p;
 }
 
 state_t compute_cpu_freq_min_energy(polctx_t *c, signature_t *my_app, ulong freq_ref, double time_ref, double power_ref,
@@ -197,41 +250,6 @@ uint cpu_supp_try_boost_cpu_freq(int nproc, uint *critical_path, ulong *freqs, i
 
 int signatures_different(signature_t *s1, signature_t *s2,float p)
 {
-    #if 0
-    if (s1->CPI == 0 || s2->CPI == 0 || s1->GBS == 0 || s2->GBS == 0){
-        verbose_master(2, "%sWARNING%s some signature have a 0 value CPI (%.2lfvs%.2lf) GBS (%.2lfvs%.2lf)",
-                COL_RED, COL_CLR, s1->CPI, s2->CPI, s1->GBS, s2->GBS);
-        return 0;
-    }
-    //if ((s1->GBS > GBS_BUSY_WAITING) || (s2->GBS > GBS_BUSY_WAITING)){
-    if (!low_mem_activity(s1, lib_shared_region->num_cpus) || !low_mem_activity(s2, lib_shared_region->num_cpus)){
-        if (!equal_with_th(s1->CPI,s2->CPI,p)){
-            uint s1_cbound, s2_cbound;
-            //  NEW CLASSIFY
-            is_cpu_bound(s1, lib_shared_region->num_cpus, &s1_cbound);
-            is_cpu_bound(s2, lib_shared_region->num_cpus, &s2_cbound);
-            if (s1_cbound != s2_cbound){
-                verbose_master(2, "CPI (%.2lfvs%.2lf) and cpu bound phase changed from %u to %u",
-                        s1->CPI,s2->CPI, s1_cbound, s2_cbound);
-                return 1;
-            }
-            verbose_master(2, "CPIs different (%.2lfvs%.2lf) but same cpu behaviour (%uvs%u)",
-                    s1->CPI,s2->CPI, s1_cbound, s2_cbound);
-        }
-        if (!equal_with_th(s1->GBS, s2->GBS,p)){
-            uint s1_mbound, s2_mbound;
-            is_mem_bound(s1, lib_shared_region->num_cpus, &s1_mbound);
-            is_mem_bound(s2, lib_shared_region->num_cpus, &s2_mbound);
-            if (s1_mbound != s2_mbound){
-                verbose_master(2, "GBS (%.2lfvs%.2lf) and mem bound phase changed from %u to %u",
-                        s1->GBS,s2->GBS, s1_mbound, s2_mbound);
-                return 1;
-            }
-            verbose_master(2, "GBS different (%.2lfvs%.2lf) but same mem behaviour (%uvs%u)",
-                    s1->GBS,s2->GBS, s1_mbound, s2_mbound);
-        }
-    }
-    #endif
 
         if (s1->CPI == 0 || s2->CPI == 0 || s1->GBS == 0 || s2->GBS == 0) {
         verbose_master(2, "%sWARNING%s some signature have a 0 value CPI (%.2lfvs%.2lf) GBS (%.2lfvs%.2lf)",

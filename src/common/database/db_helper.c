@@ -21,7 +21,9 @@
 #include <string.h>
 #include <limits.h>
 #include <arpa/inet.h>
+#if DB_MYSQL
 #include <mysql/mysql.h>
+#endif
 #include <common/states.h>
 #include <common/output/verbose.h>
 #include <common/string_enhanced.h>

@@ -136,10 +136,9 @@ AC_DEFUN([AX_BEFORE_FEATURES],
 	
 	AC_ARG_ENABLE([gpus],
 		AS_HELP_STRING([--disable-gpus], [Does not allocate GPU types nor report any information])
-        )
+    )
 	
 	FEAT_GPUS=1
-
 	if test "x$enable_gpus" = "xno"; then
 		FEAT_GPUS=0
 	fi

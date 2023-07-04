@@ -40,12 +40,12 @@ void module_get_path_libear(char **path_lib,char **hack_lib )
 	*hack_lib = NULL;
 
 	// HACK_EARL_INSTALL_PATH is a hack for the whole library path, includes "lib" in the path
-	path = getenv(HACK_EARL_INSTALL_PATH);
-	libhack = getenv(HACK_LIBRARY_FILE);
+	path = ear_getenv(HACK_EARL_INSTALL_PATH);
+	libhack = ear_getenv(HACK_LIBRARY_FILE);
 	if (path == NULL){
 		verbose(2, "HACK not defined %s", HACK_EARL_INSTALL_PATH);
-		// VAR_INS_PATH is the official installation path, doesn't include "lib"
-		if ((path = getenv(VAR_INS_PATH)) == NULL) {
+		// ENV_PATH_EAR is the official installation path, doesn't include "lib"
+		if ((path = ear_getenv(ENV_PATH_EAR)) == NULL) {
 			// This last hack is to load a specific library with the whole path including library name
 			if (libhack == NULL){ 
 				verbose(2, "LOADER: neither installation path exists nor HACK library defined");

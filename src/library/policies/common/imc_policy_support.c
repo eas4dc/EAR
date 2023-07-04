@@ -15,7 +15,7 @@
  * and COPYING.EPL files.
  */
 
-// #define SHOW_DEBUGS 1
+//#define SHOW_DEBUGS 1
 
 #include <errno.h>
 #include <fcntl.h>
@@ -28,6 +28,7 @@
 #include <common/states.h>
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
+#include <common/output/debug.h>
 #include <management/cpufreq/frequency.h>
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
@@ -59,8 +60,10 @@ uint must_start(imc_data_t *my_imc_data,uint cpu_pstate, uint imc_pstate,
     else return 0;
 }
 
+
 uint must_increase_imc(imc_data_t *my_imc_data, uint cpu_pstate, uint imc_pstate,
-        uint ref_cpu_pstate, uint ref_imc_pstate, signature_t *sig, double penalty)
+                       uint ref_cpu_pstate, uint ref_imc_pstate, signature_t *sig,
+                       double penalty)
 {
     double time_ref = my_imc_data[ref_cpu_pstate*NUM_UNC_FREQ+ref_imc_pstate].time;
     double time_curr = sig->time;
@@ -197,7 +200,8 @@ uint must_decrease_imc(imc_data_t *my_imc_data,uint cpu_pstate,uint my_imc_pstat
 #endif
 }
 
-void copy_imc_data_from_signature(imc_data_t *my_imc_data,uint cpu_pstate,uint my_imc_pstate,signature_t *s)
+void copy_imc_data_from_signature(imc_data_t *my_imc_data, uint cpu_pstate,
+                                  uint my_imc_pstate, signature_t *s)
 {
     int i;
     ullong tfops = 0;
@@ -207,7 +211,10 @@ void copy_imc_data_from_signature(imc_data_t *my_imc_data,uint cpu_pstate,uint m
     my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].CPI = s->CPI;
     my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].instructions = s->instructions;
     my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].cycles = s->cycles;
-    memcpy(my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].FLOPS , s->FLOPS,sizeof(ull)*FLOPS_EVENTS);
+
+    memcpy(my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].FLOPS,
+           s->FLOPS, sizeof(ull)*FLOPS_EVENTS);
+
     for (i=0;i<FLOPS_EVENTS;i++) tfops += s->FLOPS[i];
 #if SHOW_DEBUGS
     float flops = 0;

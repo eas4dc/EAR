@@ -5,13 +5,10 @@ AC_DEFUN([AX_SET_ARCHITECTURES],
         )
 
     if test "x$enable_arm64" = "xyes"; then
-        ARCH_X86=0
-        ARCH_ARM=1
+        ARCH=ARM
     else
-        ARCH_X86=1
-        ARCH_ARM=0
+        ARCH=X86
     fi
 
-    AC_SUBST(ARCH_X86)
-    AC_SUBST(ARCH_ARM)
+    AC_SUBST(ARCH)
 ])

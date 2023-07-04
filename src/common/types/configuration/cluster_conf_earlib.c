@@ -22,10 +22,10 @@
 #include <string.h>
 #include <common/config.h>
 //#define SHOW_DEBUGS 1
-#include <common/output/verbose.h>
 #include <common/states.h>
-#include <common/string_enhanced.h>
 #include <common/environment.h>
+#include <common/output/verbose.h>
+#include <common/string_enhanced.h>
 #include <common/types/configuration/cluster_conf_earlib.h>
 
 state_t EARLIB_token(char *token)

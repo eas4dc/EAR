@@ -1,0 +1,16 @@
+#%Module
+
+# CTT user environment
+#
+# Author                : Energy Aware Runtime BSC team
+# Created               : Mon  2 Nov 08:26:00 CEST 2017
+#
+
+module-whatis "Enable usage of Energy Aware Runtime"
+
+setenv    HACK_EAR_INSTALL_PATH  @prefix@
+setenv		HACK_EARL_INSTALL_PATH	@prefix@/lib
+setenv    HACK_LOADER_FILE @prefix@/lib/libearld.so
+setenv		HACK_EAR_ETC			@sysconfdir@
+setenv		HACK_EAR_TMP			@localstatedir@
+prepend-path	PATH			"@prefix@/bin"

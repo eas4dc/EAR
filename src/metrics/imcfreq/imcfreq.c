@@ -130,7 +130,7 @@ void imcfreq_data_print(ulong *freq_list, ulong *average, int fd)
 	ops.data_print(freq_list, average, fd);
 }
 
-void imcfreq_data_tostr(ulong *freq_list, ulong *average, char *buffer, size_t length)
+char *imcfreq_data_tostr(ulong *freq_list, ulong *average, char *buffer, size_t length)
 {
-	ops.data_tostr(freq_list, average, buffer, length);
+	return ops.data_tostr(freq_list, average, buffer, length);
 }

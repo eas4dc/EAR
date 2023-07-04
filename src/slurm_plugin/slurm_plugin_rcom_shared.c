@@ -31,7 +31,7 @@ int plug_shared_readservs(spank_t sp, plug_serialization_t *sd)
 	plug_verbose(sp, 3, "looking for services in '%s'", buffer);
 
 	if (servs == NULL) {
-		plug_error(sp, "while reading the shared services memory in '%s@%s'", sd->subject.host, buffer);
+		plug_error(sp, "while reading services memory in '%s@%s'", sd->subject.host, buffer);
 		return ESPANK_ERROR;
 	}
 
@@ -53,7 +53,7 @@ int plug_shared_readfreqs(spank_t sp, plug_serialization_t *sd)
 	freqs = attach_frequencies_shared_area(buffer, &n_freqs);
 
 	if (freqs == NULL) {
-		plug_error(sp, "while reading the shared services memory in '%s'", "hostxxx");
+		plug_error(sp, "while reading frequencies memory in node '%s@%s'", sd->subject.host, buffer);
 		return ESPANK_ERROR;
 	}
 
@@ -88,24 +88,21 @@ int plug_shared_readsetts(spank_t sp, plug_serialization_t *sd)
 	uint ID = create_ID(sd->job.app.job.id, sd->job.app.job.step_id);
 	get_settings_conf_path(sd->pack.path_temp, ID, buffer);
 	setts = attach_settings_conf_shared_area(buffer);
-	plug_verbose(sp, 3, "looking for services in '%s'", buffer);
+	plug_verbose(sp, 3, "looking for settings in '%s' (cid %u, job %lu, step %lu)", buffer, ID, sd->job.app.job.id, sd->job.app.job.step_id);
 
 	if (setts == NULL) {
-		plug_error(sp, "while reading the shared configuration memory in node '%s'", "hostxxx");
+		plug_error(sp, "while reading the settings memory in node '%s@%s'", sd->subject.host, buffer);
 		return ESPANK_ERROR;
 	}
-       // It is OK, you can save the returned settings.
-        memcpy(&sd->pack.eard.setts, setts, sizeof(settings_conf_t));
-        // Closing shared memory
-        dettach_settings_conf_shared_area();
-
-        plug_print_settings(sp, sd);
-
-        // If returned !lib_enabled, disable library component
-        if (!setts->lib_enabled) {
-                return plug_component_setenabled(sp, Component.library, 0);
-        }
-        // Finally print
+    // It is OK, you can save the returned settings.
+    memcpy(&sd->pack.eard.setts, setts, sizeof(settings_conf_t));
+    // Closing shared memory
+    dettach_settings_conf_shared_area();
+    plug_print_settings(sp, sd);
+    // If returned !lib_enabled, disable library component
+    if (!setts->lib_enabled) {
+        return plug_component_setenabled(sp, Component.library, 0);
+    }
 
 	return ESPANK_SUCCESS;
 }

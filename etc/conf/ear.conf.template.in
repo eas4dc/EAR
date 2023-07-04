@@ -37,19 +37,23 @@ EARLReportPlugins=eard.so
 #---------------------------------------------------------------------------------------------------
 # EAR Global Manager (EARGMD) : Update that section to use EARGM 
 #---------------------------------------------------------------------------------------------------
-# Use aggregated periodic metrics or periodic power metrics. Aggregated metrics are only available
-# when EARDBD is running
-EARGMUseAggregated=1
-# Period T1 and T2 are specified in seconds T1 (ex. must be less than T2, ex. 10min and 1 month)
-EARGMPeriodT1=90
-EARGMPeriodT2=259200
+# Verbosity
+EARGMVerbose=1
 # '-' are Joules, 'K' KiloJoules and 'M' MegaJoules.
 EARGMUnits=K
 EARGMPort=50000
+# Period T1 and T2 are specified in seconds T1 (ex. must be less than T2, ex. 10min and 1 month)
+EARGMEnergyPeriodT1=90
+EARGMEnergyPeriodT2=259200
+# Energy limit applies to EARGMPeriodT2.
+EARGMEnergyLimit=550000
+# Use aggregated periodic metrics or periodic power metrics. Aggregated metrics are only available
+# when EARDBD is running
+EARGMEnergyUseAggregated=1
 # Two modes are supported '0=manual' and '1=automatic'.
-EARGMMode=0
+EARGMEnergyMode=0
 # T1 "grace" periods between DEFCON before re-evaluate.
-EARGMGracePeriods=3
+EARGMEnergyGracePeriods=3
 # Format for action is: command_name energy_T1 energy_T2  energy_limit T2 T1  units "
 # This action is automatically executed at each warning level (only once per grace periods)
 EARGMEnergyAction=no_action

@@ -66,10 +66,12 @@ static mailbox_t *mail;
 static uint       sockets_count;
 static uint       pcis_count;
 static pci_t     *pcis;
+static uint       hsmp_failed;
 
 static state_t unlock_msg0(state_t s, char *msg)
 {
     debug("Exitting because: %s", msg);
+    hsmp_failed = state_fail(s);
 	pthread_mutex_unlock(&lock0);
 	return_msg(s, msg);
 }
@@ -91,7 +93,11 @@ state_t hsmp_scan(topology_t *tp)
     debug("Zen detected");
 	while (pthread_mutex_trylock(&lock0));
 	if (pcis != NULL) {
-		return unlock_msg0(EAR_SUCCESS, "");
+        if (hsmp_failed) {
+            return unlock_msg0(EAR_ERROR, "HSMP doesn't work");
+        } else {
+            return unlock_msg0(EAR_SUCCESS, "");
+        }
 	}
 	sockets_count = tp->socket_count;
 	// By now just ZEN2 and greater
@@ -106,7 +112,7 @@ state_t hsmp_scan(topology_t *tp)
 		// TODO: test function
         uint args[2] = { 68, -1 };
         uint reps[2] = {  0, -1 };
-		
+        
         if (state_fail(s = hsmp_send(0, 0x01, args, reps))) {
             return unlock_msg0(s, "HSMP not enabled");
         }
@@ -114,6 +120,7 @@ state_t hsmp_scan(topology_t *tp)
         if (reps[0] != 69) {
             return unlock_msg0(EAR_ERROR, "HSMP not enabled (incorrect ping value)");
         }
+        debug("Ping returned %d", reps[0]);
 	}
 	return unlock_msg0(EAR_SUCCESS, "OK");
 }
@@ -144,7 +151,6 @@ static state_t smn_write(pci_t *pci, mailopt_t *opt, uint data)
 static state_t smn_read(pci_t *pci, mailopt_t *opt, uint *data)
 {
 	state_t s;
-    //debug("smn_read");
 	if (state_fail(s = pci_write(pci, (const void *) &opt->address, sizeof(uint), smn.index))) {
 		debug("pci_write returned: %s (%d)", state_msg, s);
 		return s;

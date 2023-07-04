@@ -654,7 +654,7 @@ int main(int argc, char *argv[])
 	power_check_t power;
 
 	verb_level = 0;
-	//verb_enabled = 0;
+	verb_enabled = 0;
 	if (argc < 2) usage(argv[0]);
 
 	if (get_ear_conf_path(path_name)==EAR_ERROR){

@@ -213,10 +213,10 @@ extern  uint MPI_Get_library_version_detected;
 
 static void EAR_force_mpi_library()
 {
-	if (!MPI_Get_library_version_detected && getenv(FLAG_LOAD_MPI_VERSION) == NULL) {
+	if (!MPI_Get_library_version_detected && ear_getenv(FLAG_LOAD_MPI_VERSION) == NULL) {
         // TODO: This check is for the transition to the new environment variables.
         // It will be removed when SCHED_LOAD_MPI_VERSION will be removed, on the next release.
-        if (getenv(SCHED_LOAD_MPI_VERSION) != NULL) {
+        if (ear_getenv(SCHED_LOAD_MPI_VERSION) != NULL) {
             verbose(1, "LOADER: %sWARNING%s %s will be removed on the next EAR release. "
                     "Please, change it by %s in your submission scripts.",
                     COL_RED, COL_CLR, SCHED_LOAD_MPI_VERSION, FLAG_LOAD_MPI_VERSION);

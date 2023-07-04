@@ -1,4 +1,4 @@
-CFLAGS = $(CC_FLAGS) -fPIC -I$(SRCDIR) $(CONSTANTS)
+CFLAGS = $(CC_FLAGS) -fPIC -I$(SRCDIR) -DARCH_$(ARCH)=1
 
 ######## FILES
 
@@ -7,6 +7,7 @@ libc_OBJS = \
 	bithack.o \
 	cpuid.o \
 	hardware_info.o \
+	mrs.o \
 	topology.o \
 	topology_asm.o \
 	topology_tdp.o

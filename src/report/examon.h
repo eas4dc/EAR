@@ -78,5 +78,11 @@ struct sys_data {
     ulong  GPU_mem_freq;
     ulong  GPU_util;
     ulong  GPU_mem_util;
+    //job_id jid;
+    //job_id step_id;
+    //char node_id[GENERIC_NAME];
+    ulong event;
+    ulong freq;
+    time_t timestamp;
 
 };

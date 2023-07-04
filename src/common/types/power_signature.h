@@ -34,6 +34,7 @@ typedef struct power_signature
     ulong def_f;
 } power_signature_t;
 
+
 typedef struct accum_power_sig{
 	ulong DC_energy;
 	ulong DRAM_energy;

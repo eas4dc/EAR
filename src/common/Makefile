@@ -1,7 +1,7 @@
 include ./Makefile.files
 
 # If USER_TEST is set to 1, any user can execute the hacks with the library
-CFLAGS = -O2 -fPIC -I$(SRCDIR) $(CONSTANTS) -DUSER_TEST=0
+CFLAGS = -fPIC -I$(SRCDIR) $(CONSTANTS) -DUSER_TEST=0
 
 ######## FILES
 
@@ -43,6 +43,7 @@ clean: clean.components comm.gclean rclean;
 	@ $(MAKE) -C 'system'   	$* || exit
 	@ $(MAKE) -C 'types'    	$* || exit
 	@ $(MAKE) -C 'utils'		$* || exit
+	@ $(MAKE) -C 'external'		$* || exit
 
 ######## DEPENDENCIES
 

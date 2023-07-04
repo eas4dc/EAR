@@ -68,7 +68,7 @@ typedef struct imcfreq_ops_s
 	state_t (*data_copy)      (imcfreq_t *reg_list2, imcfreq_t *reg_list1);
 	state_t (*data_diff)      (imcfreq_t *reg_list2, imcfreq_t *reg_list, ulong *freq_list, ulong *freq_avg);
 	void    (*data_print)     (ulong *freq_list, ulong *freq_avg, int fd);
-	void    (*data_tostr)     (ulong *freq_list, ulong *freq_avg, char *buffer, size_t length);
+	char*   (*data_tostr)     (ulong *freq_list, ulong *freq_avg, char *buffer, size_t length);
 } imcfreq_ops_t;
 
 // Frequency is KHz
@@ -99,6 +99,6 @@ state_t imcfreq_data_diff(imcfreq_t *reg_list2, imcfreq_t *reg_list1, ulong *fre
 
 void imcfreq_data_print(ulong *freq_list, ulong *freq_avg, int fd);
 
-void imcfreq_data_tostr(ulong *freq_list, ulong *freq_avg, char *buffer, size_t length);
+char *imcfreq_data_tostr(ulong *freq_list, ulong *freq_avg, char *buffer, size_t length);
 
 #endif //METRICS_IMCFREQ_H

@@ -63,6 +63,8 @@ state_t cpufreq_data_copy(cpufreq_t *dst, cpufreq_t *src);
 
 state_t cpufreq_data_free(cpufreq_t **f, ulong **freqs);
 
-state_t cpufreq_data_print(ulong *freqs, ulong average, int fd);
+void cpufreq_data_print(ulong *freqs, ulong average, int fd);
+
+char *cpufreq_data_tostr(ulong *freqs, ulong average, char *buffer, size_t length);
 
 #endif //METRICS_CPUFREQ_H

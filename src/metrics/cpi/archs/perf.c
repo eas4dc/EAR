@@ -42,12 +42,12 @@ state_t cpi_perf_load(topology_t *tp, cpi_ops_t *ops)
 {
 	if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_HASWELL_X) {
 	} else if (tp->vendor == VENDOR_AMD && tp->family >= FAMILY_ZEN) {
-	} else {
+    } else if (tp->vendor == VENDOR_ARM) {
+    } else {
 		return_msg(EAR_ERROR, Generr.api_incompatible);
 	}
 	// Opening events
 	if (state_ok(perf_open(&perf_ins, NULL, 0, gen_ins_tp, gen_ins_ev))) {
-	//if (state_ok(perf_open(&perf_ins, NULL, 0, PERF_TYPE_RAW, 0x00c0))) {
 		ins_en = 1;
 	}
 	if (state_ok(perf_open(&perf_cyc, NULL, 0, gen_cyc_tp, gen_cyc_ev))) {

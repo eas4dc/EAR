@@ -26,6 +26,7 @@
 #include <management/gpu/archs/nvml.h>
 #include <management/gpu/archs/dummy.h>
 #include <management/gpu/archs/oneapi.h>
+#include <management/gpu/archs/rsmi.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static mgt_gpu_ops_t ops;
@@ -41,6 +42,7 @@ __attribute__((used)) void mgt_gpu_load(int eard)
     // NVML and ONEAPI can be partially loaded.
     // EARD then can be partially loaded.
     mgt_gpu_nvml_load(&ops);
+    mgt_gpu_rsmi_load(&ops);
     mgt_gpu_oneapi_load(&ops);
     mgt_gpu_eard_load(&ops, eard);
     mgt_gpu_dummy_load(&ops);

@@ -180,7 +180,7 @@ void imcfreq_dummy_data_print(ulong *freq_list, ulong *average, int fd)
 	dprintf(fd, "%s", buffer);
 }
 
-void imcfreq_dummy_data_tostr(ulong *freq_list, ulong *average, char *buffer, size_t length)
+char *imcfreq_dummy_data_tostr(ulong *freq_list, ulong *average, char *buffer, size_t length)
 {
     double freq_ghz;
     int accum = 0;
@@ -188,11 +188,11 @@ void imcfreq_dummy_data_tostr(ulong *freq_list, ulong *average, char *buffer, si
 
     for (i = 0; freq_list != NULL && i < devs_count; ++i) {
         freq_ghz = ((double) freq_list[i]) / 1000000.0;
-        accum += sprintf(&buffer[accum], "%0.1lf\t", freq_ghz);
+        accum += sprintf(&buffer[accum], "%0.1lf ", freq_ghz);
     }
     if (average != NULL) {
         freq_ghz = ((double) *average) / 1000000.0;
-        accum += sprintf(&buffer[accum], "avg %0.2lf ", freq_ghz);
+        accum += sprintf(&buffer[accum], "!%0.1lf ", freq_ghz);
     }
-    sprintf(&buffer[accum], "(GHz)\n");
+    return buffer;
 }

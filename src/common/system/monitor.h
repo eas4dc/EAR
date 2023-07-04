@@ -34,7 +34,6 @@ typedef struct suscription_s
 	void		*memm_main;
 	int			time_relax; // In miliseconds.
 	int			time_burst; // In miliseconds.
-	int 		*bursting;
     int			id;
 } suscription_t;
 
@@ -51,7 +50,7 @@ typedef struct suscription_s
 //	
 //	s = monitor_init();
 //	s = monitor_register(sus);
-//	s = monitor_burst(sus);
+//	s = monitor_burst(sus, MON_NO_INTERRUPT);
 //	s = monitor_relax(sus);
 
 state_t monitor_init();
@@ -62,9 +61,12 @@ state_t monitor_register(suscription_t *suscription);
 
 state_t monitor_unregister(suscription_t *suscription);
 
-state_t monitor_burst(suscription_t *suscription);
+// If interrupt = 1, then wakes up the monitor to compute
+state_t monitor_burst(suscription_t *s, uint interrupt);
 
 state_t monitor_relax(suscription_t *suscription);
+
+int monitor_is_initialized();
 
 int monitor_is_bursting(suscription_t *s);
 

@@ -74,7 +74,7 @@ state_t policy_init(polctx_t *c)
 
                 optimize_call = 1;
 
-                char *mpi_pstate_env = getenv("SLURM_EAR_MPI_PSTATE");
+                char *mpi_pstate_env = ear_getenv("SLURM_EAR_MPI_PSTATE");
 
                 if (mpi_pstate_env) {
 

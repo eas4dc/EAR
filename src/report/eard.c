@@ -33,7 +33,7 @@ state_t report_init(report_id_t *id,cluster_conf_t *cconf)
 	debug("eard report_init");
 	if (id->master_rank >= 0) must_report = 1;
   gethostname(report_nodename, sizeof(report_nodename));
-  char * cearl_report_loops = getenv(FLAG_REPORT_LOOPS);
+  char * cearl_report_loops = ear_getenv(FLAG_REPORT_LOOPS);
 	if (cearl_report_loops != NULL) earl_report_loops = atoi(cearl_report_loops);
 
   strtok(report_nodename, ".");

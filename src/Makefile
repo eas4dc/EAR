@@ -7,10 +7,11 @@ COMPONENTS = \
     management\
     daemon \
     library \
-    tools \
     global_manager \
     commands \
-    slurm_plugin
+	tools \
+    slurm_plugin \
+	pbs_hook
 
 #ifdef DB_BASE
 COMPONENTS += database_cache
@@ -46,6 +47,8 @@ eargmd.install: global_manager.install;
 
 earplug.install: slurm_plugin.install;
 
+pbshook.install: pbs_hook.install;
+
 %.install:
 	@ $(MAKE) -C $* install || exit
 
@@ -56,11 +59,13 @@ earplug.install: slurm_plugin.install;
 ######## SUBFOLDERS
 
 %.components:
-	@ for i in $(COMPONENTS); do                     \
-		echo "===================================="; \
-		echo "= Compiling $$i";                      \
-		echo "===================================="; \
-		$(MAKE) -C $${i} $* || exit;                 \
+	@ for i in $(COMPONENTS); do                        \
+		if printf %s\\n "${COMPONENT_DISABLE}" | grep -qFv "$$i"; then \
+		echo "====================================";    \
+		echo "= Compiling $$i";                         \
+		echo "====================================";    \
+		$(MAKE) -C $${i} $* || exit;                    \
+		fi                                              \
 	done
 
 ######## DEPENDENCIES

@@ -26,16 +26,16 @@
 #include <library/common/verbose_lib.h>
 #include <library/metrics/metrics.h>
 
+extern const int     polsyms_n;
 extern const char     *polsyms_nam[];
 state_t policy_gpu_load(settings_conf_t *app_settings,polsym_t *psyms)
 {
     char *obj_path;
-    int polsyms_n = 17;
     char basic_gpu_path[SZ_PATH_INCOMPLETE];
     char pgpu_name[64];
     conf_install_t *data=&app_settings->installation;
 
-    char *ins_path = getenv(HACK_EARL_INSTALL_PATH);
+    char *ins_path = ear_getenv(HACK_EARL_INSTALL_PATH);
 
 
     if (masters_info.my_master_rank >= 0){
@@ -43,7 +43,7 @@ state_t policy_gpu_load(settings_conf_t *app_settings,polsym_t *psyms)
 #ifdef GPU_OPT 
         verbose_master(2,"GPU optimization ON. Using policy base on %s", app_settings->policy_name);
 #endif
-        obj_path = getenv(HACK_GPU_POWER_POLICY);
+        obj_path = ear_getenv(HACK_GPU_POWER_POLICY);
         if (obj_path != NULL) verbose_master(2,"%s defined %s",HACK_GPU_POWER_POLICY,obj_path);
 #ifdef GPU_OPT
         xsnprintf(pgpu_name,sizeof(pgpu_name),"gpu_%s.so",app_settings->policy_name);

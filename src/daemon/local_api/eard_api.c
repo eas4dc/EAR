@@ -15,6 +15,7 @@
 * and COPYING.EPL files.
 */
 
+#define _GNU_SOURCE             
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -25,8 +26,9 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#define _GNU_SOURCE             
 #include <sched.h>
+#include <time.h>
+#include <pthread.h>
 
 //#define SHOW_DEBUGS 1
 #include <common/config.h>
@@ -34,6 +36,7 @@
 #include <common/system/lock.h>
 #include <common/output/verbose.h>
 #include <common/types/generic.h>
+#include <common/system/poll.h>
 #include <metrics/common/apis.h>
 #include <common/types/application.h>
 #include <daemon/local_api/eard_api.h>
@@ -50,6 +53,8 @@ char ear_commack[SZ_PATH];
 int ear_fd_req_global = -1;
 int ear_fd_req = -1;
 int ear_fd_ack = -1;
+
+afd_set_t eard_api_client_fd;
 
 static uint8_t app_connected = 0;
 static app_id_t local_con_info;
@@ -219,19 +224,21 @@ int eards_connect(application_t *my_app, ulong lid)
   int ret1;
   if (app_connected) return EAR_SUCCESS;
 
+  AFD_ZERO(&eard_api_client_fd);
+
   #if FAKE_EAR_NOT_INSTALLED
   return_print(EAR_ERROR, "FAKE_EAR_NOT_INSTALLED applied");
   #endif
 
   // These files connect EAR with EAR_COMM
-  ear_tmp=getenv("EAR_TMP");
+  ear_tmp=ear_getenv(ENV_PATH_TMP);
 
   if (ear_tmp == NULL)
   {
-    ear_tmp=getenv("TMP");
+    ear_tmp=ear_getenv("TMP");
 
     if (ear_tmp == NULL) {
-      ear_tmp=getenv("HOME");
+      ear_tmp=ear_getenv("HOME");
     }
   }
 
@@ -352,6 +359,9 @@ int eards_connect(application_t *my_app, ulong lid)
       close(ear_fd_req_global);
   }
   app_connected = 1;
+
+  AFD_SETT(ear_fd_ack, &eard_api_client_fd, NULL);
+
   eards_signal_catcher();
   debug("Connected");
   return EAR_SUCCESS;
@@ -369,7 +379,12 @@ void eards_disconnect()
     warning_api(eards_write(ear_fd_req, (char *)&req,sizeof(req)), sizeof(req),
         "witting req in ear_daemon_client_disconnect");
   }
+
+
   CLOSE_LOCAL_COMM();
+
+  AFD_ZERO(&eard_api_client_fd);
+
   app_connected=0;
 
 }
@@ -392,6 +407,16 @@ ulong sendack(char *send_buf, size_t send_size, char *ack_buf, size_t ack_size, 
 				app_connected = 0;
         return_unlock((ulong) EAR_ERROR, &lock_rpc);
     }
+
+
+    #if MIX_RPC
+    int ack_ready;
+    ack_ready = aselect(&eard_api_client_fd, 3000, NULL);
+    AFD_ZERO(&eard_api_client_fd);
+    AFD_SETT(ear_fd_ack, &eard_api_client_fd, NULL);
+    #endif
+
+
     if (eards_read(ear_fd_ack, ack_buf, ack_size, WAIT_DATA) != ack_size) {
 				debug("local api end error read: %s. recv size %lu. FD %d", description, ack_size, ear_fd_ack);
 				app_connected = 0;

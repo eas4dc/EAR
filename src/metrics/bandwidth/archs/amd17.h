@@ -20,16 +20,6 @@
 
 #include <metrics/bandwidth/bandwidth.h>
 
-state_t bwidth_amd17_load(topology_t *tp, bwidth_ops_t *ops);
-
-state_t bwidth_amd17_init(ctx_t *c);
-
-state_t bwidth_amd17_dispose(ctx_t *c);
-
-state_t bwidth_amd17_count_devices(ctx_t *c, uint *devs_count);
-
-state_t bwidth_amd17_get_granularity(ctx_t *c, uint *granularity);
-
-state_t bwidth_amd17_read(ctx_t *c, bwidth_t *b);
+BWIDTH_DEFINES(amd17);
 
 #endif

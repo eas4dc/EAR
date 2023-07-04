@@ -24,6 +24,7 @@
 #include <common/hardware/topology.h>
 #include <common/types/signature.h>
 #include <common/types/event_type.h>
+#include <common/types/classification_limits.h>
 
 
 
@@ -96,7 +97,7 @@ state_t low_mem_activity(signature_t *sig,uint num_cpus , uint *lowm);
 char * phase_to_str(uint phase);
 
 
-state_t must_switch_to_time_guide(float mpisec, ulong last_sig_elapsed, uint *ear_guided);
+state_t must_switch_to_time_guide(ulong last_sig_elapsed, uint *ear_guided);
 
 
 #endif // APP_CLASSIFICATION

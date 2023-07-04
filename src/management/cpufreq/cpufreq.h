@@ -8,7 +8,7 @@
 *
 * Copyright © 2017-present BSC-Lenovo
 * BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
+* Lenovo contact  mailto:hcpufreq_linpchelp@lenovo.com
 *
 * EAR is an open source software, and it is licensed under both the BSD-3 license
 * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
@@ -65,18 +65,20 @@
 
 typedef struct mgt_ps_driver_ops_s
 {
-	state_t (*init)               (ctx_t *c);
-	state_t (*dispose)            (ctx_t *c);
-	state_t (*get_available_list) (ctx_t *c, const ullong **freq_list, uint *freq_count);
-	state_t (*get_current_list)   (ctx_t *c, const ullong **freq_list);
-	state_t (*get_boost)          (ctx_t *c, uint *boost_enabled);
-	state_t (*set_current_list)   (ctx_t *c, uint *freq_index);
-	state_t (*set_current)        (ctx_t *c, uint freq_index, int cpu);
-	state_t (*get_governor)       (ctx_t *c, uint *governor);
-	state_t (*get_governor_list)  (ctx_t *c, uint *governor);
-	state_t (*set_governor)       (ctx_t *c, uint governor);
-	state_t (*set_governor_mask)  (ctx_t *c, uint governor, cpu_set_t mask);
-	state_t (*set_governor_list)  (ctx_t *c, uint *governor);
+	state_t (*init)                  ();
+    state_t (*dispose)               ();
+    state_t (*reset)                 ();
+	state_t (*get_available_list)    (const ullong **freq_list, uint *freq_count);
+	state_t (*get_current_list)      (const ullong **freq_list);
+	state_t (*get_boost)             (uint *boost_enabled);
+	state_t (*set_current_list)      (uint *freq_index);
+	state_t (*set_current)           (uint freq_index, int cpu);
+	state_t (*get_governor)          (uint *governor);
+	state_t (*get_governor_list)     (uint *governor);
+	state_t (*set_governor)          (uint governor);
+	state_t (*set_governor_mask)     (uint governor, cpu_set_t mask);
+	state_t (*set_governor_list)     (uint *governor);
+    state_t (*is_governor_available) (uint governor);
 } mgt_ps_driver_ops_t;
 
 typedef struct mgt_ps_ops_s
@@ -151,6 +153,9 @@ state_t mgt_cpufreq_governor_set_mask(ctx_t *c, uint governor, cpu_set_t mask);
 
 /** Sets a governor to the CPUs given a list of governors id. */
 state_t mgt_cpufreq_governor_set_list(ctx_t *c, uint *governor);
+
+/** Gets if governor is available to set. */
+int mgt_cpufreq_governor_is_available(ctx_t *c, uint governor);
 
 /** Allocates a list of current P_STATE per CPU (devices). */
 state_t mgt_cpufreq_data_alloc(pstate_t **pstate_list, uint **index_list);

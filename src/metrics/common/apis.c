@@ -20,6 +20,7 @@
 #include <metrics/common/apis.h>
 #include <common/output/debug.h>
 #include <common/output/verbose.h>
+#include <common/utils/strtable.h>
 
 void apis_append(void *op[], void *func)
 {
@@ -36,45 +37,61 @@ void apis_print(uint api, char *prefix)
     verbose(0, "%s%s", prefix, buffer);
 }
 
+static char *_apis_tostr(uint api)
+{
+    if      (api == API_NONE    ) return "NONE";
+    else if (api == API_DUMMY   ) return "DUMMY";
+    else if (api == API_EARD    ) return "EARD";
+    else if (api == API_BYPASS  ) return "BYPASS";
+    else if (api == API_DEFAULT ) return "DEFAULT";
+    else if (api == API_INTEL63 ) return "INTEL63";
+    else if (api == API_AMD17   ) return "AMD17";
+    else if (api == API_NVML    ) return "NVML";
+    else if (api == API_PERF    ) return "PERF";
+    else if (api == API_INTEL106) return "INTEL106";
+    else if (api == API_LIKWID  ) return "LIKWID";
+    else if (api == API_CUPTI   ) return "CUPTI";
+    else if (api == API_ONEAPI  ) return "ONEAPI";
+    else if (api == API_ISST    ) return "INTELSST";
+    else if (api == API_FAKE    ) return "FAKE";
+    else if (api == API_CPUMODEL) return "CPUMODEL";
+    else if (api == API_RSMI    ) return "RSMI";
+    else if (api == API_AMD19   ) return "AMD19";
+    else if (api == API_INTEL143) return "INTEL143";
+    return "NONE";
+}
+
 void apis_tostr(uint api, char *buffer, size_t size)
 {
-    if      (api == API_NONE    ) { snprintf(buffer, size, "NONE"    ); }
-    else if (api == API_DUMMY   ) { snprintf(buffer, size, "DUMMY"   ); }
-    else if (api == API_EARD    ) { snprintf(buffer, size, "EARD"    ); }
-    else if (api == API_BYPASS  ) { snprintf(buffer, size, "BYPASS"  ); }
-    else if (api == API_DEFAULT ) { snprintf(buffer, size, "DEFAULT" ); }
-    else if (api == API_INTEL63 ) { snprintf(buffer, size, "INTEL63" ); }
-    else if (api == API_AMD17   ) { snprintf(buffer, size, "AMD17"   ); }
-    else if (api == API_NVML    ) { snprintf(buffer, size, "NVML"    ); }
-    else if (api == API_PERF    ) { snprintf(buffer, size, "PERF"    ); }
-    else if (api == API_INTEL106) { snprintf(buffer, size, "INTEL106"); }
-    else if (api == API_LIKWID  ) { snprintf(buffer, size, "LIKWID"  ); }
-    else if (api == API_CUPTI   ) { snprintf(buffer, size, "CUPTI"   ); }
-    else if (api == API_ONEAPI  ) { snprintf(buffer, size, "ONEAPI"  ); }
-    else if (api == API_ISST    ) { snprintf(buffer, size, "INTELSST"); }
-    else if (api == API_FAKE    ) { snprintf(buffer, size, "FAKE"    ); }
-    else if (api == API_CPUMODEL) { snprintf(buffer, size, "CPUMODEL"); }
+    snprintf(buffer, size, "%s", _apis_tostr(api));
 }
 
-void granularity_print(uint granularity, char *prefix)
+static char *granularity_tostr(uint granularity)
 {
-    char buffer[128];
-    granularity_tostr(granularity, buffer, 128);
-    verbose(0, "%s%s", prefix, buffer);
+    if      (granularity == GRANULARITY_NONE      ) return "none";
+    else if (granularity == GRANULARITY_DUMMY     ) return "dummy";
+    else if (granularity == GRANULARITY_PROCESS   ) return "process";
+    else if (granularity == GRANULARITY_THREAD    ) return "thread";
+    else if (granularity == GRANULARITY_CORE      ) return "core";
+    else if (granularity == GRANULARITY_PERIPHERAL) return "peripheral";
+    else if (granularity == GRANULARITY_L3_SLICE  ) return "l3 slice";
+    else if (granularity == GRANULARITY_IMC       ) return "imc";
+    else if (granularity == GRANULARITY_SOCKET    ) return "socket";
+    return "none";
 }
 
-void granularity_tostr(uint granularity, char *buffer, size_t size)
+static char *scope_tostr(uint scope)
 {
-    if      (granularity == GRANULARITY_NONE    ) { snprintf(buffer, size, "none"    ); }
-    else if (granularity == GRANULARITY_DUMMY   ) { snprintf(buffer, size, "dummy"   ); }
-    else if (granularity == GRANULARITY_PROCESS ) { snprintf(buffer, size, "process" ); }
-    else if (granularity == GRANULARITY_THREAD  ) { snprintf(buffer, size, "thread"  ); }
-    else if (granularity == GRANULARITY_CORE    ) { snprintf(buffer, size, "core"    ); }
-    else if (granularity == GRANULARITY_CCX     ) { snprintf(buffer, size, "ccx"     ); }
-    else if (granularity == GRANULARITY_CCD     ) { snprintf(buffer, size, "ccd"     ); }
-    else if (granularity == GRANULARITY_L3_SLICE) { snprintf(buffer, size, "l3 slice"); }
-    else if (granularity == GRANULARITY_IMC     ) { snprintf(buffer, size, "imc"     ); }
-    else if (granularity == GRANULARITY_SOCKET  ) { snprintf(buffer, size, "socket"  ); }
-    else if (granularity == GRANULARITY_NODE    ) { snprintf(buffer, size, "node"    ); }
-    else if (granularity == GRANULARITY_NODE    ) { snprintf(buffer, size, "node"    ); }
+    if      (scope == SCOPE_NONE   ) return "none";
+    else if (scope == SCOPE_DUMMY  ) return "dummy";
+    else if (scope == SCOPE_PROCESS) return "process";
+    else if (scope == SCOPE_NODE   ) return "node";
+    return "none";
+}
+
+void apinfo_tostr(apinfo_t *info)
+{
+    info->api_str         = _apis_tostr(info->api);
+    info->scope_str       = scope_tostr(info->scope);
+    info->granularity_str = granularity_tostr(info->granularity);
 }

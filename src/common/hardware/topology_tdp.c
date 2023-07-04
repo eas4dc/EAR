@@ -16,6 +16,8 @@
 */
 
 #include <stdlib.h>
+#include <common/config/config_env.h>
+#include <common/environment_common.h>
 #include <common/hardware/topology_tdp.h>
 
 #define tdpb_impl(comp, v, m, t) \
@@ -44,8 +46,8 @@ void topology_tdp(topology_t *topo)
     topo->tdp = 200;
 
     // TDP custom
-    if (getenv("EAR_CPU_TDP") != NULL) {
-        topo->tdp = (uint) atoi(getenv("EAR_CPU_TDP"));
+    if (ear_getenv(FLAG_CPU_TDP) != NULL) {
+        topo->tdp = (uint) atoi(ear_getenv(FLAG_CPU_TDP));
         return;
     }
     // TDP specific

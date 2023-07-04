@@ -97,7 +97,6 @@ void remove_cpus_from_mask(cpu_set_t *dst, cpu_set_t *src)
   for (uint c=0; c < MAX_CPUS_SUPPORTED; c++){
       if (CPU_ISSET(c, src)) CPU_CLR(c, dst);
   }
-
 }
 
 

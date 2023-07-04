@@ -3,7 +3,7 @@ int module_affinity()
 	char *s = NULL;
 	char *o = NULL;
 
-    if ((s = getenv("SLURM_LOCALID")) != NULL && (o = getenv("EAR_AFFINITY")) != NULL)
+    if ((s = ear_getenv("SLURM_LOCALID")) != NULL && (o = ear_getenv("EAR_AFFINITY")) != NULL)
     {
         cpu_set_t mask;
         int cpu = atoi(s);

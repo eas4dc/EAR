@@ -22,8 +22,6 @@
 
 
 uint util_changed(ulong curr,ulong prev);
-/** Limits the power to be requested to the hardware configuration */
-uint limit_max_power(node_powercap_opt_t *pc_opt,uint extra);
 
 
 /** Given a powercap settings and a given power consumption computes the power to be released */

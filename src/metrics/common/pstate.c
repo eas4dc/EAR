@@ -17,6 +17,8 @@
 
 #include <metrics/common/pstate.h>
 
+#include <common/output/debug.h>
+
 state_t pstate_pstofreq(pstate_t *ps_list, uint ps_count, uint ps_idx, ullong *khz_ret)
 {
     if (ps_idx >= ps_count) {
@@ -41,12 +43,12 @@ state_t pstate_freqtops(pstate_t *ps_list, uint ps_count, ullong ps_khz, pstate_
 state_t pstate_freqtops_upper(pstate_t *ps_list, uint ps_count, ulong ps_khz, pstate_t *ps_ret)
 {
     int i;
-    if (ps_list[0].khz < ps_khz) {
+    if (ps_list[0].khz < (ullong) ps_khz) {
         memcpy(ps_ret, &ps_list[0], sizeof(pstate_t));
         return_msg(EAR_ERROR, Generr.not_found);
     }
     for (i = 1; i < ps_count; ++i) {
-        if (ps_list[i].khz < ps_khz){
+        if (ps_list[i].khz < (ullong) ps_khz){
             memcpy(ps_ret, &ps_list[i-1], sizeof(pstate_t));
             return EAR_SUCCESS;
         }

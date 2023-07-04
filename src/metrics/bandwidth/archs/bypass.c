@@ -26,12 +26,14 @@ static uint cpus_count;
 
 state_t bwidth_bypass_load(topology_t *tp, bwidth_ops_t *ops)
 {
-	state_t s;
 	return EAR_ERROR;
+    #if 0 
+	state_t s;
 	// Pending: test if is something loaded
 	if (state_fail(s = cache_load(tp, NO_EARD))) {
 		return s;
 	}
+    #endif
 	cpus_count = tp->cpu_count;
 	devs_count = 1;
 	// It is shared by all Intel's architecture from Haswell to Skylake
@@ -39,7 +41,6 @@ state_t bwidth_bypass_load(topology_t *tp, bwidth_ops_t *ops)
 	replace_ops(ops->init,            bwidth_bypass_init);
 	replace_ops(ops->dispose,         bwidth_bypass_dispose);
 	replace_ops(ops->count_devices,   bwidth_bypass_count_devices);
-	replace_ops(ops->get_granularity, bwidth_bypass_get_granularity);
 	replace_ops(ops->read,            bwidth_bypass_read);
 
 	return EAR_SUCCESS;
@@ -61,18 +62,12 @@ state_t bwidth_bypass_count_devices(ctx_t *c, uint *devs_count_in)
 	return EAR_SUCCESS;
 }
 
-state_t bwidth_bypass_get_granularity(ctx_t *c, uint *granularity)
-{
-	*granularity = GRANULARITY_PROCESS;
-	return EAR_SUCCESS;
-}
-
 state_t bwidth_bypass_read(ctx_t *c, bwidth_t *bw)
 {
 	cache_t data;
 	state_t s;
 	s = cache_read(no_ctx, &data);
-	bw[0].cas = data.l3_misses * cpus_count;
+	bw[0].cas = data.ll_misses * cpus_count;
 	bw[1].time = data.time;
 	return s;
 }

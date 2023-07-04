@@ -115,6 +115,7 @@ int read_application_text_file(char *path, application_t **apps, char is_extende
     return i;
 }
 
+
 int print_application_fd(int fd, application_t *app, int new_line, char is_extended, int single_column)
 {
     char buff[1024];
@@ -122,13 +123,21 @@ int print_application_fd(int fd, application_t *app, int new_line, char is_exten
     write(fd, buff, strlen(buff));
     print_job_fd(fd, &app->job);
     dprintf(fd, ";");
+
+    if (!app->is_mpi)
+    {
+        signature_init(&app->signature);
+    }
+
     if (app->signature.DRAM_power == 0) app->signature.DRAM_power = app->power_sig.DRAM_power;
     if (app->signature.PCK_power == 0) app->signature.PCK_power = app->power_sig.PCK_power;
     if (app->signature.DC_power == 0) app->signature.DC_power = app->power_sig.DC_power;
     if (app->signature.avg_f == 0) app->signature.avg_f = app->power_sig.avg_f;
     if (app->signature.def_f == 0) app->signature.def_f = app->power_sig.def_f;
+    if (app->signature.time == 0) app->signature.time = app->power_sig.time;
 
     signature_print_fd(fd, &app->signature, is_extended, single_column,',');
+        
 
     if (new_line) {
         dprintf(fd, "\n");
@@ -137,12 +146,13 @@ int print_application_fd(int fd, application_t *app, int new_line, char is_exten
     return EAR_SUCCESS;
 }
 
+
 int create_app_header(char * header, char *path, uint num_gpus, char is_extended, int single_column)
 {
     char *HEADER_BASE = "NODENAME;JOBID;STEPID;USERID;GROUPID;JOBNAME;USER_ACC;ENERGY_TAG;POLICY;POLICY_TH;"\
                         "AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;TIME_SEC;CPI;TPI;MEM_GBS;IO_MBS;PERC_MPI;DC_NODE_POWER_W;DRAM_POWER_W;"\
                         "PCK_POWER_W;CYCLES;INSTRUCTIONS;CPU-GFLOPS";
-		char HEADER[1024];
+		char HEADER[4096];
 
 		/* If file already exists we will not add the header */
 		if (file_is_regular(path)) return EAR_SUCCESS;
@@ -161,14 +171,15 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
     }
 		debug("Creating header with %d GPUS", num_gpus);
 #if USE_GPUS
-        num_gpus = MAX_GPUS_SUPPORTED;
-        if (single_column) num_gpus = ear_min(num_gpus, 1);
-        for (int i = 0; i < num_gpus; i++){
-            char gpu_hdr[128];
-            xsnprintf(gpu_hdr, sizeof(gpu_hdr), ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC",
-                    i, i, i, i, i);
-            xstrncat(HEADER, gpu_hdr, sizeof(gpu_hdr));
-        }
+    // We force here num_gpus in order to be more robust with other formats.
+    num_gpus = MAX_GPUS_SUPPORTED;
+	if (single_column) num_gpus = ear_min(num_gpus, 1);
+    for (int i = 0; i < num_gpus; i++){
+        char gpu_hdr[128];
+        xsnprintf(gpu_hdr, sizeof(gpu_hdr), ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC",
+                i, i, i, i, i);
+        xstrncat(HEADER, gpu_hdr, sizeof(gpu_hdr));
+    }
 #endif
 	  int fd = open(path, OPTIONS, PERMISSION);
     if (fd >= 0) {
@@ -357,11 +368,12 @@ void verbose_application_data(uint vl, application_t *app)
 
     /* Encapsulate the message in a beautiful way */
 
-    char app_summ_hdr_txt[512];
+    char app_summ_hdr_txt[2048];
     snprintf(app_summ_hdr_txt, sizeof(app_summ_hdr_txt), " Application Summary [%s] ", app->node_id);
 
     size_t max_str_len = 90;
     int app_summ_hdr_dec_len = (int) ((max_str_len - strlen(app_summ_hdr_txt)) / 2); // Compute the length of the decorator, e.g. "---"
+
     char *app_summ_hdr_dec_txt = malloc(app_summ_hdr_dec_len + 1);
 
     memset(app_summ_hdr_dec_txt, '-', app_summ_hdr_dec_len);
@@ -386,26 +398,26 @@ void verbose_application_data(uint vl, application_t *app)
     // verbose_gpu_app(vl, app); // This method outputs GPU summary
 
 #if USE_GPUS
-    char *gpu_sig_buff = (char *) malloc(512 * sizeof(char));
 
     signature_t *app_sig = &app->signature;
 
-    if (gpu_sig_buff && app_sig->gpu_sig.num_gpus) {
-
-        size_t remain_gpusig_buff_len = 512;
-
+    if (app_sig->gpu_sig.num_gpus) {
+        char *gpu_sig_buff = (char *) calloc(4096 , sizeof(char));
+        size_t remain_gpusig_buff_len = 4096;
         gpu_app_t *mys;
 
         for (int gpui = 0; gpui < app_sig->gpu_sig.num_gpus; gpui++) {
 
+
             mys = &app_sig->gpu_sig.gpu_data[gpui];
 
-            char gpu_i_sig_buff[128];
+            char gpu_i_sig_buff[256];
             snprintf(gpu_i_sig_buff, sizeof(gpu_i_sig_buff),
                     "GPU%u [Power %.2lf freq %lu mem_freq %lu util %lu mem_util %lu]\n",
                     gpui, mys->GPU_power, mys->GPU_freq, mys->GPU_mem_freq, mys->GPU_util, mys->GPU_mem_util);
 
             remain_gpusig_buff_len -= (strlen(gpu_i_sig_buff) - 1);
+
             strncat(gpu_sig_buff, gpu_i_sig_buff, remain_gpusig_buff_len);
             
         }
@@ -506,7 +518,7 @@ void mark_as_eard_connected(int jid,int sid,int pid)
     int my_id;	
     char *tmp,con_file[128];
     int fd;
-    tmp=getenv("EAR_TMP");
+    tmp=ear_getenv(ENV_PATH_TMP);
     if (tmp == NULL){
         debug("EAR_TMP not defined in mark_as_eard_connected");
         return;
@@ -523,7 +535,7 @@ uint is_already_connected(int jid,int sid,int pid)
     int my_id;
     int fd;
     char *tmp,con_file[128];;
-    tmp=getenv("EAR_TMP");
+    tmp=ear_getenv(ENV_PATH_TMP);
     if (tmp == NULL){ 
         debug("EAR_TMP not defined in is_already_connected");
         return 0;
@@ -543,7 +555,7 @@ void mark_as_eard_disconnected(int jid,int sid,int pid)
 {
     int my_id;
     char *tmp,con_file[128];
-    tmp=getenv("EAR_TMP");
+    tmp=ear_getenv(ENV_PATH_TMP);
     if (tmp == NULL){ 
         debug("EAR_TMP not defined in mark_as_eard_disconnected");
         return;

@@ -22,6 +22,8 @@
 
 state_t bwidth_intel106_load(topology_t *tp, bwidth_ops_t *ops);
 
+BWIDTH_F_GET_INFO(bwidth_intel106_get_info);
+
 state_t bwidth_intel106_init(ctx_t *c);
 
 state_t bwidth_intel106_dispose(ctx_t *c);

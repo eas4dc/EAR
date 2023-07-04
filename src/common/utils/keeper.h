@@ -39,4 +39,9 @@ int  keeper_load_float64(const char *id, double *value);
 int  keeper_load_auint32(const char *id, uint **list, uint *list_length);
 int  keeper_load_auint64(const char *id, ullong **list, uint *list_length);
 
+#define keeper_macro(suffix, id, value) \
+    if (!keeper_load_##suffix(id, &value)) { \
+        keeper_save_##suffix(id, value); \
+    }
+
 #endif //COMMON_UTILS_KEEPER_H

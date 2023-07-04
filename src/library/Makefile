@@ -1,42 +1,32 @@
 # If USER_TEST is set to 1, any user can execute the hacks with the library.
-CFLAGS  = -fPIC -O0 -I$(SRCDIR) -DUSER_TEST=0 $(CONSTANTS) 
+CFLAGS  = -fPIC  -I$(SRCDIR) -DUSER_TEST=0 $(CONSTANTS) 
 LDFLAGS = -shared -ldl -lm -lpthread -rdynamic -pthread
 
 
 ifeq ($(FEAT_MPI_API), 0)
 LIBCC       = $(CC)
 LIBCC_FLAGS = $(CC_FLAGS)
-LIB_CFLAGS  = -DMPI=0
+LIB_CFLAGS  = -DMPI=0 -DNODE_LB=1 -DSINGLE_CONNECTION=0 -DMPI_OPTIMIZED=0
 MPI_VERSION = gen
 else
 LIBCC       = $(MPICC)
 LIBCC_FLAGS = $(MPICC_FLAGS)
-LIB_CFLAGS  = $(MPI_CFLAGS) -DMPI=1 -DNODE_LB=1
+LIB_CFLAGS  = $(MPI_CFLAGS) -DMPI=1 -DNODE_LB=1 -DSINGLE_CONNECTION=0 -DMPI_OPTIMIZED=0
+CFLAGS     += -DEAR_DEF_TIME_GUIDED=0 -DMPI_SAMPLING=1 -DMPI_STATS=1
+
+## MPI_SAMPLING can be used to do an MPI statistic sampling
 endif
 
 
-ifeq ($(FEAT_RESEARCH), 1)
-	CFLAGS += -DMPI_OPTIMIZED=1 \
-			  -DSINGLE_CONNECTION=0 \
-			  -DEAR_DEF_TIME_GUIDED=0
-	FEAT_EARL_LIGHT = 0
-else
-	CFLAGS += -DSINGLE_CONNECTION=1 \
-			  -DMPI_OPTIMIZED=0 \
-			  -DEAR_DEF_TIME_GUIDED=0
-	FEAT_EARL_LIGHT = 0
-endif
-
-
-ifeq ($(FEAT_EARL_LIGHT), 1)
+ifeq ($(FEAT_EARL_LIGHT), 1) 
+CFLAGS += -DEARL_LIGHT=1
+else ifeq ($(FEAT_EARL_LITE), 1)
 CFLAGS += -DEARL_LIGHT=1
 else
 CFLAGS += -DEARL_LIGHT=0
 endif
 
 
-# export LIBCC
-# export LIBCC_FLAGS
 export LIB_CFLAGS
 export CFLAGS
 
@@ -62,7 +52,9 @@ comm_OBJS = \
     $(SRCDIR)/management/libmgt.a \
     $(SRCDIR)/metrics/libmetrics.a \
     $(SRCDIR)/daemon/local_api/libeard.a \
-    $(SRCDIR)/common/libcommon.a
+    $(SRCDIR)/common/libcommon.a 
+
+
 
 core_OBJS = \
     api/ear.o \

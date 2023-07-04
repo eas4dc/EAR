@@ -20,36 +20,6 @@
 
 #include <metrics/bandwidth/bandwidth.h>
 
-state_t bwidth_dummy_load(topology_t *tp, bwidth_ops_t *ops);
-
-state_t bwidth_dummy_init(ctx_t *c);
-
-state_t bwidth_dummy_init_static(ctx_t *c, bwidth_ops_t *ops);
-
-state_t bwidth_dummy_dispose(ctx_t *c);
-
-state_t bwidth_dummy_count_devices(ctx_t *c, uint *devs_count);
-
-state_t bwidth_dummy_get_granularity(ctx_t *c, uint *granularity);
-
-state_t bwidth_dummy_read(ctx_t *c, bwidth_t *b);
-
-state_t bwidth_dummy_data_diff(bwidth_t *b2, bwidth_t *b1, bwidth_t *bD, ullong *cas, double *gbs);
-
-state_t bwidth_dummy_data_accum(bwidth_t *bA, bwidth_t *bD, ullong *cas, double *gbs);
-
-state_t bwidth_dummy_data_alloc(bwidth_t **b);
-
-state_t bwidth_dummy_data_free(bwidth_t **b);
-
-state_t bwidth_dummy_data_copy(bwidth_t *dst, bwidth_t *src);
-
-state_t bwidth_dummy_data_print(ullong cas, double gbs, int fd);
-
-state_t bwidth_dummy_data_tostr(ullong cas, double gbs, char *buffer, size_t length);
-
-double bwidth_dummy_help_castogbs(ullong cas, double secs);
-
-double bwidth_dummy_help_castotpi(ullong cas, ullong instructions);
+BWIDTH_DEFINES(dummy);
 
 #endif

@@ -86,13 +86,19 @@ state_t bwidth_intel63_load(topology_t *tp, bwidth_ops_t *ops)
 	devs_count = pcis_count * ctrs_count;
 	debug("PCIs count: %d", pcis_count);
 	// In the future it can be initialized in read only mode
-	replace_ops(ops->init,            bwidth_intel63_init);
-	replace_ops(ops->dispose,         bwidth_intel63_dispose);
-	replace_ops(ops->count_devices,   bwidth_intel63_count_devices);
-	replace_ops(ops->get_granularity, bwidth_intel63_get_granularity);
-	replace_ops(ops->read,            bwidth_intel63_read);
-
+	apis_put(ops->get_info, bwidth_intel63_get_info);
+	apis_put(ops->init,     bwidth_intel63_init);
+	apis_put(ops->dispose,  bwidth_intel63_dispose);
+	apis_put(ops->read,     bwidth_intel63_read);
 	return EAR_SUCCESS;
+}
+
+BWIDTH_F_GET_INFO(bwidth_intel63_get_info)
+{
+    info->api         = API_INTEL63;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_IMC;
+    info->devs_count  = devs_count+1;
 }
 
 state_t bwidth_intel63_init(ctx_t *c)
@@ -109,12 +115,6 @@ state_t bwidth_intel63_dispose(ctx_t *c)
 state_t bwidth_intel63_count_devices(ctx_t *c, uint *devs_count_in)
 {
 	*devs_count_in = devs_count+1;
-	return EAR_SUCCESS;
-}
-
-state_t bwidth_intel63_get_granularity(ctx_t *c, uint *granularity)
-{
-	*granularity = GRANULARITY_IMC;
 	return EAR_SUCCESS;
 }
 

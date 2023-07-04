@@ -51,7 +51,7 @@
 #include <metrics/cpufreq/cpufreq.h>
 #include <management/imcfreq/imcfreq.h>
 #include <common/hardware/hardware_info.h>
-#include <management/test.h>
+#include <management/management.h>
 #include <daemon/power_monitor.h>
 #include <daemon/powercap/powercap.h>
 #include <daemon/node_metrics.h>
@@ -98,7 +98,7 @@ extern state_t report_connection_status;
 
 /* from eard_node_services */
 extern manages_apis_t *man;
-extern metrics_apis_t *met;
+extern metrics_info_t *met;
 
 
 state_t s;
@@ -244,9 +244,13 @@ uint is_job_in_node(job_id id, job_context_t **jc)
 }
 
 
-void add_job_in_node(job_id id)
+/** Adds the Job ID \p id into the jobs_in_node_list array.
+ * If the Job ID already exists, increments the number of contexts.
+ * Otherwise, it finds a free space in the array and add there the 
+ * passed Job ID. */
+static void add_job_in_node(job_id id)
 {
-    /* Find the job */
+    // Find the job
     uint i = 0;
     while (i < MAX_CPUS_SUPPORTED && jobs_in_node_list[i].id != id) i++;
 
@@ -255,9 +259,11 @@ void add_job_in_node(job_id id)
         return;
     }
 
-    // id is a new job
+    // `id` is a new job.
+
+    // Find a free space, i.e., n-th jobs_in_node_list is 0
     i = 0;
-    while ((i < MAX_CPUS_SUPPORTED) && (jobs_in_node_list[i].id)) i++;
+    while (i < MAX_CPUS_SUPPORTED && jobs_in_node_list[i].id) i++;
     if (i == MAX_CPUS_SUPPORTED) {
         error("Not job position free found! This should not happen.");
         return;
@@ -587,7 +593,7 @@ int select_last_context() {
 }
 
 
-/* TODO: Thread-save here?: It's not possible because mutex is inside the context that will be created.*/
+/* TODO: Thread-save here?: It's not possible because mutex is inside the context that will be created. */
 int new_context(job_id id, job_id sid, int *cc)
 {
     char shmem_path[GENERIC_NAME];
@@ -621,16 +627,20 @@ int new_context(job_id id, job_id sid, int *cc)
     }
 
     int err_num;
-    if ((err_num = pthread_mutex_init(&current_ear_app[ccontext]->powermon_app_mutex, NULL))) {
-        error("Initializing mutex for context %d (%lu/%lu): %s", ccontext, id, sid, strerror(err_num));
+    if ((err_num = pthread_mutex_init(&current_ear_app[ccontext]->powermon_app_mutex,
+                                      NULL)))
+    {
+        error("Initializing mutex for context %d (%lu/%lu): %s",
+              ccontext, id, sid, strerror(err_num));
     }
 
-    if (state_fail(ear_trylock(&current_ear_app[ccontext]->powermon_app_mutex))) {
+    if (state_fail(ear_trylock(&current_ear_app[ccontext]->powermon_app_mutex)))
+    {
         error("Locking new context");
         return EAR_ERROR;
     }
 
-    if (ccontext > max_context_created ) max_context_created = ccontext;
+    if (ccontext > max_context_created) max_context_created = ccontext;
 
     alloc_energy_data(&current_ear_app[ccontext]->energy_init);
 
@@ -641,20 +651,21 @@ int new_context(job_id id, job_id sid, int *cc)
 
     add_job_in_node(id);
 
-    /* We must create per jobid,stepid shared memory regions */
-    ID = create_ID(id,sid);
+    /* We must create per jobid, stepid shared memory regions. */
+    ID = create_ID(id, sid);
     get_settings_conf_path(ear_tmp, ID, shmem_path);
-    debug("Settings for new context placed at %s",shmem_path);
+    debug("Settings for new context placed at %s", shmem_path);
 
     current_ear_app[ccontext]->settings = create_settings_conf_shared_area(shmem_path);
     if (current_ear_app[ccontext]->settings == NULL) {
-        error("Error creating shared memory between EARD & EARL for (%lu,%lu)",id,sid);
+        error("Error creating shared memory between EARD & EARL for (%lu,%lu)",
+              id,sid);
         ear_unlock(&current_ear_app[ccontext]->powermon_app_mutex);
         return EAR_ERROR;
     }
 
     /* Context 0 is the default one */
-    memcpy(current_ear_app[ccontext]->settings,current_ear_app[0]->settings,sizeof(settings_conf_t));
+    memcpy(current_ear_app[ccontext]->settings, current_ear_app[0]->settings, sizeof(settings_conf_t));
 
     get_resched_path(ear_tmp, ID, shmem_path);
     debug("Resched path for new context placed at %s",shmem_path);
@@ -689,7 +700,7 @@ int new_context(job_id id, job_id sid, int *cc)
 
     get_pc_app_info_path(ear_tmp,ID, shmem_path);
 
-    debug("PC_app_info for new context placed at %s",shmem_path);
+    debug("PC_app_info for new context placed at %s", shmem_path);
 
     current_ear_app[ccontext]->pc_app_info = create_pc_app_info_shared_area(shmem_path);
     if (current_ear_app[ccontext]->pc_app_info == NULL){
@@ -1187,7 +1198,7 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
 
     // Metrics are not reported in this function
     free_power_data(&app_power);
-    debug("job_end_powermon_app done for %lu/%lu", pmapp->app.job.id, pmapp->app.job.step_id);
+    verbose(VJOBPMON,"job_end_powermon_app done for %lu/%lu", pmapp->app.job.id, pmapp->app.job.step_id);
 }
 
 
@@ -1558,7 +1569,6 @@ void powermon_mpi_finalize(ehandler_t *eh, ulong jid,ulong sid)
  * TASK MGT
  *
  */
-// TODO: Thread-save here.
 void powermon_new_task(new_task_req_t *newtask)
 {
     powermon_app_t *pmapp;
@@ -1620,11 +1630,13 @@ void powermon_new_task(new_task_req_t *newtask)
         verbose(VCONF + 1, "Setting governor `%s` governor, CPU freq %.2f GHz and pstate %u",
                 cgov, (float) pmapp->policy_freq / 1000000, app_pstate);
 
-        verbose_affinity_mask(VCONF + 2, &newtask->mask, man->cpu.devs_count);
+        verbose_affinity_mask(VCONF + 1, &newtask->mask, man->cpu.devs_count);
 
         // Governor 
         governor_toint(cgov, &gov);
-        mgt_cpufreq_governor_set_mask(no_ctx, gov, newtask->mask);
+        if (state_fail(mgt_cpufreq_governor_set_mask(no_ctx, gov, newtask->mask))){
+          error("Error setting cpufreq userspace governor");
+        }
         
 
         /* CPU freq. */
@@ -1706,7 +1718,8 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
         }
     }
 
-    if (VERB_ON(VPMON_DEBUG)) {
+    if (VERB_ON(VPMON_DEBUG))
+    {
         verbose(VPMON_DEBUG, "Priority system enabled: %d | Stored current priority list:",
                 mgt_cpuprio_is_enabled());
         mgt_cpuprio_data_print((cpuprio_t *) man->pri.list1, pmapp->prio_idx_list, verb_channel);    
@@ -1798,7 +1811,7 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
 
     job_init_powermon_app(pmapp, eh, appID, from_mpi);
 
-    /* We must report the energy beforesetting the job_id: PENDING */
+    /* TODO: We must report the energy beforesetting the job_id: PENDING */
     new_job_for_period(&current_sample, appID->job.id, appID->job.step_id);
 
     // pthread_mutex_unlock(&app_lock);
@@ -1857,8 +1870,6 @@ void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job) {
     // we must report the current period for that job before the reset: PENDING
     end_job_for_period(&current_sample);
 
-    // pthread_mutex_unlock(&app_lock); // TODO: Remove
-
     report_powermon_app(&summary);
 
     set_null_loop(&pmapp->last_loop);
@@ -1887,7 +1898,7 @@ void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job) {
     if (summary.state != APP_FINISHED)
     {
         if (powermon_is_idle())
-        { 
+        {
             powercap_run_to_idle();
 
 #if !NAIVE_SETTINGS_SAVE
@@ -2977,7 +2988,7 @@ static state_t store_current_task_governor(powermon_app_t *powermon_app, cpu_set
         powermon_app->governor.max_f = 0LU;
         powermon_app->governor.min_f = 0LU;
 
-        sprintf(powermon_app->governor.name, "%s", Goverstr.other);
+        sprintf(powermon_app->governor.name, "%s", Goverstr.unknown);
 
         uint *governor_list = (uint *) malloc(man->cpu.devs_count * sizeof(uint));
         if (governor_list) {
@@ -3047,7 +3058,7 @@ static state_t save_global_cpu_settings(powermon_app_t *powermon_app)
         powermon_app->governor.max_f = 0LU;
         powermon_app->governor.min_f = 0LU;
 
-        sprintf(powermon_app->governor.name, "%s", Goverstr.other);
+        sprintf(powermon_app->governor.name, "%s", Goverstr.unknown);
 
         uint governor_id;
         if (state_ok(mgt_cpufreq_get_governor(no_ctx, &governor_id)))

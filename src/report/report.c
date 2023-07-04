@@ -122,7 +122,7 @@ state_t report_load(const char *install_path, const char *libs)
         goto leave;
     }
     static_load(install_path, libs);
-    static_load(install_path, getenv(FLAG_REPORT_ADD));
+    static_load(install_path, ear_getenv(FLAG_REPORT_ADD));
     init = 1;
 leave:
     pthread_mutex_unlock(&lock);

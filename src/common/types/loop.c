@@ -143,33 +143,6 @@ int append_loop_text_file(char *path, loop_t *loop,job_t *job, int add_header, i
     if (path == NULL) {
         return EAR_ERROR;
     }
-#if 0
-    char *HEADER = "NODENAME;USERNAME;JOB_ID;APPNAME;POLICY;POLICY_TH;AVG.CPUFREQ;AVG.IMC.FREQ;DEF.FREQ;" \
-                    "TIME;CPI;TPI;GBS;IO_MBS;P.MPI;DC-NODE-POWER;DRAM-POWER;PCK-POWER;CYCLES;INSTRUCTIONS;GFLOPS;L1_MISSES;" \
-                    "L2_MISSES;L3_MISSES;SP_SINGLE;SP_128;SP_256;SP_512;DP_SINGLE;DP_128;DP_256;" \
-                    "DP_512;FIRST_EVENT;LEVEL;SIZE;ITERATIONS";
-
-    int fd, ret;
-
-    fd = open(path, O_WRONLY | O_APPEND);
-
-    if (fd < 0) 
-    {
-        if (errno == ENOENT)
-        {
-            fd = open(path, OPTIONS, PERMISSION);
-
-            // Write header
-            if (fd >= 0) {
-                ret = dprintf(fd, "%s\n", HEADER);
-            }
-        }
-    }
-
-    if (fd < 0) {
-        return EAR_ERROR;
-    }
-#endif
     uint num_gpus = 0;
 #if USE_GPUS
     num_gpus = loop->signature.gpu_sig.num_gpus;
@@ -207,7 +180,7 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
                          "DPOPS_512";
 
 #if USE_GPUS
-    char gpu_header[128];
+    char gpu_header[512];
     char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
 #endif
 #if REPORT_TIMESTAMP
@@ -215,7 +188,7 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
 #else
     char *HEADER_LOOP = ";LOOPID;LOOP_NEST_LEVEL;LOOP_SIZE;ITERATIONS";
 #endif
-    char HEADER[1024] = "";
+    char HEADER[2048] = "";
 
     if (file_is_regular(path)) {
         debug("%s is a regular file", path);
@@ -236,7 +209,7 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
     strncat(HEADER, HEADER_LOOP,sizeof(HEADER));
 
     if (ts) {
-        xstrncat(HEADER, ";ELAPSED", sizeof(HEADER));
+        xstrncat(HEADER, ";ELAPSED;DATE", sizeof(HEADER));
     }
 
     int fd = open(path, OPTIONS, PERMISSION);
@@ -263,7 +236,7 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop, int ts, ul
 int append_loop_text_file_no_job(char *path, loop_t *loop, int add_header,
         int single_column, char sep)
 {
-    return append_loop_text_file_no_job_int(path,loop, 0, 0, add_header, single_column, sep);
+    return append_loop_text_file_no_job_int(path,loop, 1, 0, add_header, single_column, sep);
 }
 
 int append_loop_text_file_no_job_with_ts(char *path, loop_t *loop, ullong currtime,
@@ -291,55 +264,6 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts, ull
         }
     }
 
-#if 0
-    char *HEADER_NOTS = "JID;STEPID;NODENAME;AVG.CPUFREQ;AVG.IMCFREQ;DEF.FREQ;" \
-                         "TIME;CPI;TPI;GBS;IO_MBS;P.MPI;DC-NODE-POWER;DRAM-POWER;PCK-POWER;CYCLES;INSTRUCTIONS;GFLOPS;L1_MISSES;" \
-                         "L2_MISSES;L3_MISSES;SP_SINGLE;SP_128;SP_256;SP_512;DP_SINGLE;DP_128;DP_256;" \
-                         "DP_512";
-
-#if USE_GPUS
-    char gpu_header[128];
-    char *HEADER_GPU_SIG = ";GPOWER%d;GFREQ%d;GMEMFREQ%d;GUTIL%d;GMEMUTIL%d";
-#endif
-
-    char *HEADER_LOOP = ";FIRST_EVENT;LEVEL;SIZE;ITERATIONS";
-    char HEADER[1024];
-
-    strncpy(HEADER,HEADER_NOTS,sizeof(HEADER));
-#if USE_GPUS
-    for (uint j = 0; j < loop->signature.gpu_sig.num_gpus; ++j) {
-        sprintf(gpu_header,HEADER_GPU_SIG,j,j,j,j,j);
-        strncat(HEADER,gpu_header,strlen(gpu_header));
-    }
-#endif
-    strncat(HEADER,HEADER_LOOP,sizeof(HEADER));
-    if (ts){ 
-        xstrncat(HEADER,";TIMESTAMP",sizeof(HEADER));
-    }
-
-
-    int fd, ret;
-
-    fd = open(path, O_WRONLY | O_APPEND);
-
-    if (fd < 0) 
-    {
-        if (errno == ENOENT)
-        {
-            fd = open(path, OPTIONS, PERMISSION);
-
-            // Write header
-            if (fd >= 0) {
-                ret = dprintf(fd, "%s\n", HEADER);
-            }
-        }
-    }
-
-    if (fd < 0) {
-        error("Couldn't open loop file\n");
-        return EAR_ERROR;
-    }
-#endif
     int fd;
     fd = open(path, O_WRONLY | O_APPEND);
     if (fd < 0) {
@@ -354,7 +278,12 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts, ull
     signature_print_fd(fd, &loop->signature,1, single_column, sep);
     print_loop_id_fd(fd, &loop->id);
     if (ts){
-        dprintf(fd, "%lu;%llu", loop->total_iterations, currtime);
+        struct tm *current_t;
+        char s[256];
+        current_t = localtime((time_t *)&loop->total_iterations);
+        strftime(s, 256, "%d-%m-%Y %H:%M:%S", current_t);
+
+        dprintf(fd, "%lu;%llu;%s", loop->total_iterations, currtime, s);
     }else{
         dprintf(fd, "%lu", loop->total_iterations);
     }

@@ -24,6 +24,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <sys/types.h>
+
 #include <common/config.h>
 #include <common/system/monitor.h>
 #include <common/output/verbose.h>
@@ -57,11 +58,8 @@ static uint		 gpu_num;
 //	4: 'ponitoring' o 'read_enegy'.
 //	5: return state_t
 
-/*
- *
- */
-/** Computes the difference betwen two RAPL energy measurements */
-static rapl_data_t diff_RAPL_energy(rapl_data_t end,rapl_data_t init);
+/** Computes the difference betwen two RAPL energy measurements. */
+static rapl_data_t diff_RAPL_energy(rapl_data_t end, rapl_data_t init);
 
 static void pm_disconnect(ehandler_t *my_eh)
 {
@@ -165,7 +163,7 @@ static int pm_connect(ehandler_t *my_eh, topology_t *tp)
 	#if USE_GPUS
 	int gpu_error = 0;
 
-	gpu_load(EARD);
+	gpu_load(NO_EARD);
 	if (state_fail(s = gpu_init(no_ctx))) {
 		error("gpu_init returned %d (%s)", s, state_msg);
 		gpu_error = 1;
@@ -255,73 +253,74 @@ int read_enegy_data(ehandler_t *my_eh, energy_data_t *acc_energy)
 	return EAR_SUCCESS;
 }
 
+
 void compute_power(energy_data_t *e_begin, energy_data_t *e_end, power_data_t *my_power)
 {
-	unsigned long curr_node_energy;
-	rapl_data_t *dram, *pack;
-	double t_diff;
-	int p;
+    unsigned long curr_node_energy;
+    rapl_data_t *dram, *pack;
+    double t_diff;
+    int p;
 
-	// CPU/DRAM
-	dram = (rapl_data_t *) calloc(num_packs, sizeof(rapl_data_t));
-	pack = (rapl_data_t *) calloc(num_packs, sizeof(rapl_data_t));
+    // CPU/DRAM
+    dram = (rapl_data_t *) calloc(num_packs, sizeof(rapl_data_t));
+    pack = (rapl_data_t *) calloc(num_packs, sizeof(rapl_data_t));
 
-	// Compute the difference
-	for (p = 0; p < num_packs; p++) dram[p] = diff_RAPL_energy(e_end->DRAM_energy[p], e_begin->DRAM_energy[p]);
-	for (p = 0; p < num_packs; p++) pack[p] = diff_RAPL_energy(e_end->CPU_energy[p] , e_begin->CPU_energy[p]);
+    // Compute the difference
+    for (p = 0; p < num_packs; p++) dram[p] = diff_RAPL_energy(e_end->DRAM_energy[p], e_begin->DRAM_energy[p]);
+    for (p = 0; p < num_packs; p++) pack[p] = diff_RAPL_energy(e_end->CPU_energy[p] , e_begin->CPU_energy[p]);
 
-	#ifdef SHOW_DEBUGS
-	for (p = 0; p < num_packs; p++) debug("energy dram pack %d %llu", p, dram[p]);
-	for (p = 0; p < num_packs; p++) debug("energy cpu pack %d %llu" , p, pack[p]);
-	#endif
+#ifdef SHOW_DEBUGS
+    for (p = 0; p < num_packs; p++) debug("energy dram pack %d %llu", p, dram[p]);
+    for (p = 0; p < num_packs; p++) debug("energy cpu pack %d %llu" , p, pack[p]);
+#endif
 
-	// eh is not needed here
-	energy_accumulated(NULL, &curr_node_energy, e_begin->DC_node_energy, e_end->DC_node_energy);
+    // eh is not needed here
+    energy_accumulated(NULL, &curr_node_energy, e_begin->DC_node_energy, e_end->DC_node_energy);
 
-	t_diff           = difftime(e_end->sample_time, e_begin->sample_time);
-	my_power->begin  = e_begin->sample_time;
-	my_power->end    = e_end->sample_time;
+    t_diff           = difftime(e_end->sample_time, e_begin->sample_time);
+    my_power->begin  = e_begin->sample_time;
+    my_power->end    = e_end->sample_time;
 
-	my_power->avg_ac = 0;
-	my_power->avg_dc = (double) (curr_node_energy) / (t_diff * node_units);
+    my_power->avg_ac = 0;
+    my_power->avg_dc = (double) (curr_node_energy) / ear_max(t_diff * node_units, 1);
 
-	//for (p = 0; p < num_packs; p++) my_power->avg_dram[p] = (double) (dram[p]) / (t_diff * 1000000000);
-	for (p = 0; p < num_packs; p++) my_power->avg_dram[p] = (double) (dram[p]) / (t_diff * 1000000000);
-	for (p = 0; p < num_packs; p++) my_power->avg_cpu[p]  = (double) (pack[p]) / (t_diff * 1000000000);
+    //for (p = 0; p < num_packs; p++) my_power->avg_dram[p] = (double) (dram[p]) / (t_diff * 1000000000);
+    for (p = 0; p < num_packs; p++) my_power->avg_dram[p] = (double) (dram[p]) / (t_diff * 1000000000);
+    for (p = 0; p < num_packs; p++) my_power->avg_cpu[p]  = (double) (pack[p]) / (t_diff * 1000000000);
 
-	#ifdef SHOW_DEBUGS
-	for (p = 0; p < num_packs; p++) debug("power dram p = %d %lf", p, my_power->avg_dram[p]);
-	for (p = 0; p < num_packs; p++) debug("power pack p = %d %lf", p, my_power->avg_cpu[p]);
-	#endif
+#ifdef SHOW_DEBUGS
+    for (p = 0; p < num_packs; p++) debug("power dram p = %d %lf", p, my_power->avg_dram[p]);
+    for (p = 0; p < num_packs; p++) debug("power pack p = %d %lf", p, my_power->avg_cpu[p]);
+#endif
 
-	free(dram);
-	free(pack);
+    free(dram);
+    free(pack);
 
-	#if USE_GPUS
-	gpu_data_diff(e_end->gpu_data, e_begin->gpu_data, gpu_diff);
+#if USE_GPUS
+    gpu_data_diff(e_end->gpu_data, e_begin->gpu_data, gpu_diff);
 
-	#ifdef SHOW_DEBUGS
-	for (p = 0; p < gpu_num  ; p++) {
-		debug("energy gpu pack %d %llu", p, gpu_diff[p].energy_j);
-	}
-	#endif
+#ifdef SHOW_DEBUGS
+    for (p = 0; p < gpu_num  ; p++) {
+        debug("energy gpu pack %d %lf", p, gpu_diff[p].energy_j);
+    }
+#endif
 
-	for (p = 0; p < gpu_num  ; p++) {
-		my_power->avg_gpu[p]  = (gpu_diff[p].power_w);
-	}
+    for (p = 0; p < gpu_num  ; p++) {
+        my_power->avg_gpu[p]  = (gpu_diff[p].power_w);
+    }
 
-	#ifdef SHOW_DEBUGS
-	for (p = 0; p < gpu_num  ; p++) {
-		debug("power gpu p = %d %lf", p, my_power->avg_gpu[p]);
-	}
-	#endif
-	#endif
+#ifdef SHOW_DEBUGS
+    for (p = 0; p < gpu_num  ; p++) {
+        debug("power gpu p = %d %lf", p, my_power->avg_gpu[p]);
+    }
+#endif
+#endif
 }
+
 
 /*
  *
  */
-
 void print_energy_data(energy_data_t *e)
 {
 	struct tm *current_t;
@@ -360,48 +359,50 @@ void print_energy_data(energy_data_t *e)
 	printf("\n");
 }
 
+
 void print_power(power_data_t *my_power,uint show_date,int out)
 {
-	double dram_power = 0, pack_power = 0;
-  #if USE_GPUS
-  double gpu_power = 0;
-  #endif
-	struct tm *current_t;
-	char s[64];
-	int fd;
+    double dram_power = 0, pack_power = 0;
+#if USE_GPUS
+    double gpu_power = 0;
+#endif
+    struct tm *current_t;
+    char s[64];
+    int fd;
 
-	if (out>=0) fd=out;
-	else fd=STDERR_FILENO;
+    if (out>=0) fd=out;
+    else fd=STDERR_FILENO;
 
-	// CPU/DRAM
-	dram_power = accum_dram_power(my_power);
-	pack_power = accum_cpu_power(my_power);
-	#if USE_GPUS
-	gpu_power  = accum_gpu_power(my_power);
-	#endif
+    // CPU/DRAM
+    dram_power = accum_dram_power(my_power);
+    pack_power = accum_cpu_power(my_power);
+#if USE_GPUS
+    gpu_power  = accum_gpu_power(my_power);
+#endif
 
-	// We format the end time into localtime and string
-	if (show_date){
-		current_t = localtime(&(my_power->end));
-		strftime(s, sizeof(s), "%c", current_t);
+    // We format the end time into localtime and string
+    if (show_date){
+        current_t = localtime(&(my_power->end));
+        strftime(s, sizeof(s), "%c", current_t);
 
-		#if USE_GPUS
-		dprintf(fd,"%s: avg. power (W) for node %.2lf, for DRAM %.2lf, for CPU %.2lf, for GPU %.2lf\n",
-		   s, my_power->avg_dc, dram_power, pack_power, gpu_power);
-		#else
-		dprintf(fd,"%s: avg. power (W) for node %.2lf, for DRAM %.2lf, for CPU %.2lf\n",
-				s, my_power->avg_dc, dram_power, pack_power);
-		#endif
-	}else{
-		#if USE_GPUS
-		dprintf(fd,"avg. power (W) for node %.2lf, for DRAM %.2lf, for CPU %.2lf, for GPU %.2lf\n",
-		   my_power->avg_dc, dram_power, pack_power, gpu_power);
-		#else
-		dprintf(fd,"avg. power (W) for node %.2lf, for DRAM %.2lf, for CPU %.2lf\n",
-				my_power->avg_dc, dram_power, pack_power);
-		#endif
-	}
+#if USE_GPUS
+        dprintf(fd,"%s: avg. power (W) for node %.2lf, for DRAM %.2lf, for CPU %.2lf, for GPU %.2lf\n",
+                s, my_power->avg_dc, dram_power, pack_power, gpu_power);
+#else
+        dprintf(fd,"%s: avg. power (W) for node %.2lf, for DRAM %.2lf, for CPU %.2lf\n",
+                s, my_power->avg_dc, dram_power, pack_power);
+#endif
+    }else{
+#if USE_GPUS
+        dprintf(fd,"avg. power (W) for node %.2lf, for DRAM %.2lf, for CPU %.2lf, for GPU %.2lf\n",
+                my_power->avg_dc, dram_power, pack_power, gpu_power);
+#else
+        dprintf(fd,"avg. power (W) for node %.2lf, for DRAM %.2lf, for CPU %.2lf\n",
+                my_power->avg_dc, dram_power, pack_power);
+#endif
+    }
 }
+
 
 void report_periodic_power(int fd, power_data_t *my_power)
 {
@@ -460,8 +461,7 @@ void report_periodic_power(int fd, power_data_t *my_power)
 /*
  *
  */
-
-rapl_data_t diff_RAPL_energy(rapl_data_t end, rapl_data_t init)
+static rapl_data_t diff_RAPL_energy(rapl_data_t end, rapl_data_t init)
 {
 	rapl_data_t ret = 0;
 
@@ -469,7 +469,6 @@ rapl_data_t diff_RAPL_energy(rapl_data_t end, rapl_data_t init)
 		ret = end - init;
 	} else {
 		ret = ullong_diff_overflow(init, end);
-		//printf("OVERFLOW DETECTED RAPL! %llu,%llu\n",init,end);
 	}
 	return ret;
 }

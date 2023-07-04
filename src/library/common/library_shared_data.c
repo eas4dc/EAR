@@ -28,6 +28,7 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <semaphore.h>
 
 #include <common/config.h>
 #include <common/states.h>
@@ -46,6 +47,10 @@
 #include <library/common/global_comm.h>
 #include <common/environment.h>
 
+
+#define ear_msync(a,b,c) msync(a,b,c)
+//#define ear_msync(a,b,c) 0
+
 /* Node mgr variables */
 extern ear_njob_t *node_mgr_data;
 extern uint node_mgr_index;
@@ -55,6 +60,8 @@ extern char sig_shared_region_path_jobs[GENERIC_NAME];
 static int fd_conf,fd_signatures;
 extern uint exclusive;
 extern uint fake_force_shared_node;
+
+extern sem_t *lib_shared_lock_sem;
 
 int  get_lib_shared_data_path(char *tmp, uint ID, char *path)
 {
@@ -162,7 +169,7 @@ int compute_total_signatures_ready(lib_shared_data_t *data,shsignature_t *sig)
 {
     int i, total = 0;
 
-    if (msync(sig, sizeof(shsignature_t)* data->num_processes,MS_SYNC) < 0)
+    if (ear_msync(sig, sizeof(shsignature_t)* data->num_processes,MS_SYNC) < 0)
         verbose_master(2, "Memory sync fails %s", strerror(errno));
 
     for (i=0; i<data->num_processes; i++) {
@@ -211,7 +218,7 @@ void free_node_signatures(lib_shared_data_t *data,shsignature_t *sig)
     for (i=0;i<data->num_processes;i++){
         sig[i].ready = 0;
     }
-    if (msync(sig, sizeof(shsignature_t)* data->num_processes,MS_SYNC) < 0) verbose_master(2,"Memory sync fails %s",strerror(errno));
+    if (ear_msync(sig, sizeof(shsignature_t)* data->num_processes,MS_SYNC|MS_INVALIDATE) < 0) verbose_master(2,"Memory sync fails %s",strerror(errno));
 }
 
 void clean_signatures(lib_shared_data_t *data,shsignature_t *sig)
@@ -219,7 +226,7 @@ void clean_signatures(lib_shared_data_t *data,shsignature_t *sig)
     int i;
     fflush(stdout);
     for (i=0;i<data->num_processes;i++) sig[i].ready = 0;
-    if (msync(sig, sizeof(shsignature_t)* data->num_processes,MS_SYNC) < 0) verbose_master(2,"Memory sync fails %s",strerror(errno));
+    if (ear_msync(sig, sizeof(shsignature_t)* data->num_processes,MS_SYNC|MS_INVALIDATE) < 0) verbose_master(2,"Memory sync fails %s",strerror(errno));
 }
 
 void clean_mpi_info(lib_shared_data_t *data,shsignature_t *sig)
@@ -316,7 +323,7 @@ int select_global_cp(int size,int max,int *ppn,shsignature_t *my_sh_sig,int *nod
 	int i,j;
 	int rank = 0;
 	double minp = 100.0,maxp = 0.0;
-	unsigned int total_mpi = 0;
+	unsigned long long int total_mpi = 0;
 	unsigned long long total_mpi_time = 0, total_exec_time = 0;
 	/* Node loop */
 	for (i=0;i<size;i++){
@@ -334,26 +341,31 @@ int select_global_cp(int size,int max,int *ppn,shsignature_t *my_sh_sig,int *nod
 		}
 	}
 	*rank_cp = rank;
-	debug("(MIN PERC MPI %.1lf, MAX PERC MPI %.1lf) (MPI_CALLS %u MPI_TIME %.3fsec USER_TIME=%.3fsec)\n",minp*100.0,maxp*100.0,total_mpi,(float)total_mpi_time/1000000.0,(float)total_exec_time/1000000.0);
+	debug("(MIN PERC MPI %.1lf, MAX PERC MPI %.1lf) (MPI_CALLS %llu MPI_TIME %.3fsec USER_TIME=%.3fsec)\n",minp*100.0,maxp*100.0,total_mpi,(float)total_mpi_time/1000000.0,(float)total_exec_time/1000000.0);
 	return rank;
 }
 
 void print_local_mpi_info(mpi_information_t *info)
 {
-	fprintf(stderr,"total_mpi_calls %u exec_time %llu mpi_time %llu rank %d perc_mpi %.3lf \n",info->total_mpi_calls,info->exec_time,info->mpi_time,info->rank,info->perc_mpi);
+	fprintf(stderr,"total_mpi_calls %llu exec_time %llu mpi_time %llu rank %d perc_mpi %.3lf \n",info->total_mpi_calls,info->exec_time,info->mpi_time,info->rank,info->perc_mpi);
 }
 
 void mpi_info_to_str(mpi_information_t *info,char *msg,size_t max)
 {
-	snprintf(msg,max,"RANK[%d] total_mpi_calls %u exec_time %llu mpi_time %llu perc_mpi %.3lf ",info->rank,info->total_mpi_calls,info->exec_time,info->mpi_time,info->perc_mpi*100.0);
+	snprintf(msg,max,"RANK[%d] total_mpi_calls %llu exec_time %llu mpi_time %llu perc_mpi %.3lf ",info->rank,info->total_mpi_calls,info->exec_time,info->mpi_time,info->perc_mpi*100.0);
 }
+
+
 void mpi_info_head_to_str_csv(char *msg,size_t max)
 {
 	snprintf(msg,max,"lrank;total_mpi_calls;exec_time;mpi_time;perc_mpi_time");
 }
-void mpi_info_to_str_csv(mpi_information_t *info,char *msg,size_t max)
+
+
+void mpi_info_to_str_csv(mpi_information_t *info, char *msg, size_t max)
 {
-  snprintf(msg,max,"%d;%u;%llu;%llu;%.3lf",info->rank,info->total_mpi_calls,info->exec_time,info->mpi_time,info->perc_mpi*100.0);
+  snprintf(msg, max, "%d;%llu;%llu;%llu;%.3lf", info->rank, info->total_mpi_calls,
+           info->exec_time,info->mpi_time,info->perc_mpi*100.0);
 }
 
 
@@ -366,7 +378,7 @@ void print_sh_signature(int localid,shsignature_t *sig)
 		newf=(float)sig->new_freq/1000000.0;
     t = (float) sig->mpi_info.exec_time/1000000.0;
 
-	  fprintf(stderr,"RANK[%d]= %d mpi_data={total_mpi_calls %u mpi_time %llu exec_time %.3f PercTime %lf }\n",localid,
+	  fprintf(stderr,"RANK[%d]= %d mpi_data={total_mpi_calls %llu mpi_time %llu exec_time %.3f PercTime %lf }\n",localid,
     sig->mpi_info.rank,sig->mpi_info.total_mpi_calls,sig->mpi_info.mpi_time,t,sig->mpi_info.perc_mpi);
     fprintf(stderr,"RANK[%d]= %d signature={cpi %.3lf tpi %.3lf time %.3lf Gflops %f dc_power %.3lf avgf %.1f deff %.1f} state %d new_freq %.1f\n",localid,sig->mpi_info.rank,sig->sig.CPI,sig->sig.TPI, sig->sig.time,sig->sig.Gflops,sig->sig.DC_power,avgf,deff,sig->app_state,newf);
 }
@@ -545,6 +557,23 @@ state_t compute_job_node_gflops(const shsignature_t *sig, int n_procs, double *t
     return EAR_SUCCESS;
 }
 
+state_t compute_job_node_io_mbs(const shsignature_t *sig, int n_procs, double *io_mbs)
+{
+    if (sig == NULL ||  io_mbs == NULL) {
+        return_msg(EAR_ERROR, Generr.input_null);
+    } else if (!n_procs) {
+        return_msg(EAR_WARNING, "Number of processes is zero.");
+    }
+
+	*io_mbs = 0;
+	for (int i = 0; i < n_procs; i++) {
+        *io_mbs += (double)sig[i].sig.IO_MBS;
+  }
+
+  return EAR_SUCCESS;
+}
+
+
 void compute_job_cpus(lib_shared_data_t *data,shsignature_t *sig,uint *cpus)
 {
     int i;
@@ -614,11 +643,11 @@ void compute_per_node_avg_sig_info(lib_shared_data_t *data, shsignature_t *sig, 
 
 void load_app_mgr_env()
 {
-	char *cshow_sig=getenv(FLAG_SHOW_SIGNATURES);
-	char *csh_sig_per_process=getenv(FLAG_SHARE_INFO_PPROC);
-	char *csh_sig_per_node=getenv(FLAG_SHARE_INFO_PNODE);
-	char *creport_node_sig=getenv(FLAG_REPORT_NODE_SIGNATURES);
-	char *creport_all_sig=getenv(FLAG_REPORT_ALL_SIGNATURES);
+	char *cshow_sig=ear_getenv(FLAG_SHOW_SIGNATURES);
+	char *csh_sig_per_process=ear_getenv(FLAG_SHARE_INFO_PPROC);
+	char *csh_sig_per_node=ear_getenv(FLAG_SHARE_INFO_PNODE);
+	char *creport_node_sig=ear_getenv(FLAG_REPORT_NODE_SIGNATURES);
+	char *creport_all_sig=ear_getenv(FLAG_REPORT_ALL_SIGNATURES);
 
 	if (cshow_sig != NULL) show_signatures = atoi(cshow_sig);
 	if (csh_sig_per_process != NULL) sh_sig_per_proces = atoi(csh_sig_per_process);
@@ -800,4 +829,111 @@ void estimate_power_and_gbs(lib_shared_data_t *data, shsignature_t *sig, node_mg
     }
 #endif
     return;
+}
+
+
+state_t update_job_affinity_mask(lib_shared_data_t *data, shsignature_t *sig)
+{
+    if (data && sig)
+    {
+        verbose(3, "Updating the affinity mask...");
+
+        // Backup current data to be restored in case of error.
+
+        cpu_set_t node_mask_backup = data->node_mask;
+        uint node_mask_num_cpus_backup = data->num_cpus;
+
+        verbose_master(1, "Current job mask: %u CPUs ", node_mask_num_cpus_backup);
+        verbose_affinity_mask(3, (const cpu_set_t *) &node_mask_backup, MAX_CPUS_SUPPORTED);
+
+        cpu_set_t *cpu_masks_backup = malloc(sizeof(cpu_set_t) * data->num_processes);
+        uint *num_cpus_backup = malloc(sizeof(uint) * data->num_processes);
+
+        CPU_ZERO(&data->node_mask); // Clean because we'll update it using CPU_OR
+
+        for (int i = 0; i < data->num_processes; i++)
+        {
+            cpu_masks_backup[i] = sig[i].cpu_mask; // Backup
+            num_cpus_backup[i] = sig[i].num_cpus;
+
+            // Update local cpu mask
+
+            int sem_ret_val = sem_wait(lib_shared_lock_sem);
+            if (sem_ret_val < 0)
+            {
+                verbose(1, "%sWARNING%s Locking semaphor for cpu mask update failed: %d",
+                        COL_YLW, COL_CLR, errno);
+            }
+
+            int ret_val = sched_getaffinity(sig[i].pid, sizeof(cpu_set_t), &sig[i].cpu_mask);
+
+            if (!sem_ret_val)
+            {
+                if (sem_post(lib_shared_lock_sem) < 0)
+                {
+                    verbose(1, "%sWARNING%s Unlocking semaphor for cpu mask update failed: %d",
+                            COL_YLW, COL_CLR, errno);
+                }
+            }
+
+            if (!ret_val)
+            {
+                // Update the number of CPUs of the process' mask
+                sig[i].num_cpus = CPU_COUNT(&sig[i].cpu_mask);
+
+                // Update node(job)_mask
+                CPU_OR(&data->node_mask, &data->node_mask, &sig[i].cpu_mask);
+            }
+            else
+            {
+                // Restore masks before returning
+                data->node_mask = node_mask_backup;
+                data->num_cpus = node_mask_num_cpus_backup;
+
+                // We had backed up and updated cpu masks from 0 to i
+                for (int j = 0; j <= i; j++)
+                {
+                    sig[j].cpu_mask = cpu_masks_backup[j];
+                    sig[j].num_cpus = num_cpus_backup[j];
+                }
+                free(cpu_masks_backup);
+                free(num_cpus_backup);
+
+                // Return and error message
+                char ret_msg[64];
+                ret_val = snprintf(ret_msg, sizeof(ret_msg),
+                                   "Getting the affinity mask of local rank (%d)", errno);
+
+                if (ret_val >= sizeof(ret_msg))
+                {
+                    return_msg(EAR_ERROR, "An error occurred and the message was truncated.")
+                }
+
+                return_msg(EAR_ERROR, ret_msg);
+            }
+        }
+
+        // Affinity (local and job) updated with no error
+
+        free(cpu_masks_backup);
+        free(num_cpus_backup);
+
+        // Update all remaining mask related fields
+        data->num_cpus = CPU_COUNT(&data->node_mask);
+
+        verbose_master(1, "New job mask: %u CPUs ", data->num_cpus);
+        verbose_affinity_mask(3, (const cpu_set_t *) &data->node_mask, MAX_CPUS_SUPPORTED);
+
+        if (data->num_cpus != node_mask_num_cpus_backup)
+        {
+            verbose(1, "%sWARNING%s The number of job's CPUs changed from %u to %u.", COL_YLW, COL_CLR,
+                    node_mask_num_cpus_backup, data->num_cpus);
+        }
+
+        return EAR_SUCCESS;
+
+    } else
+    {
+        return_msg(EAR_ERROR, Generr.input_null);
+    }
 }

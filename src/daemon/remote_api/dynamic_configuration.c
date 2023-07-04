@@ -809,7 +809,8 @@ state_t process_remote_requests(int clientfd) {
             return EAR_SUCCESS;
     }
 
-    if (req != EAR_RC_NEW_JOB && req != EAR_RC_NEW_JOB_LIST) {
+    //new_job is a special case because ack means that shared files are created
+    if (req != EAR_RC_NEW_JOB && req != EAR_RC_NEW_JOB_LIST) { 
         send_answer(clientfd, &ack); //send ack BEFORE processing the message to avoid delays
     }
 

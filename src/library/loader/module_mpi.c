@@ -76,6 +76,7 @@ static void module_mpi_get_libear(char *path_lib_so,char *libhack,char *path_so,
 	int fndi = 0;
 	int fndo = 0;
 	int fndm = 0;
+  int fndfu = 0;
 
 	*lang_c = 0;
 	*lang_f = 0;
@@ -101,7 +102,10 @@ static void module_mpi_get_libear(char *path_lib_so,char *libhack,char *path_so,
 		openmpi = 1;
 	} else if (strstr(buffer, "mvapich") != NULL) {
 		fndm = 1;
-	} else {
+	} else if (strstr(buffer, "fujitsu mpi") != NULL) {
+    verbose(2, "LOADER: fujitsu mpi found");
+    fndfu = 1;
+  }else {
 		verbose(2, "LOADER: no mpi version found");
 		return;
 	}
@@ -116,7 +120,14 @@ static void module_mpi_get_libear(char *path_lib_so,char *libhack,char *path_so,
 		extension = OPENMPI_EXT;
 	}
 
-	if ((vers = getenv(HACK_MPI_VERSION)) != NULL) {
+  if (fndfu){
+    extension = FUJITSU_MPI_EXT;
+  }
+
+  /* Warning , no actions yet for mvapich */
+
+
+	if ((vers = ear_getenv(HACK_MPI_VERSION)) != NULL) {
 		if (strlen(vers) > 0) {
 			xsnprintf(buffer,sizeof(buffer), "%s.so", vers);		
 			extension = buffer;
@@ -162,7 +173,7 @@ static int module_mpi_dlsym(char *path_so, int lang_c, int lang_f)
 	if (MPI_Get_library_version_detected){
   #if USE_CNTD
     #ifdef COUNTDOWN_BASE
-    char *disable_cntd = getenv(FLAG_DISABLE_CNTD);
+    char *disable_cntd = ear_getenv(FLAG_DISABLE_CNTD);
     static char buffer[4096];
     snprintf(buffer, 4096, "%s/libcntd.so",COUNTDOWN_BASE);
     verbose(0, "Using countdown library path %s", buffer);
@@ -283,16 +294,16 @@ static int module_mpi_is()
   verbose(2,"MPI_Get_library_version NOT detected");
 
 	/* We check the env var only for MPI+Python */
-	if (strstr(program_invocation_name,"python") != NULL){
+	if ((strstr(program_invocation_name,"python") != NULL) || (strstr(program_invocation_name,"gmx") != NULL)){
     // The env var oversubscribes the library version detected.
-    load_mpi_version = getenv(FLAG_LOAD_MPI_VERSION);
+    load_mpi_version = ear_getenv(FLAG_LOAD_MPI_VERSION);
     if (load_mpi_version != NULL){ 
         verbose(2, " %s defined = %s", FLAG_LOAD_MPI_VERSION, load_mpi_version);
 				return 1;
     } 
     // TODO: This check is for the transition to the new environment variables.
     // It will be removed when SCHED_LOAD_MPI_VERSION will be removed, on the next release.
-    load_mpi_version = getenv(SCHED_LOAD_MPI_VERSION);            
+    load_mpi_version = ear_getenv(SCHED_LOAD_MPI_VERSION);
     if (load_mpi_version != NULL) { 
     verbose(1, "LOADER: %sWARNING%s %s will be removed on the next EAR release. "
                     "Please, change it by %s in your submission scripts.",

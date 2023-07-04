@@ -26,30 +26,7 @@
 #include <common/hardware/topology.h>
 #include <metrics/common/apis.h>
 
-// The API
-//
-// This API is designed to get the bandwidth from CPU caches to main memory.
-//
-// Props:
-// 	- Thread safe: yes.
-//	- Daemon API: yes.
-//  - Dummy API: yes.
-//  - Requires root: yes.
-//
-// Compatibility:
-//  -------------------------------------------------------------------------
-//  | Architecture    | F/M | Comp. | Granularity | System                  |
-//  -------------------------------------------------------------------------
-//  | Intel HASWELL   | 63  | v     | Node        | PCI                     |
-//  | Intel BROADWELL | 79  | v     | Node        | PCI                     |
-//  | Intel SKYLAKE   | 85  | v     | Node        | PCI                     |
-//  | Intel ICELAKE   | 106 | x     | Node        | MMIO (test required)    |
-//  | AMD ZEN+/2      | 17h | v     | Node        | L3 misses (future HSMP) |
-//  | AMD ZEN3        | 19h | v     | Node        | L3 misses (future HSMP) |
-//  | Likwid          | -   | v     | Node        | Used for ICELAKE        |
-//  | Cache bypass    | -   | v     | Cache API   | Normally is procf       |
-//  -------------------------------------------------------------------------
-
+// The last device is used as a timer for computing the GB/s
 typedef struct bwidth_s {
 	union {
 		timestamp_t time;
@@ -58,33 +35,39 @@ typedef struct bwidth_s {
 	};
 } bwidth_t;
 
+// API building scheme
+#define BWIDTH_F_LOAD(name)      void name (topology_t *tpo, bwidth_ops_t *ops)
+#define BWIDTH_F_GET_INFO(name)  void name (apinfo_t *info)
+#define BWIDTH_F_INIT(name)      state_t name (ctx_t *c)
+#define BWIDTH_F_DISPOSE(name)   state_t name (ctx_t *c)
+#define BWIDTH_F_READ(name)      state_t name (ctx_t *c, bwidth_t *bws)
+
+#define BWIDTH_DEFINES(name) \
+BWIDTH_F_LOAD     (bwidth_ ##name ##_load); \
+BWIDTH_F_GET_INFO (bwidth_ ##name ##_get_info); \
+BWIDTH_F_INIT     (bwidth_ ##name ##_init); \
+BWIDTH_F_DISPOSE  (bwidth_ ##name ##_dispose); \
+BWIDTH_F_READ     (bwidth_ ##name ##_read);
+
 typedef struct bwidth_ops_s {
-	state_t (*init)            (ctx_t *c);
-	state_t (*dispose)         (ctx_t *c);
-	state_t (*count_devices)   (ctx_t *c, uint *dev_count);
-	state_t (*get_granularity) (ctx_t *c, uint *granularity);
-	state_t (*read)            (ctx_t *c, bwidth_t *b);
-    state_t (*data_diff)       (bwidth_t *b2, bwidth_t *b1, bwidth_t *bD, ullong *cas, double *gbs);
-    state_t (*data_accum)      (bwidth_t *bA, bwidth_t *bD, ullong *cas, double *gbs);
-	state_t (*data_alloc)      (bwidth_t **b);
-	state_t (*data_free)       (bwidth_t **b);
-	state_t (*data_copy)       (bwidth_t *dst, bwidth_t *src);
-	state_t (*data_print)      (ullong cas, double gbs, int fd);
-	state_t (*data_tostr)      (ullong cas, double gbs, char *buffer, size_t length);
+    state_t (*count_devices)   (ctx_t *c, uint *dev_count); // Obsolete
+    BWIDTH_F_GET_INFO((*get_info));
+    BWIDTH_F_INIT    ((*init));
+    BWIDTH_F_DISPOSE ((*dispose));
+    BWIDTH_F_READ    ((*read));
 } bwidth_ops_t;
 
-state_t bwidth_load(topology_t *tp, int eard);
+void bwidth_load(topology_t *tp, int eard);
 
-state_t bwidth_get_api(uint *api);
+void bwidth_get_info(apinfo_t *api);
+// Obsolete (use bwidth_get_info)
+void bwidth_get_api(uint *api);
+// Obsolete (use bwidth_get_info)
+void bwidth_count_devices(ctx_t *c, uint *dev_count);
 
-//
 state_t bwidth_init(ctx_t *c);
 
 state_t bwidth_dispose(ctx_t *c);
-
-state_t bwidth_count_devices(ctx_t *c, uint *dev_count);
-
-state_t bwidth_get_granularity(ctx_t *c, uint *granularity);
 
 state_t bwidth_read(ctx_t *c, bwidth_t *b);
 
@@ -94,23 +77,24 @@ state_t bwidth_read_diff(ctx_t *c, bwidth_t *b2, bwidth_t *b1, bwidth_t *bD, ull
 state_t bwidth_read_copy(ctx_t *c, bwidth_t *b2, bwidth_t *b1, bwidth_t *bD, ullong *cas, double *gbs);
 
 /* Returns the total node CAS and total node GBs. */
-state_t bwidth_data_diff(bwidth_t *b2, bwidth_t *b1, bwidth_t *bD, ullong *cas, double *gbs);
+void bwidth_data_diff(bwidth_t *b2, bwidth_t *b1, bwidth_t *bD, ullong *cas, double *gbs);
 
 /* Accumulates bandwidth differences and return its data in CAS and/or GB/s (accepts NULL). */
-state_t bwidth_data_accum(bwidth_t *bA, bwidth_t *bD, ullong *cas, double *gbs);
+void bwidth_data_accum(bwidth_t *bA, bwidth_t *bD, ullong *cas, double *gbs);
 
-state_t bwidth_data_alloc(bwidth_t **b);
+void bwidth_data_alloc(bwidth_t **b);
 
-state_t bwidth_data_free(bwidth_t **b);
+void bwidth_data_free(bwidth_t **b);
 
-state_t bwidth_data_copy(bwidth_t *dst, bwidth_t *src);
+void bwidth_data_null(bwidth_t *bws);
 
-state_t bwidth_data_print(ullong cas, double gbs, int fd);
+void bwidth_data_copy(bwidth_t *dst, bwidth_t *src);
 
-state_t bwidth_data_tostr(ullong cas, double gbs, char *buffer, size_t length);
+void bwidth_data_print(ullong cas, double gbs, int fd);
+
+char *bwidth_data_tostr(ullong cas, double gbs, char *buffer, size_t length);
 
 // Helpers
-
 /* Converts CAS to GBS given a time in seconds. */
 double bwidth_help_castogbs(ullong cas, double secs);
 /* Converts CAS to TPI given a number of instructions. */

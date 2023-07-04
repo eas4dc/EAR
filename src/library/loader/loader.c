@@ -32,6 +32,7 @@
 #include <library/loader/module_default.h>
 #include <common/config/config_env.h>
 #include <common/output/debug.h>
+#include <common/string_enhanced.h>
 
 static int _loaded;
 
@@ -43,7 +44,7 @@ static int init()
     pid_t pid2 = 0;
 
     // Activating verbose
-    if ((verb = getenv(FLAG_LOADER_VERBOSE)) != NULL) {
+    if ((verb = ear_getenv(FLAG_LOADER_VERBOSE)) != NULL) {
         VERB_SET_EN(1);
         VERB_SET_LV(atoi(verb));
     }
@@ -51,7 +52,7 @@ static int init()
 
     if (SCHED_IS(SCHED_SLURM)) {
         // SLURM prolog/epilog control
-        if ((task = getenv(FLAG_TASK_PID)) == NULL) {
+        if ((task = ear_getenv(FLAG_TASK_PID)) == NULL) {
             return 0;
         }
         pid2 = (pid_t) atoi(task);
@@ -77,11 +78,11 @@ int must_load()
 
 int load_no_official()
 {
-    char *app_to_load = getenv(FLAG_LOADER_APPLICATION);
+    char *app_to_load = ear_getenv(FLAG_LOADER_APPLICATION);
     if (app_to_load == NULL) {
         // TODO: This check is for the transition to the new environment variables.
         // It will be removed when SCHED_LOADER_LOAD_NO_MPI_LIB will be removed, in the next release.
-        app_to_load = getenv(SCHED_LOADER_LOAD_NO_MPI_LIB);
+        app_to_load = ear_getenv(SCHED_LOADER_LOAD_NO_MPI_LIB);
         if (app_to_load != NULL) {
             verbose(1, "LOADER: %sWARNING%s %s will be removed on the next EAR release. "
                     "Please, change it by %s in your submission scripts.",
@@ -90,8 +91,13 @@ int load_no_official()
             return 0;
         }
     }
-    if (strstr(program_invocation_name, app_to_load) == NULL) return 0;
-    return 1;
+    if (app_to_load == NULL) return 0;
+    if (strinlist(app_to_load, ",", program_invocation_name)){
+      verbose(1,"LOADER: %s found in list ", program_invocation_name);
+      return 1;
+    }
+
+    return 0;
 }
 
 int load_no_parallel()

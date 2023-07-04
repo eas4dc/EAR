@@ -23,6 +23,7 @@
 #include <common/plugins.h>
 #include <common/system/time.h>
 #include <metrics/common/apis.h>
+#include <metrics/gpu/archs/dcgmi.h>
 
 // This is an API to monitorize the GPU devices of the node.
 //

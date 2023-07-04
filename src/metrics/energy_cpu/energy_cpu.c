@@ -199,11 +199,12 @@ state_t energy_cpu_to_str(ctx_t *c, char *str, ullong *values)
 	strcpy(str, "energy_cpu (");
 	int i;
 
+  /* DRAM values + PCK values */
 	for (i = 0; i < socket_count; i++)
 	{
-		sprintf(buffer, "DRAM%d: %llu ",  i, values[i*NUM_PACKS+0]);
+		sprintf(buffer, "DRAM%d: %llu ",  i, values[i]);
 		strcat(str, buffer);
-		sprintf(buffer, "PKG%d: %llu ", i, values[i*NUM_PACKS+1]);
+		sprintf(buffer, "PKG%d: %llu ", i, values[socket_count+i]);
 		strcat(str, buffer);
 		/*sprintf(buffer, "CPU%d: %llu ",  i, values[i*NUM_PACKS+2]);
 		strcat(str, buffer); */
@@ -215,9 +216,12 @@ state_t energy_cpu_to_str(ctx_t *c, char *str, ullong *values)
 double energy_cpu_compute_power(double energy, double elapsed_time)
 {
     
-	double computed_power = ((energy / 1000000000.0) / elapsed_time);
+  if (elapsed_time > 0){
+	  double computed_power = ((energy / 1000000000.0) / elapsed_time);
 
     debug("computed power: %lf", computed_power);
     return computed_power;
+  }
+  return (double)0;
 }
 

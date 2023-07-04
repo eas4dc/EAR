@@ -179,7 +179,11 @@ state_t pci_mmio_map(addr_t addr, void **p)
 		return_print(EAR_ERROR, "while mapping /dev/mem: %s", strerror(errno));
 	}
     *p = (void *) (((addr_t) maddr) + (addr - PAGE_MASK(addr)));
-    debug("Mapped at 0x%lx and size 0x%x", addr, PAGE_SIZE);
+    debug("addr           : %llx", addr);
+    debug("PAGE_MASK(addr): %llx", PAGE_MASK(addr));
+    debug("PAGE_SIZE      : %llx", PAGE_SIZE);
+    debug("maddr          : %llx", maddr);
+    debug("p              : %llx", *p);
     #if 0
 	if ((*p = ioremap(addr, size)) == NULL) {
 		return_msg(EAR_ERROR, strerror(errno));

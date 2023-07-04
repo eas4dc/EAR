@@ -20,6 +20,8 @@
  *    \brief This file defines the API to create/attach/dettach/release the shared memory area
  *    between the EARD and the EARLib. It is used to communicate the EARLib updates remotelly
  *    requested.
+ *
+ *    It also defines structures to be shared among processes running concurrently the Library.
  */
 
 #ifndef _LIB_SHARED_DATA_H
@@ -38,8 +40,10 @@
 #include <common/system/shared_areas.h>
 #include <daemon/local_api/node_mgr.h>
 
-
+/** \name MPI data */
+/**@{*/
 #if SHARED_MPI_SUMMARY
+/** Used to share information between master ranks. */
 typedef struct mpi_summary {
     float max;
     float min;
@@ -50,35 +54,43 @@ typedef struct mpi_summary {
 #endif
 
 
+/** Basic MPI statistics. Granularity: process. */
 typedef struct mpi_information {
-    uint        total_mpi_calls;
-    ullong      exec_time;       /**< Time stored in USECS. */
-    ullong      mpi_time;
-    int         rank;
-    double      perc_mpi;
+    ullong      total_mpi_calls; /**< The number of MPI calls. */
+    ullong      exec_time;       /**< Elapsed time, in microseconds. */
+    ullong      mpi_time;        /**< Time spent in MPI calls, in microseconds. */
+    int         rank;            /**< The process rank. */
+    double      perc_mpi;        /**< Percentage of time spent in MPI calls, i.e., mpi_time / exec_time. */
 } mpi_information_t;
 
 
+/** MPI call types statistics. Granularity: process. */
 typedef struct mpi_calls_types
 {
-    ulong mpi_time;             // Time spent in MPI calls
-    ulong exec_time;            // Execution time
-    ulong mpi_call_cnt;         // Total MPI calls
-    ulong mpi_sync_call_cnt;    // MPI synchronization calls count
-    ulong mpi_collec_call_cnt;  // MPI collective calls count
-    ulong mpi_block_call_cnt;   // MPI blocking calls count
-    ulong mpi_sync_call_time;   // Time spent in MPI synchronization calls
-    ulong mpi_collec_call_time; // Time spent in MPI collective calls
-    ulong mpi_block_call_time;  // Time spent in MPI blocking calls
+    ulong mpi_time;             /**< Time spent in MPI calls. */
+    ulong exec_time;            /**< Execution time. */
+    ulong mpi_call_cnt;         /**< Total MPI calls. */
+    ulong mpi_sync_call_cnt;    /**< MPI synchronization calls count. */
+    ulong mpi_collec_call_cnt;  /**< MPI collective calls count. */
+    ulong mpi_block_call_cnt;   /**< MPI blocking calls count. */
+    ulong mpi_sync_call_time;   /**< Time spent in MPI synchronization calls.*/ 
+    ulong mpi_collec_call_time; /**< Time spent in MPI collective calls. */
+    ulong mpi_block_call_time;  /**< Time spent in MPI blocking calls. */
     ulong max_sync_block;
 } mpi_calls_types_t;
+/**@}*/
 
 
+/** \name Shared info
+ * This group of definitions is used to share data between processes. */
+/**@{*/
+/** Global application data shared between processes. */
 typedef struct lib_shared_data {
     uint        earl_on;
     int         num_processes;
     uint        num_signatures;
-    uint        num_cpus;
+    uint        num_cpus; // Number of CPUs used for the job. Computed from node_mask attribute.
+    float       total_cache_bwidth;
     ullong      cas_counters;
     signature_t node_signature;
     signature_t job_signature;
@@ -88,13 +100,17 @@ typedef struct lib_shared_data {
     cpu_set_t   node_mask;
     ulong       avg_cpufreq[MAX_CPUS_SUPPORTED]; // Average CPU freq for each processor of the job
     uint        node_mgr_index;
+	uint        reduced_in_barrier; // This variable is only used in an unstable/research policy.
 #if MPI_OPTIMIZED
-		uint        processes_in_barrier;
+		uint    processes_in_barrier;
 #endif
-		uint        reduced_in_barrier;
+#if DLB
+        int     must_call_libdlb; // A control variable to rule processes to call DLB blocking calls.
+        int     max_libdlb_calls; // The maximum times DLB API was called.
+#endif
 } lib_shared_data_t;
 
-
+/** Per-process application data. */
 typedef struct shsignature {
     uint              master;
     pid_t             pid;
@@ -112,9 +128,48 @@ typedef struct shsignature {
     int               affinity;
     uint              unbalanced;
     float             perc_MPI;
-    ulong             mpi_freq;
 	double            period;
+    /* This field is used for mpi opt
+     * TODO: Put below declaration inside MPI_OPTIMIZED only + decide how to handle it at min_energy. */
+    ulong             mpi_freq;
+#if DLB
+    int               libdlb_calls_cnt; // Counter for DLB API's blocking functions calls.
+#endif
 } shsignature_t;
+/**@}*/
+
+typedef struct shsignature_mpi{
+  mpi_information_t mpi_info;
+  mpi_calls_types_t mpi_types_info;
+}shsignature_mpi_t;
+
+
+typedef struct sh_signatures_s
+{
+    uint              *master;
+    pid_t             *pid;
+    uint              *ready;
+	uint              *exited;
+    uint              *iterations;
+    mpi_information_t *mpi_info;
+    mpi_calls_types_t *mpi_types_info;
+    ssig_t            *sig;
+    int               *app_state;
+    ulong             *new_freq;
+	uint              *num_cpus;
+    cpu_set_t         *cpu_mask;
+    uint              *pstate_index;
+    int               *affinity;
+    uint              *unbalanced;
+    float             *perc_MPI;
+	double            *period;
+    /* This field is used for mpi opt
+     * TODO: Put below declaration inside MPI_OPTIMIZED only + decide how to handle it at min_energy. */
+    ulong             *mpi_freq;
+#if DLB
+    int               *libdlb_calls_cnt;
+#endif
+} sh_signatures_t;
 
 
 typedef struct node_mgr_sh_data {
@@ -133,7 +188,7 @@ typedef struct node_mgr_sh_data {
 int get_lib_shared_data_path(char *tmp, uint ID, char *path);
 
 
-/** \brief Creates the shared mmemory.
+/** \brief Creates the shared memory.
  * It is used by node master process. */
 lib_shared_data_t * create_lib_shared_data_area(char * path);
 
@@ -241,6 +296,9 @@ state_t compute_job_node_instructions(const shsignature_t *sig, int n_procs, ull
  * size FLOPS_EVENTS * sizeof (unsigned long). Otherwise you will overwrite memory. */
 state_t compute_job_node_flops(const shsignature_t *sig, int n_procs, ull *flops);
 
+/** Computes the accumulated IO MB_S */
+state_t compute_job_node_io_mbs(const shsignature_t *sig, int n_procs, double *io_mbs);
+
 
 /** Computes the total number of cycles of a job where its \p n_procs processses have their
  * signatures at \p sig. The result is stored at the address pointed by \p t_cycles. */
@@ -289,4 +347,11 @@ void accum_estimations(lib_shared_data_t *data,shsignature_t *sig);
 void estimate_power_and_gbs(lib_shared_data_t *data,shsignature_t *sig, node_mgr_sh_data_t *nmgr);
 void verbose_jobs_in_node(int vl,ear_njob_t *nmgr_eard,node_mgr_sh_data_t *nmgr_earl);
 
-#endif
+/** Updates all affinity masks of shared signatures array pointed by \p sig.
+ * This function also updates the job mask of the lib_shared_data pointed by \p data.
+ * Returns EAR_ERROR with the appropiate messages either when the input arguments are NULL
+ * or when sched_getafinity call returns an error value, with its corresponding errno value.
+ * On error, all modified masks are restored to ones passed within arguments. */
+state_t update_job_affinity_mask(lib_shared_data_t *data, shsignature_t *sig);
+
+#endif // _LIB_SHARED_DATA_H

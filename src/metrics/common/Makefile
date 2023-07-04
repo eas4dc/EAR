@@ -5,7 +5,7 @@ CFLAGS = $(CC_FLAGS) -fPIC -I$(SRCDIR) $(CONSTANTS)
 comm_OBJS = \
     apis.o \
     cupti.o \
-    pstate.o \
+    file.o \
     hsmp.o \
     hwmon.o \
     isst.o \
@@ -16,7 +16,10 @@ comm_OBJS = \
     oneapi.o \
     pci.o \
     perf.o \
-    redfish.o
+    popen.o \
+    pstate.o \
+    redfish.o \
+    rsmi.o
 
 ######## RULES
 
@@ -30,6 +33,9 @@ cupti.o: cupti.c cupti.h
 
 likwid.o: likwid.c likwid.h
 	$(CC) $(CFLAGS) $(LIKWID_CFLAGS) -c $<
+
+rsmi.o: rsmi.c rsmi.h
+	$(CC) $(CFLAGS) $(RSMI_CFLAGS) -c $<
 
 oneapi.o: oneapi.c oneapi.h
 	$(CC) $(CFLAGS) $(ONEAPI_CFLAGS) -c $<

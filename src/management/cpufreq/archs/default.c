@@ -21,10 +21,10 @@
 #include <common/output/debug.h>
 #include <common/hardware/cpuid.h>
 #include <common/hardware/bithack.h>
+#include <management/cpufreq/archs/amd17.h>
 #include <management/cpufreq/archs/default.h>
 
 static topology_t           tp;
-static ctx_t                driver_c;
 static mgt_ps_driver_ops_t *driver;
 static const ullong        *freqs_available;
 static uint                 freqs_count;
@@ -34,19 +34,14 @@ static uint                 boost_enabled;
 state_t mgt_cpufreq_default_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_driver_ops_t *ops_driver)
 {
 	state_t s;
-    int cond1;
-    int cond2;
+	int cond1;
+	int cond2;
 
 	// When is AMD ZEN or ZEN2, it has to load the AMD17 API. Set
 	// AMD_OSCPUFREQ compilation variable to switch to DEFAULT.
-	#if !AMD_OSCPUFREQ
-	debug("Not using CPUFREQ frequencies");
-	if (tp_in->vendor == VENDOR_AMD && tp_in->family >= FAMILY_ZEN) {
-		return_msg(EAR_ERROR, Generr.api_incompatible);
+	if (ops->init == mgt_cpufreq_amd17_init) {
+		return_msg(EAR_ERROR, "AMD17 exclusive API already loaded.");
 	}
-	#else
-	debug("Using CPUFREQ frequencies");
-	#endif
 	if (ops_driver->init == NULL) {
 		return_msg(EAR_ERROR, "Driver is not available");
 	}
@@ -55,9 +50,9 @@ state_t mgt_cpufreq_default_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_dr
 	}
 	// Setting our own driver variable
 	driver = ops_driver;
-    // Conditional 1, if can set frequencies
+	// Conditional 1, if can set frequencies
 	cond1 = (driver->set_current_list != NULL);
-    // Conditional 2, if can set governor
+	// Conditional 2, if can set governor
 	cond2 = (driver->set_governor != NULL);
 	// Setting references
 	apis_put(ops->init,               mgt_cpufreq_default_init);
@@ -80,7 +75,7 @@ state_t mgt_cpufreq_default_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_dr
 
 static state_t static_dispose(state_t s, char *msg)
 {
-	driver->dispose(&driver_c);
+	driver->dispose();
 	return_msg(s, msg);
 }
 
@@ -94,10 +89,10 @@ state_t mgt_cpufreq_default_init(ctx_t *c)
 	state_t s;
 
 	debug("Initializing DEFAULT P_STATE control");
-	if (state_fail(s = driver->init(&driver_c))) {
+	if (state_fail(s = driver->init())) {
 		return static_dispose(s, state_msg);
 	}
-	if (state_fail(s = driver->get_available_list(&driver_c, &freqs_available, &freqs_count))) {
+	if (state_fail(s = driver->get_available_list(&freqs_available, &freqs_count))) {
 		return static_dispose(s, state_msg);
 	}
         #if SHOW_DEBUGS
@@ -186,7 +181,7 @@ state_t mgt_cpufreq_default_get_current_list(ctx_t *c, pstate_t *pstate_list)
 	uint cpu, pst;
 	state_t s;
 
-	if (state_fail(s = driver->get_current_list(&driver_c, &current_list))) {
+	if (state_fail(s = driver->get_current_list(&current_list))) {
 		return s;
 	}
 	for (cpu = 0; cpu < tp.cpu_count; ++cpu) {
@@ -220,11 +215,11 @@ state_t mgt_cpufreq_default_set_current_list(ctx_t *c, uint *pstate_index)
 	#if 0
 	state_t s;
 	// Too much robustness
-	if (state_fail(s = driver->set_governor(&driver_c, Governor.userspace))) {
+	if (state_fail(s = driver->set_governor(Governor.userspace))) {
 		return s;
 	}
 	#endif
-	return driver->set_current_list(&driver_c, pstate_index);
+	return driver->set_current_list(pstate_index);
 }
 
 state_t mgt_cpufreq_default_set_current(ctx_t *c, uint pstate_index, int cpu)
@@ -232,35 +227,35 @@ state_t mgt_cpufreq_default_set_current(ctx_t *c, uint pstate_index, int cpu)
 	#if 0
 	state_t s;
 	// Too much robustness
-	if (state_fail(s = driver->set_governor(&driver_c, Governor.userspace))) {
+	if (state_fail(s = driver->set_governor(Governor.userspace))) {
 		return s;
 	}
 	#endif
-	return driver->set_current(&driver_c, pstate_index, cpu);
+	return driver->set_current(pstate_index, cpu);
 }
 
 /** Governors */
 state_t mgt_cpufreq_default_governor_get(ctx_t *c, uint *governor)
 {
-	return driver->get_governor(&driver_c, governor);
+	return driver->get_governor(governor);
 }
 
 state_t mgt_cpufreq_default_governor_get_list(ctx_t *c, uint *governors)
 {
-	return driver->get_governor_list(&driver_c, governors);
+	return driver->get_governor_list(governors);
 }
 
 state_t mgt_cpufreq_default_governor_set(ctx_t *c, uint governor)
 {
-	return driver->set_governor(&driver_c, governor);
+	return driver->set_governor(governor);
 }
 
 state_t mgt_cpufreq_default_governor_set_mask(ctx_t *c, uint governor, cpu_set_t mask)
 {
-	return driver->set_governor_mask(&driver_c, governor, mask);
+	return driver->set_governor_mask(governor, mask);
 }
 
 state_t mgt_cpufreq_default_governor_set_list(ctx_t *c, uint *governors)
 {
-	return driver->set_governor_list(&driver_c, governors);
+	return driver->set_governor_list(governors);
 }

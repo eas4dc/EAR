@@ -18,29 +18,16 @@
 #ifndef EAR_EAR_METRICS_H
 #define EAR_EAR_METRICS_H
 
+#if DLB
+#include <dlb_talp.h>
+#endif
+
 #include <common/hardware/topology.h>
-#include <common/types/application.h>
+// #include <common/types/application.h>
 #include <library/common/library_shared_data.h>
+#include <metrics/common/apis.h>
 #include <metrics/io/io.h>
 #include <library/api/clasify.h>
-
-/* For each phase */
-typedef struct phase_info{
-  ullong elapsed;
-}phase_info_t;
-
-typedef struct sig_ext {
-    io_data_t iod;
-    mpi_information_t *mpi_stats;
-    mpi_calls_types_t *mpi_types;
-	float             max_mpi, min_mpi;
-	float             elapsed;
-	float             telapsed;
-	float             saving;
-	float             psaving;
-	float             tpenalty;
-  phase_info_t      earl_phase[EARL_MAX_PHASES];
-} sig_ext_t;
 
 #define MGT_CPUFREQ 1
 #define MGT_IMCFREQ 2
@@ -53,8 +40,42 @@ typedef struct sig_ext {
 #define MGT_GPU     9
 #define MET_GPU     10
 
+/** For each phase */
+typedef struct phase_info {
+  ullong elapsed;
+} phase_info_t;
+
+typedef struct dcgmi_sig{
+  uint    dcgmi_sets;
+	uint    dcgmi_gpus;
+  uint    dcgmi_num_ev;
+  uint    **dcgmi_events;
+  uint    *dcgmi_instances;
+  dcgmi_t **dcgmi_metrics;
+} dcgmi_sig_t;
+
+
+typedef struct sig_ext
+{
+    io_data_t          iod;
+    mpi_information_t *mpi_stats;
+    mpi_calls_types_t *mpi_types;
+    float              max_mpi, min_mpi;
+    float              elapsed;
+    float              telapsed;
+    float              saving;
+    float              psaving;
+    float              tpenalty;
+    phase_info_t       earl_phase[EARL_MAX_PHASES];
+    dcgmi_sig_t        dcgmis;
+#if DLB
+    dlb_node_metrics_t dlb_talp_node_metrics;
+#endif
+} sig_ext_t;
+
 /** New metrics **/
 const metrics_t *metrics_get(uint api);
+
 #if USE_GPUS
 const metrics_gpus_t *metrics_gpus_get(uint api);
 #endif
@@ -75,7 +96,7 @@ void metrics_dispose(signature_t *metrics, ulong procs);
 void metrics_compute_signature_begin();
 
 /** */
-state_t metrics_compute_signature_finish(signature_t *metrics, uint iterations, ulong min_time_us, ulong procs);
+state_t metrics_compute_signature_finish(signature_t *metrics, uint iterations, ulong min_time_us, ulong procs, llong *passed_time);
 
 /** Estimates whether the current time running the loops is enough to compute the signature */
 int time_ready_signature(ulong min_time_us);
@@ -83,22 +104,41 @@ int time_ready_signature(ulong min_time_us);
 /** Copute the number of vector instructions since signature reports FP ops, metrics is valid signature*/
 unsigned long long metrics_vec_inst(signature_t *metrics);
 
-/* Computes the job signature including data from other processes. */
+/** Computes the job signature including data from other processes. */
 void metrics_job_signature(const signature_t *master, signature_t *dst);
 
-/* Computes the node signature at app end */
+/** Computes the node signature at app end */
 void metrics_app_node_signature(signature_t *master,signature_t *ns);
 
-/* CoOmputes the per-process and per-job metrics using power models for node sharing */
+/** Computes the per-process and per-job metrics using power models for node sharing. */
 void compute_per_process_and_job_metrics(signature_t *sig);
 
 /* Computes metrics per-iteration, very lightweight */
 state_t metrics_new_iteration(signature_t *sig);
 
-
 #if MPI_OPTIMIZED
 void metrics_start_cpupower();
+
 void metrics_read_cpupower();
 #endif
+
+#if DLB
+/** Gets and saves TALP node metrics. It is very important to ensure all processes
+ * call this function, as it blocks callers until the others call it too.
+ *
+ * \param dst_sig The address of the signature extended to save the computed data.
+ * \param region_monitor The target monitoring region. If NULL, implicit MPI Monitoring Region is assumed.
+ *
+ * \return EAR_ERROR if \p dst_sig argument is NULL or DLB's TALP API returns an error.
+ * \return EAR_SUCCESS otherwise. */
+state_t metrics_compute_talp_node_metrics(sig_ext_t *dst_sig, dlb_monitor_t *region_monitor);
+#endif // DLB
+
+#if DCGMI
+uint metrics_dcgmi_enabled();
+#endif
+
+/* Returns the number of iterations per second in the last computed signature */
+float metrics_iter_per_second();
 
 #endif //EAR_EAR_METRICS_H

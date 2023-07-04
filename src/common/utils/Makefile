@@ -1,5 +1,9 @@
 CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC $(CONSTANTS)
 
+ifeq ($(ARCH), X86)
+CFLAGS_STRS = -mavx2
+endif
+
 ######## INSTALLATION
 
 libc_OBJS = $(patsubst %.c, %.o, $(shell find -maxdepth 1 -type f -name '*.c'))
@@ -14,7 +18,7 @@ all: $(libc_OBJS)
 	$(CC) $(CFLAGS) -c $<
 
 stress.o: stress.c stress.h
-	$(CC) $(CFLAGS) -mavx2 -c $<
+	$(CC) $(CFLAGS) $(CFLAGS_STRS) -DARCH_$(ARCH) -c $<
 
 ######## OPTIONS
 

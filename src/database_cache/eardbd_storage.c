@@ -134,7 +134,7 @@ void metrics_print()
 	// If there are samples then we can print
 	if (n > 0) {
 	//
-	tprintf_init_v2(VL2, STR_MODE_DEF, "15 13 9 10 10");
+	tprintf_init(verb_channel, STR_MODE_DEF, "15 13 9 10 10");
 	// Printing if there are more than 1 sample to insert per type.
 	tprintf("sample (%d)||recv/alloc||%%||t. insr||t. recv", mirror_iam);
 	tprintf("-----------||----------||--||-------||-------");

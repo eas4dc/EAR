@@ -22,6 +22,8 @@
 
 state_t bwidth_eard_load(topology_t *tp, bwidth_ops_t *ops, uint eard);
 
+BWIDTH_F_GET_INFO(bwidth_eard_get_info);
+
 state_t bwidth_eard_init(ctx_t *c);
 
 state_t bwidth_eard_dispose(ctx_t *c);

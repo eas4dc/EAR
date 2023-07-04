@@ -105,9 +105,10 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
   double tpi[MAX_CPUS_SUPPORTED];
   double gbs[MAX_CPUS_SUPPORTED];
   double vpi[MAX_CPUS_SUPPORTED];
+  double oldTPI;
 
   ulong  f[MAX_CPUS_SUPPORTED];
-  ullong inst[MAX_CPUS_SUPPORTED];
+  ullong inst[MAX_CPUS_SUPPORTED], totalinst = 0;
   ull    L3[MAX_CPUS_SUPPORTED];
   uint   job_in_process[MAX_CPUS_SUPPORTED];
 
@@ -139,8 +140,17 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
 
   if ((lsig == NULL) || (sig == NULL) || (nmgr == NULL)) return EAR_SUCCESS;
 
+  /* Normalize with the average of instructions */
+  for (uint lp = 0; lp < data->num_processes; lp++){
+    totalinst += sig[lp].sig.instructions;
+  }
+  totalinst /= data->num_processes;
+  oldTPI = lsig->TPI;
+  lsig->TPI = (data->cas_counters * cache_line_size)/totalinst;
+
   /* compute_job_node_XXX compute the metrics only for the calling job. It is
    * needed to iterate over the jobs to have per node. */
+  debug("Node signature GBS %lf TPI (old %lf) new %lf cas counters %llu linst %llu", lsig->GBS, oldTPI, lsig->TPI, data->cas_counters,lsig->instructions);
 
   for (uint j = 0; j < MAX_CPUS_SUPPORTED; j ++) {
     /* Power condition is to do only in case the signature is ready */
@@ -159,6 +169,8 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
          * per-process metrics. we use sig.instructions to detect when the first signature
          * is ready 
          */
+
+
         if (nmgr[j].shsig[lp].sig.instructions > 0) {
 
           job_in_process[node_process] = j;
@@ -166,15 +178,18 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
           L3[node_process]             = nmgr[j].shsig[lp].sig.L3_misses;
           inst[node_process]           = nmgr[j].shsig[lp].sig.instructions;
 
-          ipc[node_process]            = 1 / nmgr[j].shsig[lp].sig.CPI;
+          if (nmgr[j].shsig[lp].sig.CPI) ipc[node_process]            = 1 / nmgr[j].shsig[lp].sig.CPI;
+          else                           ipc[node_process]            = 1;
 
           avx = nmgr[j].shsig[lp].sig.FLOPS[INDEX_256F]/WEIGHT_256F
             + nmgr[j].shsig[lp].sig.FLOPS[INDEX_256D]/WEIGHT_256D
             + nmgr[j].shsig[lp].sig.FLOPS[INDEX_512F]/WEIGHT_512F
             + nmgr[j].shsig[lp].sig.FLOPS[INDEX_512D]/WEIGHT_512D;
 
-          vpi[node_process] = (double) avx /
+          if (nmgr[j].shsig[lp].sig.instructions){ 
+            vpi[node_process] = (double) avx /
             (double) nmgr[j].shsig[lp].sig.instructions;
+          }else vpi[node_process] = 0;
 
           f[node_process]   = nmgr[j].shsig[lp].sig.avg_f;
 
@@ -205,10 +220,19 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
         } else {
             /* If there is no cache misses, we distribute the GBs proportionally to the number of cpus, naive approach */
             cj = job_in_process[j];
-            float mem_ratio = ((float)nmgr[cj].libsh->num_cpus/(float)used_cpus)/(float)nmgr[cj].libsh->num_processes;
-            gbs[j] = lsig->GBS * mem_ratio;
-            tpi[j] = lsig->TPI * mem_ratio;
-            dram_power[j] = (gbs[j]/lsig->GBS) * lsig->DRAM_power;
+            float mem_ratio = 0;
+            if (used_cpus && nmgr[cj].libsh->num_processes){
+              mem_ratio = ((float)nmgr[cj].libsh->num_cpus/(float)used_cpus)/(float)nmgr[cj].libsh->num_processes;
+              gbs[j] = lsig->GBS * mem_ratio;
+              tpi[j] = lsig->TPI * mem_ratio;
+              debug("case 2[%d]:Using lGBS %.0lf lTPI %.0lf mem ratio %lf", j, lsig->GBS, lsig->TPI, mem_ratio);
+            }else{
+              gbs[j] = lsig->GBS;
+              tpi[j] = lsig->TPI;
+              debug("case 3[%d]:Using lGBS %.0lf lTPI %.0lf ", j, lsig->GBS, lsig->TPI);
+            }
+            if (lsig->GBS) dram_power[j] = (gbs[j]/lsig->GBS) * lsig->DRAM_power;
+            else           dram_power[j] = lsig->DRAM_power;
             debug("case 2[%d]: Ratio %.3f Node TPI %.2lf", j, mem_ratio, lsig->TPI);
         }
         if ((L3[j] || gbs[j])  && (job_in_process[j] == node_mgr_index)){
@@ -227,7 +251,7 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
   data->job_signature.TPI = my_job_TPI;
   data->job_signature.DRAM_power = my_job_DRAM_power;
 
-  verbose(2, "My job[%d] GB/s is %.2lf TPI %.2lf DRAM %lf", node_mgr_index, data->job_signature.GBS, data->job_signature.TPI, data->job_signature.DRAM_power);
+  debug("My job[%d] GB/s is %.2lf TPI %.2lf DRAM %lf total inst %llu", node_mgr_index, data->job_signature.GBS, data->job_signature.TPI, data->job_signature.DRAM_power, totalinst);
 
   /* Power : Power is estimated based on CPU activity and Memory activity. Less CPI means more CPU activity and more L3 means more Mem actitivy */
 
@@ -271,7 +295,8 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
   double GPU_process_power = 0;
   lp = 0;
   for (uint proc =0; proc < node_process; proc++){
-    if ((job_in_process[proc] == node_mgr_index) && (power_estimations[proc] > 0)){ 
+    GPU_process_power = 0;
+    if ((job_in_process[proc] == node_mgr_index) && (power_estimations[proc] > 0) && (total_power_estimated > 0)){ 
       job_power_ratio += power_estimations[proc]/total_power_estimated;
       process_power_ratio[proc] = power_estimations[proc]/total_power_estimated;
       if (GPU_power) GPU_process_power = GPU_power / data->num_processes;

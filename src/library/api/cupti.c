@@ -24,6 +24,6 @@
 
 state_t ear_cuda_init()
 {
-	verbose_master(2,"CUPTI initialized");
+	verbose_master(2,"CUDA detected");
 	return 0;
 }

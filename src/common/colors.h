@@ -1,5 +1,4 @@
 /*
-*
 * This program is part of the EAR software.
 *
 * EAR provides a dynamic, transparent and ligth-weigth solution for
@@ -15,17 +14,9 @@
 * and COPYING.EPL files.
 */
 
-#ifndef EAR_COLORS_H
-#define EAR_COLORS_H
+#ifndef COMMON_COLORS_H
+#define COMMON_COLORS_H
 
-#define COL_RED	"\x1b[31m"
-#define COL_GRE "\x1b[32m"
-#define COL_YLW "\x1b[33m"
-#define COL_BLU "\x1b[34m"
-#define COL_MGT "\x1b[35m"
-#define COL_CYA "\x1b[36m"
-#define COL_CLR "\x1b[0m"
-#define COL_CHR	5
-#define CLR_CHR	4
+#include <common/utils/strtable.h>
 
-#endif //EAR_COLORS_H
+#endif //COMMON_COLORS_H

@@ -1,5 +1,4 @@
-export ARCH_X86
-export ARCH_ARM
+export ARCH
 export FEAT_MPI_API
 export FEAT_AVX512
 export FEAT_RESEARCH
@@ -28,6 +27,8 @@ export CUDA_BASE
 export CUDA_CFLAGS
 export CUPTI_BASE
 export CUPTI_CFLAGS
+export RSMI_BASE
+export RSMI_CFLAGS
 export ONEAPI_BASE
 export ONEAPI_CFLAGS
 export LIKWID_BASE

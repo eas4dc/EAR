@@ -15,8 +15,8 @@
 * and COPYING.EPL files.
 */
 
-#ifndef _EAR_CONFIGURATION_H_
-#define _EAR_CONFIGURATION_H_
+#ifndef COMMON_ENVIRONMENT_COMMON_H
+#define COMMON_ENVIRONMENT_COMMON_H
 
 #define DEFAULT_VERBOSE                 0
 #define DEFAULT_DB_PATHNAME             ".ear_system_db"
@@ -47,5 +47,5 @@ void ear_daemon_environment();
 /** Writes ear daemon variables in $EAR_TMP/environment.txt file. */
 void ear_print_daemon_environment();
 
-#else
+char *ear_getenv(const char *name);
 #endif

@@ -202,8 +202,8 @@ state_t policy_init(polctx_t *c)
         return EAR_ERROR;
     }
 
-    char *cnetwork_use_imc = getenv(FLAG_NTWRK_IMC);
-    char *cimc_set_by_hw   = getenv(FLAG_LET_HW_IMC);
+    char *cnetwork_use_imc = ear_getenv(FLAG_NTWRK_IMC);
+    char *cimc_set_by_hw   = ear_getenv(FLAG_LET_HW_IMC);
 
     int i, sid = 0;
 
@@ -229,8 +229,8 @@ state_t policy_init(polctx_t *c)
     verbose_master(3, "Nominal CPU freq. is %lu kHz", nominal_node);
 
 #if MPI_OPTIMIZED
-    delay_change_freq_policy = getenv("EAR_DELAY_CPUFREQ");
-    use_nanosleep            = getenv("EAR_USE_NANOSLEEP");
+    delay_change_freq_policy = ear_getenv("EAR_DELAY_CPUFREQ");
+    use_nanosleep            = ear_getenv("EAR_USE_NANOSLEEP");
     if (use_nanosleep != NULL)
     {
         verbose_master(0, "EAR will use nanosleep to reduce the AVG cpu freq");

@@ -23,12 +23,13 @@
 #include <mpi.h>
 #endif
 #include <dlfcn.h>
+#include <semaphore.h>
 // #define SHOW_DEBUGS 1
 #include <common/includes.h>
-#include <common/config.h>
 #include <common/system/symplug.h>
 #include <common/environment.h>
 #include <common/types/generic.h>
+#include <common/types/pc_app_info.h>
 #include <common/hardware/hardware_info.h>
 #include <management/cpufreq/frequency.h>
 #include <management/imcfreq/imcfreq.h>
@@ -49,30 +50,37 @@
 #include <library/loader/module_cuda.h>
 #include <library/tracer/tracer.h>
 #include <library/tracer/tracer_paraver_comp.h>
+#include <library/policies/common/pc_support.h>
+#include <library/policies/policy_state.h>
 #include <daemon/local_api/eard_api.h>
 #include <daemon/local_api/node_mgr.h>
 #include <daemon/powercap/powercap_status_conf.h>
-#include <common/types/pc_app_info.h>
-#include <library/policies/common/pc_support.h>
-#include <library/policies/policy_state.h>
 
 /* Verbose levels */
 #define POLICY_INFO   2
 #define POLICY_PHASES 2
 #define POLICY_GPU    2
+#define POLICY_SAVINGS_LVL 0
 
 #define DEF_USE_CPUPRIO 0
-
 
 /* Must be migrated to config_env */
 #define GPU_ENABLE_OPT "EAR_GPU_ENABLE_OPT"
 
+#define is_master masters_info.my_master_rank >= 0
 
 
 static ear_event_t curr_policy_event;
 extern uint report_earl_events;
 extern report_id_t rep_id;
 
+extern sem_t *lib_shared_lock_sem;
+
+static float time_policy_penalty = 0.0; 
+static float power_policy_saving = 0.0;
+static float energy_policy_saving = 0.0;
+static timestamp policy_saving_time_start;
+static uint policy_saving_updated = 0;
 
 #define REPORT_PHASE(phase) \
   if (report_earl_events){ \
@@ -152,11 +160,9 @@ uint   max_policy_imcfreq_ps = ps_nothing; // IMC freq. selection works with pst
 
 #if MPI_OPTIMIZED
 /* MPI optimization */
-uint ear_mpi_opt = 0;
+extern uint ear_mpi_opt;
 #endif
 uint gpu_optimize = 0;
-
-
 
 static pstate_t *cpu_pstate_lst; /*!< The list of available CPU pstates in the current system.*/
 static uint      cpu_pstate_cnt;
@@ -174,15 +180,15 @@ uint policy_mem_bound = 0;
 
 int my_globalrank;
 
-signature_t policy_last_local_signature;
-signature_t policy_last_global_signature;
+static signature_t policy_last_local_signature;
+static signature_t policy_last_global_signature;
 
 polctx_t my_pol_ctx;
 
-uint total_mpi = 0; // This variable only counts the number of MPI calls and it's only used
-                    // at state_comm::verbose_signature. It only is useful when only the master verboses,
-                    // so it's value only shows master info while that signature verbose message tries to
-                    // show per-node info.
+unsigned long long int total_mpi = 0; // This variable only counts the number of MPI calls and it's only used
+                                      // at state_comm::verbose_signature. It only is useful when only the master verboses,
+                                      // so it's value only shows master info while that signature verbose message tries to
+                                      // show per-node info.
 
 node_freqs_t nf;     /*!< Nominal frequency */
 node_freqs_t avg_nf;
@@ -202,7 +208,7 @@ int cpu_ready = EAR_POLICY_NO_STATE;
 int gpu_ready = EAR_POLICY_NO_STATE;
 
 gpu_state_t curr_gpu_state;
-gpu_state_t last_gpu_state = _GPU_Comp;             // Initial GPU state as Computation
+gpu_state_t last_gpu_state = _GPU_NoGPU;             // Initial GPU state as Computation
 
 static uint fake_io_phase = 0;
 static uint fake_bw_phase = 0;
@@ -238,11 +244,14 @@ static node_freq_domain_t freqs_domain;
 static const ulong **gpuf_pol_list;
 static const uint   *gpuf_pol_list_items;
 
-static uint first_print = 1;
 static uint first_policy_try = 1;
 
-
 static uint  use_cpuprio = DEF_USE_CPUPRIO; // Enables the usage of proiority system
+
+static uint total_mpi_optimized =  0;
+
+/* Governor management for exclusive mode */
+static uint *governor_list_before_init = NULL;
 
 void fill_common_event(ear_event_t *ev);
 void fill_event(ear_event_t *ev, uint event, llong value);
@@ -258,7 +267,6 @@ static state_t fill_mgt_api_pstate_data(uint api_id, pstate_t **pstate_lst, uint
 
 
 /** Maps the list of CPU frequencies mapped per process, to a list of CPU frequencies mapped per core.
- * Returns an EAR_ERROR if some argument is invalid.
  * \param[in]  process_cpu_freqs_khz A list of frequencies indexed per local (node-level) rank.
  * \param[in]  process_cnt           The number of elements in \p process_cpu_freqs_khz.
  * \param[out] core_cpu_freqs_khz    A list of frequencies indexed per core.
@@ -267,9 +275,11 @@ static state_t fill_mgt_api_pstate_data(uint api_id, pstate_t **pstate_lst, uint
  * CPU freq. found in \process_cpu_freqs_khz.
  * \param[out] cpu_freq_min          If a non-NULL address is passed, the argument is filled with the minimum
  * CPU freq. found in \process_cpu_freqs_khz.
+ * \return EAR_ERROR if some argument is invalid.
+ * \return EAR_SUCCESS otherwise.
  */
 static state_t from_proc_to_core(ulong *process_cpu_freqs_khz, int process_cnt, ulong **core_cpu_freqs_khz,
-        int cpu_cnt, ulong *cpu_freq_max, ulong *cpu_freq_min, int process_id);
+                                 int cpu_cnt, ulong *cpu_freq_max, ulong *cpu_freq_min, int process_id);
 
 
 /** This function returns whether the CPU frequency selected by the policy itself must be selected.
@@ -299,11 +309,12 @@ static ulong compute_avg_freq(ulong *freq_list, int n);
  * \param[in] dom The domain of the current policy plugin.
  * \param[out] avg_freq After the function, this adress will contain the average CPU freq. selected. */
 static state_t policy_cpu_freq_selection(polctx_t *c, signature_t *my_sig,
-        node_freqs_t *freqs, node_freq_domain_t *dom, node_freqs_t *avg_freq, int process_id);
+                                         node_freqs_t *freqs, node_freq_domain_t *dom,
+                                         node_freqs_t *avg_freq, int process_id);
 
 
-/** Verboses the policy context \p policy_ctx if the verbosity level of the job is equal or higher than
- * \p verb_lvl. */
+/** Verboses the policy context \p policy_ctx if the verbosity level
+ * of the job is equal or higher than \p verb_lvl. */
 static void verbose_policy_ctx(int verb_lvl, polctx_t *policy_ctx);
 
 
@@ -311,6 +322,11 @@ static void verbose_policy_ctx(int verb_lvl, polctx_t *policy_ctx);
  * list, for a total number of \p cpu_cnt CPU/processors. Use \p verb_lvl to specify the verbosity level
  * required by the job to print the information. */
 static void verbose_freq_per_core(int verb_lvl, ulong **core_cpu_freqs_khz, int cpu_cnt);
+
+
+/** Verboses the elapsed time on each phase encountered
+ * in the extended signature of the passed signature \p sig. */
+static void verbose_time_in_phases(signature_t *sig);
 
 
 /** Encapsulates priority setup. */
@@ -355,7 +371,14 @@ static state_t reset_priority_list_with_mask(uint *prio_list, uint prio_list_cou
 static void verbose_cpuprio_list(int verb_lvl, uint *cpuprio_list, uint cpuprio_list_count);
 
 
-static uint total_mpi_optimized =  0;
+/** Sets governor `userspace` to  CPUs that are
+ * in my node mask or all if exclusive_mode is set */
+static state_t policy_set_cpus_governor(uint exclusive);
+
+
+/** Sets the governor list stored at governor_list_before_init. */
+static state_t policy_restore_cpus_governor();
+
 
 /**** Auxiliary functions ***/
 #if 0
@@ -369,18 +392,154 @@ state_t policy_load(char *obj_path, polsym_t *psyms)
 }
 #endif
 
+static ulong *policy_savings_comp_freqs = NULL;
+static uint must_compute_policy_savings(signature_t *ns, node_freqs_t *freqs, node_freq_domain_t *dom, uint *savings)
+{
+  ulong *cpu_f = freqs->cpu_freq;
+  ulong fref = frequency_get_nominal_freq();
+  ulong at_fref = 1;
+  uint limit = ((dom->cpu == POL_GRAIN_CORE)?lib_shared_region->num_processes:1);
+
+  *savings = 1;
+
+
+  /* if we run at nominal, there is no savings */
+
+  for (uint i = 0; (i < limit) && at_fref; i++){
+    at_fref = at_fref && (cpu_f[i] == fref);
+  }
+
+  verbose_master(POLICY_SAVINGS_LVL,"Policy savins[%s]: running at nominal? at_ref %lu f[0] != %lu", node_name, at_fref, fref);
+
+  if (at_fref){
+    *savings = 0;
+    return 0;
+  }
+
+  /* If the list of CPU freqs is different than last, we must compute savings */
+  for (uint i = 0; i < limit; i++){
+    if (cpu_f[i] != policy_savings_comp_freqs[i]){
+      verbose_master(POLICY_SAVINGS_LVL,"Policy savins[%s]: f[%u] %lu != f[%u] %lu", node_name, i, cpu_f[i], i, policy_savings_comp_freqs[i]);
+      return 1;
+    }
+  }
+  
+  return 0;
+}
+
+static void compute_policy_savings(signature_t *ns, node_freqs_t *freqs, node_freq_domain_t *dom)
+{
+  ulong *cpu_f = freqs->cpu_freq;
+  double tref, pref;
+  double tnext = 0, pnext = 0;
+  double renergy, nenergy;
+  ulong cpu_f_avg = 0;
+  uint sav;
+  ulong nominal = frequency_get_nominal_freq();
+  
+  if (policy_savings_comp_freqs == NULL){
+    policy_savings_comp_freqs = (ulong *)calloc(MAX_CPUS_SUPPORTED, sizeof(ulong));
+  }
+
+  if (!must_compute_policy_savings(ns, freqs, dom, &sav)){
+    if (!sav) {
+      /* We are running at nominal */
+      energy_policy_saving = 0;
+      power_policy_saving  = 0;
+      time_policy_penalty  = 0;
+      timestamp_getfast(&policy_saving_time_start);
+      policy_saving_updated = 1;
+      verbose_master(POLICY_SAVINGS_LVL, "Policy savins[%s]: Reset of policy savings", node_name);
+    }
+    verbose_master(POLICY_SAVINGS_LVL, "Policy savins[%s]: Not applied", node_name);
+    return;
+  }
+
+
+  memcpy(policy_savings_comp_freqs, cpu_f, sizeof(ulong)* MAX_CPUS_SUPPORTED);
+  signature_print_simple_fd(verb_channel, ns);
+
+
+
+  uint limit = ((dom->cpu == POL_GRAIN_CORE)?lib_shared_region->num_processes:1);
+  uint procs = 0;
+
+
+  /* Time reference and power reference is always computed based on the nominal CPU freq 
+   * IF the default CPU freq is not the nominal (min_time for example), we project data
+   * for the nominal CPU frequency
+   */
+  tref = get_time_nominal(ns);
+  pref = get_power_nominal(ns);
+ 
+  /* IF we are selecting CPU freqs per process, we aggregate and compute the average */
+  for (uint p = 0; p < limit; p++){
+    if (cpu_f[p] <= nominal){
+        tnext += get_time_projected(ns, cpu_f[p]);
+        pnext += get_power_projected(ns, cpu_f[p]);
+        cpu_f_avg += cpu_f[p];
+        procs++;
+      }
+  }
+
+  if (!procs) return;
+
+  tnext = tnext / procs;
+  pnext = pnext / procs;
+  cpu_f_avg = cpu_f_avg / procs;
+
+
+  /* renergy = energy at the nominal , nenergy = energy with policy selected CPu freq */
+  renergy = tref  * pref;
+  nenergy = tnext * pnext;
+
+
+  if ((renergy == 0) || (nenergy == renergy)) {
+    return;
+  }
+
+  /* These estimated savings are used in policy_ok, they are constant until we apply 
+   * again the node_policy 
+   */
+
+  if ((pref == 0) || (tref == 0)) return;
+
+  energy_policy_saving = (float)((renergy - nenergy)/renergy);
+  if (pref != pnext) power_policy_saving = (float)((pref - pnext)/pref);
+  if (tref != tnext) time_policy_penalty = (float)((tref - tnext)/tref);
+
+  timestamp_getfast(&policy_saving_time_start);
+  policy_saving_updated = 1;
+
+  verbose_master(POLICY_SAVINGS_LVL, "Policy savins[%s]: energy/power/time %f/%f/%f CPU freq ref %lu, CPU freq next %lu, Ref data (time %.3lf power %.1lf), New data (time %.3lf power %.1lf)", 
+      node_name, energy_policy_saving, power_policy_saving, time_policy_penalty, ns->def_f, cpu_f_avg, tref, pref, tnext, pnext);
+   
+}
+
 
 void fill_cpus_out_of_cgroup(uint exc)
 {
     int cpu_cnt, cpu_idx;
     if (exc == 0) return;
     cpu_cnt = arch_desc.top.cpu_count;
+    #if DLB
+    verbosen_master(1, "IDLE freq (%lu) cpus --> ",
+                    frequency_pstate_to_freq(frequency_get_num_pstates()-1));
+    #endif
+
     for (cpu_idx = 0; cpu_idx < cpu_cnt; cpu_idx++){
         if (freq_per_core[cpu_idx] == 0){
             debug("Reducing frequency of CPU %d", cpu_idx);
             freq_per_core[cpu_idx] = frequency_pstate_to_freq(frequency_get_num_pstates()-1);
+            #if DLB
+            verbosen_master(1,"%d ", cpu_idx);
+            #endif
         }
     }
+    #if DLB
+    verbosen_master(1,"\n");
+    #endif
+
 }
 
 #define DEBUG_CPUFREQ_COST 0
@@ -392,37 +551,30 @@ static ulong calls_cpufreq = 0;
 
 timestamp init_last_phase, init_last_comp;
 
-static void verbose_time_in_phases(signature_t *sig)
-{
-  sig_ext_t *se = (sig_ext_t *)sig->sig_ext;
-  if (se != NULL){
-    verbose_master(2, "............Phases");
-    for (uint ph = 0; ph < EARL_MAX_PHASES; ph++){
-      if (se->earl_phase[ph].elapsed){ 
-        verbose_master(2, "Phase[%s] elapsed %llu", phase_to_str(ph), se->earl_phase[ph].elapsed);
-      }
-    }
-    verbose_master(2, "............END-Phases");
-  }
-}
+
 
 static void policy_new_phase(uint phase, signature_t *sig)
 {
-  timestamp currt;
-  sig_ext_t *se = (sig_ext_t *)sig->sig_ext;
-  verbose_master(2, "policy_new_phase summary computation %s (%u/%u)",phase_to_str(phase), policy_cpu_bound, policy_mem_bound );
-  if (se != NULL){
+  verbose_master(3, "policy_new_phase summary computation %s (%u/%u)",
+                 phase_to_str(phase), policy_cpu_bound, policy_mem_bound);
 
+  sig_ext_t *se = (sig_ext_t *) sig->sig_ext;
+  if (se != NULL)
+  {
     for (uint ph = 0; ph < EARL_MAX_PHASES; ph++) se->earl_phase[ph].elapsed = 0;
 
+    timestamp currt;
     timestamp_getfast(&currt);
     se->earl_phase[phase].elapsed = timestamp_diff(&currt, &init_last_phase, TIME_USECS);
 
     /* For COMP_BOUND we compute if CPU or MEM (or mix) */
-    if (phase == APP_COMP_BOUND){
+    if (phase == APP_COMP_BOUND)
+    {
       ullong elapsed_comp = timestamp_diff(&currt, &init_last_comp, TIME_USECS);
+
       /* policy_cpu_bound and policy_mem_bound are updated only in the APP_COMP_PHASE */
-      verbose_master(2, "COMP_PHASE: cpu %u mem %u mix %u", policy_cpu_bound, policy_mem_bound , !policy_cpu_bound && !policy_mem_bound);
+      verbose_master(3, "COMP_PHASE: cpu %u mem %u mix %u", policy_cpu_bound, policy_mem_bound , !policy_cpu_bound && !policy_mem_bound);
+
       if (policy_cpu_bound)      se->earl_phase[APP_COMP_CPU].elapsed = elapsed_comp;
       else if (policy_mem_bound) se->earl_phase[APP_COMP_MEM].elapsed = elapsed_comp;
       else                            se->earl_phase[APP_COMP_MIX].elapsed = elapsed_comp;  
@@ -432,8 +584,9 @@ static void policy_new_phase(uint phase, signature_t *sig)
   }
 }
 
-/* This function confgures freqs for apps consuming lot GPU */
-state_t policy_cpu_gpu_freq_selection(polctx_t *c,signature_t *my_sig,node_freqs_t *freqs,node_freq_domain_t *dom,node_freqs_t *avg_freq)
+
+/* This function confgures freqs for apps consuming lot GPU. */
+state_t policy_cpu_gpu_freq_selection(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs, node_freq_domain_t *dom, node_freqs_t *avg_freq)
 {
     REPORT_PHASE(APP_CPU_GPU);
     if (polsyms_fun.cpu_gpu_settings != NULL){
@@ -443,12 +596,13 @@ state_t policy_cpu_gpu_freq_selection(polctx_t *c,signature_t *my_sig,node_freqs
 }
 
 
-/* This function confgures freqs based on IO criteria */
-state_t policy_io_freq_selection(polctx_t *c,signature_t *my_sig,node_freqs_t *freqs,node_freq_domain_t *dom,node_freqs_t *avg_freq)
+/* This function confgures freqs based on IO criteria. */
+state_t policy_io_freq_selection(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs, node_freq_domain_t *dom, node_freqs_t *avg_freq)
 {
     REPORT_PHASE(APP_IO_BOUND);
-    if (polsyms_fun.io_settings != NULL){
-        polsyms_fun.io_settings(c,my_sig,freqs);
+    if (polsyms_fun.io_settings != NULL)
+    {
+        polsyms_fun.io_settings(c, my_sig, freqs);
     }
     return EAR_SUCCESS;
 }
@@ -476,6 +630,7 @@ state_t policy_busy_waiting_configuration(polctx_t *c,signature_t *my_sig,node_f
     }
     return EAR_SUCCESS;
 }
+
 
 state_t policy_domain_detail(int status, char* buff){
     switch (status){
@@ -531,23 +686,23 @@ state_t policy_init()
 {
     polctx_t *c = &my_pol_ctx;
 
-    char *cdyn_unc              = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_SET_IMCFREQ)       : NULL; // eUFS
-    char *cimc_extra_th         = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_IMC_TH)            : NULL; // eUFS threshold
-    char *cexclusive_mode       = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_EXCLUSIVE_MODE)    : NULL; // Job has the node exclusive
-    char *cuse_earl_phases      = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_EARL_PHASES)       : NULL; // Detect application phases
-    char *cenable_load_balance  = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_LOAD_BALANCE)      : NULL; // Load balance efficiency
-    char *cuse_turbo_for_cp     = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_TURBO_CP)          : NULL; // Boost critical path processes
-    char *ctry_turbo_enabled    = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_TRY_TURBO)         : NULL; // Boost turbo if policy sets max cpufreq
-    char *cuse_energy_models    = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_USE_ENERGY_MODELS) : NULL; // Use energy models
-    char *cmin_cpufreq          = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_MIN_CPUFREQ)       : NULL; // Minimum CPU freq.
-    char *cfake_io_phase        = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_IO_FAKE_PHASE)     : NULL;
-    char *cfake_bw_phase        = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_BW_FAKE_PHASE)     : NULL;
+    char *cdyn_unc              = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_SET_IMCFREQ)       : NULL; // eUFS
+    char *cimc_extra_th         = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_IMC_TH)            : NULL; // eUFS threshold
+    char *cexclusive_mode       = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_EXCLUSIVE_MODE)    : NULL; // Job has the node exclusive
+    char *cuse_earl_phases      = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_EARL_PHASES)       : NULL; // Detect application phases
+    char *cenable_load_balance  = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_LOAD_BALANCE)      : NULL; // Load balance efficiency
+    char *cuse_turbo_for_cp     = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_TURBO_CP)          : NULL; // Boost critical path processes
+    char *ctry_turbo_enabled    = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_TRY_TURBO)         : NULL; // Boost turbo if policy sets max cpufreq
+    char *cuse_energy_models    = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_USE_ENERGY_MODELS) : NULL; // Use energy models
+    char *cmin_cpufreq          = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_MIN_CPUFREQ)       : NULL; // Minimum CPU freq.
+    char *cfake_io_phase        = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_IO_FAKE_PHASE)     : NULL;
+    char *cfake_bw_phase        = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_BW_FAKE_PHASE)     : NULL;
 #if MPI_OPTIMIZED
-    char *cear_mpi_opt          = (system_conf->user_type == AUTHORIZED) ? getenv(FLAG_MPI_OPT)           : NULL; // MPI optimizattion
+    char *cear_mpi_opt          = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_MPI_OPT)           : NULL; // MPI optimizattion
 #endif
-    char *cignore_affinity_mask = getenv(FLAG_NO_AFFINITY_MASK);
+    char *cignore_affinity_mask = ear_getenv(FLAG_NO_AFFINITY_MASK);
 
-    char *cgpu_optimize = getenv(GPU_ENABLE_OPT);
+    char *cgpu_optimize = ear_getenv(GPU_ENABLE_OPT);
     if (cgpu_optimize != NULL) gpu_optimize = atoi(cgpu_optimize);
     verbose_master(POLICY_INFO, "%sPOLICY%s GPU optimization during GPU comp %s", COL_BLU, COL_CLR, (gpu_optimize? "Enabled":"Disabled"));
 
@@ -598,10 +753,12 @@ state_t policy_init()
         imc_extra_th = atof(cimc_extra_th);
     }
 
-    if (masters_info.my_master_rank >= 0)
-    {
-        policy_setup_priority();
+    if (cmin_cpufreq != NULL) {
+        min_cpufreq = (ulong) atoi(cmin_cpufreq);
     }
+
+    verbose_master(POLICY_INFO, "%sPOLICY%s Min. CPU freq. limited: %llu kHz"
+            " / Min. IMC freq. limited: %llu kHz", COL_BLU, COL_CLR, min_cpufreq, min_imcfreq);
 
     // Calling policy plug-in init
     if (polsyms_fun.init != NULL) {
@@ -617,15 +774,18 @@ state_t policy_init()
     if (cexclusive_mode != NULL) exclusive_mode = atoi(cexclusive_mode);
     verbose_master(POLICY_INFO, "%sPOLICY%s Running in exclusive mode: %u",
                    COL_BLU, COL_CLR, exclusive_mode);
+    if (is_master)
+    {
+        if (state_fail(policy_set_cpus_governor(exclusive_mode)))
+        {
+            verbose(POLICY_INFO, "%sWARNING%s Governor configuration error: %s",
+                    COL_YLW, COL_CLR, state_msg);
+        }
+    }
 
     if (cuse_earl_phases != NULL) use_earl_phases = atoi(cuse_earl_phases);
     verbose_master(POLICY_INFO, "%sPOLICY%s Phases detection: %u", COL_BLU, COL_CLR, use_earl_phases);
 
-    if (cmin_cpufreq != NULL) {
-        min_cpufreq = (ulong) atoi(cmin_cpufreq);
-    }
-    verbose_master(POLICY_INFO, "%sPOLICY%s Min. CPU freq. limited: %llu kHz"
-            " / Min. IMC freq. limited: %llu kHz", COL_BLU, COL_CLR, min_cpufreq, min_imcfreq);
 
     /* Even though the policy could be at the Node granularity, we will use a list */
 #if USE_GPUS
@@ -655,7 +815,7 @@ state_t policy_init()
     // TODO: This check is for the transition to the new environment variables.
     // It will be removed when SCHED_ENABLE_LOAD_BALANCE will be removed, in the next release.
     if (cenable_load_balance == NULL) {
-        cenable_load_balance = (system_conf->user_type == AUTHORIZED) ? getenv(SCHED_ENABLE_LOAD_BALANCE) : NULL;
+        cenable_load_balance = (system_conf->user_type == AUTHORIZED) ? ear_getenv(SCHED_ENABLE_LOAD_BALANCE) : NULL;
         if (cenable_load_balance != NULL) {
             verbose(1, "%sWARNING%s %s will be removed on the next EAR release. "
                     "Please, change it by %s in your submission scripts.",
@@ -687,7 +847,7 @@ state_t policy_init()
 
     if (ctry_turbo_enabled == NULL) {
 
-        ctry_turbo_enabled = (system_conf->user_type == AUTHORIZED) ? getenv(SCHED_TRY_TURBO) : NULL;
+        ctry_turbo_enabled = (system_conf->user_type == AUTHORIZED) ? ear_getenv(SCHED_TRY_TURBO) : NULL;
 
         if (ctry_turbo_enabled != NULL) {
             verbose(1, "%sWARNING%s %s will be removed on the next EAR release. "
@@ -720,7 +880,7 @@ state_t policy_init()
         verbose_master(POLICY_INFO, "%sERROR%s Getting policy domains.", COL_RED, COL_CLR);
     }
 
-    if (masters_info.my_master_rank >= 0) {
+    if (is_master) {
         // Powercap (?)
         pc_support_init(c);
     }
@@ -731,7 +891,7 @@ state_t policy_init()
     /* We have migrated frequency set from eard to earl */
     policy_get_default_freq(&nf);
 
-    if (masters_info.my_master_rank >= 0) {
+    if (is_master) {
       for (uint lp = 0 ; lp < lib_shared_region->num_processes; lp++) {
         sig_shared_region[lp].unbalanced = 0;
         sig_shared_region[lp].new_freq = nf.cpu_freq[0];
@@ -739,7 +899,13 @@ state_t policy_init()
     }
 
     /* What do we need at this point in the signature ? */
-    policy_master_freq_selection(c, &policy_last_local_signature, &nf, &freqs_domain, &avg_nf, ALL_PROCESSES);
+    policy_master_freq_selection(c, &policy_last_local_signature, &nf,
+                                 &freqs_domain, &avg_nf, ALL_PROCESSES);
+
+    if (is_master && !ignore_affinity_mask)
+    {
+        policy_setup_priority();
+    }
 
     if ((ret == EAR_SUCCESS) && (retg == EAR_SUCCESS)) return EAR_SUCCESS;
     else return EAR_ERROR;
@@ -749,38 +915,44 @@ state_t policy_init()
 state_t init_power_policy(settings_conf_t *app_settings, resched_t *res)
 {
     char basic_path[SZ_PATH_INCOMPLETE];
-    char use_path[SZ_PATH_INCOMPLETE];
+    char user_path[SZ_PATH_INCOMPLETE];
 
-    conf_install_t *data = &app_settings->installation;
+    conf_install_t *install_data = &app_settings->installation;
 
     // This part of code is to decide which policy to load based on default and hacks
-    char *obj_path       = (system_conf->user_type == AUTHORIZED) ? getenv(HACK_POWER_POLICY) : NULL;
-    char *ins_path       = (system_conf->user_type == AUTHORIZED) ? getenv(HACK_EARL_INSTALL_PATH) : NULL; // TODO: this path may be recicled without calling again getenv
-    char *app_mgr_policy = getenv(FLAG_APP_MGR_POLICIES);
+    char *obj_path       = (system_conf->user_type == AUTHORIZED) ? ear_getenv(HACK_POWER_POLICY) : NULL;
+    char *ins_path       = (system_conf->user_type == AUTHORIZED) ? ear_getenv(HACK_EARL_INSTALL_PATH) : NULL; // TODO: this path may be recicled without calling again getenv
 
-    char *monitoring = "monitoring";
+#if SHOW_DEBUGS
+    if (is_master)
+    {
+        if (obj_path != NULL)
+        { 
+            debug("%s = %s", HACK_POWER_POLICY, obj_path);
+        } else
+        {
+            debug("%s undefined", HACK_POWER_POLICY);
+        }
+        if (ins_path != NULL)
+        {
+            debug("%s = %s", HACK_EARL_INSTALL_PATH,ins_path);
+        } else
+        {
+            debug("%s undefined",HACK_EARL_INSTALL_PATH);
+        }
+    }
+#endif
 
-    char *my_policy_name = app_settings->policy_name;
+    char *app_mgr_policy = ear_getenv(FLAG_APP_MGR_POLICIES);
 
     int app_mgr = 0;
     if (app_mgr_policy != NULL){
         app_mgr = atoi(app_mgr_policy);
     }
 
-#if SHOW_DEBUGS
-    if (masters_info.my_master_rank >=0){
-        if (obj_path!=NULL){ 
-            debug("%s = %s", HACK_POWER_POLICY, obj_path);
-        } else {
-            debug("%s undefined",HACK_POWER_POLICY);
-        }
-        if (ins_path !=NULL) {
-            debug("%s = %s",HACK_EARL_INSTALL_PATH,ins_path);
-        }else{
-            debug("%s undefined",HACK_EARL_INSTALL_PATH);
-        }
-    }
-#endif
+    char *monitoring = "monitoring";
+
+    char *my_policy_name = app_settings->policy_name;
 
     if (earl_default_domains.cpu == POL_NOT_SUPPORTED) {
         my_policy_name = monitoring;
@@ -794,22 +966,22 @@ state_t init_power_policy(settings_conf_t *app_settings, resched_t *res)
     if (obj_path == NULL && ins_path == NULL) {
 #endif
         if (!app_mgr) {
-            xsnprintf(basic_path,sizeof(basic_path),"%s/policies/%s.so",data->dir_plug,my_policy_name);
+            xsnprintf(basic_path,sizeof(basic_path),"%s/policies/%s.so",install_data->dir_plug,my_policy_name);
         } else {
-            xsnprintf(basic_path,sizeof(basic_path),"%s/policies/app_%s.so",data->dir_plug,my_policy_name);
+            xsnprintf(basic_path,sizeof(basic_path),"%s/policies/app_%s.so",install_data->dir_plug,my_policy_name);
         }
         obj_path=basic_path;
     } else {
         if (obj_path == NULL){
             if (ins_path != NULL){
-                xsnprintf(use_path,sizeof(use_path),"%s/plugins/policies", ins_path);	
+                xsnprintf(user_path,sizeof(user_path),"%s/plugins/policies", ins_path);
             }else{
-                xsnprintf(use_path,sizeof(use_path),"%s/policies", data->dir_plug);
+                xsnprintf(user_path,sizeof(user_path),"%s/policies", install_data->dir_plug);
             }
             if (!app_mgr){
-                xsnprintf(basic_path,sizeof(basic_path),"%s/%s.so",use_path,my_policy_name);		
+                xsnprintf(basic_path,sizeof(basic_path),"%s/%s.so",user_path,my_policy_name);		
             }else{
-                xsnprintf(basic_path,sizeof(basic_path),"%s/app_%s.so",use_path,my_policy_name);		
+                xsnprintf(basic_path,sizeof(basic_path),"%s/app_%s.so",user_path,my_policy_name);		
             }
             obj_path=basic_path;
         }
@@ -854,42 +1026,47 @@ state_t init_power_policy(settings_conf_t *app_settings, resched_t *res)
     // functions for converting a pstate value to a khz frequency, and viceversa.
     // The called function is defined at the end of this file.
     if (state_fail(fill_mgt_api_pstate_data(MGT_CPUFREQ, &cpu_pstate_lst, &cpu_pstate_cnt))) {
-        verbose_master(POLICY_INFO, "%sERROR%s Policy init could not read mgt_cpufreq.",
-                COL_RED, COL_CLR);
+        verbose_master(POLICY_INFO, "%sERROR%s Policy init could not read mgt_cpufreq: %s",
+                       COL_RED, COL_CLR, state_msg);
     }
     if (state_fail(fill_mgt_api_pstate_data(MGT_IMCFREQ, &imc_pstate_lst, &imc_pstate_cnt))) {
-        verbose_master(POLICY_INFO, "%sERROR%s Policy init could not read mgt_cpufreq.",
-                COL_RED, COL_CLR);
+        verbose_master(POLICY_INFO, "%sERROR%s Policy init could not read mgt_cpufreq: %s",
+                       COL_RED, COL_CLR, state_msg);
     }
 
     // Set the minimum CPU and IMC freqs. to the max P-States set by the Admin in ear.conf
 
     debug("max cpu pstate: %u / cpu pstate cnt %u",
-            (uint) app_settings->cpu_max_pstate, cpu_pstate_cnt);
+          (uint) app_settings->cpu_max_pstate, cpu_pstate_cnt);
 
-    if (strcmp(my_policy_name, "monitoring") == 0) {
-				is_monitoring = 1;
-        pstate_pstofreq(cpu_pstate_lst, cpu_pstate_cnt,
-                cpu_pstate_cnt - 1, &min_cpufreq);
-    } else {
-    if (state_fail(pstate_pstofreq(cpu_pstate_lst, cpu_pstate_cnt,
-                        (uint) app_settings->cpu_max_pstate, &min_cpufreq))) {
-            verbose_master(POLICY_INFO, "%sERROR%s Policy init could not read cpu_max_pstate.",
-                    COL_RED, COL_CLR);
-        }
-
+    uint max_cpu_ps = cpu_pstate_cnt - 1;
+    if (strcmp(my_policy_name, "monitoring") == 0)
+    {
+        is_monitoring = 1;
+    } else
+    {
+        max_cpu_ps = ear_min(max_cpu_ps, (uint) app_settings->cpu_max_pstate);
     }
+
+    if (state_fail(pstate_pstofreq(cpu_pstate_lst, cpu_pstate_cnt, max_cpu_ps, &min_cpufreq)))
+    {
+        verbose_master(POLICY_INFO, "%sERROR%s Policy init could not read cpu_max_pstate: %s",
+                       COL_RED, COL_CLR, state_msg);
+    }
+
+    verbose_master(POLICY_INFO, "%sPOLICY%s System Min. CPU freq. limited: %llu kHz ", COL_BLU, COL_CLR, min_cpufreq);
+
 
     debug("max imc pstate: %u / imc pstate cnt %u",
-            (uint) app_settings->imc_max_pstate, imc_pstate_cnt);
+          (uint) app_settings->imc_max_pstate, imc_pstate_cnt);
 
-    if (state_fail(pstate_pstofreq(imc_pstate_lst, imc_pstate_cnt,
-                    (uint) app_settings->imc_max_pstate, &min_imcfreq))) {
-        verbose_master(POLICY_INFO, "%sERROR%s Policy init could not read imc_max_pstate.",
-                COL_RED, COL_CLR);
+    max_policy_imcfreq_ps = ear_min(imc_pstate_cnt - 1, (uint) app_settings->imc_max_pstate);
+    if (state_fail(pstate_pstofreq(imc_pstate_lst, imc_pstate_cnt, max_policy_imcfreq_ps, &min_imcfreq)))
+    {
+        verbose_master(POLICY_INFO, "%sERROR%s Policy init could not read imc_max_pstate: %s",
+                       COL_RED, COL_CLR, state_msg);
     }
-    max_policy_imcfreq_ps = (uint) app_settings->imc_max_pstate;
-
+    verbose_master(POLICY_INFO, "%sPOLICY%s System Min. IMC freq. limited: %llu kHz ", COL_BLU, COL_CLR, min_imcfreq);
 
     return policy_init();
 }
@@ -955,7 +1132,6 @@ static int is_try_again()
 /* The CPU and GPU freqs are set in this function, so freq_set is just a reference for the CPU freq selected */
 state_t policy_node_apply(signature_t *my_sig, ulong *freq_set, int *ready)
 {
-    signature_t node_sig;
     uint busy, iobound, mpibound, earl_phase_classification;
     uint jobs_in_node;
 
@@ -972,20 +1148,21 @@ state_t policy_node_apply(signature_t *my_sig, ulong *freq_set, int *ready)
 
     if (!eards_connected() || (masters_info.my_master_rank < 0)) {
 #if EARL_LIGHT
-        if (masters_info.my_master_rank >= 0) {
-		clean_signatures(lib_shared_region, sig_shared_region);
-	}
+        if (is_master) {
+            clean_signatures(lib_shared_region, sig_shared_region);
+        }
 #endif
         *ready = EAR_POLICY_CONTINUE;
         return EAR_SUCCESS;
     }
 
-    /* Update node info */
-    /* Not needed. update_earl_node_mgr_info(); */
+    if (!is_monitor_mpi_calls_enabled()) enable_load_balance = 0;
 
     verbose_master(POLICY_INFO + 1, "%sPOLICY%s Policy node apply", COL_BLU, COL_CLR);
-    nodemgr_get_num_jobs_attached(&jobs_in_node);
-    if (jobs_in_node > 1){
+
+    //nodemgr_get_num_jobs_attached(&jobs_in_node);
+    jobs_in_node = 1;
+    if (jobs_in_node > 1) {
       verbose_jobs_in_node(2, node_mgr_data, node_mgr_job_info);
     }
 
@@ -994,21 +1171,21 @@ state_t policy_node_apply(signature_t *my_sig, ulong *freq_set, int *ready)
 
     /* End update */
 
-
     //  NEW CLASSIFY
     is_network_bound(&lib_shared_region->job_signature, lib_shared_region->num_cpus, &mpibound);
     is_io_bound(     &lib_shared_region->job_signature, lib_shared_region->num_cpus, &iobound);
     classify(iobound, mpibound, &earl_phase_classification);
-
-
-
     is_cpu_busy_waiting(&lib_shared_region->job_signature, lib_shared_region->num_cpus, &busy);
+
     gpu_activity_state(&lib_shared_region->job_signature, &curr_gpu_state); // GPU phase classification
-    if (curr_gpu_state & _GPU_Idle) {
+    if (curr_gpu_state & _GPU_Idle)
+    {
         verbose_master(POLICY_GPU, "%sGPU idle phase%s", COL_BLU, COL_CLR);
     }
+
     /* Applications gpu bound cannot be applied as CPU-GPU */
-    if ((curr_gpu_state & _GPU_Bound) && (busy != BUSY_WAITING)){
+    if ((curr_gpu_state & _GPU_Bound) && (busy != BUSY_WAITING))
+    {
       earl_phase_classification = APP_CPU_GPU;
     }
 
@@ -1016,105 +1193,127 @@ state_t policy_node_apply(signature_t *my_sig, ulong *freq_set, int *ready)
     verbose_master(POLICY_PHASES, "EARL phase %s: Busy Waiting %u / I/O bound %u / MPI bound %u / Using phases %u",
         phase_to_str(earl_phase_classification), busy, iobound, mpibound, use_earl_phases);
 
-
-    if (use_earl_phases) {
-        REPORT_OPT_ACCURACY(OPT_OK);
+    if (use_earl_phases)
+    {
+      REPORT_OPT_ACCURACY(OPT_OK);
       /* CPU-GPU Code */
-      if (earl_phase_classification == APP_CPU_GPU){
-            //verbose_master(POLICY_PHASES,"%sCPU-GPU application%s", COL_BLU,COL_CLR);
+      if (earl_phase_classification == APP_CPU_GPU)
+      {
+            // verbose_master(POLICY_PHASES,"%sCPU-GPU application%s", COL_BLU,COL_CLR);
             verbose_master(1, "%sCPU-GPU application%s (%s)", COL_BLU, COL_CLR, node_name);
-            st = policy_cpu_gpu_freq_selection(c,my_sig,freqs,&freqs_domain,&avg_nf);
+
+            // TODO: The below function does not modify avg_nf, but it's used just after the function call.
+            st = policy_cpu_gpu_freq_selection(c, my_sig, freqs, &freqs_domain, &avg_nf);
             *freq_set = avg_nf.cpu_freq[0];
+
             policy_new_phase(last_earl_phase_classification, my_sig);
+
             last_earl_phase_classification = earl_phase_classification;
             last_gpu_state = curr_gpu_state;
-            policy_master_freq_selection(c,my_sig,freqs,&freqs_domain,&avg_nf, ALL_PROCESSES);
-            clean_signatures(lib_shared_region,sig_shared_region);
 
-            if (is_all_ready()){
+            policy_master_freq_selection(c,my_sig,freqs,&freqs_domain,&avg_nf, ALL_PROCESSES);
+
+            clean_signatures(lib_shared_region, sig_shared_region);
+
+            if (is_all_ready())
+            {
               *ready = EAR_POLICY_READY;
-            }else{
+            } else {
               *ready = EAR_POLICY_CONTINUE;
             }
             return EAR_SUCCESS;
-
-
       }
 
-        /* IO Use case */
-        if (earl_phase_classification == APP_IO_BOUND) {
-                verbose_master(POLICY_PHASES,"%sPOLICY%s I/O configuration", COL_BLU, COL_CLR);
-                // TODO Below function always returns EAR_SUCCESS
-                st = policy_io_freq_selection(c, my_sig, freqs, &freqs_domain, &avg_nf);
-                // TODO: GPU ?
-                *freq_set = avg_nf.cpu_freq[0];
-                policy_new_phase(last_earl_phase_classification, my_sig);
-                last_earl_phase_classification = earl_phase_classification;
-                last_gpu_state = curr_gpu_state;
-                policy_master_freq_selection(c, my_sig, freqs, &freqs_domain, &avg_nf, ALL_PROCESSES);
-                clean_signatures(lib_shared_region, sig_shared_region);
+      /* IO Use case */
+      if (earl_phase_classification == APP_IO_BOUND)
+      {
+          verbose_master(POLICY_PHASES,"%sPOLICY%s I/O configuration", COL_BLU, COL_CLR);
 
-                if (is_all_ready()){
+          // TODO Below function always returns EAR_SUCCESS
+          st = policy_io_freq_selection(c, my_sig, freqs, &freqs_domain, &avg_nf);
+
+          // TODO: GPU ?
+          // TODO: avg_nf is not set on the above function
+          *freq_set = avg_nf.cpu_freq[0];
+
+          policy_new_phase(last_earl_phase_classification, my_sig);
+
+          last_earl_phase_classification = earl_phase_classification;
+          last_gpu_state = curr_gpu_state;
+
+          policy_master_freq_selection(c, my_sig, freqs, &freqs_domain, &avg_nf, ALL_PROCESSES);
+
+          clean_signatures(lib_shared_region, sig_shared_region);
+
+          if (is_all_ready())
+          {
+              *ready = EAR_POLICY_READY;
+          } else
+          {
+              *ready = EAR_POLICY_CONTINUE;
+          }
+          return EAR_SUCCESS;
+      }
+
+      /* Restore configuration to COMP or MPI if needed */
+      if ((earl_phase_classification == APP_COMP_BOUND) ||
+          (earl_phase_classification == APP_MPI_BOUND))
+      {
+          /* Are we in a busy waiting phase ? */
+          if (busy == BUSY_WAITING)
+          {
+              verbose_master(POLICY_PHASES, "%sPOLICY%s CPU Busy waiting configuration (%s)",
+                             COL_BLU, COL_CLR, node_name);
+
+              st = policy_busy_waiting_configuration(c, my_sig, freqs, &freqs_domain, &avg_nf);
+
+              // TODO: avg_nf is not set on the above function
+              *freq_set = avg_nf.cpu_freq[0];
+
+              policy_master_freq_selection(c, my_sig, freqs, &freqs_domain, &avg_nf, ALL_PROCESSES);
+
+              last_gpu_state = curr_gpu_state;
+              policy_new_phase(last_earl_phase_classification, my_sig);
+
+              last_earl_phase_classification = APP_BUSY_WAITING;
+              clean_signatures(lib_shared_region, sig_shared_region);
+
+              if (is_all_ready())
+              {
                   *ready = EAR_POLICY_READY;
-                }else{
+              } else {
                   *ready = EAR_POLICY_CONTINUE;
-                }
-                return EAR_SUCCESS;
-        }
-        /* Restore configuration to COMP or MPI if needed */
-        if ((earl_phase_classification == APP_COMP_BOUND)
-                || (earl_phase_classification == APP_MPI_BOUND)) {
-            /* Are we in a busy waiting phase ? */
-            if (busy == BUSY_WAITING) {
-                verbose_master(POLICY_PHASES, "%sPOLICY%s CPU Busy waiting configuration (%s)",
-                        COL_BLU, COL_CLR, node_name);
+              }
 
-                st = policy_busy_waiting_configuration(c, my_sig, freqs,
-                        &freqs_domain, &avg_nf);
+              return EAR_SUCCESS;
+          }
 
-                *freq_set = avg_nf.cpu_freq[0];
+          /* If not, we should restore to default settings */
+          if ((last_earl_phase_classification == APP_BUSY_WAITING) ||
+              (last_earl_phase_classification == APP_IO_BOUND) ||
+              !(last_gpu_state & curr_gpu_state))
+          {
+              verbose_master(POLICY_PHASES, "%sPOLICY%s COMP-MPI configuration", COL_BLU, COL_CLR);
 
-                policy_master_freq_selection(c, my_sig, freqs, &freqs_domain, &avg_nf, ALL_PROCESSES);
-                last_gpu_state = curr_gpu_state;
-                policy_new_phase(last_earl_phase_classification, my_sig);
-                last_earl_phase_classification = APP_BUSY_WAITING;
-                clean_signatures(lib_shared_region,sig_shared_region);
+              st = policy_restore_comp_configuration(c, my_sig, freqs,
+                                                     &freqs_domain, &avg_nf);
 
-                if (is_all_ready()) {
-                    *ready = EAR_POLICY_READY;
-                } else {
-                    *ready = EAR_POLICY_CONTINUE;
-                }
+              *freq_set = avg_nf.cpu_freq[0];
 
-                return EAR_SUCCESS;
-            }
+              policy_new_phase(last_earl_phase_classification, my_sig);
 
-            /* If not, we should restore to default settings */
-            if ((last_earl_phase_classification == APP_BUSY_WAITING)
-                    || (last_earl_phase_classification == APP_IO_BOUND)
-                    || !(last_gpu_state & curr_gpu_state)) {
+              last_earl_phase_classification = earl_phase_classification;
+              last_gpu_state = curr_gpu_state;
 
-                verbose_master(POLICY_PHASES, "%sPOLICY%s COMP-MPI configuration",
-                        COL_BLU, COL_CLR);
+              if (earl_phase_classification == APP_COMP_BOUND) timestamp_getfast(&init_last_comp);
 
-                st = policy_restore_comp_configuration(c, my_sig, freqs,
-                        &freqs_domain, &avg_nf);
+              clean_signatures(lib_shared_region, sig_shared_region);
 
-                *freq_set = avg_nf.cpu_freq[0];
-            
-                policy_new_phase(last_earl_phase_classification, my_sig);
-                last_earl_phase_classification = earl_phase_classification;
-                last_gpu_state = curr_gpu_state;
+              *ready = EAR_POLICY_CONTINUE;
 
-                if (earl_phase_classification == APP_COMP_BOUND) timestamp_getfast(&init_last_comp);
-
-                clean_signatures(lib_shared_region, sig_shared_region);
-
-                *ready = EAR_POLICY_CONTINUE;
-
-                return st;
-            }
-        } // COMP_BOUND OR MPI_BOUND
+              return st;
+          }
+      } // COMP_BOUND OR MPI_BOUND
     } // EAR phase decisions
 
     /* Here we are COMP or MPI bound AND not busy waiting. */
@@ -1124,6 +1323,7 @@ state_t policy_node_apply(signature_t *my_sig, ulong *freq_set, int *ready)
     policy_new_phase(last_earl_phase_classification, my_sig);
 
     last_earl_phase_classification     = earl_phase_classification;
+
     if (earl_phase_classification == APP_COMP_BOUND) timestamp_getfast(&init_last_comp);
     is_cpu_bound(&lib_shared_region->job_signature, lib_shared_region->num_cpus, &policy_cpu_bound);
     is_mem_bound(&lib_shared_region->job_signature, lib_shared_region->num_cpus, &policy_mem_bound);
@@ -1133,45 +1333,59 @@ state_t policy_node_apply(signature_t *my_sig, ulong *freq_set, int *ready)
 
     last_gpu_state = curr_gpu_state;
 
-    if (polsyms_fun.node_policy_apply) {
-
+    if (polsyms_fun.node_policy_apply)
+    {
         /* Initializations */
+        signature_t node_sig;
         signature_copy(&node_sig, my_sig);
-        node_sig.DC_power = sig_node_power(my_sig);
-        signature_copy(&policy_last_local_signature,&node_sig);
 
-        if ((cpu_ready != EAR_POLICY_READY)
-                && (freqs_domain.cpu == POL_GRAIN_CORE)) {
+        // We remove here the GPU power, as models are not trained with it.
+        node_sig.DC_power = sig_node_power(my_sig);
+        signature_copy(&policy_last_local_signature, &node_sig);
+
+        if ((cpu_ready != EAR_POLICY_READY) &&
+            (freqs_domain.cpu == POL_GRAIN_CORE))
+        {
             memset(freqs->cpu_freq, 0, sizeof(ulong) * MAX_CPUS_SUPPORTED);
         }
 
         /* CPU specific function is applied here */
-        st = polsyms_fun.node_policy_apply(c, &node_sig,freqs, &cpu_ready);
+        st = polsyms_fun.node_policy_apply(c, &node_sig, freqs, &cpu_ready);
+
+        if (cpu_ready) compute_policy_savings(&node_sig, freqs, &freqs_domain);
 
         /* Depending on the policy status and granularity we adapt the CPU freq selection */
-        if (is_all_ready() || is_try_again()) {
+        if (is_all_ready() || is_try_again())
+        {
             /* This function checks the powercap and the processor affinity,
              * finally it sets the CPU freq. asking the eard to do it. */
             st = policy_master_freq_selection(c, &node_sig, freqs, &freqs_domain, &avg_nf, ALL_PROCESSES);
             *freq_set = avg_nf.cpu_freq[0];
         } /* Stop*/
-    } else if (polsyms_fun.app_policy_apply != NULL) {
+    } else if (polsyms_fun.app_policy_apply != NULL)
+    {
         *ready = EAR_POLICY_GLOBAL_EV;
-    } else {
-        if (c != NULL) {
+    } else
+    {
+        if (c != NULL)
+        {
             *freq_set = DEF_FREQ(c->app->def_freq);
             cpu_ready = EAR_POLICY_READY;
         }
     }
 
-    if (is_all_ready()) {
+    if (is_all_ready())
+    {
         *ready = EAR_POLICY_READY;
-    } else {
+    } else
+    {
         *ready = EAR_POLICY_CONTINUE;
     }
 
-    if (VERB_ON(POLICY_INFO)) {
-        if (*ready == EAR_POLICY_READY) {
+    if (VERB_ON(POLICY_INFO))
+    {
+        if (*ready == EAR_POLICY_READY)
+        {
             verbose_master(POLICY_INFO, "%sNode policy ready%s", COL_GRE, COL_CLR);
         }
         verbose_master(POLICY_INFO + 1, "%sPOLICY%s CPU freq. policy ready: %d\n"
@@ -1179,14 +1393,16 @@ state_t policy_node_apply(signature_t *my_sig, ulong *freq_set, int *ready)
                 cpu_ready, gpu_ready, *ready);
     }
 
-    clean_signatures(lib_shared_region,sig_shared_region);
+    clean_signatures(lib_shared_region, sig_shared_region);
 
     return EAR_SUCCESS;
 }
 
+
 state_t policy_get_default_freq(node_freqs_t *freq_set)
 {
-    if (masters_info.my_master_rank < 0) {
+    if (masters_info.my_master_rank < 0)
+    {
         return EAR_SUCCESS;
     }
 
@@ -1202,19 +1418,24 @@ state_t policy_get_default_freq(node_freqs_t *freq_set)
 
     // TODO: As the logic of this function is always the same,
     // it would be preferably if we avoid iterating all times we enter into this function.
-    for (int i = 0; i < MAX_CPUS_SUPPORTED; i++) {
+    for (int i = 0; i < MAX_CPUS_SUPPORTED; i++)
+    {
         freq_set->cpu_freq[i] = DEF_FREQ(my_pol_ctx.app->def_freq);
     }
 
     return EAR_SUCCESS;
 }
 
+
 /* This function sets the default freq for both (CPU and GPU policies). */
 state_t policy_set_default_freq(signature_t *sig)
 {
     signature_t s;
 
+    /* WARNING: sig can be NULL */
+
     if (masters_info.my_master_rank < 0 ) return EAR_SUCCESS;
+    verbose_master(2,"policy_set_default_freq");
 
 #if USE_GPUS
     s.gpu_sig.num_gpus = my_pol_ctx.num_gpus;
@@ -1235,15 +1456,21 @@ state_t policy_set_default_freq(signature_t *sig)
 
 static void compute_energy_savings(signature_t *curr,signature_t *prev)
 {
-	float performance_prev, performance_curr;
+	// float performance_prev, performance_curr;
 	float psaving = 0;
 	float tpenalty = 0;
 	float esaving = 0;
-// #if 0
+  ullong saving_elapsed;
+#if 0
 	double tflops;
-// #endif
+#endif
+//
 	
 	sig_ext_t *sig_ext = curr->sig_ext;
+
+  if (energy_policy_saving == 0) return;
+
+  #if 0
 
 	if ((prev->Gflops == 0) || (curr->Gflops == 0)) {
 		esaving = 0;
@@ -1254,6 +1481,7 @@ static void compute_energy_savings(signature_t *curr,signature_t *prev)
 	performance_prev = prev->Gflops/prev->DC_power;
 	performance_curr = curr->Gflops/curr->DC_power;
 
+
 // #if 0
     if (state_fail(compute_job_node_gflops(sig_shared_region,
                     lib_shared_region->num_processes, &tflops))) {
@@ -1261,21 +1489,39 @@ static void compute_energy_savings(signature_t *curr,signature_t *prev)
                 COL_RED, COL_CLR, state_msg);
     }
 
-    verbose_master(2, "MR[%d] Curr performance %.4f (%.2f, %.2f/%.2f) Last performance %.4f (%.2f/%.2f)", masters_info.my_master_rank, \
-            performance_curr, (float)tflops, curr->Gflops, curr->DC_power, \
+    verbose_master(2, "MR[%d] Curr performance %.4f (%.2f/%.2f) Last performance %.4f (%.2f/%.2f)", masters_info.my_master_rank, \
+            performance_curr, curr->Gflops, curr->DC_power, \
             performance_prev, prev->Gflops, prev->DC_power); 
 // #endif
 
 	esaving  = ((performance_curr - performance_prev) / performance_prev) * 100;
 	psaving  = ((prev->DC_power - curr->DC_power) / prev->DC_power ) * 100;
 	tpenalty = ((prev->Gflops - curr->Gflops) / prev->Gflops) * 100;
+  #endif
 
-	verbose_master(2,"MR[%d]: Esaving %.2f, Psaving %.2f, Tpenalty %.2f",
-            masters_info.my_master_rank, esaving, psaving, tpenalty);
+  /* These policy savings are estimations based on the energy models */
 
-	sig_ext->saving   = esaving * sig_ext->elapsed;
-	sig_ext->psaving  = psaving * sig_ext->elapsed;
-	sig_ext->tpenalty = tpenalty * sig_ext->elapsed;
+  tpenalty = time_policy_penalty  * 100;
+  esaving  = energy_policy_saving * 100;
+  psaving  = power_policy_saving  * 100;
+
+
+
+
+	verbose_master(POLICY_SAVINGS_LVL,"MR[%d]: Esaving %.2f, Psaving %.2f, Tpenalty %.2f, Elapsed %.2f",
+            masters_info.my_master_rank, esaving, psaving, tpenalty, sig_ext->elapsed);
+  if (policy_saving_updated){
+    saving_elapsed = timestamp_diffnow(&policy_saving_time_start, TIME_SECS);
+    policy_saving_updated = 0;
+  }else{
+    saving_elapsed = (ullong) sig_ext->elapsed;
+  }
+  verbose_master(POLICY_SAVINGS_LVL, "Policy savins[%s]: Using elapsed time %llu", node_name, saving_elapsed);
+
+
+	sig_ext->saving   = esaving * saving_elapsed;
+	sig_ext->psaving  = psaving * saving_elapsed;
+	sig_ext->tpenalty = tpenalty * saving_elapsed;
 
     REPORT_SAVING(ENERGY_SAVING, (llong) esaving);
     REPORT_SAVING(POWER_SAVING,  (llong) psaving);
@@ -1283,7 +1529,8 @@ static void compute_energy_savings(signature_t *curr,signature_t *prev)
 
 }
 
-
+/* Uncomment this option to use energy savings estimations to decide if policy is ok */
+//#define USE_ENERGY_SAVING
 /* This function checks the CPU freq selection accuracy (only CPU), ok is an output */
 state_t policy_ok(signature_t *curr, signature_t *prev, int *ok)
 {
@@ -1380,12 +1627,14 @@ state_t policy_ok(signature_t *curr, signature_t *prev, int *ok)
 
         compute_energy_savings(curr, prev);
 
+        #if USE_ENERGY_SAVING
         if (sig_ext->saving < 0) {
 
           *ok = 0;
 
           verbose(2, "%sPOLICY OK%s We are not saving energy.", COL_RED, COL_CLR);
         }
+        #endif
     }
 
     // We finally report the OPT_ACCURACY
@@ -1414,6 +1663,8 @@ state_t policy_end()
 {
     polctx_t *c = &my_pol_ctx;
 
+    verbose_master(2,"Total number of MPI calls %llu", total_mpi);
+
 #if MPI_OPTIMIZED
     if (ear_mpi_opt) {
         verbose(1, "[%d] Total number of MPI calls with optimization: %u", my_node_id,  total_mpi_optimized);
@@ -1426,6 +1677,10 @@ state_t policy_end()
 #endif
 
     policy_reset_priority();
+    if (is_master && exclusive_mode)
+    {
+        policy_restore_cpus_governor();
+    }
 
     preturn(polsyms_fun.end, c);
 }
@@ -1448,6 +1703,7 @@ state_t policy_loop_end(loop_id_t *loop_id)
 /* This function is executed at each loop iteration or beginning of a period */
 state_t policy_new_iteration(signature_t *sig)
 {
+      
 
     // TODO: Here we are doing things useless in monitoring mode.
     /* This validation is common to all policies */
@@ -1465,7 +1721,7 @@ state_t policy_new_iteration(signature_t *sig)
         if (last_phase_io_bnd && (sig->IO_MBS < phases_limits.io_th))         restore = 1; 
         if (last_phase_bw     && (sig->CPI > phases_limits.cpi_busy_waiting)) restore = 1;
         /* WARNING: Below condition won't be accomplished never. */
-        if (sig->Gflops > phases_limits.gflops_busy_waiting)                  restore = 1;
+        if ((sig->Gflops/lib_shared_region->num_cpus) > phases_limits.gflops_busy_waiting)                  restore = 1;
 
         if (restore){
             verbose_master(POLICY_INFO, "Phase has changed, restoring");
@@ -1551,6 +1807,31 @@ state_t policy_mpi_init(mpi_call call_type)
     return EAR_SUCCESS;
 }
 
+state_t policy_restore_to_mpi_pstate(uint index)
+{
+#if !SINGLE_CONNECTION && MPI_OPTIMIZED
+  polctx_t *c = &my_pol_ctx;
+  ulong f = sig_shared_region[my_node_id].mpi_freq;
+  if (index != process_get_target_pstate()){
+    pstate_t *sel_pstate, *pstate_list;
+    pstate_list = metrics_get(MGT_CPUFREQ)->avail_list;
+    sel_pstate = &pstate_list[index];
+    f = sel_pstate->khz;
+  }
+  if (traces_are_on()){
+    traces_generic_event(ear_my_rank, my_node_id , TRA_CPUF_RAMP_UP, f);
+  }
+  verbose(2, "restore CPU freq in process %d to %lu", my_node_id, f);
+  per_process_node_freq.cpu_freq[my_node_id] = f;
+  if (state_fail(policy_freq_selection(c, &aux_per_process,
+      &per_process_node_freq,  &per_process_dom, NULL, my_node_id))) {
+      verbose(2, "%sERROR%s CPU freq. restore in MPI opt", COL_RED, COL_CLR);
+      return EAR_ERROR;
+  }
+#endif
+  return EAR_SUCCESS;
+}
+
 
 /* This function is executed after each mpi call:
  * Warning! it could introduce a lot of overhead. */
@@ -1629,28 +1910,35 @@ state_t policy_get_current_freq(node_freqs_t *freq_set)
     return EAR_SUCCESS;
 }
 
+
 static state_t fill_mgt_api_pstate_data(uint api_id, pstate_t **pstate_lst, uint *pstate_cnt)
 {
     debug("Requesting MGT_CPUFREQ (%u) vs. MGT_IMCFREQ (%u): %u",
             MGT_CPUFREQ, MGT_IMCFREQ, api_id);
 
-    if (api_id != MGT_CPUFREQ && api_id != MGT_IMCFREQ) {
-        return_msg(EAR_ERROR, "Requested API not supported.");
+    if (pstate_lst && pstate_cnt)
+    {
+        if (api_id != MGT_CPUFREQ && api_id != MGT_IMCFREQ) {
+            return_msg(EAR_ERROR, Generr.api_incompatible);
+        }
+
+        // Get mgt API from metrics
+        const metrics_t *mgt_api = metrics_get(api_id);
+
+        if (mgt_api == NULL) {
+            return_msg(EAR_ERROR, Generr.api_undefined);
+        } else if (mgt_api->avail_list != NULL) {
+            *pstate_lst = (pstate_t *) mgt_api->avail_list;
+            *pstate_cnt = mgt_api->avail_count;
+
+            return EAR_SUCCESS;
+        }
+
+        return_msg(EAR_ERROR, Generr.api_initialized);
+    } else
+    {
+        return_msg(EAR_ERROR, Generr.input_null)
     }
-
-    // Get mgt API from metrics
-    const metrics_t *mgt_api = metrics_get(api_id);
-
-    if (mgt_api == NULL) {
-        return_msg(EAR_ERROR, "The requested API does not exist.");
-    } else if (mgt_api->avail_list != NULL) {
-        *pstate_lst = (pstate_t *) mgt_api->avail_list;
-        *pstate_cnt = mgt_api->avail_count;
-
-        return EAR_SUCCESS;
-    }
-
-    return_msg(EAR_ERROR, "The requested API has not filled the avail_list field.");
 }
 
 
@@ -1666,14 +1954,14 @@ static state_t from_proc_to_core(ulong *process_cpu_freqs_khz, int process_cnt, 
       end_rank = process_cnt;
     }else{
       init_rank = proc_id;
-      end_rank  = proc_id +1;
+      end_rank  = proc_id + 1;
     }
     if (proc_id >= 0){
       verbose(3, "from_proc_to_core  [%d] Freq %.2f", proc_id, (float)process_cpu_freqs_khz[proc_id]/(float)1000000.0);
     }
-		if (proc_id == ALL_PROCESSES && (masters_info.my_master_rank < 0)){
-			verbose(2, "Not master setting CPUfreq for ALL (%.2f)", (float)process_cpu_freqs_khz[0]/(float)1000000.0);
-		}
+    if (proc_id == ALL_PROCESSES && (masters_info.my_master_rank < 0)){
+        verbose(2, "Not master setting CPUfreq for ALL (%.2f)", (float)process_cpu_freqs_khz[0]/(float)1000000.0);
+    }
     if (process_cpu_freqs_khz == NULL || process_cnt < 0 || core_cpu_freqs_khz == NULL
             || *core_cpu_freqs_khz == NULL || cpu_cnt < 0) {
         debug("ERROR: invalid arguments");
@@ -1682,6 +1970,7 @@ static state_t from_proc_to_core(ulong *process_cpu_freqs_khz, int process_cnt, 
 
     int verb_lvl = POLICY_INFO;
 
+    static uint first_print = 1;
     if (first_print) {
         verb_lvl = 1;
         first_print = 0;
@@ -1721,7 +2010,7 @@ static state_t from_proc_to_core(ulong *process_cpu_freqs_khz, int process_cnt, 
 
         // The frequency is filtered by the minimum permitted in the EAR configuration
         ulong cpu_freq_khz = ear_max(process_cpu_freqs_khz[proc_lrank], (ulong) min_cpufreq);
-				process_cpu_freqs_khz[proc_lrank] = cpu_freq_khz;
+		process_cpu_freqs_khz[proc_lrank] = cpu_freq_khz;
 
         /* Compute the maximum and minimum if required */
         if (cpu_freq_max != NULL) {
@@ -1740,7 +2029,23 @@ static state_t from_proc_to_core(ulong *process_cpu_freqs_khz, int process_cnt, 
 
 
         /* This is the default use case. EAR uses the CPU affinity mask */
+        int sem_ret_val = sem_wait(lib_shared_lock_sem);
+        if (sem_ret_val < 0)
+        {
+            verbose(1, "%sWARNING%s Locking semaphor for cpu mask read failed: %d", COL_YLW, COL_CLR, errno);
+        }
+
         cpu_set_t process_mask = sig_shared_region[proc_lrank].cpu_mask;
+
+        // We only want to increase the semaphor number if the previous lock was successful.
+        if (!sem_ret_val)
+        {
+            if (sem_post(lib_shared_lock_sem) < 0)
+            {
+                verbose(1, "%sWARNING%s Unlocking semaphor for cpu mask read failed: %d",
+                        COL_YLW, COL_CLR, errno);
+            }
+        }
 
         for (int cpu_idx = 0; cpu_idx < cpu_cnt; cpu_idx++) {
             if (CPU_ISSET(cpu_idx, &process_mask)) {
@@ -1890,11 +2195,11 @@ static state_t policy_cpu_freq_selection(polctx_t *c, signature_t *my_sig,
         }
     }
 
-    if ((dom->cpu == POL_GRAIN_CORE) && (process_id == ALL_PROCESSES)) {
+    if  (process_id == ALL_PROCESSES) {
         fill_cpus_out_of_cgroup(exclusive_mode);
     }
 
-    verbose_freq_per_core(POLICY_INFO + 1, &freq_per_core, arch_desc.top.cpu_count);
+    verbose_freq_per_core(POLICY_INFO , &freq_per_core, arch_desc.top.cpu_count);
 
     // We decided arbitrarely to put show the minimum CPU freq. selected.
     *(c->ear_frequency) = max_cpufreq_sel_khz;
@@ -2008,21 +2313,24 @@ static state_t policy_mem_freq_selection(polctx_t *c, signature_t *my_sig, node_
             }
         }
 
-        if (mgt_imcfreq_set_current_ranged_list(NULL, imc_low, imc_up) != EAR_SUCCESS){
+        if (state_fail(mgt_imcfreq_set_current_ranged_list(NULL, imc_low, imc_up)))
+        {
             uint sid = 0;
-            if (imc_up[sid] != ps_nothing) {
+            if (imc_up[sid] != ps_nothing)
+            {
                 verbose_master(2, "Error setting IMC freq to %llu and %llu",
-                        imc_pstates[imc_low[0]].khz, imc_pstates[imc_up[0]].khz);
-            } else  {
+                               imc_pstates[imc_low[0]].khz, imc_pstates[imc_up[0]].khz);
+            } else
+            {
                 verbose_master(2, "Error setting IMC freq to %llu and min",
-                        imc_pstates[imc_low[0]].khz);
+                               imc_pstates[imc_low[0]].khz);
             }
-        }			
+        }
 
         free(imc_up);
         free(imc_low);
     } else {
-        verbose_master(2,"IMC not compatible");
+        verbose_master(2, "IMC not compatible");
     }
 
     return EAR_SUCCESS;
@@ -2046,7 +2354,7 @@ static state_t policy_gpu_freq_selection(polctx_t *c, signature_t *my_sig, node_
 #if USE_GPUS
     if (verb_level >= POLICY_GPU) {
         for (i=0; i < c->num_gpus; i++) {
-            verbosen_master(POLICY_GPU," GPU freq[%d] = %.2f ",
+            verbosen_master(POLICY_GPU," GPU freq[%d] = %.3f ",
                     i, (float) gpu_f[i] / GHZ_TO_KHZ);
         }
         verbose_master(POLICY_GPU," ");
@@ -2126,6 +2434,21 @@ static void verbose_policy_ctx(int verb_lvl, polctx_t *policy_ctx)
 
         verbose_master(verb_lvl, "%*s%s%*s\n", 1, "", "--------------------------", 1, "");
     }
+}
+
+
+static void verbose_time_in_phases(signature_t *sig)
+{
+  sig_ext_t *se = (sig_ext_t *)sig->sig_ext;
+  if (se != NULL){
+    verbose_master(2, "............Phases");
+    for (uint ph = 0; ph < EARL_MAX_PHASES; ph++){
+      if (se->earl_phase[ph].elapsed){ 
+        verbose_master(2, "Phase[%s] elapsed %llu", phase_to_str(ph), se->earl_phase[ph].elapsed);
+      }
+    }
+    verbose_master(2, "............END-Phases");
+  }
 }
 
 
@@ -2365,7 +2688,7 @@ static state_t policy_set_prio_with_mask_inverted(uint *dst_prio_list, uint dst_
 static state_t policy_reset_priority()
 {
     const metrics_t *cpuprio_api = metrics_get(API_ISST);
-    if (masters_info.my_master_rank >= 0 && cpuprio_api)
+    if (is_master && cpuprio_api)
     {
         if (cpuprio_api->ok && use_cpuprio && mgt_cpufreq_prio_is_enabled())
         {
@@ -2432,4 +2755,78 @@ static void verbose_cpuprio_list(int verb_lvl, uint *cpuprio_list, uint cpuprio_
             verbose_master(0, " %u", cpuprio_list[i]);
         }
     }
+}
+
+
+static state_t policy_set_cpus_governor(uint exclusive)
+{
+#define free_return_err(msg) \
+        free(governor_list_before_init);\
+        governor_list_before_init = NULL;\
+        return_msg(EAR_ERROR, msg);
+
+#define check(st, msg) \
+    if (state_fail(st)) {free_return_err(msg);}
+
+    // Allocate the governor list
+    if (state_fail(mgt_cpufreq_data_alloc(NULL, &governor_list_before_init)))
+    {
+        return_msg(EAR_ERROR, "Allocating governor list.");
+    }
+
+    // Retrieve the current governor list
+    check(mgt_cpufreq_governor_get_list(no_ctx, governor_list_before_init),
+          "Retrieving the governor list.");
+
+    // Verbose governor list
+    if (VERB_ON(POLICY_INFO))
+    {
+        verbosen(POLICY_INFO , "List of governors of %u CPUs: ", lib_shared_region->num_cpus);
+        for (int i = 0; i < metrics_get(MGT_CPUFREQ)->devs_count; i++)
+        {
+            verbosen(POLICY_INFO , " %u", governor_list_before_init[i]);;
+        }
+        verbose(POLICY_INFO , " ");
+    }
+
+    // Set userspace governor on CPUs not used by the job
+
+    cpu_set_t cpus_to_be_set;
+    if (exclusive){
+      set_mask_all_ones(&cpus_to_be_set);
+    }else{
+      memcpy(&cpus_to_be_set, &lib_shared_region->node_mask, sizeof(cpu_set_t));
+    }
+
+    verbosen(POLICY_INFO , "Node used CPUs: ");
+    verbose_affinity_mask(POLICY_INFO , (const cpu_set_t *) &lib_shared_region->node_mask, MAX_CPUS_SUPPORTED);
+
+    verbosen(POLICY_INFO , "CPUs to be set: ");
+    verbose_affinity_mask(POLICY_INFO , (const cpu_set_t *) &cpus_to_be_set, MAX_CPUS_SUPPORTED);
+
+    // Getting a valid ID for 'userspace' governor
+    char *governor_str = "userspace";
+    uint governor_int;
+    check(governor_toint(governor_str, &governor_int),
+          "Converting governor from str to int.");
+
+    // Setting the governor
+    check(mgt_cpufreq_governor_set_mask(no_ctx, governor_int, cpus_to_be_set),
+          "Setting governor.");
+
+    return EAR_SUCCESS;
+}
+
+
+static state_t policy_restore_cpus_governor()
+{
+    if (governor_list_before_init)
+    {
+        mgt_cpufreq_governor_set_list(no_ctx, governor_list_before_init);
+
+        free(governor_list_before_init);
+        governor_list_before_init = NULL;
+    }
+
+    return EAR_SUCCESS;
 }

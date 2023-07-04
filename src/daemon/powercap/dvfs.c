@@ -425,7 +425,7 @@ state_t enable(suscription_t *sus)
 state_t plugin_set_burst()
 {
     debug("setting dvfs to burst mode");
-    return monitor_burst(sus_dvfs);
+    return monitor_burst(sus_dvfs, 0);
 }
 
 state_t plugin_set_relax()

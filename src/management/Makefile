@@ -3,7 +3,7 @@ CC_FLAGS += $(CONSTANTS)
 
 ######## FILES
 
-root_BINS = test.o libmgt.a
+root_BINS = libmgt.a
 
 root_OBJS = \
     $(SRCDIR)/management/cpufreq/cpufreq.o \
@@ -17,7 +17,12 @@ root_OBJS = \
     $(SRCDIR)/management/cpufreq/archs/prio_dummy.o \
     $(SRCDIR)/management/cpufreq/archs/prio_eard.o \
     $(SRCDIR)/management/cpufreq/archs/prio_isst.o \
-    $(SRCDIR)/management/cpufreq/drivers/linux_cpufreq.o \
+    $(SRCDIR)/management/cpufreq/drivers/acpi_cpufreq.o \
+    $(SRCDIR)/management/cpufreq/drivers/intel_pstate.o \
+    $(SRCDIR)/management/cpupow/cpupow.o \
+    $(SRCDIR)/management/cpupow/archs/amd17.o \
+    $(SRCDIR)/management/cpupow/archs/dummy.o \
+    $(SRCDIR)/management/cpupow/archs/intel63.o \
     $(SRCDIR)/management/imcfreq/imcfreq.o \
     $(SRCDIR)/management/imcfreq/archs/amd17.o \
     $(SRCDIR)/management/imcfreq/archs/dummy.o \
@@ -28,7 +33,8 @@ root_OBJS = \
     $(SRCDIR)/management/gpu/archs/dummy.o \
     $(SRCDIR)/management/gpu/archs/nvml.o \
     $(SRCDIR)/management/gpu/archs/oneapi.o \
-    $(SRCDIR)/management/test.o
+    $(SRCDIR)/management/gpu/archs/rsmi.o \
+    $(SRCDIR)/management/management.o
 
 ######## RULES
 
@@ -42,7 +48,7 @@ post: test
 libmgt.a: Makefile $(root_OBJS)
 	$(AR) rvs $@ $(root_OBJS)
 
-test: test.c
+test: management.c
 	$(CC) -I $(SRCDIR) -DTEST=1 -fPIC -o $@ $^ libmgt.a ../metrics/libmetrics.a ../daemon/local_api/libeard.a ../common/libcommon.a -lm -lpthread -ldl
 
 ######## OPTIONS
@@ -64,6 +70,7 @@ depend-clean: depend-clean.components
 
 %.components:
 	@ $(MAKE) -C 'cpufreq' $* || exit
+	@ $(MAKE) -C 'cpupow'  $* || exit
 	@ $(MAKE) -C 'imcfreq' $* || exit
 	@ $(MAKE) -C 'gpu'     $* || exit
 

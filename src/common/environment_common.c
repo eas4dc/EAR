@@ -21,8 +21,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <common/config/config_env.h>
 
 #define DEFAULT_VERBOSE                 0
 #define DEFAULT_DB_PATHNAME             ".ear_system_db"
@@ -36,35 +37,21 @@ int conf_ear_verbose=DEFAULT_VERBOSE;
 char * getenv_ear_tmp()
 {
 	char *my_ear_tmp;
-	my_ear_tmp=getenv("EAR_TMP");
+	my_ear_tmp=ear_getenv(ENV_PATH_TMP);
 	if (my_ear_tmp==NULL){
-		my_ear_tmp=getenv("TMP");
+		my_ear_tmp=ear_getenv("TMP");
 		//??
-		if (my_ear_tmp==NULL) my_ear_tmp=getenv("HOME");
+		if (my_ear_tmp==NULL) my_ear_tmp=ear_getenv("HOME");
 	}
 	conf_ear_tmp=malloc(strlen(my_ear_tmp)+1);
 	strcpy(conf_ear_tmp,my_ear_tmp);
 	return conf_ear_tmp;	
 }
-#if 0
-char *getenv_ear_db_pathname()
-{
-	char *my_ear_db_pathname = getenv("EAR_DB_PATHNAME");
-
-	if (my_ear_db_pathname != NULL && strcmp(my_ear_db_pathname,"") != 0)
-	{
-		conf_ear_db_pathname = malloc(strlen(my_ear_db_pathname)+1);
-		strcpy(conf_ear_db_pathname,my_ear_db_pathname);
-	}
-
-	return conf_ear_db_pathname;
-}
-#endif
 
 int getenv_ear_verbose()
 {
 	char *my_verbose;
-	my_verbose=getenv("EAR_VERBOSE");
+	my_verbose=ear_getenv(ENV_FLAG_VERBOSITY);
 	if (my_verbose!=NULL){
 		conf_ear_verbose=atoi(my_verbose);
 		if ((conf_ear_verbose<0) || (conf_ear_verbose>4)) conf_ear_verbose=DEFAULT_VERBOSE;
@@ -74,7 +61,7 @@ int getenv_ear_verbose()
 
 char *get_ear_install_path()
 {
-	return getenv("EAR_INSTALL_PATH");
+	return ear_getenv(ENV_PATH_EAR);
 }
 
 // get_ functions must be used after getenv_
@@ -109,7 +96,6 @@ void ear_daemon_environment()
 {
     getenv_ear_verbose();
     getenv_ear_tmp();
-    // getenv_ear_db_pathname();
 }
 void ear_print_daemon_environment()
 {
@@ -137,3 +123,23 @@ void ear_print_daemon_environment()
 #endif
 }
 
+// Is here because environment.c is full of things like dlsym().
+char *ear_getenv(const char *name)
+{
+    static char *pfx[] = { "", "SCHED_", "SLURM_", "OAR_", "PBS_"};
+    static int pfx_n = 5;
+    char buffer[128];
+    char *var;
+    int i;
+
+    for (i = 0; i < pfx_n; ++i) {
+        // clean and concat
+        buffer[0] = '\0';
+        strcat(buffer, pfx[i]);
+        strcat(buffer, name);
+        if ((var = getenv((const char *) buffer)) != NULL) {
+            return var;
+        }
+    }
+    return NULL;
+}

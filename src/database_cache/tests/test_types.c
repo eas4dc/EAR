@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 	int j;
 
 	if (get_ear_conf_path(opt1) == EAR_ERROR) {
-		error("while getting ear.conf path '%s' '%s' (%d, '%s')", opt1, getenv("EAR_ETC"), errno, strerror(errno));
+		error("while getting ear.conf path '%s' '%s' (%d, '%s')", opt1, ear_getenv(ENV_PATH_ETC), errno, strerror(errno));
 		return 0;
 	}
 
