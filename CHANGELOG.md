@@ -1,3 +1,13 @@
+### EAR 4.3
+- MPI stats collection now is guided by sampling to minimize the overhead.
+- EARL-EARD communication optimized.
+- EARL: Periodic actions optimization.
+- EARL: Reduce time consumption of loop signature computation.
+- erun: Provide support for multiple batch schedulers.
+- eardbd: Verbosity quality improved.
+- AMD Genoa is supported now.
+- Improved robustness in metrics computation to support hardware failures.
+
 ### EAR 4.2
 - Improved support for node sharing : save/restore configurations
 - AMD(Zen3) CPUs
