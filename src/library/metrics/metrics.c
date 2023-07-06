@@ -1520,7 +1520,7 @@ static void estimate_metrics_not_available_by_node(uint sign_app_loop_idx, signa
         current_ratio = dc_power_ratio / (double)dc_power_ratio_instances;
       }else current_ratio = 1.0;
       metrics->DC_power = (gpup + metrics->DRAM_power + metrics->PCK_power) * current_ratio;
-      verbose_master(1,"Warning: Estimated power %.2lf W (DC vs CPU+GPU %.2lf)", metrics->DC_power, current_ratio);
+      verbose_master(2,"Warning: Estimated power %.2lf W (DC vs CPU+GPU %.2lf)", metrics->DC_power, current_ratio);
       estimate_power = 0;
     }
 
@@ -1884,7 +1884,7 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
 
 	/* Compute and print the total savings */
   if (sign_app_loop_idx == APP){
-    verbose_master(1, " Scope %s master %u elapsed %f", (sign_app_loop_idx == APP?"APP":"LOOP"), masters_info.my_master_rank >= 0, sig_ext->telapsed);
+    verbose_master(2, " Scope %s master %u elapsed %f", (sign_app_loop_idx == APP?"APP":"LOOP"), masters_info.my_master_rank >= 0, sig_ext->telapsed);
   }
 	if ((sign_app_loop_idx == APP) && (masters_info.my_master_rank >= 0) && sig_ext->telapsed) {
 
@@ -2861,24 +2861,3 @@ static state_t energy_lib_init(settings_conf_t *conf)
 static void metrics_static_dispose()
 {
 }
-
-#if DLB
-state_t metrics_compute_talp_node_metrics(sig_ext_t *dst_sig, dlb_monitor_t *region_monitor)
-{
-    if (dst_sig)
-    {
-        int ret = DLB_TALP_CollectNodeMetrics(region_monitor, &dst_sig->dlb_talp_node_metrics);
-
-        if (!ret)
-        {
-            return EAR_SUCCESS;
-        } else
-        {
-            return EAR_ERROR;
-        }
-    } else
-    {
-        return EAR_ERROR;
-    }
-}
-#endif // DLB

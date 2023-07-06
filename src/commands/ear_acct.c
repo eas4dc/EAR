@@ -44,7 +44,7 @@
 cluster_conf_t my_conf;
 #endif
 
-#define COLORS 1
+#define COLORS 0
 
 #define STANDARD_NODENAME_LENGTH	25
 #define APP_TEXT_FILE_FIELDS		22

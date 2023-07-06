@@ -15,6 +15,16 @@ LIB_CFLAGS  = $(MPI_CFLAGS) -DMPI=1 -DNODE_LB=1 -DSINGLE_CONNECTION=0 -DMPI_OPTI
 CFLAGS     += -DEAR_DEF_TIME_GUIDED=0 -DMPI_SAMPLING=1 -DMPI_STATS=1
 
 ## MPI_SAMPLING can be used to do an MPI statistic sampling
+## MIX_RPM implements a blocking operation to read in rpcs
+endif
+
+ifeq ($(FEAT_RESEARCH), 1)
+	CFLAGS +=  \
+			  -DEAR_DEF_TIME_GUIDED=0
+endif
+
+ifeq ($(FEAT_EAR_OFF), 1)
+	CFLAGS +=  -DEAR_OFF=1
 endif
 
 
@@ -26,7 +36,12 @@ else
 CFLAGS += -DEARL_LIGHT=0
 endif
 
+ifeq ($(DCGMI), 1)
+CFLAGS += -DDCGMI=1
+endif
 
+# export LIBCC
+# export LIBCC_FLAGS
 export LIB_CFLAGS
 export CFLAGS
 

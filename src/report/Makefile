@@ -52,7 +52,6 @@ repo_BINS += \
 		prometheus.so
 endif
 
-
 ######## RULES
 
 all: $(repo_OBJS) $(repo_BINS)

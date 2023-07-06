@@ -104,10 +104,6 @@ typedef struct lib_shared_data {
 #if MPI_OPTIMIZED
 		uint    processes_in_barrier;
 #endif
-#if DLB
-        int     must_call_libdlb; // A control variable to rule processes to call DLB blocking calls.
-        int     max_libdlb_calls; // The maximum times DLB API was called.
-#endif
 } lib_shared_data_t;
 
 /** Per-process application data. */
@@ -132,9 +128,6 @@ typedef struct shsignature {
     /* This field is used for mpi opt
      * TODO: Put below declaration inside MPI_OPTIMIZED only + decide how to handle it at min_energy. */
     ulong             mpi_freq;
-#if DLB
-    int               libdlb_calls_cnt; // Counter for DLB API's blocking functions calls.
-#endif
 } shsignature_t;
 /**@}*/
 
@@ -166,9 +159,6 @@ typedef struct sh_signatures_s
     /* This field is used for mpi opt
      * TODO: Put below declaration inside MPI_OPTIMIZED only + decide how to handle it at min_energy. */
     ulong             *mpi_freq;
-#if DLB
-    int               *libdlb_calls_cnt;
-#endif
 } sh_signatures_t;
 
 

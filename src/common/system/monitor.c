@@ -71,7 +71,9 @@ static void goto_interrupt()
     if (sigaction(SIGNAL, &action_new, &action_old) < 0) {
         error("SIGACTION1 on signal SIGCONT (%s)", strerror(errno));
     }
-    pthread_kill(thread, SIGNAL);
+    if (is_running) {
+        pthread_kill(thread, SIGNAL);
+    }
 }
 
 static void goto_sleep(int sleep_units, int sleep_reason, int *passed_units, int *alignment)

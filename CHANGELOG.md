@@ -5,7 +5,7 @@
 - EARL: Reduce time consumption of loop signature computation.
 - erun: Provide support for multiple batch schedulers.
 - eardbd: Verbosity quality improved.
-- AMD Genoa is supported now.
+- Improved metrics computation in AMD Zen2/Zen3.
 - Improved robustness in metrics computation to support hardware failures.
 
 ### EAR 4.2

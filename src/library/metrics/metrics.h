@@ -18,10 +18,6 @@
 #ifndef EAR_EAR_METRICS_H
 #define EAR_EAR_METRICS_H
 
-#if DLB
-#include <dlb_talp.h>
-#endif
-
 #include <common/hardware/topology.h>
 // #include <common/types/application.h>
 #include <library/common/library_shared_data.h>
@@ -68,9 +64,6 @@ typedef struct sig_ext
     float              tpenalty;
     phase_info_t       earl_phase[EARL_MAX_PHASES];
     dcgmi_sig_t        dcgmis;
-#if DLB
-    dlb_node_metrics_t dlb_talp_node_metrics;
-#endif
 } sig_ext_t;
 
 /** New metrics **/
@@ -121,18 +114,6 @@ void metrics_start_cpupower();
 
 void metrics_read_cpupower();
 #endif
-
-#if DLB
-/** Gets and saves TALP node metrics. It is very important to ensure all processes
- * call this function, as it blocks callers until the others call it too.
- *
- * \param dst_sig The address of the signature extended to save the computed data.
- * \param region_monitor The target monitoring region. If NULL, implicit MPI Monitoring Region is assumed.
- *
- * \return EAR_ERROR if \p dst_sig argument is NULL or DLB's TALP API returns an error.
- * \return EAR_SUCCESS otherwise. */
-state_t metrics_compute_talp_node_metrics(sig_ext_t *dst_sig, dlb_monitor_t *region_monitor);
-#endif // DLB
 
 #if DCGMI
 uint metrics_dcgmi_enabled();

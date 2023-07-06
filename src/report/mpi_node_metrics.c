@@ -145,17 +145,10 @@ static state_t append_data(report_id_t *id, sig_ext_t *data, uint count)
 
     // MPI %
     double avg_mpi = avg_mpi_time / (double) max_exec_time;
-#if DLB
-    fprintf(stream, "\n%s,%d,%llu,%llu,%lf,%lf,%lf,%lf,%lf,%f,%f",
-#else
     fprintf(stream, "\n%s,%d,%llu,%llu,%lf,%lf,%lf,%lf,%lf",
-#endif
             time_buff, id->master_rank, total_useful_time,
             max_useful_time, load_balance, parallel_eff,
             data->max_mpi, data->min_mpi, avg_mpi
-#if DLB
-            , data->dlb_talp_node_metrics.load_balance, data->dlb_talp_node_metrics.parallel_efficiency
-#endif
            );
 
     return EAR_SUCCESS;

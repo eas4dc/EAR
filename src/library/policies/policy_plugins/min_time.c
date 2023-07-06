@@ -615,7 +615,7 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
                     }
                 }
             }
-
+#if 0
             if (!imc_set_by_hw){
                 /*  Fix the imc to the first selected by hardware */
                 for (sid=0; sid < imc_devices; sid++){
@@ -629,7 +629,7 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
                     freqs->imc_freq[sid*IMC_VAL+IMC_MIN] = imc_max_pstate[sid];
                 }
             }
-
+#endif
             sid = 0;
             debug("%sIMC freq selection%s %llu-%llu", COL_GRE, COL_CLR,
                     imc_pstates[freqs->imc_freq[sid*IMC_VAL+IMC_MAX]].khz,
@@ -728,7 +728,7 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
 
                     min_time_state = SELECT_CPUFREQ;
 
-                } else {
+                }else {
                     if (first_imc_try){
                         debug("first IMC up try");
                         first_imc_try = 0;
@@ -746,12 +746,12 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
 
                     /*  We are assuming all sockets use the same frequency range */
                     if (freqs->imc_freq[sid*IMC_VAL+IMC_MAX] > imc_min_pstate[sid]) *ready = EAR_POLICY_TRY_AGAIN;
-                    else {
+                    else{
                         *ready = EAR_POLICY_READY;
                         min_time_state = SELECT_CPUFREQ;
                     }
                 }
-            } else {
+            }else{
                 *ready = EAR_POLICY_READY;
                 min_time_state = SELECT_CPUFREQ;
             }

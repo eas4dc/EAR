@@ -15,7 +15,7 @@
 * and COPYING.EPL files.
 */
 
-#define SHOW_DEBUGS 1
+//#define SHOW_DEBUGS 1
 
 #include <math.h>
 #include <stdlib.h>
@@ -128,7 +128,7 @@ static state_t dynamic_detection(topology_t *tp, ullong *freq_khz)
     if (state_fail(s = imcfreq_intel63_ext_enable_cpu(0))) {
         return s;
     }
-    // Hacking frequency
+    // Hacking frequency (absurdly high frequency for both min and max)
     if (state_fail(s = intel63_write(0, 6300000, 6300000))) {
         return s;
     }
@@ -192,6 +192,11 @@ static state_t mgt_imcfreq_intel63_build_list(topology_t *tp, int eard, my_node_
         debug("Keeper read ImcFreqMin %llu", min_khz);
     }
     // [2.3] Saving what found in MAX FREQ DYN
+    //     The procedure is the following:
+    //         1) Set an absurdly high IMC frequency in socket 0
+    //         2) Calculate the frequency by consulting UCLK in 3 threads (1+2)
+    //            during 0.5 seconds.
+    //         3) Check if the 3 thread match to assume its correct.
     if (!keeper_load_uint64("ImcFreqMaxDyn", &max_khz_dyn)) {
         if (state_fail(s = dynamic_detection(tp, &max_khz_dyn))) {
             debug("dynamic_detection() returned: %s", state_msg);
@@ -202,7 +207,10 @@ static state_t mgt_imcfreq_intel63_build_list(topology_t *tp, int eard, my_node_
     } else {
         debug("Keeper read ImcFreqMaxDyn %llu", max_khz_dyn);
     }
-    // [3] Letting DYN to build the list
+    // [3] Letting DYN to build the list.
+    //    If maximum frequency is below 1 GHz or over 3 GHz, we can
+    //    conclude that the IMC frequency is not correct. Then we check
+    //    if the maximum dynamic frequency could be a replacement.
     if (max_khz <= 1000000LLU || max_khz >= 3000000LLU) {
         if (max_khz_dyn > 1000000LLU && max_khz_dyn < 3000000LLU) {
             max_khz = max_khz_dyn; 
