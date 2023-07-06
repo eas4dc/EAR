@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 #include <common/config.h>
 #include <common/states.h>
 #include <common/output/verbose.h>
@@ -399,7 +400,7 @@ int mysql_batch_insert_applications(MYSQL *connection, application_t *app, int n
         bind[0+offset].is_unsigned = bind[1+offset].is_unsigned = bind[3+offset].is_unsigned = bind[4+offset].is_unsigned = 1;
         if (!is_mpi) {
             bind[3+offset].buffer_type = MYSQL_TYPE_NULL;
-            bind[3+offset].is_null = (my_bool*) 1;
+            bind[3+offset].is_null = (bool*) 1;
         }
 
         //string types
@@ -593,7 +594,7 @@ int mysql_batch_insert_applications_no_mpi(MYSQL *connection, application_t *app
         bind[0+offset].is_unsigned = bind[1+offset].is_unsigned = bind[3+offset].is_unsigned = bind[4+offset].is_unsigned = 1;
 
         bind[3+offset].buffer_type = MYSQL_TYPE_NULL;
-        bind[3+offset].is_null = (my_bool*) 1;
+        bind[3+offset].is_null = (bool*) 1;
 
         //string types
         bind[2+offset].buffer_type = MYSQL_TYPE_STRING;
@@ -1349,7 +1350,7 @@ long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t
             else // if no gpu_signatures we set the values to null
             {
                 bind[27+offset].buffer_type = bind[28+offset].buffer_type = MYSQL_TYPE_NULL;
-                bind[27+offset].is_null = bind[28+offset].is_null = (my_bool *) 1;
+                bind[27+offset].is_null = bind[28+offset].is_null = (bool *) 1;
                 bind[27+offset].buffer  = bind[28+offset].buffer  = NULL;
             }
 #endif
@@ -1373,7 +1374,7 @@ long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t
             else // if no gpu_signatures we set the values to null
             {
                 bind[14+offset].buffer_type = bind[15+offset].buffer_type = MYSQL_TYPE_NULL;
-                bind[14+offset].is_null = bind[15+offset].is_null = (my_bool *) 1;
+                bind[14+offset].is_null = bind[15+offset].is_null = (bool *) 1;
                 bind[14+offset].buffer  = bind[15+offset].buffer  = NULL;
             }
 #endif
