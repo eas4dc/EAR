@@ -56,37 +56,37 @@ $(document).ready(function(){initNavTree('d2/d00/md_Configuration.html','../../'
 </div><!--header-->
 <div class="contents">
 <div class="toc"><h3>Table of Contents</h3>
-<ul><li class="level1"><a href="#autotoc_md70">Configuration requirements</a><ul><li class="level2"><a href="#autotoc_md71">EAR paths</a></li>
-<li class="level2"><a href="#autotoc_md72">DB creation and DB server</a></li>
-<li class="level2"><a href="#autotoc_md73">EAR SLURM plug-in</a></li>
+<ul><li class="level1"><a href="#autotoc_md71">Configuration requirements</a><ul><li class="level2"><a href="#autotoc_md72">EAR paths</a></li>
+<li class="level2"><a href="#autotoc_md73">DB creation and DB server</a></li>
+<li class="level2"><a href="#autotoc_md74">EAR SLURM plug-in</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#ear_conf">EAR configuration file</a><ul><ul><li class="level3"><a href="#autotoc_md74">Database configuration</a></li>
+<li class="level1"><a href="#ear_conf">EAR configuration file</a><ul><ul><li class="level3"><a href="#autotoc_md75">Database configuration</a></li>
 </ul>
 <li class="level2"><a href="#eard-configuration">EARD configuration</a></li>
 <li class="level2"><a href="#eardbd-configuration">EARDBD configuration</a></li>
 <li class="level2"><a href="#earl-configuration">EARL configuration</a></li>
-<li class="level2"><a href="#eargm-configuration">EARGM configuration</a><ul><li class="level3"><a href="#autotoc_md75">Common configuration</a></li>
-<li class="level3"><a href="#autotoc_md76">EAR Authorized users/groups/accounts</a></li>
-<li class="level3"><a href="#autotoc_md77">Energy tags</a></li>
+<li class="level2"><a href="#eargm-configuration">EARGM configuration</a><ul><li class="level3"><a href="#autotoc_md76">Common configuration</a></li>
+<li class="level3"><a href="#autotoc_md77">EAR Authorized users/groups/accounts</a></li>
+<li class="level3"><a href="#autotoc_md78">Energy tags</a></li>
 </ul>
 </li>
-<li class="level2"><a href="#tags">Tags</a><ul><li class="level3"><a href="#autotoc_md78">Power policies plug-ins</a></li>
+<li class="level2"><a href="#tags">Tags</a><ul><li class="level3"><a href="#autotoc_md79">Power policies plug-ins</a></li>
 </ul>
 </li>
 <li class="level2"><a href="#island-description">Island description</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#slurm-spank-plugin-configuration-file">SLURM SPANK plug-in configuration file</a><ul><li class="level2"><a href="#autotoc_md79">MySQL/PostgreSQL</a></li>
-<li class="level2"><a href="#autotoc_md80">MSR Safe</a></li>
+<li class="level1"><a href="#slurm-spank-plugin-configuration-file">SLURM SPANK plug-in configuration file</a><ul><li class="level2"><a href="#autotoc_md80">MySQL/PostgreSQL</a></li>
+<li class="level2"><a href="#autotoc_md81">MSR Safe</a></li>
 </ul>
 </li>
 </ul>
 </div>
-<div class="textblock"><h1><a class="anchor" id="autotoc_md70"></a>
+<div class="textblock"><h1><a class="anchor" id="autotoc_md71"></a>
 Configuration requirements</h1>
 <p>The following requirements must be met for EAR to work properly:</p>
-<h2><a class="anchor" id="autotoc_md71"></a>
+<h2><a class="anchor" id="autotoc_md72"></a>
 EAR paths</h2>
 <p><b>EAR folders</b> EAR uses two paths for EAR configuration:</p>
 <ul>
@@ -94,10 +94,10 @@ EAR paths</h2>
 <li><b>EAR_ETC:</b> <em>etc_ear_path</em> must be readable for normal users in all compute nodes. It can be a shared folder in "GPFS" (simple to manage) or replicated data because it has very few data and it is modified at a very low frequency (<b>ear.conf</b> and coefficients). Coefficients can be installed in a different path specified at configure time with <b>COEFFS</b> flag. Both <code>ear.conf</code> and coefficients must be readable in all the nodes (compute and _"service"_ nodes).</li>
 </ul>
 <p><b>ear.conf</b> <code>ear.conf</code> is an ascii file setting default values and cluster descriptions. An <code>ear.conf</code> is automatically generated based on a <b>ear.conf.in</b> template. However, the administrator must include installation details such as hostname details for EAR services, ports, default values, and the list of nodes. For more details, check <a class="el" href="../../d2/d00/md_Configuration.html#ear_conf">EAR configuration file</a> below.</p>
-<h2><a class="anchor" id="autotoc_md72"></a>
+<h2><a class="anchor" id="autotoc_md73"></a>
 DB creation and DB server</h2>
 <p>MySQL or PostgreSQL database: EAR saves data in a MySQL/PostgreSQL DB server. EAR DB can be created using <code>edb_create</code> command provided (MySQL/PostgreSQL server must be running and root access to the DB is needed).</p>
-<h2><a class="anchor" id="autotoc_md73"></a>
+<h2><a class="anchor" id="autotoc_md74"></a>
 EAR SLURM plug-in</h2>
 <p>EAR SLURM plug-in can be enabled by adding an additional line at the <code>/etc/slurm/plugstack.conf</code> file. You can copy from the <code>ear_etc_path/slurm/ear.plugstack.conf</code> file).</p>
 <p>Another way to enable it is to create the directory <code>/etc/slurm/plugstack.conf.d</code> and copy there the <code>ear_etc_path/slurm/ear.plugstack.conf</code> file. On that case, the content of <code>/etc/slurm/plugstack.conf</code> must be <code>include /etc/slurm/plugstack.conf.d/\\\*</code>.</p>
@@ -105,7 +105,7 @@ EAR SLURM plug-in</h2>
 EAR configuration file</h1>
 <p>The <b>ear.conf</b> is a text file describing the EAR package behaviour in the cluster. It must be readable by all compute nodes and by nodes where commands are executed. Two <code>ear.conf</code> templates are generated with default values and will be installed as reference when executing <code>make etc.install</code>.</p>
 <p>Usually the first word in the configuration file expresses the component related with the option. Lines starting with <code>#</code> are comments. A test for <code>ear.conf</code> file can be found in the path <code>src/test/functionals/ear_conf</code>. It is recommended to test it since the <code>ear.conf</code> parser is very sensible to errors in the <code>ear.conf</code> syntax, spaces, newlines, etc.</p>
-<h3><a class="anchor" id="autotoc_md74"></a>
+<h3><a class="anchor" id="autotoc_md75"></a>
 Database configuration</h3>
 <div class="fragment"><div class="line"># The IP of the node where the MariaDB (MySQL) or PostgreSQL server process is running. Current version uses same names for both DB servers.</div>
 <div class="line">DBIp=172.30.2.101</div>
@@ -265,7 +265,7 @@ EARGM configuration</h2>
 <div class="line">EARGMId=1 energy=1800 power=600 node=node1 port=50100 meta=1,2,3</div>
 <div class="line">EARGMId=2 energy=0 power=500 node=node1 port=50101</div>
 <div class="line">EARGMId=3 energy=0 power=500 node=node2 port=50100</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md75"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md76"></a>
 Common configuration</h3>
 <div class="fragment"><div class="line"># Default verbose level</div>
 <div class="line">Verbose=0</div>
@@ -279,13 +279,13 @@ Common configuration</h3>
 <div class="line"># Network extension: To be used in case the DC has more than one</div>
 <div class="line"># network and a special extension needs to be used for global commands</div>
 <div class="line">#NetworkExtension=</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md76"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md77"></a>
 EAR Authorized users/groups/accounts</h3>
 <p>Authorized users that are allowed to change policies, thresholds and frequencies are supposed to be administrators. A list of users, Linux groups, and/or SLURM accounts can be provided to allow normal users to perform that actions. Only normal Authorized users can execute the learning phase.</p>
 <div class="fragment"><div class="line">AuthorizedUsers=user1,user2</div>
 <div class="line">AuthorizedAccounts=acc1,acc2,acc3</div>
 <div class="line">AuthorizedGroups=xx,yy</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md77"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md78"></a>
 Energy tags</h3>
 <p>Energy tags are pre-defined configurations for some applications (EAR Library is not loaded). This energy tags accept a user ids, groups and SLURM accounts of users allowed to use that tag.</p>
 <div class="fragment"><div class="line"># General energy tag</div>
@@ -321,7 +321,7 @@ Tags</h2>
 </ul>
 <div class="fragment"><div class="line">Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=500 powercap=1 max_powercap=600 gpu_def_freq=1.4 energy_model=avx512_model.so energy_plugin=energy_nm.so powercap_plugin=dvfs.so gpu_powercap_plugin=gpu.so min_power=50 error_power=600 coeffs=coeffs.default</div>
 <div class="line">Tag=6126 max_avx512=2.3 max_avx2=2.9 ceffs=coeffs.6126.default max_power=600 error_power=700 idle_governor=ondemand</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md78"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md79"></a>
 Power policies plug-ins</h3>
 <div class="fragment"><div class="line"># Policy names must be exactly file names for policies installeled in the system.</div>
 <div class="line">DefaultPowerPolicy=monitoring</div>
@@ -395,7 +395,7 @@ SLURM SPANK plug-in configuration file</h1>
 <p>Also, there are two additional arguments. The first one, <code>nodes_allowed=</code> followed by a comma separated list of nodes, enables the plug-in only in that nodes. The second, <code>nodes_excluded=</code>, also followed by a comma separated list of nodes, disables the plug-in only in nodes in the list. These are arguments for very specific configurations that must be used with caution, if they are not used it is better that they are not written.</p>
 <p><b>Example</b>:</p>
 <div class="fragment"><div class="line">required ear_install_path/lib/earplug.so  prefix=ear_install_path sysconfdir=etc_ear_path localstatedir=tmp_ear_path earlib_default=off nodes_excluded=node01,node02</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md79"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md80"></a>
 MySQL/PostgreSQL</h2>
 <p><b>WARNING</b>: If any EAR component is running in the same machine as the MySQL server some connection problems might occur. This will not happen with PostgreSQL. To solve those issues, input into MySQL's CLI client the <code>CREATE USER</code> and <code>GRANT PRIVILEGES</code> queries from <code>edb_create -o</code> changing the portion &lsquo;'user_name&rsquo;@''<code>to</code>'user_name'@'localhost'` so that EAR's users have access to the server from the local machine. There are two ways to configure a database server for EAR's usage.</p>
 <ul>
@@ -403,7 +403,7 @@ MySQL/PostgreSQL</h2>
 <li>Manually create the database and users specified in ear.conf, as well as the required tables. If ear.conf has been configured, running <code>edb_create -o</code> will output the queries that would be run with the program that contain all that is needed for EAR to properly function.</li>
 </ul>
 <p>For more information about how each <code>ear.conf</code> flag changes the database creation, see our [Database section](EAR-Database). For further information about EAR's database management tools, see the <a class="el" href="../../dc/d09/md_EAR_commands.html#database-commands">Commands section</a>.</p>
-<h2><a class="anchor" id="autotoc_md80"></a>
+<h2><a class="anchor" id="autotoc_md81"></a>
 MSR Safe</h2>
 <p>MSR Safe is a kernel module that allows to read and write MSR without root permission. EAR opens MSR Safe files if the ordinary MSR files fail. MSR Safe requires a configuration file to allow read and write registers. You can find configuration files in <code>etc/msr_safe</code> for Intel Skylake and superior and AMD Zen and superior.</p>
 <p>You can pass these configuration files to MSR Safe kernel mode like this:</p>

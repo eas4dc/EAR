@@ -60,29 +60,29 @@ $(document).ready(function(){initNavTree('d5/de2/md_Powercap.html','../../'); in
 <li>Node powercap, where a node cannot exceed their given power consumption.</li>
 <li>Cluster powercap, where the target power is for the entire cluster. It uses the node powercap to achieve its target.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md87"></a>
+<h1><a class="anchor" id="autotoc_md88"></a>
 Node powercap</h1>
 <p>Node powercap is enforced by the EARD. The initial values for each node's powercap are set in the tags section of the ear.conf (see <a class="el" href="../../d2/d00/md_Configuration.html#tags">Tags</a> for more information), which include the power limit, the CPU/PKG powercap plugin and the GPU powercap plugin (if needed). The power limit can be changed at runtime via <code>econtrol</code> or by an active <code>EARGM</code> that has the node under its control.</p>
 <p>The EARD enforces the powercap via its plugins, which in turn ensure that the domain they control (CPU/GPU) does not exceed their power allocation.</p>
 <p>The main goals of the node powercap is, first and foremost, to enforce the power limit with the secondary goal to maximize performance while under said limit. The EARD will use its current power limit as a budget which it will, in turn, distribute among the domains (controlled by the plugins) according to the current node's needs.</p>
 <p>Node powercap can be applied without cluster powercap by defining only the node powercap in the EAR configuration file.</p>
-<h1><a class="anchor" id="autotoc_md88"></a>
+<h1><a class="anchor" id="autotoc_md89"></a>
 Cluster powercap</h1>
 <p>Cluster powercap is managed by one or more EARGMs and enforced at a node level by the EARD. EARGMs have an individual power limit set in their definition (see <a class="el" href="../../d2/d00/md_Configuration.html#eargm-configuration">EARGM</a> for more details) and the monitoring frequency. Each EARGM will then ask the nodes under its control (as indicated in the <a class="el" href="../../d2/d00/md_Configuration.html#island-description">nodes' definition</a> for its power consumption and distribute the budget accordingly. There are two main ways in which the cluster powercap might be enforced; soft and hard cluster powercap.</p>
-<h2><a class="anchor" id="autotoc_md89"></a>
+<h2><a class="anchor" id="autotoc_md90"></a>
 Soft cluster powercap</h2>
 <p>This type of powercap is targeted to systems where exceeding the power limit is not a hardware constraint but a rule that needs enforcement for a different reason. In this scenario, the compute nodes will run as if no limit was applied until the total power consumption of the cluster reaches a percentage threshold (defined as the suspend threshold in ear.conf), at which point the EARGM will send a power limit to all the nodes to prevent the global power to go above the actual limit. Additionally, a script can be attached to the activation of the powercap in which the admin can set whichever actions they feel appropriate. Once the cluster power goes below another percentage threshold (defined as the resume threshold in ear.conf) the EARGM will send a message to all the nodes to go back to unlimited power usage, as well as call the deactivation script set by the admin (if any is specified).</p>
 <p>In terms of configuration, <code>EARGMPowerCapMode</code> must be set to 2 (soft powercap) and all nodes need to have a <code>max_powercap</code> set in their tag. The value of <code>max_powercap</code> will be the power allocation of the nodes that have that tag. If a node has a <code>max_powercap</code> value of 1, 0 or -1 they will ignore powercap messages from an EARGM in soft cluster powercap mode.</p>
-<h2><a class="anchor" id="autotoc_md90"></a>
+<h2><a class="anchor" id="autotoc_md91"></a>
 Hard cluster powercap</h2>
 <p>Hard powercap is used when the system must not, under any circumstance, go above the power limit. This starts by always having a set powercap in the compute nodes. The job of the EARGM is to periodically monitor the state of the nodes, which will request more or less power depending on their current workload, and redistribute the power according to the needs of all nodes.</p>
-<h1><a class="anchor" id="autotoc_md91"></a>
+<h1><a class="anchor" id="autotoc_md92"></a>
 Possible powercap values</h1>
 <p>To set the powercap for an entire cluster one can do it two ways, specific values and calculated. With specific values, the <code>powercap</code> value in the EARGM definition must be a number &gt; 0, and that will be the power budget for the EARGM to distribute among the nodes it controls. On the other hand, if <code>powercap=-1</code> the total power budget will be calculated automatically as the sum of the powercap values set in the tags for the nodes it controls.</p>
 <p>For an EARD, the valid values of <code>powercap</code> in its tag are 1 and N &gt; 1. When set to 1, the daemon will run with no power limit until it receives one. On the other hand, if the powercap is a higher number that will be used as the power limit until a different value is set via <code>econtrol</code> or EARGM reallocations.</p>
 <p><b>If either powercap or EARGMPowercapMode is set to 0 in the configuration file, the thread that controls the power limits will not be started and the feature will be disabled.</b></p>
 <p><b>If the initial powercap value for a node is set to 0 the powercap will be disabled for that node and it will ignore any attempts to set it to a certain value. Set it to 1 if you ever want to set the powercap.</b></p>
-<h1><a class="anchor" id="autotoc_md92"></a>
+<h1><a class="anchor" id="autotoc_md93"></a>
 Example configurations</h1>
 <p>The following is an example for hard powercap on 4 nodes, with a starting powercap of 225W each and a total power budget of 1000W. For clarity a few fields in the tags section have been skipped. </p><div class="fragment"><div class="line"># Wait period between power checks</div>
 <div class="line">EARGMPowerPeriod=120</div>
@@ -161,7 +161,7 @@ Example configurations</h1>
 <div class="line">Tag=tag1 default=yes max_power=500 min_power=50 error_power=600 powercap=1 powercap_plugin=dvfs.so gpu_powercap_plugin=gpu.so</div>
 <div class="line"> </div>
 <div class="line">Island=1 nodes=node[1-4] EARGMId=1</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md93"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md94"></a>
 Valid configurations</h1>
 <p>There are three special values for powercap configuration, 1 (unlimited, only for Tags/Node), 0 (disabled) and -1 (auto-configure).</p>
 <p>Furthermore, there are three cluster powercap modes for EARGM: 0 (monitoring-only), 1 (hard cluster powercap) and 2 (soft cluster powercap).</p>

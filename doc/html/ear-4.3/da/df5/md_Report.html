@@ -67,16 +67,16 @@ $(document).ready(function(){initNavTree('da/df5/md_Report.html','../../'); init
 </ul>
 <h1><a class="anchor" id="prometheus-report-plugin"></a>
 Prometheus report plugin</h1>
-<h2><a class="anchor" id="autotoc_md95"></a>
+<h2><a class="anchor" id="autotoc_md96"></a>
 Requirements</h2>
 <p>The Prometheus plugin has only one dependency, <a href="https://www.gnu.org/software/libmicrohttpd/">microhttpd</a>. To be able to compile it make sure that it is in your LD_LIBRARY_PATH.</p>
-<h2><a class="anchor" id="autotoc_md96"></a>
+<h2><a class="anchor" id="autotoc_md97"></a>
 Installation</h2>
 <p>Currently, to compile and install the prometheus plugin one has the run the following command.</p>
 <div class="fragment"><div class="line">make FEAT_DB_PROMETHEUS=1</div>
 <div class="line">make FEAT_DB_PROMETHEUS=1 install</div>
 </div><!-- fragment --><p>With that, the plugin will be correctly placed in the usual folder.</p>
-<h2><a class="anchor" id="autotoc_md97"></a>
+<h2><a class="anchor" id="autotoc_md98"></a>
 Configuration</h2>
 <p>Due to the way in which Prometheus works, this plugin is designed to be used by the EAR Daemons, although the EARDBD should not have many issues running it too.</p>
 <p>To have it running in the daemons, simply add it to the corresponding line in the [configuration file](Configuration). </p><div class="fragment"><div class="line">EARDReportPlugins=eardbd.so:prometheus.so</div>
@@ -85,7 +85,7 @@ Configuration</h2>
 <h1><a class="anchor" id="examon"></a>
 Examon</h1>
 <p>ExaMon (Exascale Monitoring) is a lightweight monitoring framework for supporting accurate monitoring of power/energy/thermal and architectural parameters in distributed and large-scale high-performance computing installations.</p>
-<h2><a class="anchor" id="autotoc_md98"></a>
+<h2><a class="anchor" id="autotoc_md99"></a>
 Compilation and installation</h2>
 <p>To compile the EXAMON plugin you need a functioning EXAMON installation.</p>
 <p>Modify the main <code>Makefile</code> and set <code>FEAT_EXAMON=1</code>. In <code>src/report/Makefile</code>, update <code>EXAMON_BASE</code> with the path to the current EXAMON installation. Finally, set an <code>examon.conf</code> file somewhere on your installation, and modify <code>src/report/examon.c</code> (line 83, variable `char* conffile = "/hpc/opt/ear/etc/ear/examon.conf"`) to point to the new <code>examon.conf</code> file.</p>
@@ -111,14 +111,14 @@ DCDB</h1>
 <p>The Data Center Data Base (DCDB) is a modular, continuous, and holistic monitoring framework targeted at HPC environments.</p>
 <p>This plugin implements the functions to report periodic metrics, report loops, and report events.</p>
 <p>When the DCDB plugin is loaded the collected EAR data per report type are stored into a shared memory which is accessed by DCDB ear sensor (report plugin implemented on the DCDB side) to collect the data and push them into the database using MQTT messages.</p>
-<h2><a class="anchor" id="autotoc_md99"></a>
+<h2><a class="anchor" id="autotoc_md100"></a>
 Compilation and configuration</h2>
 <p>This plugin is automatically installed with the default EAR installation. To activate it, set it as one of the values in the <code>EARDReportPlugins</code> of <code>ear.conf</code> and restart the EARD.</p>
 <p>The plugin is designed to be used locally in each node (EARD level) with the DCDB collect agent.</p>
 <h1><a class="anchor" id="sysfs-report-plugin"></a>
 Sysfs Report Plugin</h1>
 <p>This is a new report plugin to write EAR collected data into a file. Single file is generated per metric per jobID &amp; stepID per node per island per cluster. Only the last collected data metrices are stored into the files, means every time the report runs it saves the current collected values by overwriting the pervious data.</p>
-<h2><a class="anchor" id="autotoc_md100"></a>
+<h2><a class="anchor" id="autotoc_md101"></a>
 Namespace Format</h2>
 <p>The below schema has been followed to create the metric files: </p><div class="fragment"><div class="line"> {/root_directory/cluster/island/nodename/avg/metricFile}</div>
 <div class="line">/root_directory/cluster/island/nodename/current/metricFile</div>
@@ -127,7 +127,7 @@ Namespace Format</h2>
 </div><!-- fragment --><p> The root_directory is the default path where all the created metric files are generated.</p>
 <p>The cluster, island and nodename will be replaced by the island number, cluster name, and node information.</p>
 <p><code>metricFile</code> will be replaced by the name of the metrics collected by EAR.</p>
-<h2><a class="anchor" id="autotoc_md101"></a>
+<h2><a class="anchor" id="autotoc_md102"></a>
 Metric File Naming Format</h2>
 <p>The naming format used to create the metric files is implementing the standard sysfs interface format. The current commonly used schema of file naming is:</p>
 <p><code>&lt;type&gt;_&lt;component&gt;_&lt;metric-name&gt;_&lt;unit&gt;</code></p>
@@ -139,7 +139,7 @@ Metric File Naming Format</h2>
 <li>app_sig_flops_6</li>
 <li>avg_imc_freq_KHz</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md102"></a>
+<h2><a class="anchor" id="autotoc_md103"></a>
 Metrics reported</h2>
 <p>The following are the reported values for each type of metric recorded by ear:</p><ul>
 <li>report_periodic_metrics<ul>

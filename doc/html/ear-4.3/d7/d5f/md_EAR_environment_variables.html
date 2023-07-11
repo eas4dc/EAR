@@ -56,18 +56,18 @@ $(document).ready(function(){initNavTree('d7/d5f/md_EAR_environment_variables.ht
 </div><!--header-->
 <div class="contents">
 <div class="toc"><h3>Table of Contents</h3>
-<ul><li class="level1"><a href="#autotoc_md23">Loading EAR Library</a><ul><li class="level2"><a href="#ear_loader_application">EAR_LOADER_APPLICATION</a></li>
+<ul><li class="level1"><a href="#autotoc_md24">Loading EAR Library</a><ul><li class="level2"><a href="#ear_loader_application">EAR_LOADER_APPLICATION</a></li>
 <li class="level2"><a href="#ear_load_mpi_version">EAR_LOAD_MPI_VERSION</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#autotoc_md24">Report plug-ins</a><ul><li class="level2"><a href="#ear-report-add">EAR_REPORT_ADD</a></li>
+<li class="level1"><a href="#autotoc_md25">Report plug-ins</a><ul><li class="level2"><a href="#ear-report-add">EAR_REPORT_ADD</a></li>
 </ul>
 </li>
 <li class="level1"><a href="#verbosity">Verbosity</a><ul><li class="level2"><a href="#earl_verbose_path">EARL_VERBOSE_PATH</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#autotoc_md25">Frequency management</a><ul><li class="level2"><a href="#autotoc_md26">EAR_GPU_DEF_FREQ</a></li>
-<li class="level2"><a href="#autotoc_md27">EAR_JOB_EXCLUSIVE_MODE</a></li>
+<li class="level1"><a href="#autotoc_md26">Frequency management</a><ul><li class="level2"><a href="#autotoc_md27">EAR_GPU_DEF_FREQ</a></li>
+<li class="level2"><a href="#autotoc_md28">EAR_JOB_EXCLUSIVE_MODE</a></li>
 <li class="level2"><a href="#controlling-uncore-infinity-fabric-frequency">Controlling Uncore/Infinity Fabric frequency</a><ul><li class="level3"><a href="#ear_set_imcfreq">EAR_SET_IMCFREQ</a></li>
 <li class="level3"><a href="#ear_max_imcfreq-and-ear_min_imcfreq">EAR_MAX_IMCFREQ and EAR_MIN_IMCFREQ</a></li>
 </ul>
@@ -77,13 +77,13 @@ $(document).ready(function(){initNavTree('d7/d5f/md_EAR_environment_variables.ht
 <li class="level3"><a href="#ear_prio_cpus">EAR_PRIO_CPUS</a></li>
 </ul>
 </li>
-<li class="level2"><a href="#autotoc_md28">Disabling EAR&#39;s affinity masks usage</a></li>
+<li class="level2"><a href="#autotoc_md29">Disabling EAR&#39;s affinity masks usage</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#autotoc_md29">Data gathering</a><ul><li class="level2"><a href="#ear_get_mpi_stats">EAR_GET_MPI_STATS</a></li>
+<li class="level1"><a href="#autotoc_md30">Data gathering</a><ul><li class="level2"><a href="#ear_get_mpi_stats">EAR_GET_MPI_STATS</a></li>
 <li class="level2"><a href="#ear_trace_plugin">EAR_TRACE_PLUGIN</a></li>
-<li class="level2"><a href="#autotoc_md30">EAR_TRACE_PATH</a></li>
-<li class="level2"><a href="#report_earl_events">REPORT_EARL_EVENTS</a><ul><li class="level3"><a href="#autotoc_md31">Event types</a></li>
+<li class="level2"><a href="#autotoc_md31">EAR_TRACE_PATH</a></li>
+<li class="level2"><a href="#report_earl_events">REPORT_EARL_EVENTS</a><ul><li class="level3"><a href="#autotoc_md32">Event types</a></li>
 </ul>
 </li>
 </ul>
@@ -94,7 +94,7 @@ $(document).ready(function(){initNavTree('d7/d5f/md_EAR_environment_variables.ht
 <p>The current EAR version has support for <a href="https://slurm.schedmd.com/">SLURM</a>, <a href="https://www.altair.com/pbs-professional/">PBS</a> and <a href="https://oar.imag.fr/start">OAR</a> batch schedulers. In SLURM systems the scheduler may filter environment variables not prefixed with <em>SLURM_</em> character set (this happens when the batch script is submitted purging all environment variables to work in a clean environment). For that reason, the first design of EAR environment variables was to have variable names with the form <em>SLURM_</em>&lt;variable_name&gt;.</p>
 <p>Now that EAR has support for other batch schedulers, and in order to maintain the coherency of environment variables names, below environment variables need the prefix of the scheduler used on the system the job is submitted on, plus an underscore. For example, in SLURM systems, the environment variable presented as <code>EAR_LOADER_APPLICATION</code> must be exported as <code>SLURM_EAR_LOADER_APPLICATION</code> in the submission batch script. In an OAR installed system, this variable would be exported as <code>OAR_EAR_LOADER_APPLICATION</code>. This design may only have a real effect on SLURM systems, but it makes it easier for the development team to provide support for multiple batch schedulers.</p>
 <p>All examples showing the usage of below environment variables assume a system using SLURM.</p>
-<h1><a class="anchor" id="autotoc_md23"></a>
+<h1><a class="anchor" id="autotoc_md24"></a>
 Loading EAR Library</h1>
 <h2><a class="anchor" id="ear_loader_application"></a>
 EAR_LOADER_APPLICATION</h2>
@@ -125,7 +125,7 @@ EAR_LOAD_MPI_VERSION</h2>
 <div class="line">    python benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py \</div>
 <div class="line">    ... more application options</div>
 </div><!-- fragment --><p>See the <a class="el" href="../../d6/d86/md_User_guide.html#use-cases">Use cases</a> section to read more information about how to run jobs with EAR.</p>
-<h1><a class="anchor" id="autotoc_md24"></a>
+<h1><a class="anchor" id="autotoc_md25"></a>
 Report plug-ins</h1>
 <h2><a class="anchor" id="ear-report-add"></a>
 EAR_REPORT_ADD</h2>
@@ -153,9 +153,9 @@ EARL_VERBOSE_PATH</h2>
 <div class="line"> </div>
 <div class="line">mpirun -np 96 -ppn 48 my_app</div>
 </div><!-- fragment --><p>After the above job example completion, in the same directory where the application was submitted, there will be a directory called <em>ear_logs_dir_name</em> with two files, i.e., one for each node, called <em>earl_logs.0.0.&lt;job_step&gt;.&lt;job_id&gt;</em> and <em>earl_logs.1.0.&lt;job_step&gt;.&lt;job_id&gt;</em>, respectively.</p>
-<h1><a class="anchor" id="autotoc_md25"></a>
+<h1><a class="anchor" id="autotoc_md26"></a>
 Frequency management</h1>
-<h2><a class="anchor" id="autotoc_md26"></a>
+<h2><a class="anchor" id="autotoc_md27"></a>
 EAR_GPU_DEF_FREQ</h2>
 <p>Set a GPU frequency (in kHz) to be fixed while your job is running. The same frequency is set for all GPUs used by the job.</p>
 <div class="fragment"><div class="line">#!/bin/bash</div>
@@ -174,7 +174,7 @@ EAR_GPU_DEF_FREQ</h2>
 <div class="line"> </div>
 <div class="line">srun --cpu-bind=core --ear-policy=min_energy gmx_mpi mdrun \</div>
 <div class="line">    -s $GROMACS_INPUT -noconfout -ntomp 1</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md27"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md28"></a>
 EAR_JOB_EXCLUSIVE_MODE</h2>
 <p>Indicate whether the job will run in a node exclusively (non-zero value). EAR will reduce the CPU frequency of those cores not used by the job. This feature explodes a very easy vector of power saving.</p>
 <div class="fragment"><div class="line">#!/bin/bash</div>
@@ -294,10 +294,10 @@ EAR_PRIO_TASKS</h3>
 EAR_PRIO_CPUS</h3>
 <p>A list of priorities that should have the same length as the number of CPUs your job is using. This configuration lets to set up CPUs CLOS in a more low level way: <b>the <em>n-th</em> priority value of the list will set the priority of the <em>n-th</em> CPU your job is using.</b></p>
 <p>This way of configuring priorities rules the user to know exactly the affinity of its job's tasks before launching the application, so it becomes harder to use if your goal is the same as the one you can get by setting the <a class="el" href="../../d7/d5f/md_EAR_environment_variables.html#ear_prio_tasks">above environment variable</a>: task-focused CLOS setting. But it becomes more flexible when the user has more control over the affinity set to its application, because you can discriminate between different CPUs assigned to the same task. Moreover, this is the only way to set different priorities over different threads in no-MPI applications.</p>
-<h2><a class="anchor" id="autotoc_md28"></a>
+<h2><a class="anchor" id="autotoc_md29"></a>
 Disabling EAR's affinity masks usage</h2>
 <p>For both [Load Balancing](load-balancing) and <a class="el" href="../../d7/d5f/md_EAR_environment_variables.html#support-for-intel-r-speed-select-technology">Intel(R) SST</a> support, EAR uses processes' affinity mask read at the beginning of the job. If you are working on an application that changes (or may change) the affinty mask of tasks, this can lead some miss configuration not detected by EAR. To avoid any unexpected problem, <b>we highly recommend you</b> to export <code>EAR_NO_AFFINITY_MASK</code> environment variable <b>even you are not planning to work with some of the mentioned features</b>.</p>
-<h1><a class="anchor" id="autotoc_md29"></a>
+<h1><a class="anchor" id="autotoc_md30"></a>
 Data gathering</h1>
 <h2><a class="anchor" id="ear_get_mpi_stats"></a>
 EAR_GET_MPI_STATS</h2>
@@ -411,7 +411,7 @@ EAR_GET_MPI_STATS</h2>
 EAR_TRACE_PLUGIN</h2>
 <p>EAR offers the chance to generate Paraver traces to visualize runtime metrics with the <a href="https://tools.bsc.es/paraver">Paraver tool</a>. Paraver is a visualization tool developed by CEPBA-Tools team and currently maintained by the Barcelona Supercomputing Center’s tools team.</p>
 <p>The EAR trace generation mechanism was designed to support different trace generation plug-ins although the Paraver trace plug-in is the only supported by now. You must set the value of this variable to <code>tracer_paraver.so</code> to load the tracer. This shared object comes with the official EAR distribution and it is located at <code>$EAR_INSTALL_PATH/lib/plugins/tracer</code>. Then you need to set the <code>EAR_TRACE_PATH</code> variable (see below) to specify the destination path of the generated Paraver traces.</p>
-<h2><a class="anchor" id="autotoc_md30"></a>
+<h2><a class="anchor" id="autotoc_md31"></a>
 EAR_TRACE_PATH</h2>
 <p>Specify the path where you want to store the trace files generated by the EAR Library. The path must be fully created. Otherwise, the Paraver tracer plug-in won’t be loaded.</p>
 <p>Here is an example of the usage of the above explained environment variables:</p>
@@ -442,7 +442,7 @@ REPORT_EARL_EVENTS</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone">node_id   </td><td class="markdownTableBodyNone">The node from where the event was reported.   </td></tr>
 </table>
-<h3><a class="anchor" id="autotoc_md31"></a>
+<h3><a class="anchor" id="autotoc_md32"></a>
 Event types</h3>
 <p>Below are listed all kind of event types you can get when requesting job events. For categorical event values, the (value, category) mapping is explained.</p>
 <ul>

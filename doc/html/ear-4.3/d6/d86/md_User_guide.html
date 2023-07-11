@@ -66,25 +66,26 @@ $(document).ready(function(){initNavTree('d6/d86/md_User_guide.html','../../'); 
 </ul>
 </li>
 <li class="level2"><a href="#autotoc_md9">Other application types or frameworks</a></li>
+<li class="level2"><a href="#autotoc_md10">Using EAR inside Singularity containers</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#autotoc_md10">Retrieving EAR data</a></li>
-<li class="level1"><a href="#ear-job-submission-flags">EAR job submission flags</a><ul><li class="level2"><a href="#autotoc_md11">CPU frequency selection</a></li>
-<li class="level2"><a href="#autotoc_md12">GPU frequency selection</a></li>
+<li class="level1"><a href="#autotoc_md11">Retrieving EAR data</a></li>
+<li class="level1"><a href="#ear-job-submission-flags">EAR job submission flags</a><ul><li class="level2"><a href="#autotoc_md12">CPU frequency selection</a></li>
+<li class="level2"><a href="#autotoc_md13">GPU frequency selection</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#autotoc_md13">Examples</a><ul><li class="level2"><a href="#autotoc_md14">srun examples</a></li>
-<li class="level2"><a href="#autotoc_md15">sbatch + EARL + srun</a></li>
-<li class="level2"><a href="#autotoc_md16">EARL + mpirun</a><ul><li class="level3"><a href="#autotoc_md17">Intel MPI</a></li>
+<li class="level1"><a href="#autotoc_md14">Examples</a><ul><li class="level2"><a href="#autotoc_md15">srun examples</a></li>
+<li class="level2"><a href="#autotoc_md16">sbatch + EARL + srun</a></li>
+<li class="level2"><a href="#autotoc_md17">EARL + mpirun</a><ul><li class="level3"><a href="#autotoc_md18">Intel MPI</a></li>
 <li class="level3"><a href="#openmpi-1">OpenMPI</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="level1"><a href="#eacct-1">EAR job Accounting (eacct)</a><ul><li class="level2"><a href="#autotoc_md18">Usage examples</a></li>
+<li class="level1"><a href="#eacct-1">EAR job Accounting (eacct)</a><ul><li class="level2"><a href="#autotoc_md19">Usage examples</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#autotoc_md19">Job energy optimization: EARL policies</a></li>
+<li class="level1"><a href="#autotoc_md20">Job energy optimization: EARL policies</a></li>
 </ul>
 </div>
 <div class="textblock"><p>EAR was first designed to be usable 100% transparently by users, which means that you can run your applications enabling/disabling/tuning EAR with the less effort for changing your workflow, e.g., submission scripts. This is achieved by providing integrations (e.g., plug-ins, hooks) with system batch schedulers, which do all the effort to set-up EAR on job submission. By now, <b>SLURM is the batch scheduler full compatible with EAR</b> thanks to EAR's SLURM SPANK plug-in.</p>
@@ -137,7 +138,38 @@ Other application types or frameworks</h2>
 <div class="line"> </div>
 <div class="line">export SLURM_EAR_LOADER_APPLICATION=my_app</div>
 <div class="line">srun my_app</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md10"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md10"></a>
+Using EAR inside Singularity containers</h2>
+<p><a href="https://apptainer.org/">Apptainer</a> (formerly Singularity) is an open source technology for containerization. It is widely used in HPC contexts because the level of virtualization it offers enables the access to local services. It allows for geater reproducibility, making the programs less dependant on the environment they are being run on.</p>
+<p>An example singularity command could look something like this:</p>
+<div class="fragment"><div class="line">singularity exec $IMAGE program</div>
+</div><!-- fragment --><p>where <code>IMAGE</code> is an environment variable that contains the path of the Singularity container, and <code>program</code> is the executable to be run in the image.</p>
+<p>In order to be able to use EAR inside the container two actions are needed:</p>
+<ul>
+<li>Binding EAR paths to make them visible in the container.</li>
+<li>Exporting some environment variables to the execution environment to make them available during the execution.</li>
+</ul>
+<p>To bind folders there are two options: (1) using the environment variable <code>SINGULARITY_BIND</code>/<code>APPTAINER_BIND</code> or (2) using the <code>-B</code> flag when running the container. 1 is a comma separated string of pairs of paths <code>[path_1][[:path_2][:perms]]</code> such that <em>path_1</em> in local will be mapped into <em>path_2</em> in the image with the permissions set in <em>perms</em>, which can be <em>r</em> or <em>rw</em>. Specifying <em>path_2</em> and <em>perm</em> is optional. If they are not specified <em>path_1</em> will be bound in the same location.</p>
+<p>To make EAR working the following paths sould be added to the binding configuration:</p>
+<ul>
+<li><code>$EAR_INSTALL_PATH,$EAR_INSTALL_PATH/bin,$EAR_INSTALL_PATH/lib,$EAR_TMP</code></li>
+</ul>
+<p>You should have an EAR module to have the above environment variables. Contact with your system administrator for more information.</p>
+<p>Once paths are deployed, to execute (for example) an OpenMPI application inside a Singularity/Apptainer enabling the EAR Library just the following is needed:</p>
+<div class="fragment"><div class="line">module load ear</div>
+<div class="line"> </div>
+<div class="line">mpirun -np &lt;# processes&gt; singularity exec $IMAGE erun --ear=on --program=&quot;program args&quot;</div>
+</div><!-- fragment --><p>A more complete example would look something like this:</p>
+<div class="fragment"><div class="line">export IMAGE=[path_to_image]/ubuntu_ompi.sif</div>
+<div class="line">export BENCH_PATH=[path_to_benchmark]</div>
+<div class="line">export APPTAINER_BIND=&quot;$EAR_INSTALL_PATH:$EAR_INSTALL_PATH:ro,$EAR_TMP:$EAR_TMP:rw&quot;</div>
+<div class="line">export APPTAINERENV_EAR_REPORT_ADD=sysfs.so</div>
+<div class="line"> </div>
+<div class="line">mpirun -np 64 singularity exec $IMAGE $EAR_INSTALL_PATH/bin/erun \</div>
+<div class="line">    --ear=on --ear-verbose=1 \</div>
+<div class="line">    --program=$BENCH_PATH/bt-mz.D.64</div>
+</div><!-- fragment --><p>Note that the example exports <code>APPTAINERENV_EAR_REPORT_ADD</code> to set the environment variable <a class="el" href="../../d7/d5f/md_EAR_environment_variables.html#ear-report-add">`EAR_REPORT_ADD`</a> to load <a class="el" href="../../da/df5/md_Report.html#sysfs-report-plugin">`sysfs`</a> report plug-in.</p>
+<h1><a class="anchor" id="autotoc_md11"></a>
 Retrieving EAR data</h1>
 <p>As a job accounting and monitoring tool, EARL collects some metrics that you can get to see or know your applications behaviour. The Library is doted with several modules and options to be able to provide different kind of information.</p>
 <p>As a very simple hint of your application workload, you can enable EARL verbosity to get loop data at runtime. The information is shown at <em>stderr</em> by default. Read how to set up verbosity at <a class="el" href="../../d6/d86/md_User_guide.html#ear-job-submission-flags">submission time</a> and <a class="el" href="../../d7/d5f/md_EAR_environment_variables.html#verbosity">verbosity environment variables</a> provided for a more advanced tunning of this EAR feature.</p>
@@ -176,7 +208,7 @@ EAR job submission flags</h1>
 <blockquote class="doxtable">
 <p>&zwj;You can always check the avaiable EAR submission flags provided by EAR's SLURM SPANK plug-in by typing <code>srun --help</code>. </p>
 </blockquote>
-<h2><a class="anchor" id="autotoc_md11"></a>
+<h2><a class="anchor" id="autotoc_md12"></a>
 CPU frequency selection</h2>
 <p>The <a class="el" href="../../d2/d00/md_Configuration.html#ear_conf">EAR configuration file</a> supports the specification of <em>EAR authorized users</em>, who can ask for a more privileged submission options. The most relevant ones are the possibility to ask for a specific optimisation policy and a specific CPU frequency. </p><blockquote class="doxtable">
 <p>&zwj;Contact with sysadmin or helpdesk team to become an authorized user. </p>
@@ -185,15 +217,15 @@ CPU frequency selection</h2>
 <li>The <code>--ear-policy=policy_name</code> flag asks for <em>policy_name</em> policy. Type <code>srun --help</code> to see policies currently installed in your system.</li>
 <li>The <code>--ear-cpufreq=value</code> (<em>value</em> must be given in kHz) asks for a specific CPU frequency.</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md12"></a>
+<h2><a class="anchor" id="autotoc_md13"></a>
 GPU frequency selection</h2>
 <p>EAR version 3.4 and upwards supports GPU monitoring for NVIDIA devices from the point of view of the application and node monitoring. GPU frequency optimization is not yet supported. <b>Authorized</b> users can ask for a specific GPU frequency by setting the <code>SLURM_EAR_GPU_DEF_FREQ</code> environment variable, giving the desired GPU frequency expressed in kHz. Only one frequency for all GPUs is now supported. </p><blockquote class="doxtable">
 <p>&zwj;Contact with sysadmin or helpdesk team to become an authorized user. </p>
 </blockquote>
 <p>To see the list of available frequencies of the GPU you will work on, you can type the following command: </p><div class="fragment"><div class="line">nvidia-smi -q -d SUPPORTED_CLOCKS</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md13"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md14"></a>
 Examples</h1>
-<h2><a class="anchor" id="autotoc_md14"></a>
+<h2><a class="anchor" id="autotoc_md15"></a>
 srun examples</h2>
 <p>Having an MPI application asking for one node and 24 tasks, the following is a simple case of job submission. If EARL is turned on by default, no extra options are needed to load it. To check if it is on by default, load the EAR module and execute the <code>ear-info</code> command. EAR verbose is set to 0 by default, i.e., no EAR messages.</p>
 <div class="fragment"><div class="line">srun -J test -N 1 -n 24 --tasks-per-node=24 application</div>
@@ -207,7 +239,7 @@ srun examples</h2>
 </div><!-- fragment --><p>For EAR <em>authorized users</em>, the following executes the application with a CPU frequency of 2.0GHz:</p>
 <div class="fragment"><div class="line">srun --ear-cpufreq=2000000 --ear-policy=monitoring --ear-verbose=1 -J test -N 1 -n 24 --tasks-per-node=24 application</div>
 </div><!-- fragment --><p>For <code>--ear-cpufreq</code> to have any effect, you must specify the <code>--ear-policy</code> option even if you want to run your application with the default policy.</p>
-<h2><a class="anchor" id="autotoc_md15"></a>
+<h2><a class="anchor" id="autotoc_md16"></a>
 sbatch + EARL + srun</h2>
 <p>When using <code>sbatch</code> EAR options can be specified in the same way. If more than one <code>srun</code> is included in the job submission, EAR options can be inherited from <code>sbatch</code> to the different <code>srun</code> instances or they can be specifically modified on each individual <code>srun</code>.</p>
 <p>The following example will execute twice the application. Both instances will have the verbosity set to 1. As the job is asking for 10 nodes, we have set the <code>SLURM_EARL_VERBOSE_PATH</code> environment variable set to the <em>ear_log</em> folder. Moreover, the second step will create a set of csv files placed in the <em>ear_metrics</em> folder. The nodename, Job Id and Step Id are part of the filename for a better identification.</p>
@@ -226,9 +258,9 @@ sbatch + EARL + srun</h2>
 <div class="line"> </div>
 <div class="line">mkdir ear_metrics</div>
 <div class="line">srun --ear-user-db=ear_metrics/app_metrics application</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md16"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md17"></a>
 EARL + mpirun</h2>
-<h3><a class="anchor" id="autotoc_md17"></a>
+<h3><a class="anchor" id="autotoc_md18"></a>
 Intel MPI</h3>
 <p>When running EAR with <code>mpirun</code> rather than <code>srun</code>, we have to specify the utilization of <code>srun</code> as bootstrap. Version 2019 and newer offers two environment variables for bootstrap server specification and arguments.</p>
 <div class="fragment"><div class="line">export I_MPI_HYDRA_BOOTSTRAP=slurm</div>
@@ -244,7 +276,7 @@ OpenMPI</h3>
 <h1><a class="anchor" id="eacct-1"></a>
 EAR job Accounting (eacct)</h1>
 <p>The <a class="el" href="../../dc/d09/md_EAR_commands.html#eacct">eacct</a> command shows accounting information stored in the EAR DB for jobs (and steps) IDs. The command uses EAR's configuration file to determine if the user running it is privileged or not, as <b>non-privileged users can only access their information</b>. It provides the following options.</p>
-<h2><a class="anchor" id="autotoc_md18"></a>
+<h2><a class="anchor" id="autotoc_md19"></a>
 Usage examples</h2>
 <p>The basic usage of <code>eacct</code> retrieves the last 20 applications (by default) of the user executing it. If a user is <b>privileged</b>, they may see all users applications. The default behaviour shows data from each job-step, aggregating the values from each node in said job-step. If using SLURM as a job manager, a <em>sb</em> (sbatch) job-step is created with the data from the entire execution. A specific job may be specified with <code>-j</code> option.</p>
 <div class="fragment"><div class="line">[user@host EAR]$ eacct -j 175966</div>
@@ -279,7 +311,7 @@ Usage examples</h2>
 <div class="line"> </div>
 <div class="line">[user@host EAR]$ eacct -j 175966.1 -c -l test.csv</div>
 <div class="line"> Successfully written applications to csv. Only applications with EARL will have its information properly written.</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md19"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md20"></a>
 Job energy optimization: EARL policies</h1>
 <p>The core component of EAR at the user's job level is the EAR Library (EARL). The Library deals with job monitoring and is the component which implements and applies optimization policies based on monitored workload.</p>
 <p>We highly recommend you to read <a class="el" href="../../df/dde/md_Architecture.html#the-ear-library">EARL</a> documentation and also how energy policies work in order to better understand what is doing the Library internally, so you will can explore easily all features (e.g., tunning variables, collecting data) EAR offers to the end-user so you will have more knowledge about how much resources your application consumes and how to correlate with its computational characteristics. </p>
