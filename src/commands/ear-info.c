@@ -26,6 +26,8 @@
 #include <common/types/configuration/cluster_conf.h>
 #include <common/system/user.h>
 
+#include <global_manager/cluster_powercap.h>
+
 #define DEFAULT_EARL 0
 
 void Usage(char *cprog)
@@ -113,16 +115,50 @@ int main(int argc, char *argv[])
   if (!is_privileged_command(&my_cluster)) return 0;
 
   my_node_conf_t *my_node_conf = NULL;
+  eargm_def_t *e_def = NULL;
+  int mode = 0;
   if (nodename != NULL){
     strtok(nodename, ".");
     my_node_conf = get_my_node_conf(&my_cluster, nodename); 
     if (my_node_conf == NULL){
-      printf("Error, Node %s not found\n", nodename);
-      exit(0);
+      printf("Node %s not found in computational nodes\n", nodename);
+      //exit(0);
+    } else {
+      printf("\n\nInformation for node %s..................\n", nodename);
+      report_my_node_conf(my_node_conf);
+      printf("............................................\n");
     }
-    printf("\n\nInformation for node %s..................\n", nodename);
-    report_my_node_conf(my_node_conf);
-    printf("............................................\n");
+    e_def = get_eargm_conf(&my_cluster, nodename);
+    if (e_def != NULL ) {
+      printf("\n\nEARGM found in node %s.................\n", nodename);
+      print_eargm_def(e_def, 0);
+      switch(my_cluster.eargm.powercap_mode) {
+        case SOFT_POWERCAP:
+            printf("Powercap policy: soft powercap\n");
+            break;
+        case HARD_POWERCAP:
+            printf("Powercap policy: hard powercap\n");
+            break;
+        case MONITOR:
+            printf("Powercap policy: monitor only\n");
+            break;
+      }
+
+      printf("............................................\n");
+    }
+    char dummy[SZ_NAME_MEDIUM];
+    mode = get_node_server_mirror(&my_cluster, nodename, dummy);
+    if (mode && 1) {
+        printf("\nEARDBD server found in node %s.........\n", nodename);
+    } if (mode && 2) {
+        printf("\nEARDBD mirror found in node %s.........\n", nodename);
+    }
+    if (mode) {
+      printf("............................................\n");
+    }
+
+    
+
   }
 
   printf("\n\nEnvironment configuration section..............\n");
@@ -186,17 +222,32 @@ int main(int argc, char *argv[])
 
   printf("............................................\n");
 
-  if (nodename)
+  char buffer[256];
+  if (my_node_conf)
   {
-    char buffer[256];
-    printf("Validating status of EARD in node  (econtrol --status=%s)\n", nodename);
+    printf("\nValidating status of EARD in node  (econtrol --status=%s)\n\n", nodename);
     sprintf(buffer,"econtrol --status=%s", nodename);
     system(buffer);
     printf("Validating status of power status in node  (econtrol --status=%s --type=power)\n", nodename);
     sprintf(buffer,"econtrol --status=%s --type=power", nodename);
     system(buffer);
   }
+  printf("............................................\n");
+  if (e_def)
+  {
+      printf("\nValidating status of EARGM in node (econtrol --status --type=eargm --hosts=%s\n\n", nodename);
+      sprintf(buffer, "econtrol --status --type=eargm --hosts=%s", nodename);
+      system(buffer);
+  }
+  printf("............................................\n");
+  if (mode)
+  {
+      printf("\nValidating status of EARDBD in node (econtrol --status --type=eardbd --hosts=%s\n\n", nodename);
+      sprintf(buffer, "econtrol --status --type=eardbd --hosts=%s", nodename);
+      system(buffer);
+  }
 
+  printf("............................................\n");
 
   return 0;
 }

@@ -174,8 +174,10 @@ static ctx_t       ctx_io;
 /* MPI statistics */
 mpi_information_t *metrics_mpi_info[2];             // Contains the data of the period
 mpi_information_t *metrics_last_mpi_info[2];
-// mpi_calls_types_t *metrics_mpi_calls_types[2];      // Contains the data of the period
+#if MPI_CALL_TYPES
+mpi_calls_types_t *metrics_mpi_calls_types[2];      // Contains the data of the period
 mpi_calls_types_t *metrics_last_mpi_calls_types[2];
+#endif
 
 #if USE_GPUS
 
@@ -979,7 +981,7 @@ static void metrics_global_stop()
 		if (is_mpi_enabled()) {
 			read_diff_node_mpi_info(lib_shared_region, sig_shared_region,
 					metrics_mpi_info[APP], metrics_last_mpi_info[APP]);
-#if 0
+#if MPI_CALL_TYPES
             // Below is useful to have loop's MPI call types info. It is disabled as now MPI
             // call types data is just collected by using the flag FLAG_GET_MPI_STATS.
 			read_diff_node_mpi_types_info(lib_shared_region, sig_shared_region,
@@ -1349,7 +1351,7 @@ static int metrics_partial_stop(uint where)
 		if (is_mpi_enabled()) {
 			read_diff_node_mpi_info(lib_shared_region, sig_shared_region,
 					metrics_mpi_info[LOO], metrics_last_mpi_info[LOO]);
-#if 0
+#if MPI_CALL_TYPES
             // Below is useful to have loop's MPI call types info. It is disabled as now
             // MPI call types data is just collected by using the flag FLAG_GET_MPI_STATS.
             read_diff_node_mpi_types_info(lib_shared_region, sig_shared_region,
@@ -1741,7 +1743,11 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
 
 		sig_ext->mpi_stats = metrics_mpi_info[sign_app_loop_idx];
         // Commented as not used.
-		// sig_ext->mpi_types = metrics_mpi_calls_types[sign_app_loop_idx];
+#if MPI_CALL_TYPES
+		sig_ext->mpi_types = metrics_mpi_calls_types[sign_app_loop_idx];
+#else
+		sig_ext->mpi_types = NULL;
+#endif
 
 		/* Power: Node, DRAM, PCK */
     /* If power is not estimated, we computed here, later otherwise */
@@ -2019,10 +2025,12 @@ int metrics_init(topology_t *topo)
 		metrics_last_mpi_info[APP]        = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
 		metrics_mpi_info[LOO]             = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
 		metrics_last_mpi_info[LOO]        = calloc(lib_shared_region->num_processes,sizeof(mpi_information_t));
-		// metrics_mpi_calls_types[APP]      = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
+#if MPI_CALL_TYPES
+		metrics_mpi_calls_types[APP]      = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
 		metrics_last_mpi_calls_types[APP] = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
-		// metrics_mpi_calls_types[LOO]      = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
+		metrics_mpi_calls_types[LOO]      = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
 		metrics_last_mpi_calls_types[LOO] = calloc(lib_shared_region->num_processes,sizeof(mpi_calls_types_t));
+#endif
 
 		/* IMC management */
 		if (mgt_imcfreq.ok) {

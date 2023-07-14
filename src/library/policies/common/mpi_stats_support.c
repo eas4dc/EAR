@@ -882,15 +882,17 @@ void verbose_mpi_data(int verb_lvl, mpi_information_t *mc)
 void verbose_mpi_calls_types(int verb_lvl, mpi_calls_types_t *t)
 {
 #if MPI_STATS
+  if (verb_lvl <= VERB_GET_LV() && t)
+  {
     char perc_sync_time[16], perc_collec_time[16], perc_block_time[16], mpi_calls_per_sec[16], perc_mpi_time[16];
-    if (verb_lvl >= VERB_GET_LV()){
-
-    if (t->exec_time == 0) {
+    if (t->exec_time == 0)
+    {
         sprintf(perc_sync_time,    "NAV");
         sprintf(perc_collec_time,  "NAV");
         sprintf(mpi_calls_per_sec, "NAV");
         sprintf(perc_mpi_time,     "NAV");
-    } else {
+    } else
+    {
         sprintf(perc_sync_time, "%.2lf", (float) t->mpi_sync_call_time * 100.0 / (float) t->exec_time);
         sprintf(perc_collec_time, "%.2lf", (float) t->mpi_collec_call_time * 100.0 / (float) t->exec_time);
         sprintf(perc_block_time, "%.2lf", (float) t->mpi_block_call_time * 100.0 / (float) t->exec_time);
@@ -899,14 +901,14 @@ void verbose_mpi_calls_types(int verb_lvl, mpi_calls_types_t *t)
     }
 
     verbose_master(verb_lvl, "MPI types\n---------\n\t# MPI calls: %lu\n\tMPI time (us): %lu\n\tExecution time (us): %lu\n"
-            "\t# Synchronization calls: %lu\n\t# Collective calls: %lu\n\t# Blocking calls: %lu\n\t%% Time synchronization: %s\n"
-            "\t%% Time collective: %s\n\t%% Time blocking: %s\n\t# MPI calls/s: %s\n\t%% MPI time: %s\n"
-            "Max synch=%lu",
-            t->mpi_call_cnt, t->mpi_time, t->exec_time,
-            t->mpi_sync_call_cnt, t->mpi_collec_call_cnt, t->mpi_block_call_cnt, perc_sync_time,
-            perc_collec_time, perc_block_time, mpi_calls_per_sec, perc_mpi_time, t->max_sync_block);
-   }
-#endif
+                   "\t# Synchronization calls: %lu\n\t# Collective calls: %lu\n\t# Blocking calls: %lu\n\t%% Time synchronization: %s\n"
+                   "\t%% Time collective: %s\n\t%% Time blocking: %s\n\t# MPI calls/s: %s\n\t%% MPI time: %s\n"
+                   "Max synch=%lu",
+                   t->mpi_call_cnt, t->mpi_time, t->exec_time,
+                   t->mpi_sync_call_cnt, t->mpi_collec_call_cnt, t->mpi_block_call_cnt, perc_sync_time,
+                   perc_collec_time, perc_block_time, mpi_calls_per_sec, perc_mpi_time, t->max_sync_block);
+ }
+#endif // MPI_STATS
 }
 
 

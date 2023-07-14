@@ -81,6 +81,7 @@ state_t EARGM_parse_token(eargm_conf_t *conf,char *token);
 void check_cluster_conf_eargm(eargm_conf_t *conf);
 void copy_eargmd_conf(eargm_conf_t *dest,eargm_conf_t *src);
 void set_default_eargm_conf(eargm_conf_t *eargmc);
+void print_eargm_def(eargm_def_t *conf, char tabulate);
 void print_eargm_conf(eargm_conf_t *conf);
 
 #endif

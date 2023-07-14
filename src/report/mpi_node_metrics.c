@@ -92,9 +92,14 @@ static state_t append_data(report_id_t *id, sig_ext_t *data, uint count)
             return EAR_ERROR;
         }
 
-        char header[] = "time,node_id,total_useful_time,max_useful_time,"
-                        "load_balance,parallel_efficiency,max_mpi,min_mpi,avg_mpi,"
-                        "talp_load_balance,talp_parallel_efficiency";
+#if DLB
+        static char header[] = "time,node_id,total_useful_time,max_useful_time,"
+                               "load_balance,parallel_efficiency,max_mpi,min_mpi,avg_mpi,"
+                               "talp_load_balance,talp_parallel_efficiency";
+#else
+        static char header[] = "time,node_id,total_useful_time,max_useful_time,"
+                               "load_balance,parallel_efficiency,max_mpi,min_mpi,avg_mpi";
+#endif
 
         if (fprintf(stream, "%s", header) < 0) {
             return EAR_ERROR;

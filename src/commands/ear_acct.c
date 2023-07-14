@@ -161,7 +161,7 @@ void print_full_apps(application_t *apps, int num_apps)
 	unsigned long gpu_freq, gpu_util, gpu_mem_util;
 	char tmp[64];
 	if (print_gpus) 
-		printf(" %-13s %-6s %-13s ", "G-POW(T/U)", "G-FREQ", "G-UTIL(G/M)");
+		printf(" %-15s %-6s %-13s ", "G-POW(T/U)", "G-FREQ", "G-UTIL(G/M)");
 #endif
 	printf("\n");
 
@@ -215,7 +215,7 @@ void print_full_apps(application_t *apps, int num_apps)
 					gpu_mem_util /= apps[i].signature.gpu_sig.num_gpus;
 
 					sprintf(tmp, "%lu%%/%lu%%", gpu_util, gpu_mem_util);
-					printf(" %-6.2lf/%-6.2lf %-6.3lf %13s", gpu_total_power, gpu_power, (double)gpu_freq/1000000, tmp);
+					printf(" %-7.2lf/%-7.2lf %-6.3lf %13s", gpu_total_power, gpu_power, (double)gpu_freq/1000000, tmp);
 				}
 				else
 				{
@@ -315,8 +315,8 @@ void print_short_apps(application_t *apps, int num_apps, int fd, int is_csv)
 			strcpy(mpi_sbatch_line_format, "%7u-%-3s  %-10s %-16s %-6s %-5u %-4.2lf/%-4.2lf/%-6s %-10.2lf %-8.2lf %-7s %-5s %-12.0lf %-8s %-7s %-5s");
 		}
 #if USE_GPUS
-		strcpy(gpu_header, " %-13s %-7s %-13s");
-		strcpy(gpu_format, " %-6.2lf/%-6.2lf %-7.3lf %-13s ");
+		strcpy(gpu_header, " %-15s %-7s %-13s");
+		strcpy(gpu_format, " %-7.2lf/%-7.2lf %-7.3lf %-13s ");
 #endif
 	}
 	else
@@ -1014,7 +1014,7 @@ void print_loops(loop_t *loops, int num_loops)
 	char gpu_line[256], tmp[16];
 	double gpup = 0, gpupu = 0;
 	ulong  gpuf = 0, gpuu = 0, gpuused = 0, gpu_mem_util = 0;
-	strcpy(line, "%-12s %-8s %-13s");
+	strcpy(line, "%-13s %-8s %-13s");
 	if (print_gpus)
 		printf(line, "G-POWER(T/U)","G-FREQ","G-UTIL(G/MEM)");
 	//prepare gpu_line format

@@ -143,13 +143,12 @@ static signature_t *my_app;
 static signature_t *sig_list;
 static uint *sig_ready;
 
-static polsym_t gpus;
+static polsym_t gpu_plugin;
 static const ulong **gpuf_pol_list;
 static const uint *gpuf_pol_list_items;
 
 static signature_t cpufreq_signature;
 
-static uint block_type;
 static uint first_time = 1;
 
 
@@ -193,7 +192,10 @@ state_t policy_init(polctx_t *c)
     if (is_mpi_enabled())
     {
         mpi_app_init(c);
+
+        uint block_type;
         is_blocking_busy_waiting(&block_type);
+
         verbose_master(2, "Busy waiting MPI: %u", block_type == BUSY_WAITING_BLOCK);
     }
 
@@ -247,13 +249,13 @@ state_t policy_init(polctx_t *c)
     }
 
 #if USE_GPUS
-    memset(&gpus, 0, sizeof(gpus));
+    memset(&gpu_plugin, 0, sizeof(gpu_plugin));
     if (c->num_gpus) {
-        if (policy_gpu_load(c->app, &gpus) != EAR_SUCCESS){
+        if (policy_gpu_load(c->app, &gpu_plugin) != EAR_SUCCESS){
             verbose_master(2, "Error loading GPU policy");
         }
         verbose_master(2, "Initialzing GPU policy part");
-        if (gpus.init != NULL) gpus.init(c);
+        if (gpu_plugin.init != NULL) gpu_plugin.init(c);
 
         gpuf_pol_list       = (const ulong **) metrics_gpus_get(MGT_GPU)->avail_list;
         gpuf_pol_list_items = (const uint *)   metrics_gpus_get(MGT_GPU)->avail_count;
@@ -349,9 +351,9 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
 
 
     /* GPU Policy : It's independent of the CPU and IMC frequency selection */
-    if (gpus.node_policy_apply != NULL) {
+    if (gpu_plugin.node_policy_apply != NULL) {
         // Basic support for GPUs
-        gpus.node_policy_apply(c, sig, freqs, &gready);
+        gpu_plugin.node_policy_apply(c, sig, freqs, &gready);
         gpu_ready = gready;
     } else {
         gpu_ready = EAR_POLICY_READY;
@@ -463,8 +465,8 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
             verbose_master(2,"Setting default conf for ME");
 
             set_default_settings(freqs, &min_energy_def_freqs);
-            if (gpus.restore_settings != NULL) {
-                gpus.restore_settings(c, sig, freqs);
+            if (gpu_plugin.restore_settings != NULL) {
+                gpu_plugin.restore_settings(c, sig, freqs);
             }
 
             node_freqs_copy(&last_nodefreq_sel, freqs);
@@ -833,8 +835,8 @@ state_t policy_get_default_freq(polctx_t *c, node_freqs_t *freq_set, signature_t
     {
         node_freqs_copy(freq_set, &min_energy_def_freqs);
         // WARNING: A function designed as a getter calls a function designed as a setter.
-        if ((gpus.restore_settings != NULL) && (s != NULL)) {
-            gpus.restore_settings(c, s, freq_set);
+        if ((gpu_plugin.restore_settings != NULL) && (s != NULL)) {
+            gpu_plugin.restore_settings(c, s, freq_set);
         }
     } else {
         return EAR_ERROR;
@@ -911,8 +913,8 @@ state_t policy_cpu_gpu_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *fr
         memcpy(last_nodefreq_sel.imc_freq,freqs->imc_freq,imc_devices*IMC_VAL*sizeof(ulong));
     }
 #if USE_GPUS
-    if (gpus.cpu_gpu_settings != NULL){
-      return gpus.cpu_gpu_settings(c, my_sig, freqs);
+    if (gpu_plugin.cpu_gpu_settings != NULL){
+      return gpu_plugin.cpu_gpu_settings(c, my_sig, freqs);
     }else{
       /* GPU mem is pending */
       for (uint i = 0; i < c->num_gpus; i++) {
@@ -982,8 +984,8 @@ state_t policy_io_settings(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs
     }
 
 #if USE_GPUS
-    if (gpus.io_settings != NULL){
-      return gpus.io_settings(c, my_sig, freqs);
+    if (gpu_plugin.io_settings != NULL){
+      return gpu_plugin.io_settings(c, my_sig, freqs);
     }else{
       gpu_ready = EAR_POLICY_READY;
     }
@@ -1042,8 +1044,8 @@ state_t policy_busy_wait_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *
         memcpy(last_nodefreq_sel.imc_freq,freqs->imc_freq,imc_devices*IMC_VAL*sizeof(ulong));
     }
 #if USE_GPUS
-    if (gpus.busy_wait_settings != NULL){
-      return gpus.busy_wait_settings(c, my_sig, freqs);
+    if (gpu_plugin.busy_wait_settings != NULL){
+      return gpu_plugin.busy_wait_settings(c, my_sig, freqs);
     }else{
       gpu_ready = EAR_POLICY_READY;
     }
@@ -1064,8 +1066,8 @@ state_t policy_restore_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *fr
         verbose_master(2,"min_energy policy_restore_settings");
         node_freqs_copy(freqs, &min_energy_def_freqs);
 
-        if (gpus.restore_settings != NULL){
-            st = gpus.restore_settings(c,my_sig,freqs);
+        if (gpu_plugin.restore_settings != NULL){
+            st = gpu_plugin.restore_settings(c,my_sig,freqs);
         }
         node_freqs_copy(&last_nodefreq_sel,freqs);
 
@@ -1078,9 +1080,9 @@ state_t policy_restore_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *fr
 
 state_t policy_new_iteration(polctx_t *c,signature_t *sig)
 {
-    if (gpus.new_iter != NULL){
+    if (gpu_plugin.new_iter != NULL){
         /* Basic support for GPUS */
-        return gpus.new_iter(c,sig);
+        return gpu_plugin.new_iter(c,sig);
     }
     return EAR_SUCCESS;
 }
