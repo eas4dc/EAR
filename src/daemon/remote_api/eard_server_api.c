@@ -67,8 +67,6 @@ int init_ips(cluster_conf_t *my_conf)
         return EAR_ERROR;
     }
 
-    if (strlen(my_conf->net_ext) > 0)
-    strcat(buff, my_conf->net_ext);
     self_ip = get_ip(buff, my_conf);
     for (i = 0; i < ret; i++)
     {
@@ -500,16 +498,6 @@ int propagate_and_cat_data(request_t *command, uint port, void **status, size_t 
     if (!can_propagate(command)) 
     {
         final_status = (char *)calloc(num_items, size);
-#if 0
-        ip=(int *)final_status;
-        if (self_id < 0 || ips == NULL)
-            *ip = get_self_ip();
-        else
-            *ip = ips[self_id];
-	    	debug("generic_status has 1 status\n");
-        *status = final_status;
-        return 1;
-#endif
         for (i=0;i<num_items;i++){
           ip = (int *)((char *)final_status + i*size);
           if (self_id < 0 || ips == NULL)
@@ -530,13 +518,6 @@ int propagate_and_cat_data(request_t *command, uint port, void **status, size_t 
     if (head.type != type || head.size < size)
     {
         final_status = (char *)calloc(num_items, size);
-#if 0
-        ip=(int *)final_status;
-        *ip = ips[self_id];
-        if (head.size > 0) free(temp_status);
-        *status = final_status;
-        return 1;
-#endif
         for (i=0;i<num_items;i++){
           ip = (int *)((char *)final_status + i*size);
           *ip = ips[self_id];

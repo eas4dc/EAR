@@ -41,12 +41,9 @@ EARLReportPlugins=eard.so
 EARGMVerbose=1
 # '-' are Joules, 'K' KiloJoules and 'M' MegaJoules.
 EARGMUnits=K
-EARGMPort=50000
 # Period T1 and T2 are specified in seconds T1 (ex. must be less than T2, ex. 10min and 1 month)
 EARGMEnergyPeriodT1=90
 EARGMEnergyPeriodT2=259200
-# Energy limit applies to EARGMPeriodT2.
-EARGMEnergyLimit=550000
 # Use aggregated periodic metrics or periodic power metrics. Aggregated metrics are only available
 # when EARDBD is running
 EARGMEnergyUseAggregated=1
@@ -79,7 +76,8 @@ EARGMPowerCapResumeAction=no_action
 # setting the EARGMID environment variable overrides the node field and chooses the characteristics
 # of the EARGM with the correspoding id.
 # 
-# Only one EARGM can currently control the energy caps, so setting the rest to 0 is recommended.
+# Only one EARGM can currently control the energy caps, so setting the rest to 0 is recommended and
+# the limit applies to EARGMPeriodT2, using EARGMEnergyUnits to define the units.
 # energy = 0 -> energy_cap disabled
 # power = 0  -> powercap disabled
 # power = N  -> powercap budget for that EARGM (and the nodes it controls) is N

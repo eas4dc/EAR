@@ -155,9 +155,6 @@ int generate_node_names(cluster_conf_t my_cluster_conf, ip_table_t **ips)
 				else
 					new_ips[num_ips].max_power = (uint) aux_node_conf->max_error_power;
 
-				/*#if USE_EXT
-				  strcat(node_name,NW_EXT);
-#endif*/
 				if (strlen(my_cluster_conf.net_ext) > 0)
 					strcat(node_name, my_cluster_conf.net_ext);
 
@@ -845,7 +842,6 @@ int main(int argc, char *argv[])
 					if (strcmp(node_name, optarg))
 					{
 						strcpy(node_name, optarg);
-						strcat(node_name, my_cluster_conf.net_ext);
 					}
 					else strcpy(node_name, optarg);
 				}
@@ -902,7 +898,6 @@ int main(int argc, char *argv[])
 					if (strcmp(node_name, optarg))
 					{
 						strcpy(node_name, optarg);
-						strcat(node_name, my_cluster_conf.net_ext);
 					}
 					else strcpy(node_name, optarg);
 				}

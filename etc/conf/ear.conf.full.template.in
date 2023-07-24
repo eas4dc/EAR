@@ -92,7 +92,6 @@ EARLReportPlugins=eard.so
 EARGMVerbose=1
 # When set to 1, the output is saved in 'TmpDir'/eargmd.log (common configuration) as a log file.
 EARGMUseLog=1
-EARGMPort=50000
 # Email address to report the warning level (and the action taken in automatic mode).
 EARGMMail=nomail
 # Period T1 and T2 are specified in seconds (ex. T1 must be less than T2, ex. 10min and 1 month).
@@ -100,8 +99,6 @@ EARGMEnergyPeriodT1=90
 EARGMEnergyPeriodT2=259200
 # '-' are Joules, 'K' KiloJoules and 'M' MegaJoules.
 EARGMEnergyUnits=K
-# Energy limit applies to EARGMPeriodT2.
-EARGMEnergyLimit=550000
 # Use aggregated periodic metrics or periodic power metrics.
 # Aggregated metrics are only available when EARDBD is running.
 EARGMEnergyUseAggregated=1
@@ -139,7 +136,8 @@ EARGMPowerCapResumeAction=no_action
 # setting the EARGMID environment variable overrides the node field and chooses the characteristics
 # of the EARGM with the correspoding id.
 # 
-# Only one EARGM can currently control the energy caps, so setting the rest to 0 is recommended.
+# Only one EARGM can currently control the energy caps, so setting the rest to 0 is recommended and
+# the limit applies to EARGMPeriodT2, using EARGMEnergyUnits to define the units.
 # energy = 0 -> energy_cap disabled
 # power = 0  -> powercap disabled
 # power = N  -> powercap budget for that EARGM (and the nodes it controls) is N
