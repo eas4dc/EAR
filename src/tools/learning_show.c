@@ -28,6 +28,7 @@ static char *paint[6] = { STR_RED, STR_GRE, STR_YLW, STR_BLU, STR_MGT, STR_CYA }
 static unsigned int opt_p;
 static unsigned int opt_c;
 static unsigned int opt_o;
+static unsigned int opt_g;
 
 void usage(int argc, char *argv[])
 {
@@ -43,6 +44,7 @@ void usage(int argc, char *argv[])
 		verbose(0, "\t\tapplications by script.");
 		verbose(0, "\t-C\tShows other jobs of the same application,");
 		verbose(0, "\t\tnode, policy and number of processes.");
+		verbose(0, "\t-G\tinclude GPU data (possible if GPU is used).'");
 		verbose(0, "\t-O\tgenerate csv file with name 'learning_show.<node_id>.csv'");
 		exit(1);
 	}
@@ -52,6 +54,8 @@ void usage(int argc, char *argv[])
 			opt_c = (strcmp(argv[i], "-C") == 0);
 		if (!opt_o)
 			opt_o = (strcmp(argv[i], "-O") == 0);
+		if (!opt_g)
+			opt_g = (strcmp(argv[i], "-G") == 0);
 		if (!opt_p) {
 			opt_p = (strcmp(argv[i], "-P") == 0);
 			if (opt_p) {
@@ -63,14 +67,18 @@ void usage(int argc, char *argv[])
 
 int main(int argc,char *argv[])
 {
-	char buffer[256];
-	char *node_name = NULL;
-	cluster_conf_t my_conf;
-	application_t *apps;
-	int total_apps = 0;
-	int num_apps = 0;
-	int i;
-	double VPI;
+  char buffer[256];
+  char *node_name = NULL;
+  cluster_conf_t my_conf;
+  application_t *apps;
+  int total_apps = 0;
+  int num_apps = 0;
+  int i;
+  double VPI;
+  unsigned int use_gpu;
+  double gpup;
+  double gpuu;
+  double gpum;
 
 	//
 	usage(argc, argv);
@@ -94,72 +102,139 @@ int main(int argc,char *argv[])
   if (strcmp(argv[1], "all") == 0) node_name = NULL;	
 
 	if (get_ear_conf_path(buffer) == EAR_ERROR) {
-		printf("ERROR while getting ear.conf path\n");
-		exit(0);
-	}else{
-		printf("Reading from %s\n",buffer);
+    printf("ERROR while getting ear.conf path\n");
+    exit(0);
+	}
+  else{
+    printf("Reading from %s\n",buffer);
 	}
 
 	//
 	read_cluster_conf(buffer, &my_conf);
-
-	//
+  strcpy(my_conf.database.user, my_conf.database.user_commands);
+  strcpy(my_conf.database.pass, my_conf.database.pass_commands);
 	init_db_helper(&my_conf.database);
+	
+  num_apps = db_read_applications(&apps, 1, 50, node_name);
+
+
+#if USE_GPUS
+  if(opt_g){
+    use_gpu = 1;
+  }
+  else{
+    use_gpu = 0;
+  }
+#else
+    use_gpu = 0;
+#endif
 
 	//
-	num_apps = db_read_applications(&apps, 1, 50, node_name);
-
-	// 
-	if (!opt_c){
-		tprintf_init(fdout, STR_MODE_COL, "17 10 17 10 10 8 8 8 8 8 8 8");
-
-		tprintf("Node name||JID||App name||Def. F.||Avg. F.||Seconds||Watts||GBS||CPI||TPI||Gflops||VPI");
-		tprintf("---------||---||--------||-------||-------||-------||-----||---||---||---||------||---");
-	} else {
-		verbose(0, "Node name;JID;App name;Def. F.;Avg. F.;Seconds;Watts;GBS;CPI;TPI;Gflops;VPI");
-	}
-  
+  if(!use_gpu){
+    if (!opt_c){
+      tprintf_init(fdout, STR_MODE_COL, "15 10 10 17 10 10 8 10 12 12 8 8 8 8 10 8");
+      tprintf("Node name||JID||StepID||App name||Def. F.||Avg. F.||Seconds||DC_power||DRAM_power||PCK_power||GBS||CPI||TPI||Gflops||MPI_perc||VPI");
+      tprintf("---------||---||------||--------||-------||-------||-------||--------||----------||---------||---||---||---||------||--------||---");
+    } else 
+    {
+      verbose(0, "Node name;JID;StepID;App name;Def. F.;Avg. F.;Seconds;DC_power;DRAM_power;PCK_power;GBS;CPI;TPI;Gflops;MPI_perc;VPI");
+    }
+  }
+  else{
+	  if (!opt_c){
+    tprintf_init(fdout, STR_MODE_COL, "15 10 10 17 10 10 8 10 12 12 8 8 8 8 10 8 10 10 10");
+    tprintf("Node name||JID||StepID||App name||Def. F.||Avg. F.||Seconds||DC_power||DRAM_power||PCK_power||GBS||CPI||TPI||Gflops||MPI_perc||VPI||GPU_power||GPU_util||GPU_mem_util");
+    tprintf("---------||---||------||--------||-------||-------||-------||--------||----------||---------||---||---||---||------||--------||---||---------||--------||------------");
+	  } else {
+      verbose(0, "Node name;JID;StepID;App name;Def. F.;Avg. F.;Seconds;DC_power;DRAM_power;PCK_power;GBS;CPI;TPI;Gflops;MPI_perc;VPI;GPU_power;GPU_power;GPU_util;GPU_mem_util");
+	  }
+  } 
   // header
   if (opt_o){
     fd = fopen(csv_name_full, "w");	
-		fprintf(fd, "node_id\tjob_id\tapp_id\tdef_f\tavg_f\ttime\tpower\tGBS\tCPI\tTPI\tGflops\tVPI\n");
+    if(!use_gpu){
+	    fprintf(fd, "node_id\tjob_id\tstep_id\tapp_id\tdef_f\tavg_f\ttime\tDC_power\tDRAM_power\tPCK_power\tGBS\tCPI\tTPI\tGflops\tMPI_perc\tVPI\n");
+    }
+    else{
+	    fprintf(fd, "node_id\tjob_id\tstep_id\tapp_id\tdef_f\tavg_f\ttime\tDC_power\tDRAM_power\tPCK_power\tGBS\tCPI\tTPI\tGflops\tMPI_perc\tVPI\tGPU_power\tGPU_power\tGPU_util;GPU_mem_util\n");
+    }
 	} 
 
-	while (num_apps > 0){
-		total_apps += num_apps;
-		
+  while (num_apps > 0){
+	  total_apps += num_apps;
     for (i = 0; i < num_apps; i++){
-			if (strcmp(buffer, apps[i].node_id) != 0){
-				strcpy(buffer, apps[i].node_id);
-			}
+      if (strcmp(buffer, apps[i].node_id) != 0){
+        strcpy(buffer, apps[i].node_id);
+      }
+      
+      if (strlen(apps[i].node_id) > 15){
+        apps[i].node_id[15] = '\0';
+      }
+      
+      if(use_gpu){
+        gpup = 0.0;
+        gpuu = 0.0;
+        gpum = 0.0;
+        for (uint gpuid = 0; gpuid < apps[i].signature.gpu_sig.num_gpus; gpuid++) {
+          gpup += apps[i].signature.gpu_sig.gpu_data[gpuid].GPU_power;
+          gpuu += apps[i].signature.gpu_sig.gpu_data[gpuid].GPU_util;
+          gpum += apps[i].signature.gpu_sig.gpu_data[gpuid].GPU_mem_util;
+        }
+        gpuu = gpuu /apps[i].signature.gpu_sig.num_gpus;
+        gpum = gpum /apps[i].signature.gpu_sig.num_gpus;
+      }
+     
+	    compute_sig_vpi(&VPI , &apps[i].signature);
+      if(!use_gpu){
+	      if (opt_c) {
+	        verbose(0, "%s;%lu;%lu;%s;%lu;%lu;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf",
+            apps[i].node_id, apps[i].job.id, apps[i].job.step_id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
+            apps[i].signature.time, apps[i].signature.DC_power, apps[i].signature.DRAM_power, apps[i].signature.PCK_power,
+            apps[i].signature.GBS, apps[i].signature.CPI, apps[i].signature.TPI, apps[i].signature.Gflops, apps[i].signature.perc_MPI, VPI);
+			  } 
+        else{
+          tprintf("%s%s||%lu||%lu||%s||%lu||%lu||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf", paint[opt_p],
+           apps[i].node_id, apps[i].job.id, apps[i].job.step_id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
+           apps[i].signature.time, apps[i].signature.DC_power, apps[i].signature.DRAM_power, apps[i].signature.PCK_power,
+           apps[i].signature.GBS, apps[i].signature.CPI, apps[i].signature.TPI, apps[i].signature.Gflops, apps[i].signature.perc_MPI, VPI);
+	      }	
+      }
+      else{ 
+	      if (opt_c) {
+          verbose(0, "%s;%lu;%lu;%s;%lu;%lu;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf",
+           apps[i].node_id, apps[i].job.id, apps[i].job.step_id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
+            apps[i].signature.time, apps[i].signature.DC_power, apps[i].signature.DRAM_power, apps[i].signature.PCK_power,
+            apps[i].signature.GBS, apps[i].signature.CPI, apps[i].signature.TPI, apps[i].signature.Gflops, apps[i].signature.perc_MPI, VPI,
+            gpup, gpuu, gpum);
+			  } 
+        else{
+          tprintf("%s%s||%lu||%lu||%s||%lu||%lu||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf", 
+            paint[opt_p],
+            apps[i].node_id, apps[i].job.id, apps[i].job.step_id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
+            apps[i].signature.time, apps[i].signature.DC_power, apps[i].signature.DRAM_power, apps[i].signature.PCK_power,
+            apps[i].signature.GBS, apps[i].signature.CPI, apps[i].signature.TPI, apps[i].signature.Gflops, apps[i].signature.perc_MPI, VPI,
+            gpup, gpuu, gpum);
+	      }		
+      }    
 
-			if (strlen(apps[i].node_id) > 15){
-				apps[i].node_id[15] = '\0';
-			}
-
-			compute_sig_vpi(&VPI , &apps[i].signature);
-			if (opt_c) {
-				verbose(0, "%s;%lu;%s;%lu;%lu;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf;%0.2lf",
-                    apps[i].node_id, apps[i].job.id,apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
-                    apps[i].signature.time, apps[i].signature.DC_power,
-                    apps[i].signature.GBS, apps[i].signature.CPI, apps[i].signature.TPI, apps[i].signature.Gflops, VPI);
-			} 
-      else{
-				tprintf("%s%s||%lu||%s||%lu||%lu||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf||%0.2lf", paint[opt_p],
-					apps[i].node_id,apps[i].job.id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
-					apps[i].signature.time, apps[i].signature.DC_power,
-					apps[i].signature.GBS, apps[i].signature.CPI, apps[i].signature.TPI, apps[i].signature.Gflops, VPI);
-			}			
-
-      if (opt_o){
-				fprintf(fd, "%s\t%lu\t%s\t%lu\t%lu\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\n",
-                    apps[i].node_id, apps[i].job.id,apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
-                    apps[i].signature.time, apps[i].signature.DC_power,
-                    apps[i].signature.GBS, apps[i].signature.CPI, apps[i].signature.TPI, apps[i].signature.Gflops, VPI);
+      if (opt_o){	      
+        if(!use_gpu){
+          fprintf(fd, "%s\t%lu\t%lu\t%s\t%lu\t%lu\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\n",
+          apps[i].node_id, apps[i].job.id, apps[i].job.step_id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
+          apps[i].signature.time, apps[i].signature.DC_power, apps[i].signature.DRAM_power, apps[i].signature.PCK_power,
+          apps[i].signature.GBS, apps[i].signature.CPI, apps[i].signature.TPI, apps[i].signature.Gflops, apps[i].signature.perc_MPI, VPI);
+        }
+        else{
+	      fprintf(fd, "%s\t%lu\t%lu\t%s\t%lu\t%lu\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\t%0.4lf\n",
+          apps[i].node_id, apps[i].job.id, apps[i].job.step_id, apps[i].job.app_id, apps[i].job.def_f, apps[i].signature.avg_f,
+          apps[i].signature.time, apps[i].signature.DC_power, apps[i].signature.DRAM_power, apps[i].signature.PCK_power,
+          apps[i].signature.GBS, apps[i].signature.CPI, apps[i].signature.TPI, apps[i].signature.Gflops, apps[i].signature.perc_MPI, VPI,
+          gpup, gpuu, gpum);
+        }
 			}
 	  }
     free(apps);  
-		num_apps = db_read_applications(&apps, 1, 50, node_name);
+	  num_apps = db_read_applications(&apps, 1, 50, node_name);
   }
   
   if (opt_o){

@@ -350,7 +350,7 @@ state_t report_events(report_id_t *id, ear_event_t *events, uint count)
             sprintf(job_text, ", jobid=%lu, stepid=%lu", events[i].jid, events[i].step_id);
         }
         event_type_to_str(&events[i], ev_type, 64);
-        sprintf(tmp_text, "%s{%s%s} %lu %lu\n", ev_type, events[i].node_id, job_text, events[i].freq, events[i].timestamp*1000);
+        sprintf(tmp_text, "%s{%s%s} %lu %lu\n", ev_type, events[i].node_id, job_text, events[i].value, events[i].timestamp*1000);
         buffer_insert(&general_buffer, tmp_text, &insert_time);
     }
 

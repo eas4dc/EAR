@@ -1,19 +1,19 @@
 /*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+ *
+ * This program is part of the EAR software.
+ *
+ * EAR provides a dynamic, transparent and ligth-weigth solution for
+ * Energy management. It has been developed in the context of the
+ * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+ *
+ * Copyright © 2017-present BSC-Lenovo
+ * BSC Contact   mailto:ear-support@bsc.es
+ * Lenovo contact  mailto:hpchelp@lenovo.com
+ *
+ * EAR is an open source software, and it is licensed under both the BSD-3 license
+ * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
+ * and COPYING.EPL files.
+ */
 
 #include <errno.h>
 #include <stdio.h>
@@ -79,10 +79,10 @@ static suscription_t *sus_powercap_monitor;
 void get_date_str(char *msg,int size)
 {
     struct tm *current_t;
-  time_t rawtime;
+    time_t rawtime;
     time(&rawtime);
     current_t = localtime(&rawtime);
-  strftime(msg, size, "%c", current_t);
+    strftime(msg, size, "%c", current_t);
 }
 
 /***** These two functions monitors node power for status update *****/
@@ -97,14 +97,14 @@ state_t pc_monitor_thread_main(void *p)
 
 void  powercap_monitor_init()
 {
-    #if POWERCAP_MON
-  sus_powercap_monitor=suscription();
+#if POWERCAP_MON
+    sus_powercap_monitor=suscription();
     sus_powercap_monitor->call_main = pc_monitor_thread_main;
     sus_powercap_monitor->call_init = pc_monitor_thread_init;
     sus_powercap_monitor->time_relax = 1000;
     sus_powercap_monitor->time_burst = 1000;
     sus_powercap_monitor->suscribe(sus_powercap_monitor);
-  #endif
+#endif
 }
 
 
@@ -113,11 +113,11 @@ void update_node_powercap_opt_shared_info()
 {
     int cc;
     for (cc = 0; cc <= max_context_created;cc ++){
-    if (current_ear_app[cc] != NULL){
+        if (current_ear_app[cc] != NULL){
             /* Do we have to copy, "as is" ? PENDING */
             memcpy(&current_ear_app[cc]->settings->pc_opt,&my_pc_opt,sizeof(node_powercap_opt_t));
             current_ear_app[cc]->resched->force_rescheduling=1;
-            
+
         }
     }
 }
@@ -126,7 +126,7 @@ void update_node_powercap_opt_shared_info()
 void print_node_powercap_opt(node_powercap_opt_t *my_powercap_opt)
 {
     fprintf(stderr,"cuurent %u pc_def %u pc_idle %u th_inc %u th_red %u th_release %u cluster_perc_power %u requested %u released %u\n",
-    my_powercap_opt->current_pc, my_powercap_opt->def_powercap, my_powercap_opt->powercap_idle, my_powercap_opt->th_inc, my_powercap_opt->th_red,
+            my_powercap_opt->current_pc, my_powercap_opt->def_powercap, my_powercap_opt->powercap_idle, my_powercap_opt->th_inc, my_powercap_opt->th_red,
             my_powercap_opt->th_release,my_powercap_opt->cluster_perc_power, my_powercap_opt->requested,my_powercap_opt->released);
 }
 
@@ -140,31 +140,43 @@ ulong powercap_elapsed_last_powercap()
     return timestamp_diffnow(&last_powercap_reallocation_time, TIME_SECS);
 }
 
+//this function changes the default powercap, last t1 and current powercap 
 static int set_powercap_value(uint domain, uint limit)
 {
-  char c_date[128];
-  int i;
-  uint max_powercap;
-  verbose(VCONF,"%spowercap_set_powercap_value domain %u limit %u (current pc %u)%s",COL_BLU,domain,limit,my_pc_opt.current_pc, COL_CLR);
-  max_powercap = powermon_get_max_powercap_def();
-  if (max_powercap > 1)
-  	limit = ear_min(limit, powermon_get_max_powercap_def());
-  if (limit == my_pc_opt.current_pc) return EAR_SUCCESS;
-  get_date_str(c_date,sizeof(c_date));
-  if (fd_powercap_values>=0){
-    dprintf(fd_powercap_values,"%s domain %u limit %u \n",c_date,domain,limit);
-  }
-  my_pc_opt.current_pc = limit;
-  update_node_powercap_opt_shared_info();
-  pmgt_set_app_req_freq(pcmgr);
+    char c_date[128];
+    int i;
+    uint max_powercap;
+    verbose(VCONF,"%spowercap_set_powercap_value domain %u limit %u (current pc %u)%s",COL_BLU,domain,limit,my_pc_opt.current_pc, COL_CLR);
+    max_powercap = powermon_get_max_powercap_def();
+    //filter through the max powercap first
+    if (max_powercap > 1)
+        limit = ear_min(limit, max_powercap);
+
+    //set the default and last t1 to the limit
+    my_pc_opt.def_powercap = limit;
+    my_pc_opt.last_t1_allocated = limit;    
+    //if the filtered is already the current, no need to apply any change
+    if (limit == my_pc_opt.current_pc) return EAR_SUCCESS;
+
+
+    get_date_str(c_date,sizeof(c_date));
+    if (fd_powercap_values>=0){
+        dprintf(fd_powercap_values,"%s domain %u limit %u \n",c_date,domain,limit);
+    }
+
+    //update the current limit
+    my_pc_opt.current_pc = limit; 
+    update_node_powercap_opt_shared_info();
+    pmgt_set_app_req_freq(pcmgr);
     /* PENDING POWER allocation for jobs sharing the node */
     for (i=1; i<= max_context_created; i++){
-    if (current_ear_app[i] != NULL){
+        if (current_ear_app[i] != NULL){
             current_ear_app[i]->settings->pc_opt.current_pc = powercap_get_value();
         }
     }
     timestamp_get( &last_powercap_reallocation_time); 
-  return pmgt_set_powercap_value(pcmgr,pc_pid,domain,(ulong)limit);
+    //apply the current limit
+    return pmgt_set_powercap_value(pcmgr,pc_pid,domain,(ulong)limit);
 }
 
 
@@ -244,6 +256,7 @@ int powercap_idle_to_run()
 {
     uint extra;
     if (!is_powercap_on(&my_pc_opt)) return EAR_SUCCESS;
+    if (is_powercap_unlimited()) return EAR_SUCCESS;
     debug("powercap_idle_to_run");
     while(pthread_mutex_trylock(&my_pc_opt.lock)); /* can we create some deadlock because of status ? */
     pmgt_set_status(pcmgr,PC_STATUS_RUN);
@@ -252,36 +265,36 @@ int powercap_idle_to_run()
     extra=0;
     switch(my_pc_opt.powercap_status){
         case PC_STATUS_IDLE:
-        debug("%sGoin from idle to run:allocated %u %s ",COL_GRE,my_pc_opt.last_t1_allocated,COL_CLR);
-        /* There is enough power for me */
-        if ((my_pc_opt.last_t1_allocated+extra)>=my_pc_opt.def_powercap){   
-            /* if we already had de power, we just set the status as OK */
-            if (my_pc_opt.last_t1_allocated>=my_pc_opt.def_powercap){
-                my_pc_opt.powercap_status=PC_STATUS_OK;
-                my_pc_opt.released=0;
-                set_powercap_value(DOMAIN_NODE,my_pc_opt.last_t1_allocated);    
-            }else{
-                /* We must use extra power */
-                my_pc_opt.last_t1_allocated=ear_min(my_pc_opt.def_powercap,my_pc_opt.last_t1_allocated+extra);
-                my_pc_opt.powercap_status=PC_STATUS_OK;
-                my_pc_opt.released=0;
-                set_powercap_value(DOMAIN_NODE,my_pc_opt.last_t1_allocated);    
-            }   
-        }else{ /* we must ask more power */
+            debug("%sGoin from idle to run:allocated %u %s ",COL_GRE,my_pc_opt.last_t1_allocated,COL_CLR);
+            /* There is enough power for me */
+            if ((my_pc_opt.last_t1_allocated+extra)>=my_pc_opt.def_powercap){   
+                /* if we already had de power, we just set the status as OK */
+                if (my_pc_opt.last_t1_allocated>=my_pc_opt.def_powercap){
+                    my_pc_opt.powercap_status=PC_STATUS_OK;
+                    my_pc_opt.released=0;
+                    set_powercap_value(DOMAIN_NODE,my_pc_opt.last_t1_allocated);    
+                }else{
+                    /* We must use extra power */
+                    my_pc_opt.last_t1_allocated=ear_min(my_pc_opt.def_powercap,my_pc_opt.last_t1_allocated+extra);
+                    my_pc_opt.powercap_status=PC_STATUS_OK;
+                    my_pc_opt.released=0;
+                    set_powercap_value(DOMAIN_NODE,my_pc_opt.last_t1_allocated);    
+                }   
+            }else{ /* we must ask more power */
                 uint pending;
                 my_pc_opt.last_t1_allocated+=extra;
                 my_pc_opt.powercap_status=PC_STATUS_ASK_DEF;
                 pending=my_pc_opt.def_powercap-my_pc_opt.last_t1_allocated;
                 my_pc_opt.requested=pending;
                 set_powercap_value(DOMAIN_NODE,my_pc_opt.last_t1_allocated);    
-        }
-        break;
-    case PC_STATUS_OK:
-    case PC_STATUS_GREEDY:
-    case PC_STATUS_RELEASE:
-    case PC_STATUS_ASK_DEF:
-        error("We go to run and we were not in idle ");
-        break;
+            }
+            break;
+        case PC_STATUS_OK:
+        case PC_STATUS_GREEDY:
+        case PC_STATUS_RELEASE:
+        case PC_STATUS_ASK_DEF:
+            error("We go to run and we were not in idle ");
+            break;
     }
     pmgt_idle_to_run(pcmgr);
     pthread_mutex_unlock(&my_pc_opt.lock);
@@ -291,6 +304,7 @@ int powercap_idle_to_run()
 int powercap_run_to_idle()
 {
     if (!is_powercap_on(&my_pc_opt)) return EAR_SUCCESS;
+    if (is_powercap_unlimited()) return EAR_SUCCESS;
     debug("powercap_run_to_idle");
     while(pthread_mutex_trylock(&my_pc_opt.lock)); 
     switch(my_pc_opt.powercap_status){
@@ -330,7 +344,7 @@ int powercap_set_power_per_domain(dom_power_t *cp,uint use_earl,ulong avg_f)
     if (!is_powercap_on(&my_pc_opt)) return EAR_SUCCESS;
     debug("periodic_metric_info");
     while(pthread_mutex_trylock(&my_pc_opt.lock));
-    if (my_pc_opt.powercap_status == PC_STATUS_IDLE) pmgt_set_power_per_domain(pcmgr,cp,PC_STATUS_IDLE);
+    if (my_pc_opt.powercap_status == PC_STATUS_IDLE && !is_powercap_unlimited()) pmgt_set_power_per_domain(pcmgr,cp,PC_STATUS_IDLE);
     else pmgt_set_power_per_domain(pcmgr,cp,PC_STATUS_RUN);
     powercap_set_app_req_freq();
     if (current_power > my_pc_opt.current_pc){
@@ -339,8 +353,8 @@ int powercap_set_power_per_domain(dom_power_t *cp,uint use_earl,ulong avg_f)
         debug("%s",COL_GRE);
     }
     debug("PM event, current power %u powercap %u allocated %u status %u released %u requested %u",\
-        current_power,my_pc_opt.current_pc,my_pc_opt.last_t1_allocated,my_pc_opt.powercap_status,my_pc_opt.released,\
-        my_pc_opt.requested);
+            current_power,my_pc_opt.current_pc,my_pc_opt.last_t1_allocated,my_pc_opt.powercap_status,my_pc_opt.released,\
+            my_pc_opt.requested);
     debug("%s",COL_CLR);
     pthread_mutex_unlock(&my_pc_opt.lock);
     return EAR_SUCCESS;
@@ -350,11 +364,11 @@ void print_power_status(powercap_status_t *my_status)
 {
     int i;
     debug("Power_status:Ilde %u released %u requested %u total greedy %u  current power %u total power cap %u total_idle_power %u",
-    my_status->idle_nodes,my_status->released,my_status->requested,my_status->num_greedy,my_status->current_power,
-    my_status->total_powercap,my_status->total_idle_power);
+            my_status->idle_nodes,my_status->released,my_status->requested,my_status->num_greedy,my_status->current_power,
+            my_status->total_powercap,my_status->total_idle_power);
     for (i=0;i<my_status->num_greedy;i++){
         if (my_status->num_greedy) debug("greedy=(ip=%u,req=%u,extra=%u) ", my_status->greedy_nodes[i], 
-                                                my_status->greedy_data[i].requested, my_status->greedy_data[i].extra_power);
+                my_status->greedy_data[i].requested, my_status->greedy_data[i].extra_power);
     }
 }
 /***************************************************************************************/
@@ -372,7 +386,7 @@ void powercap_release_power()
 void powercap_get_status(powercap_status_t *my_status, pmgt_status_t *status, int release_power)
 {
     verbose(VEARD_PC,"%spowercap_get_status: get_powercap_status_last_t1 %u def_pc %u release_power %d %s", COL_GRE, 
-											my_pc_opt.last_t1_allocated, my_pc_opt.def_powercap, release_power, COL_CLR);
+            my_pc_opt.last_t1_allocated, my_pc_opt.def_powercap, release_power, COL_CLR);
     while(pthread_mutex_trylock(&my_pc_opt.lock)); 
     my_status->total_nodes++;
     if (my_pc_opt.powercap_status == PC_STATUS_IDLE)
@@ -397,10 +411,10 @@ void powercap_get_status(powercap_status_t *my_status, pmgt_status_t *status, in
             case PC_STATUS_RELEASE:
                 if (my_pc_opt.last_t1_allocated>my_pc_opt.def_powercap) status->extra = my_pc_opt.last_t1_allocated - my_pc_opt.def_powercap;
                 else status->extra = 0;
-				if (release_power) { //only release power if it comes from EARGM
-	                my_pc_opt.released = status->tbr;
-                	my_pc_opt.current_pc -= status->tbr;
-				}
+                if (release_power) { //only release power if it comes from EARGM
+                    my_pc_opt.released = status->tbr;
+                    my_pc_opt.current_pc -= status->tbr;
+                }
                 verbose(VEARD_PC,"powercap_get_status: %sReleasing%s %u W allocated %u W",COL_BLU,COL_CLR,my_pc_opt.released,my_pc_opt.current_pc);
                 powercap_release_power();
                 break;
@@ -456,6 +470,7 @@ void powercap_set_opt(powercap_opt_t *opt, int id)
 {
     print_powercap_opt(opt);
     if (!is_powercap_on(&my_pc_opt)) return;    
+    if (is_powercap_unlimited()) return;
     uint event;
     ulong value;
     debug("powercap_set_opt command received");
@@ -478,7 +493,7 @@ void powercap_set_opt(powercap_opt_t *opt, int id)
                         event = RED_POWERCAP;
                         value = -opt->extra_power[id];
                     }
-                    
+
                     set_powercap_value(DOMAIN_NODE,my_pc_opt.last_t1_allocated);
                 }
                 break;
@@ -503,15 +518,15 @@ void powercap_set_opt(powercap_opt_t *opt, int id)
     }
     else {
         if (my_pc_opt.powercap_status == PC_STATUS_ASK_DEF) {
-                /* In that case, we assume we cat use the default power cap */
-                debug("powercap_set_opt: My status is ASK_DEF and new settings received with new_pc: %u", my_pc_opt.def_powercap);
-                my_pc_opt.powercap_status=PC_STATUS_OK;
-                /* We assume we will receive the requested power */
-                my_pc_opt.last_t1_allocated=my_pc_opt.def_powercap;
-                my_pc_opt.requested=0;
-                set_powercap_value(DOMAIN_NODE,my_pc_opt.def_powercap);            
-                event = SET_ASK_DEF;
-                value = 0;
+            /* In that case, we assume we cat use the default power cap */
+            debug("powercap_set_opt: My status is ASK_DEF and new settings received with new_pc: %u", my_pc_opt.def_powercap);
+            my_pc_opt.powercap_status=PC_STATUS_OK;
+            /* We assume we will receive the requested power */
+            my_pc_opt.last_t1_allocated=my_pc_opt.def_powercap;
+            my_pc_opt.requested=0;
+            set_powercap_value(DOMAIN_NODE,my_pc_opt.def_powercap);            
+            event = SET_ASK_DEF;
+            value = 0;
         }
     }
     pthread_mutex_unlock(&my_pc_opt.lock);
@@ -583,18 +598,16 @@ void powercap_reduce_def_power(uint power)
 
 void powercap_increase_def_power(uint power)
 {
-  while(pthread_mutex_trylock(&my_pc_opt.lock));
-  my_pc_opt.def_powercap += power;
-  pthread_mutex_unlock(&my_pc_opt.lock);
+    while(pthread_mutex_trylock(&my_pc_opt.lock));
+    my_pc_opt.def_powercap += power;
+    pthread_mutex_unlock(&my_pc_opt.lock);
 
 }
 
 void powercap_set_powercap(uint power)
 {
     while(pthread_mutex_trylock(&my_pc_opt.lock));
-    my_pc_opt.def_powercap = power;
-    my_pc_opt.last_t1_allocated = power;    
-    set_powercap_value(DOMAIN_NODE, my_pc_opt.last_t1_allocated);
+    set_powercap_value(DOMAIN_NODE, power);
     pthread_mutex_unlock(&my_pc_opt.lock);
 }
 

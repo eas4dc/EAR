@@ -160,4 +160,6 @@
  * Ex: MAX_RANGE 30 and NUM_PROPS 3 -> sum = 3 + 9 + 27 -> depth of propagation = 3 */
 #define MAX_RANGE                           30
 
+
+#define DCGMI_DEFAULT				0
 #endif //COMMON_CONFIG_DEF_H

@@ -1,3 +1,10 @@
+### EAR 4.3.1
+- Documentation typos fixed.
+- EAR configuration files templates updated.
+- Bugs fixed for intel\_pstate CPUFreq driver support.
+- Powercap bug fixes.
+- ear.conf parsing errors found and fixed.
+
 ### EAR 4.3
 - MPI stats collection now is guided by sampling to minimize the overhead.
 - EARL-EARD communication optimized.
@@ -5,7 +12,7 @@
 - EARL: Reduce time consumption of loop signature computation.
 - erun: Provide support for multiple batch schedulers.
 - eardbd: Verbosity quality improved.
-- Improved metrics computation in AMD Zen2/Zen3.
+- AMD Genoa is supported now.
 - Improved robustness in metrics computation to support hardware failures.
 
 ### EAR 4.2

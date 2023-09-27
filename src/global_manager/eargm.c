@@ -193,7 +193,7 @@ uint reload_eargm_configuration(cluster_conf_t *current,cluster_conf_t *new)
     verb_level=cc->verbose;
     period_t1=cc->t1;
     period_t2=cc->t2;	
-    energy_budget=cc->energy;
+    energy_budget=e_def->energy;
     if (energy_budget == -1) {
         energy_budget = cluster_get_min_power(new, ENERGY_TYPE)*cc->t2;
         energy_budget /= divisor;

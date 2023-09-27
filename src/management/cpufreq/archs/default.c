@@ -37,11 +37,20 @@ state_t mgt_cpufreq_default_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_dr
 	int cond1;
 	int cond2;
 
-	// When is AMD ZEN or ZEN2, it has to load the AMD17 API. Set
-	// AMD_OSCPUFREQ compilation variable to switch to DEFAULT.
-	if (ops->init == mgt_cpufreq_amd17_init) {
-		return_msg(EAR_ERROR, "AMD17 exclusive API already loaded.");
-	}
+    /* If AMD : EARD will load amdxx and then this function will not replace
+    * the sysops. If library, amdxx will fail and then with this new condition
+    * the default will not load the sysops, allowing the eard class to load it.
+    * If !AMD, then OS CPUFREQ, the eard will not load amdxx and will load
+    * the default. The library will never load amdxx and will load default.
+    */
+    #if !AMD_OSCPUFREQ
+    debug("Not using CPUFREQ frequencies");
+    if (tp_in->vendor == VENDOR_AMD && tp_in->family >= FAMILY_ZEN) {
+        return_msg(EAR_ERROR, Generr.api_incompatible);
+    }
+    #else
+    debug("Using CPUFREQ frequencies");
+    #endif
 	if (ops_driver->init == NULL) {
 		return_msg(EAR_ERROR, "Driver is not available");
 	}

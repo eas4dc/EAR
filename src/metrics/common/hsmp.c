@@ -55,10 +55,15 @@ static mailbox_t zen2_mailbox = {
 };
 
 // lspci -d 0x1022:0x1480
-static char  *zen2_pci_dfs[2]   = { "00.0", NULL };
-static ushort zen2_pci_ids[2]   = { 0x1480, 0x00 };
-static ushort zen2_vendor       = 0x1022; // AMD
-static uint   zen2_nbios_count  = 4;
+static ushort  amd_vendor        = 0x1022; // AMD
+static char   *zen2_pci_dfs[2]   = { "00.0", NULL };
+static ushort  zen2_pci_ids[6]   = { 0x1450, 0x15d0, 0x1480, 0x1630, 0x14b5, 0x00 };
+static ushort  zen3_pci_ids[7]   = { 0x14a4, 0x14b5, 0x14d8, 0x14e8, 0x153a, 0x1507, 0x00 };
+static uint    zen2_nbios_count  = 4;
+static char  **mist_pci_dfs;
+static ushort *mist_pci_ids;
+static uint    mist_nbios_count;
+
 //
 static pthread_mutex_t lock0 = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t lock  = PTHREAD_MUTEX_INITIALIZER;
@@ -90,7 +95,6 @@ state_t hsmp_scan(topology_t *tp)
 	if (tp->vendor == VENDOR_INTEL || tp->family < FAMILY_ZEN) {
 		return_msg(EAR_ERROR, Generr.api_incompatible);
 	}
-    debug("Zen detected");
 	while (pthread_mutex_trylock(&lock0));
 	if (pcis != NULL) {
         if (hsmp_failed) {
@@ -102,10 +106,23 @@ state_t hsmp_scan(topology_t *tp)
 	sockets_count = tp->socket_count;
 	// By now just ZEN2 and greater
 	if (tp->family >= FAMILY_ZEN) {
-		if (state_fail(s = pci_scan(zen2_vendor, zen2_pci_ids, zen2_pci_dfs, O_RDWR, &pcis, &pcis_count))) {
-			return unlock_msg0(s, state_msg);
-		}
-		if (pcis_count != (sockets_count*zen2_nbios_count)) {
+        // ZEN selection
+        if (tp->family >= FAMILY_ZEN3) {
+            debug("ZEN3 detected");
+            mist_pci_dfs     = zen2_pci_dfs;
+            mist_pci_ids     = zen3_pci_ids;
+            mist_nbios_count = zen2_nbios_count;
+        } else {
+            debug("ZEN2 detected");
+            mist_pci_dfs     = zen2_pci_dfs;
+            mist_pci_ids     = zen2_pci_ids;
+            mist_nbios_count = zen2_nbios_count;
+        }
+        // Opening PCis
+        if (state_fail(s = pci_scan(amd_vendor, mist_pci_ids, mist_pci_dfs, O_RDWR, &pcis, &pcis_count))) {
+            return unlock_msg0(s, state_msg);
+        }
+		if (pcis_count != (sockets_count*mist_nbios_count)) {
 			return unlock_msg0(EAR_ERROR, "Not enough NBIO devices detected");
 		}
 		mail = &zen2_mailbox;
@@ -232,25 +249,16 @@ retry:
 #if TEST
 int main(int argc, char *argv[])
 {
-	uint args[2] = {  0, -1 };
-	uint reps[2] = { -1, -1 };
-    int cpu = atoi(argv[1]);
-
-	state_t s;
-
 	topology_t tp;
+	state_t s;
 
 	topology_init(&tp);
 
 	if (state_fail(s = hsmp_scan(&tp))) {
-		serror("Failed during HSMP open");
-		return 0;
-	}
-    
-    //args[0] = setbits32(0, tp.cpus[cpu].apicid, 31, 16) | ((uint) atoi(argv[2]));
-    args[0] = (uint) atoi(argv[2]);
-    hsmp_send(tp.cpus[cpu].socket_id, 0x09, args, reps);
-
+        printf("HSMP: FAILED (%s)\n", state_msg);
+	} else {
+        printf("HSMP: SUCCESS\n");
+    }
 	return 0;
 }
 #endif

@@ -480,7 +480,8 @@ state_t topology_freq_getbase(uint cpu, ulong *freq_base)
     char path[1024];
     int fd;
 
-    if (topo_static.base_freq > 0 && read_from_file) {
+		/* Read from file works as a bool and avoid re-reading the file. However, if base_freq is dummy we must */
+    if (topo_static.base_freq > 0 && read_from_file && (topo_static.base_freq != DUMMY_BASE_FREQ)) {
         *freq_base = topo_static.base_freq;
         return EAR_SUCCESS;
     }

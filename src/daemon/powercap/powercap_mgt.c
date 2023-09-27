@@ -1,19 +1,18 @@
 /*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+ *
+ * This program is part of the EAR software.
+ *
+ * EAR provides a dynamic, transparent and ligth-weigth solution for
+ * Energy management. It has been developed in the context of the
+ * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
+ *
+ * Copyright © 2017-present BSC-Lenovo
+ * BSC Contact   mailto:ear-support@bsc.es
+ * Lenovo contact  mailto:hpchelp@lenovo.com
+ *
+ * EAR is an open source software, and it is licensed under both the BSD-3 license
+ * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD * and COPYING.EPL files.
+ */
 
 #define _GNU_SOURCE
 #include <errno.h>
@@ -46,6 +45,7 @@
 #include <metrics/gpu/gpu.h>
 #include <management/gpu/gpu.h>
 #endif
+#include <management/cpupow/cpupow.h>
 
 
 #ifndef SYN_TEST
@@ -60,7 +60,6 @@ extern powermon_app_t *current_ear_app[MAX_NESTED_LEVELS];
 extern int max_context_created;
 extern int num_contexts;
 ulong  pmgt_idle_def_freq;
-
 
 typedef struct powercap_symbols {
     state_t (*enable)        (suscription_t *sus);
@@ -86,8 +85,6 @@ typedef struct powercap_symbols {
 } powercapsym_t;
 
 static uint pmgt_limit;
-static float pdomains[NUM_DOMAINS]={0.6,0.45,0,GPU_PERC_UTIL};
-static float pdomains_idle[NUM_DOMAINS]={0.6,0.45,0,GPU_PERC_UTIL};
 static domain_status_t cdomain_status[NUM_DOMAINS];
 static domain_settings_t cdomain_settings[NUM_DOMAINS];
 static ulong *current_util[NUM_DOMAINS],*prev_util[NUM_DOMAINS];
@@ -96,12 +93,25 @@ static ulong  dom_util[NUM_DOMAINS],last_dom_util[NUM_DOMAINS],dom_changed[NUM_D
 static ulong  dom_util_limit[NUM_DOMAINS];
 #endif
 #if USE_GPUS
-static dom_power_t pdist_per_domain;
+/* pdomains is the power distribution currently in use. It changes depending on the current power balance between 
+ * domains. It is reset to pdomains_def every time a job starts/ends. */
+/* pdomains_idle is the power distribution that the powercap uses when there is no job running. It is currently
+ * automatically set to pdomains_def at EARD start*/
+/* pdomains_def is the default power distribution. It is recalculated at runtime once the domains have been
+ * loaded, using the TDP as reference. */
+/* pdomains_def_dummy is used when GPUs are enabled but the domain loads the dummy plugin*/
+/* pdomains_min defines the minimum power balance that a certain domain can reach when rebalancing 
+ * the node due to excessive power consumption. */
+/* pdomains_min_dummy is used when GPUs are enabled but the domain loads the dummy plugin*/
+static float pdomains[NUM_DOMAINS]={0.6,0.45,0,GPU_PERC_UTIL};
+static float pdomains_idle[NUM_DOMAINS]={0.6,0.45,0,GPU_PERC_UTIL};
 static float pdomains_def[NUM_DOMAINS]={0.6,0.5,0,GPU_PERC_UTIL};
 static float pdomains_def_dummy[NUM_DOMAINS]={1.0,0.9,0,0};
 static float pdomains_min[NUM_DOMAINS]={0.6,0.4,0,GPU_PERC_UTIL};
 static float pdomains_min_dummy[NUM_DOMAINS]={1.0,0.75,0,0};
 #else
+static float pdomains[NUM_DOMAINS]={1.0, 0.9, 0, 0};
+static float pdomains_idle[NUM_DOMAINS]={1.0, 0.9, 0, 0};
 static float pdomains_def[NUM_DOMAINS]={1.0,0.9,0,0};
 static float pdomains_min[NUM_DOMAINS]={1.0,0.7575,0,0};
 #endif
@@ -182,21 +192,32 @@ static topology_t pc_topology_info;
 /* These functions identies and monitors load changes */
 
 
-extern double rapl_pck_tdps[MAX_PACKAGES];
-extern double rapl_dram_tdps[MAX_PACKAGES];
+static uint rapl_pck_tdps[MAX_PACKAGES];
+static uint rapl_dram_tdps[MAX_PACKAGES];
 #define TDP_CPU 150
 #define TDP_DRAM 30
 #define TDP_GPU 250
+
+void init_tdps()
+{
+    mgt_cpupow_load(&pc_topology_info, NO_EARD);
+    mgt_cpupow_tdp_get(CPUPOW_SOCKET, rapl_pck_tdps);
+    mgt_cpupow_tdp_get(CPUPOW_DRAM, rapl_dram_tdps);
+}
+
 void compute_power_distribution()
 {
     float node_ratio = cdomain_settings[DOMAIN_CPU].node_ratio;
     uint pd_total=0,pd_cpu=0,pd_dram=0, pd_gpu=0, pd_pckg;
     uint bpd_cpu,bpd_dram,bpd_gpu = 0;
 
-		/* CPU and DRAM are read in eard.c during the initialization */
+    // Initialize TDP values
+    init_tdps();
+
+    /* CPU and DRAM are read in eard.c during the initialization */
     bpd_cpu = rapl_pck_tdps[0];
     bpd_dram = rapl_dram_tdps[0];
-		debug("Using CPU TDP %u DRAM TDP %u", bpd_cpu, bpd_dram);
+    debug("Using CPU TDP %u DRAM TDP %u", bpd_cpu, bpd_dram);
 #if USE_GPUS
     if ((domains_loaded[DOMAIN_GPU]) && (gpu_pc_model != API_DUMMY)) bpd_gpu = TDP_GPU;
 #endif
@@ -341,7 +362,7 @@ state_t pmgt_init()
 {
     state_t ret;
     int i;
-		policy_conf_t *my_policy;
+    policy_conf_t *my_policy;
     char basic_path[SZ_PATH];
     topology_init(&pc_topology_info);
 #if USE_GPUS
@@ -500,13 +521,13 @@ state_t pmgt_init()
     debug("Initializing Util monitoring");
     util_monitoring_init();
     memset(cdomain_status,0,NUM_DOMAINS*sizeof(domain_status_t));
-	memset(&cdomain_settings, 0, sizeof(domain_settings_t)*NUM_DOMAINS);
-	for (i = 0; i<NUM_DOMAINS; i++) {
-		if (domains_loaded[i]) {
-			freturn(pcsyms_fun[i].plugin_get_settings, &cdomain_settings[i]);
-			security_range -= cdomain_settings[i].security_range; //security_range starts at 100 and every domain takes a bit from it
-		}
-	}
+    memset(&cdomain_settings, 0, sizeof(domain_settings_t)*NUM_DOMAINS);
+    for (i = 0; i<NUM_DOMAINS; i++) {
+        if (domains_loaded[i]) {
+            freturn(pcsyms_fun[i].plugin_get_settings, &cdomain_settings[i]);
+            security_range -= cdomain_settings[i].security_range; //security_range starts at 100 and every domain takes a bit from it
+        }
+    }
     compute_power_distribution(); //power distribution can only be computed AFTER we have all the domain's settings (for now only CPU matters)
     debug("Returng from pmgt_init with %d (%d = SUCCESS, %d ERROR)", ret, EAR_SUCCESS, EAR_ERROR);
     return ret;
@@ -699,15 +720,12 @@ void pmgt_set_power_per_domain(pwr_mgt_t *phandler,dom_power_t *pdomain,uint st)
 {
     int i;
     if (pmgt_limit == POWER_CAP_UNLIMITED) return;
-#if USE_GPUS 
-    memcpy(&pdist_per_domain,pdomain,sizeof(dom_power_t));
-#if SHOW_DEBUGS
+#if USE_GPUS && SHOW_DEBUGS
     float pnode,pcpu,pdram,pgpu = 0.0;
     pnode=(float)(pdomain->platform-pdomain->gpu)/(float)pdomain->platform;
     pcpu=(float)(pdomain->cpu+pdomain->dram)/(float)pdomain->platform;
     pdram=(float)(pdomain->dram)/(float)pdomain->platform;
     pgpu=(float)(pdomain->gpu)/(float)pdomain->platform;
-#endif
     debug("[NODE-GPU %f CPU %f DRAM %f GPU %f][NODE-GPU %f CPU %f DRAM %f GPU %f]",pnode,pcpu,pdram,pgpu,pdomains[DOMAIN_NODE],pdomains[DOMAIN_CPU],pdomains[DOMAIN_DRAM],pdomains[DOMAIN_GPU]);
 #endif
     if (my_pc_opt.last_t1_allocated < my_pc_opt.def_powercap) return;
@@ -735,6 +753,10 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
     powermon_app_t *pmapp;	
     job_context_t *alloc;
     int pos_job_in_node;
+    if (domain == DOMAIN_CPU) for (i = 0; i < MAX_CPUS_SUPPORTED; i++) f[i] = 0;
+#if USE_GPUS
+    if (domain == DOMAIN_GPU) for (i = 0; i < MAX_GPUS_SUPPORTED; i++) f[i] = 0;
+#endif
     for (cc = 1; cc  <= max_context_created; cc ++){
         if (current_ear_app[cc] != NULL){
             pmapp = current_ear_app[cc];
@@ -775,16 +797,16 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
         }
 
     }
-		#define USE_IDLE_PC_MINFREQ 1
-		if (domain == DOMAIN_CPU){
-    for (i=0; i < MAX_CPUS_SUPPORTED; i++){
-				#if USE_IDLE_PC_MINFREQ
-        if (!f[i]) f[i] = frequency_pstate_to_freq(frequency_get_num_pstates() -1 );
-				#else
-        if (!f[i]) f[i] = pmgt_idle_def_freq;
-				#endif
+#define USE_IDLE_PC_MINFREQ 1
+    if (domain == DOMAIN_CPU){
+        for (i=0; i < MAX_CPUS_SUPPORTED; i++){
+#if USE_IDLE_PC_MINFREQ
+            if (!f[i]) f[i] = frequency_pstate_to_freq(frequency_get_num_pstates() -1 );
+#else
+            if (!f[i]) f[i] = pmgt_idle_def_freq;
+#endif
+        }
     }
-		}
 }
 
 void pmgt_set_app_req_freq(pwr_mgt_t *phandler)

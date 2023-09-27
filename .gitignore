@@ -144,6 +144,7 @@ src/tools/ear_lp_validation
 src/tools/external_attach
 src/tools/enode_control
 src/tools/get_projections
+src/tools/insert_test
 src/tools/learn_deleter
 src/tools/learn_validator
 src/tools/learning_delete

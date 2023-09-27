@@ -197,8 +197,7 @@ void propagate_req(request_t *command, uint port)
     }
     else
     {
-        int base_distance = command->num_nodes/NUM_PROPS;
-        if (base_distance < 1) base_distance = 1; //in case there are less nodes than NUM_PROPS
+        int base_distance = command->num_nodes/NUM_PROPS + 1;
 
         internal_send_command_nodes(command, port, base_distance, NUM_PROPS);
 
@@ -327,8 +326,7 @@ request_header_t propagate_data(request_t *command, uint port, void **data)
     {
         request_t tmp_command;
         memcpy(&tmp_command, command, sizeof(request_t));
-        int base_distance = command->num_nodes/NUM_PROPS;
-        if (base_distance < 1) base_distance = 1; //in case there are only 2 nodes
+        int base_distance = command->num_nodes/NUM_PROPS + 1;
         for (i = 0; i < NUM_PROPS; i++)
         {
             if (base_distance * i >= command->num_nodes) break;

@@ -842,8 +842,7 @@ void correct_error_nodes(request_t *command, int self_ip, uint port)
     }
 
     memcpy(&tmp_command, command, sizeof(request_t));
-    int base_distance = command->num_nodes/NUM_PROPS;
-    if (base_distance < 1) base_distance = 1; //if there is only 1 or 2 nodes
+    int base_distance = command->num_nodes/NUM_PROPS + 1;
 
     internal_send_command_nodes(command, port, base_distance, NUM_PROPS);
 
@@ -882,8 +881,7 @@ request_header_t correct_data_prop_nodes(request_t *command, int self_ip, uint p
     }
 
     memcpy(&tmp_command, command, sizeof(request_t));
-    int base_distance = command->num_nodes/NUM_PROPS;
-    if (base_distance < 1) base_distance = 1; //if there is only 1 or 2 nodes
+    int base_distance = command->num_nodes/NUM_PROPS + 1;
     for (i = 0; i < NUM_PROPS; i++)
     {
         if (base_distance * i >= command->num_nodes) break;

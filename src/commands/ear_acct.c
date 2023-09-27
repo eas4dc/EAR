@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include <common/config.h>
 #include <common/config/config_sched.h>
@@ -68,6 +69,7 @@ typedef struct query_addons
 	char e_tag[64];
 	char app_id[64];
 	char job_ids[64];
+	char step_ids[64];
 } query_adds_t;
 
 #if COLORS
@@ -153,7 +155,7 @@ void print_full_apps(application_t *apps, int num_apps)
 
 	printf("%8s-%-4s\t %-10s %-10s %-16s %-5s/%-5s %-10s %-10s %-10s %-10s %-10s %-7s %-5s %-7s",
 			"JOB", "STEP", "NODE ID", "USER ID", "APPLICATION", "AVG-F", "IMC-F", "TIME(s)",
-			"POWER(s)", "GBS", "CPI", "ENERGY(J)", "IO(MBS)", "MPI%", "VPI(%)");
+			"POWER(W)", "GBS", "CPI", "ENERGY(J)", "IO(MBS)", "MPI%", "VPI(%)");
 
 #if USE_GPUS
 	int j;
@@ -713,7 +715,7 @@ void print_short_apps(application_t *apps, int num_apps, int fd, int is_csv)
 	printf("\n");
 }
 
-void add_string_filter(char *query, char *addition, char *value)
+void _add_string_filter(char *query, char *addition, char *value, bool quotes)
 {
 	if (query_filters < 1)
 		strcat(query, " WHERE ");
@@ -722,12 +724,18 @@ void add_string_filter(char *query, char *addition, char *value)
 
 	strcat(query, addition);
 	strcat(query, "=");
-	strcat(query, "'");
+	if (quotes) strcat(query, "'");
 	strcat(query, value);
-	strcat(query, "'");
+	if (quotes) strcat(query, "'");
 	//	sprintf(query, query, value);
 	query_filters ++;
 }
+
+#define add_string_filter(query, addition, value) \
+    _add_string_filter(query, addition, value, 1); 
+
+#define add_string_filter_no_quotes(query, addition, value) \
+    _add_string_filter(query, addition, value, 0); 
 
 void add_int_filter(char *query, char *addition, int value)
 {
@@ -956,6 +964,8 @@ void read_events(char *user, query_adds_t *q_a)
 		add_int_list_filter(query, "job_id", q_a->job_ids);
 	if (q_a->step_id >= 0)
 		add_int_filter(query, "step_id", q_a->step_id);
+    if (strlen(q_a->step_ids) > 0)
+        add_string_filter_no_quotes(query, "step_id", q_a->step_ids);
 	if (user != NULL)
 		add_string_filter(query, "node_id", user);
 	if (q_a->start_time != 0)
@@ -1199,6 +1209,8 @@ void format_loop_query(char *user, char *query, char *base_query, query_adds_t *
 		add_int_list_filter(query, "job_id", q_a->job_ids);
 	if (q_a->step_id >= 0)
 		add_int_filter(query, "Loops.step_id", q_a->step_id);
+    if (strlen(q_a->step_ids) > 0)
+        add_string_filter_no_quotes(query, "step_id", q_a->step_ids);
 
 	if (q_a->limit > 0 && q_a->job_id < 0)
 	{
@@ -1365,6 +1377,8 @@ void read_from_database(char *user, query_adds_t *q_a)
 		add_int_list_filter(query, "id", q_a->job_ids);
 	if (q_a->step_id >= 0)
 		add_int_filter(query, "step_id", q_a->step_id);
+    else if (strlen(q_a->step_ids) > 0)
+        add_string_filter_no_quotes(query, "step_id", q_a->step_ids);
 	if (user != NULL)
 		add_string_filter(query, "user_id", user);
 	if (strlen(q_a->e_tag) > 0)
@@ -1390,6 +1404,8 @@ void read_from_database(char *user, query_adds_t *q_a)
 		add_int_list_filter(query, "id", q_a->job_ids);
 	if (q_a->step_id >= 0)
 		add_int_filter(query, "Jobs.step_id", q_a->step_id);
+    else if (strlen(q_a->step_ids) > 0)
+        add_string_filter_no_quotes(query, "Jobs.step_id", q_a->step_ids);
 	if (user != NULL)
 		add_string_filter(query, "user_id", user);
 
@@ -1577,99 +1593,111 @@ int main(int argc, char *argv[])
 				}
 				else
 				{
-					query_adds.job_id = atoi(strtok(optarg, "."));
-					token = strtok(NULL, ".");
-					if (token != NULL) query_adds.step_id = atoi(token);
-				}
-				break;
-			case 'x':
-				is_events = 1;
-				if (optind < argc && strchr(argv[optind], '-') == NULL)
-				{
-					if (strchr(argv[optind], ','))
-					{
-						strcpy(query_adds.job_ids, argv[optind]);
-					}
-					else
-					{
-						query_adds.job_id = atoi(strtok(argv[optind], "."));
-						token = strtok(NULL, ".");
-						if (token != NULL) query_adds.step_id = atoi(token);
-					}
-				}
-				else if (verbose) printf("No argument for -x\n");
-				break;
-			case 'o':
-				loop_extended = 1;
-				break;
-			case 'g':
-				print_gpus = 1;
-				break;
-			case 'f':
-				file_name = optarg;
-				break;
-			case 'l':
-				full_length = 1;
-				break;
-			case 'b':
-				verbose = 1;
-				break;
-			case 'v':
-				free_cluster_conf(&my_conf);
-				print_version();
-				exit(0);
-				break;
-			case 'm':
-				all_mpi = 1;
-				break;
-			case 'c':
-				strcpy(csv_path, optarg);
-				break;
-			case 't':
-				strcpy(query_adds.e_tag, optarg);
-				break;
-			case 'p':
-				avx = 1;
-				break;
-			case 'a':
-				strcpy(query_adds.app_id, optarg);
-				break;
-			case 's':
-				if (strptime(optarg, "%Y-%m-%e", &tinfo) == NULL)
-				{
-					printf("Incorrect time format. Supported format is YYYY-MM-DD\n"); //error
-					free_cluster_conf(&my_conf);
-					exit(1);
-				}
-				query_adds.start_time = mktime(&tinfo);
-				break;
-			case 'e':
-				if (strptime(optarg, "%Y-%m-%e", &tinfo) == NULL)
-				{
-					printf("Incorrect time format. Supported format is YYYY-MM-DD\n"); //error
-					free_cluster_conf(&my_conf);
-					exit(1);
-				}
-				query_adds.end_time = mktime(&tinfo);
-				break;
-			case 'h':
-				free_cluster_conf(&my_conf);
-				usage(argv[0]);
-				break;
-		}
-	}
+                    query_adds.job_id = atoi(strtok(optarg, "."));
+                    token = strtok(NULL, ".");
+                    if (token != NULL) {
+                        if (!strcmp(token, "sbatch") || !strcmp(token, "sb")) {
+                            sprintf(query_adds.step_ids, "%u", BATCH_STEP);
+                        }
+                        else strcpy(query_adds.step_ids, token);
+                    }
+                    //if (token != NULL) query_adds.step_id = atoi(token);
+                }
+                break;
+            case 'x':
+                is_events = 1;
+                if (optind < argc && strchr(argv[optind], '-') == NULL)
+                {
+                    if (strchr(argv[optind], ','))
+                    {
+                        strcpy(query_adds.job_ids, argv[optind]);
+                    }
+                    else
+                    {
+                        query_adds.job_id = atoi(strtok(argv[optind], "."));
+                        token = strtok(NULL, ".");
+                        if (token != NULL) {
+                            if (!strcmp(token, "sbatch") || !strcmp(token, "sb")) {
+                                sprintf(query_adds.step_ids, "%u", BATCH_STEP);
+                            }
+                            else strcpy(query_adds.step_ids, token);
+                        }
+                        //if (token != NULL) query_adds.step_id = atoi(token);
+                    }
+                }
+                else if (verbose) printf("No argument for -x\n");
+                break;
+            case 'o':
+                loop_extended = 1;
+                break;
+            case 'g':
+                print_gpus = 1;
+                break;
+            case 'f':
+                file_name = optarg;
+                break;
+            case 'l':
+                full_length = 1;
+                break;
+            case 'b':
+                verbose = 1;
+                break;
+            case 'v':
+                free_cluster_conf(&my_conf);
+                print_version();
+                exit(0);
+                break;
+            case 'm':
+                all_mpi = 1;
+                break;
+            case 'c':
+                strcpy(csv_path, optarg);
+                break;
+            case 't':
+                strcpy(query_adds.e_tag, optarg);
+                break;
+            case 'p':
+                avx = 1;
+                break;
+            case 'a':
+                strcpy(query_adds.app_id, optarg);
+                break;
+            case 's':
+                if (strptime(optarg, "%Y-%m-%e", &tinfo) == NULL)
+                {
+                    printf("Incorrect time format. Supported format is YYYY-MM-DD\n"); //error
+                    free_cluster_conf(&my_conf);
+                    exit(1);
+                }
+                query_adds.start_time = mktime(&tinfo);
+                break;
+            case 'e':
+                if (strptime(optarg, "%Y-%m-%e", &tinfo) == NULL)
+                {
+                    printf("Incorrect time format. Supported format is YYYY-MM-DD\n"); //error
+                    free_cluster_conf(&my_conf);
+                    exit(1);
+                }
+                query_adds.end_time = mktime(&tinfo);
+                break;
+            case 'h':
+                free_cluster_conf(&my_conf);
+                usage(argv[0]);
+                break;
+        }
+    }
 
-	if (verbose) printf("Limit set to %d\n", query_adds.limit);
+    if (verbose) printf("Limit set to %d\n", query_adds.limit);
 
-	if (file_name != NULL) read_from_files(file_name, user, &query_adds);
-	else if (is_events) read_events(user, &query_adds);
-	else if (is_loops) read_loops(user, &query_adds);
-	else read_from_database(user, &query_adds); 
+    if (file_name != NULL) read_from_files(file_name, user, &query_adds);
+    else if (is_events) read_events(user, &query_adds);
+    else if (is_loops) read_loops(user, &query_adds);
+    else read_from_database(user, &query_adds); 
 
-  #if COLORS
-  printf("%s",COL_CLR);
-  #endif
+#if COLORS
+    printf("%s",COL_CLR);
+#endif
 
-	free_cluster_conf(&my_conf);
-	exit(0);
+    free_cluster_conf(&my_conf);
+    exit(0);
 }

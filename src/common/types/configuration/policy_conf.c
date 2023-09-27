@@ -93,15 +93,15 @@ void report_policy_conf(policy_conf_t *p)
   printf("%s", buffer);
   settings_buffer[0] = '\0';
   snprintf(buffer, sizeof(buffer), "\tdefault pstate %u",  p->p_state);
-  strncat(settings_buffer, buffer, sizeof(settings_buffer));
+  strncat(settings_buffer, buffer, sizeof(settings_buffer)-1);
   if (p->def_freq){
     snprintf(buffer, sizeof(buffer), "  default CPU freq = %.3lf GHz", p->def_freq);
-    strncat(settings_buffer, buffer, sizeof(settings_buffer));
+    strncat(settings_buffer, buffer, sizeof(settings_buffer)-1);
   }
   for (i = 0; i < MAX_POLICY_SETTINGS; i++){
     if (p->settings[i] > 0){
       snprintf(buffer, sizeof(buffer), " Th[%d]= %.2lf",  i, p->settings[i]); 
-      strncat(settings_buffer, buffer, sizeof(settings_buffer));
+      strncat(settings_buffer, buffer, sizeof(settings_buffer)-1);
     }
   }
   printf("%40.40s\n", settings_buffer);

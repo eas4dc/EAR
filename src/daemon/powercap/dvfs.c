@@ -408,7 +408,7 @@ state_t enable(suscription_t *sus)
 	}
 
     debug("DVFS:Initializing frequency in dvfs_pc %u cpus",node_size);
-    frequency_init(node_size);
+    frequency_init(0);
 	frequency_set_userspace_governor_all_cpus();
     num_pstates = frequency_get_num_pstates();
 

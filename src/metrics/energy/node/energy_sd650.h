@@ -21,6 +21,13 @@
 #define IPMI_BUF_SIZE	1024
 #define IPMI_SYSTEM_INTERFACE_ADDR_TYPE	0x0c
 
+struct sd650_node_power{
+	ulong seconds;
+	ulong mseconds;
+	ulong node_power;
+	ulong gpu_power;
+};
+
 
 #define SD650_NETFN	0x3a 
 #define SD650_CMD	0x32

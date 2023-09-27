@@ -26,120 +26,120 @@ var NAVTREE =
 [
   [ "EAR", "index.html", [
     [ "Introduction", "index.html", "index" ],
-    [ "User guide", "df/d20/md_User-guide.html", [
-      [ "Use cases", "df/d20/md_User-guide.html#use-cases", [
-        [ "MPI applications", "df/d20/md_User-guide.html#autotoc_md2", [
-          [ "Hybrid MPI + (OpenMP, CUDA, MKL) applications", "df/d20/md_User-guide.html#autotoc_md3", null ],
-          [ "Python MPI applications", "df/d20/md_User-guide.html#autotoc_md4", null ],
-          [ "Running MPI applications on SLURM systems", "df/d20/md_User-guide.html#autotoc_md5", [
-            [ "Using Using mpirun/mpiexec command", "df/d20/md_User-guide.html#using-mpirunmpiexec-command", null ]
+    [ "User guide", "d6/d86/md_User_guide.html", [
+      [ "Use cases", "d6/d86/md_User_guide.html#use-cases", [
+        [ "MPI applications", "d6/d86/md_User_guide.html#autotoc_md2", [
+          [ "Hybrid MPI + (OpenMP, CUDA, MKL) applications", "d6/d86/md_User_guide.html#autotoc_md3", null ],
+          [ "Python MPI applications", "d6/d86/md_User_guide.html#autotoc_md4", null ],
+          [ "Running MPI applications on SLURM systems", "d6/d86/md_User_guide.html#autotoc_md5", [
+            [ "Using Using mpirun/mpiexec command", "d6/d86/md_User_guide.html#using-mpirunmpiexec-command", null ]
           ] ]
         ] ],
-        [ "Non-MPI applications", "df/d20/md_User-guide.html#autotoc_md6", [
-          [ "Python", "df/d20/md_User-guide.html#autotoc_md7", null ],
-          [ "OpenMP, CUDA and Intel MKL", "df/d20/md_User-guide.html#autotoc_md8", null ]
+        [ "Non-MPI applications", "d6/d86/md_User_guide.html#autotoc_md6", [
+          [ "Python", "d6/d86/md_User_guide.html#autotoc_md7", null ],
+          [ "OpenMP, CUDA and Intel MKL", "d6/d86/md_User_guide.html#autotoc_md8", null ]
         ] ],
-        [ "Other application types or frameworks", "df/d20/md_User-guide.html#autotoc_md9", null ],
-        [ "Using EAR inside Singularity containers", "df/d20/md_User-guide.html#autotoc_md10", null ]
+        [ "Other application types or frameworks", "d6/d86/md_User_guide.html#autotoc_md9", null ],
+        [ "Using EAR inside Singularity containers", "d6/d86/md_User_guide.html#autotoc_md10", null ]
       ] ],
-      [ "Retrieving EAR data", "df/d20/md_User-guide.html#autotoc_md11", null ],
-      [ "EAR job submission flags", "df/d20/md_User-guide.html#ear-job-submission-flags", [
-        [ "CPU frequency selection", "df/d20/md_User-guide.html#autotoc_md12", null ],
-        [ "GPU frequency selection", "df/d20/md_User-guide.html#autotoc_md13", null ]
+      [ "Retrieving EAR data", "d6/d86/md_User_guide.html#autotoc_md11", null ],
+      [ "EAR job submission flags", "d6/d86/md_User_guide.html#ear-job-submission-flags", [
+        [ "CPU frequency selection", "d6/d86/md_User_guide.html#autotoc_md12", null ],
+        [ "GPU frequency selection", "d6/d86/md_User_guide.html#autotoc_md13", null ]
       ] ],
-      [ "Examples", "df/d20/md_User-guide.html#autotoc_md14", [
-        [ "srun examples", "df/d20/md_User-guide.html#autotoc_md15", null ],
-        [ "sbatch + EARL + srun", "df/d20/md_User-guide.html#autotoc_md16", null ],
-        [ "EARL + mpirun", "df/d20/md_User-guide.html#autotoc_md17", [
-          [ "Intel MPI", "df/d20/md_User-guide.html#autotoc_md18", null ],
-          [ "OpenMPI", "df/d20/md_User-guide.html#openmpi-1", null ]
+      [ "Examples", "d6/d86/md_User_guide.html#autotoc_md14", [
+        [ "srun examples", "d6/d86/md_User_guide.html#autotoc_md15", null ],
+        [ "sbatch + EARL + srun", "d6/d86/md_User_guide.html#autotoc_md16", null ],
+        [ "EARL + mpirun", "d6/d86/md_User_guide.html#autotoc_md17", [
+          [ "Intel MPI", "d6/d86/md_User_guide.html#autotoc_md18", null ],
+          [ "OpenMPI", "d6/d86/md_User_guide.html#openmpi-1", null ]
         ] ]
       ] ],
-      [ "EAR job Accounting (eacct)", "df/d20/md_User-guide.html#eacct-1", [
-        [ "Usage examples", "df/d20/md_User-guide.html#autotoc_md19", null ]
+      [ "EAR job Accounting (eacct)", "d6/d86/md_User_guide.html#eacct-1", [
+        [ "Usage examples", "d6/d86/md_User_guide.html#autotoc_md19", null ]
       ] ],
-      [ "Job energy optimization: EARL policies", "df/d20/md_User-guide.html#autotoc_md20", null ]
+      [ "Job energy optimization: EARL policies", "d6/d86/md_User_guide.html#autotoc_md20", null ]
     ] ],
-    [ "EAR commands", "db/d9e/md_EAR-commands.html", [
-      [ "EAR job Accounting (eacct)", "db/d9e/md_EAR-commands.html#eacct", null ],
-      [ "EAR system energy Report (ereport)", "db/d9e/md_EAR-commands.html#energy-report-ereport", [
-        [ "Examples", "db/d9e/md_EAR-commands.html#autotoc_md22", null ],
-        [ "EAR Control (econtrol)", "db/d9e/md_EAR-commands.html#energy-control-econtrol", null ]
+    [ "EAR commands", "dc/d09/md_EAR_commands.html", [
+      [ "EAR job Accounting (eacct)", "dc/d09/md_EAR_commands.html#eacct", null ],
+      [ "EAR system energy Report (ereport)", "dc/d09/md_EAR_commands.html#energy-report-ereport", [
+        [ "Examples", "dc/d09/md_EAR_commands.html#autotoc_md22", null ],
+        [ "EAR Control (econtrol)", "dc/d09/md_EAR_commands.html#energy-control-econtrol", null ]
       ] ],
-      [ "Database commands", "db/d9e/md_EAR-commands.html#database-commands", [
-        [ "edb_create", "db/d9e/md_EAR-commands.html#edb_create", null ],
-        [ "edb_clean_pm", "db/d9e/md_EAR-commands.html#edb_clean_pm", null ],
-        [ "edb_clean_apps", "db/d9e/md_EAR-commands.html#edb_clean_apps", null ]
+      [ "Database commands", "dc/d09/md_EAR_commands.html#database-commands", [
+        [ "edb_create", "dc/d09/md_EAR_commands.html#edb_create", null ],
+        [ "edb_clean_pm", "dc/d09/md_EAR_commands.html#edb_clean_pm", null ],
+        [ "edb_clean_apps", "dc/d09/md_EAR_commands.html#edb_clean_apps", null ]
       ] ],
-      [ "erun", "db/d9e/md_EAR-commands.html#erun", null ],
-      [ "ear-info", "db/d9e/md_EAR-commands.html#ear-info", null ]
+      [ "erun", "dc/d09/md_EAR_commands.html#erun", null ],
+      [ "ear-info", "dc/d09/md_EAR_commands.html#ear-info", null ]
     ] ],
-    [ "Environment variables", "d6/d45/md_EAR-environment-variables.html", [
-      [ "Loading EAR Library", "d6/d45/md_EAR-environment-variables.html#autotoc_md24", [
-        [ "EAR_LOADER_APPLICATION", "d6/d45/md_EAR-environment-variables.html#ear_loader_application", null ],
-        [ "EAR_LOAD_MPI_VERSION", "d6/d45/md_EAR-environment-variables.html#ear_load_mpi_version", null ]
+    [ "Environment variables", "d7/d5f/md_EAR_environment_variables.html", [
+      [ "Loading EAR Library", "d7/d5f/md_EAR_environment_variables.html#autotoc_md24", [
+        [ "EAR_LOADER_APPLICATION", "d7/d5f/md_EAR_environment_variables.html#ear_loader_application", null ],
+        [ "EAR_LOAD_MPI_VERSION", "d7/d5f/md_EAR_environment_variables.html#ear_load_mpi_version", null ]
       ] ],
-      [ "Report plug-ins", "d6/d45/md_EAR-environment-variables.html#autotoc_md25", [
-        [ "EAR_REPORT_ADD", "d6/d45/md_EAR-environment-variables.html#ear-report-add", null ]
+      [ "Report plug-ins", "d7/d5f/md_EAR_environment_variables.html#autotoc_md25", [
+        [ "EAR_REPORT_ADD", "d7/d5f/md_EAR_environment_variables.html#ear-report-add", null ]
       ] ],
-      [ "Verbosity", "d6/d45/md_EAR-environment-variables.html#verbosity", [
-        [ "EARL_VERBOSE_PATH", "d6/d45/md_EAR-environment-variables.html#earl_verbose_path", null ]
+      [ "Verbosity", "d7/d5f/md_EAR_environment_variables.html#verbosity", [
+        [ "EARL_VERBOSE_PATH", "d7/d5f/md_EAR_environment_variables.html#earl_verbose_path", null ]
       ] ],
-      [ "Frequency management", "d6/d45/md_EAR-environment-variables.html#autotoc_md26", [
-        [ "EAR_GPU_DEF_FREQ", "d6/d45/md_EAR-environment-variables.html#autotoc_md27", null ],
-        [ "EAR_JOB_EXCLUSIVE_MODE", "d6/d45/md_EAR-environment-variables.html#autotoc_md28", null ],
-        [ "Controlling Uncore/Infinity Fabric frequency", "d6/d45/md_EAR-environment-variables.html#controlling-uncore-infinity-fabric-frequency", [
-          [ "EAR_SET_IMCFREQ", "d6/d45/md_EAR-environment-variables.html#ear_set_imcfreq", null ],
-          [ "EAR_MAX_IMCFREQ and EAR_MIN_IMCFREQ", "d6/d45/md_EAR-environment-variables.html#ear_max_imcfreq-and-ear_min_imcfreq", null ]
+      [ "Frequency management", "d7/d5f/md_EAR_environment_variables.html#autotoc_md26", [
+        [ "EAR_GPU_DEF_FREQ", "d7/d5f/md_EAR_environment_variables.html#autotoc_md27", null ],
+        [ "EAR_JOB_EXCLUSIVE_MODE", "d7/d5f/md_EAR_environment_variables.html#autotoc_md28", null ],
+        [ "Controlling Uncore/Infinity Fabric frequency", "d7/d5f/md_EAR_environment_variables.html#controlling-uncore-infinity-fabric-frequency", [
+          [ "EAR_SET_IMCFREQ", "d7/d5f/md_EAR_environment_variables.html#ear_set_imcfreq", null ],
+          [ "EAR_MAX_IMCFREQ and EAR_MIN_IMCFREQ", "d7/d5f/md_EAR_environment_variables.html#ear_max_imcfreq-and-ear_min_imcfreq", null ]
         ] ],
-        [ "Load Balancing", "d6/d45/md_EAR-environment-variables.html#load-balancing", [
-          [ "EAR_LOAD_BALANCE", "d6/d45/md_EAR-environment-variables.html#autotoc_md29", null ]
+        [ "Load Balancing", "d7/d5f/md_EAR_environment_variables.html#load-balancing", [
+          [ "EAR_LOAD_BALANCE", "d7/d5f/md_EAR_environment_variables.html#autotoc_md29", null ]
         ] ],
-        [ "Support for Intel(R) Speed Select Technology", "d6/d45/md_EAR-environment-variables.html#support-for-intel-r-speed-select-technology", [
-          [ "EAR_PRIO_TASKS", "d6/d45/md_EAR-environment-variables.html#ear_prio_tasks", null ],
-          [ "EAR_PRIO_CPUS", "d6/d45/md_EAR-environment-variables.html#ear_prio_cpus", null ]
+        [ "Support for Intel(R) Speed Select Technology", "d7/d5f/md_EAR_environment_variables.html#support-for-intel-r-speed-select-technology", [
+          [ "EAR_PRIO_TASKS", "d7/d5f/md_EAR_environment_variables.html#ear_prio_tasks", null ],
+          [ "EAR_PRIO_CPUS", "d7/d5f/md_EAR_environment_variables.html#ear_prio_cpus", null ]
         ] ],
-        [ "EAR_MIN_CPUFREQ", "d6/d45/md_EAR-environment-variables.html#autotoc_md30", null ],
-        [ "Disabling EAR's affinity masks usage", "d6/d45/md_EAR-environment-variables.html#autotoc_md31", null ]
+        [ "EAR_MIN_CPUFREQ", "d7/d5f/md_EAR_environment_variables.html#autotoc_md30", null ],
+        [ "Disabling EAR's affinity masks usage", "d7/d5f/md_EAR_environment_variables.html#autotoc_md31", null ]
       ] ],
-      [ "Data gathering", "d6/d45/md_EAR-environment-variables.html#autotoc_md32", [
-        [ "EAR_GET_MPI_STATS", "d6/d45/md_EAR-environment-variables.html#ear_get_mpi_stats", null ],
-        [ "EAR_TRACE_PLUGIN", "d6/d45/md_EAR-environment-variables.html#ear_trace_plugin", null ],
-        [ "EAR_TRACE_PATH", "d6/d45/md_EAR-environment-variables.html#autotoc_md33", null ],
-        [ "REPORT_EARL_EVENTS", "d6/d45/md_EAR-environment-variables.html#report_earl_events", [
-          [ "Event types", "d6/d45/md_EAR-environment-variables.html#autotoc_md34", null ]
+      [ "Data gathering", "d7/d5f/md_EAR_environment_variables.html#autotoc_md32", [
+        [ "EAR_GET_MPI_STATS", "d7/d5f/md_EAR_environment_variables.html#ear_get_mpi_stats", null ],
+        [ "EAR_TRACE_PLUGIN", "d7/d5f/md_EAR_environment_variables.html#ear_trace_plugin", null ],
+        [ "EAR_TRACE_PATH", "d7/d5f/md_EAR_environment_variables.html#autotoc_md33", null ],
+        [ "REPORT_EARL_EVENTS", "d7/d5f/md_EAR_environment_variables.html#report_earl_events", [
+          [ "Event types", "d7/d5f/md_EAR_environment_variables.html#autotoc_md34", null ]
         ] ]
       ] ]
     ] ],
-    [ "Admin guide", "d5/d16/md_Admin-guide.html", [
-      [ "EAR Components", "d5/d16/md_Admin-guide.html#ear-components", null ],
-      [ "Quick Installation Guide", "d5/d16/md_Admin-guide.html#quick-installation-guide", [
-        [ "EAR Requirements", "d5/d16/md_Admin-guide.html#autotoc_md36", null ],
-        [ "Compiling and installing EAR", "d5/d16/md_Admin-guide.html#autotoc_md37", null ],
-        [ "Deployment and validation", "d5/d16/md_Admin-guide.html#autotoc_md38", [
-          [ "Monitoring: Compute node and DB", "d5/d16/md_Admin-guide.html#autotoc_md39", null ],
-          [ "Monitoring: EAR plugin", "d5/d16/md_Admin-guide.html#autotoc_md40", null ]
+    [ "Admin guide", "d8/d71/md_Admin_guide.html", [
+      [ "EAR Components", "d8/d71/md_Admin_guide.html#ear-components", null ],
+      [ "Quick Installation Guide", "d8/d71/md_Admin_guide.html#quick-installation-guide", [
+        [ "EAR Requirements", "d8/d71/md_Admin_guide.html#autotoc_md36", null ],
+        [ "Compiling and installing EAR", "d8/d71/md_Admin_guide.html#autotoc_md37", null ],
+        [ "Deployment and validation", "d8/d71/md_Admin_guide.html#autotoc_md38", [
+          [ "Monitoring: Compute node and DB", "d8/d71/md_Admin_guide.html#autotoc_md39", null ],
+          [ "Monitoring: EAR plugin", "d8/d71/md_Admin_guide.html#autotoc_md40", null ]
         ] ],
-        [ "EAR Library versions: MPI vs. Non-MPI", "d5/d16/md_Admin-guide.html#autotoc_md41", null ]
+        [ "EAR Library versions: MPI vs. Non-MPI", "d8/d71/md_Admin_guide.html#autotoc_md41", null ]
       ] ],
-      [ "Installing from RPM", "d5/d16/md_Admin-guide.html#installing-from-rpm", [
-        [ "Installation content", "d5/d16/md_Admin-guide.html#installation-content", null ],
-        [ "RPM requirements", "d5/d16/md_Admin-guide.html#rpm-requirements", null ]
+      [ "Installing from RPM", "d8/d71/md_Admin_guide.html#installing-from-rpm", [
+        [ "Installation content", "d8/d71/md_Admin_guide.html#installation-content", null ],
+        [ "RPM requirements", "d8/d71/md_Admin_guide.html#rpm-requirements", null ]
       ] ],
-      [ "Starting Services", "d5/d16/md_Admin-guide.html#autotoc_md42", null ],
-      [ "Updating EAR with a new installation", "d5/d16/md_Admin-guide.html#autotoc_md43", null ],
-      [ "Next steps", "d5/d16/md_Admin-guide.html#autotoc_md44", null ]
+      [ "Starting Services", "d8/d71/md_Admin_guide.html#autotoc_md42", null ],
+      [ "Updating EAR with a new installation", "d8/d71/md_Admin_guide.html#autotoc_md43", null ],
+      [ "Next steps", "d8/d71/md_Admin_guide.html#autotoc_md44", null ]
     ] ],
-    [ "Installation from source", "d4/d78/md_Installation-from-source.html", [
-      [ "Requirements", "d4/d78/md_Installation-from-source.html#autotoc_md46", null ],
-      [ "Compilation and installation guide summary", "d4/d78/md_Installation-from-source.html#autotoc_md47", null ],
-      [ "Configure options", "d4/d78/md_Installation-from-source.html#autotoc_md48", null ],
-      [ "Pre-installation fast tweaks", "d4/d78/md_Installation-from-source.html#autotoc_md49", null ],
-      [ "Library distributions/versions", "d4/d78/md_Installation-from-source.html#autotoc_md50", null ],
-      [ "Other useful flags", "d4/d78/md_Installation-from-source.html#autotoc_md51", null ],
-      [ "Installation content", "d4/d78/md_Installation-from-source.html#autotoc_md52", null ],
-      [ "Fine grain tuning of EAR options", "d4/d78/md_Installation-from-source.html#autotoc_md53", null ],
-      [ "Next step", "d4/d78/md_Installation-from-source.html#autotoc_md54", null ]
+    [ "Installation from source", "dc/d3a/md_Installation_from_source.html", [
+      [ "Requirements", "dc/d3a/md_Installation_from_source.html#autotoc_md46", null ],
+      [ "Compilation and installation guide summary", "dc/d3a/md_Installation_from_source.html#autotoc_md47", null ],
+      [ "Configure options", "dc/d3a/md_Installation_from_source.html#autotoc_md48", null ],
+      [ "Pre-installation fast tweaks", "dc/d3a/md_Installation_from_source.html#autotoc_md49", null ],
+      [ "Library distributions/versions", "dc/d3a/md_Installation_from_source.html#autotoc_md50", null ],
+      [ "Other useful flags", "dc/d3a/md_Installation_from_source.html#autotoc_md51", null ],
+      [ "Installation content", "dc/d3a/md_Installation_from_source.html#autotoc_md52", null ],
+      [ "Fine grain tuning of EAR options", "dc/d3a/md_Installation_from_source.html#autotoc_md53", null ],
+      [ "Next step", "dc/d3a/md_Installation_from_source.html#autotoc_md54", null ]
     ] ],
     [ "Architecture", "df/dde/md_Architecture.html", [
       [ "EAR Node Manager", "df/dde/md_Architecture.html#ear-node-manager", [
@@ -196,13 +196,13 @@ var NAVTREE =
         [ "MSR Safe", "d2/d00/md_Configuration.html#autotoc_md83", null ]
       ] ]
     ] ],
-    [ "Learning phase", "dd/ddd/md_Learning-phase.html", [
-      [ "Tools", "dd/ddd/md_Learning-phase.html#autotoc_md85", [
-        [ "Examples", "dd/ddd/md_Learning-phase.html#autotoc_md86", null ]
+    [ "Learning phase", "d6/deb/md_Learning_phase.html", [
+      [ "Tools", "d6/deb/md_Learning_phase.html#autotoc_md85", [
+        [ "Examples", "d6/deb/md_Learning_phase.html#autotoc_md86", null ]
       ] ]
     ] ],
-    [ "EAR plug-ins", "dc/db1/md_EAR-plug-ins.html", [
-      [ "Considerations", "dc/db1/md_EAR-plug-ins.html#autotoc_md88", null ]
+    [ "EAR plug-ins", "df/d86/md_EAR_plug_ins.html", [
+      [ "Considerations", "df/d86/md_EAR_plug_ins.html#autotoc_md88", null ]
     ] ],
     [ "EAR Powercap", "d5/de2/md_Powercap.html", [
       [ "Node powercap", "d5/de2/md_Powercap.html#autotoc_md90", null ],
@@ -232,40 +232,40 @@ var NAVTREE =
         [ "Metrics reported", "da/df5/md_Report.html#autotoc_md105", null ]
       ] ]
     ] ],
-    [ "EAR Database", "d7/d4d/md_EAR-Database.html", [
-      [ "Tables", "d7/d4d/md_EAR-Database.html#tables", [
-        [ "Application information", "d7/d4d/md_EAR-Database.html#autotoc_md107", null ],
-        [ "System monitoring", "d7/d4d/md_EAR-Database.html#autotoc_md108", null ],
-        [ "Events", "d7/d4d/md_EAR-Database.html#autotoc_md109", null ],
-        [ "EARGM reports", "d7/d4d/md_EAR-Database.html#autotoc_md110", null ],
-        [ "Learning phase", "d7/d4d/md_EAR-Database.html#autotoc_md111", null ]
+    [ "EAR Database", "d1/d47/md_EAR_Database.html", [
+      [ "Tables", "d1/d47/md_EAR_Database.html#tables", [
+        [ "Application information", "d1/d47/md_EAR_Database.html#autotoc_md107", null ],
+        [ "System monitoring", "d1/d47/md_EAR_Database.html#autotoc_md108", null ],
+        [ "Events", "d1/d47/md_EAR_Database.html#autotoc_md109", null ],
+        [ "EARGM reports", "d1/d47/md_EAR_Database.html#autotoc_md110", null ],
+        [ "Learning phase", "d1/d47/md_EAR_Database.html#autotoc_md111", null ]
       ] ],
-      [ "Creation and maintenance", "d7/d4d/md_EAR-Database.html#autotoc_md112", null ],
-      [ "Database creation and ear.conf", "d7/d4d/md_EAR-Database.html#autotoc_md113", null ],
-      [ "Information reported and ear.conf", "d7/d4d/md_EAR-Database.html#autotoc_md114", null ],
-      [ "Updating from previous versions", "d7/d4d/md_EAR-Database.html#updating-from-previous-versions", [
-        [ "From EAR 4.2 to 4.3", "d7/d4d/md_EAR-Database.html#autotoc_md115", null ],
-        [ "From EAR 4.1 to 4.2", "d7/d4d/md_EAR-Database.html#autotoc_md116", null ],
-        [ "From EAR 3.4 to 4.0", "d7/d4d/md_EAR-Database.html#autotoc_md117", null ],
-        [ "From EAR 3.3 to 3.4", "d7/d4d/md_EAR-Database.html#autotoc_md118", null ]
+      [ "Creation and maintenance", "d1/d47/md_EAR_Database.html#autotoc_md112", null ],
+      [ "Database creation and ear.conf", "d1/d47/md_EAR_Database.html#autotoc_md113", null ],
+      [ "Information reported and ear.conf", "d1/d47/md_EAR_Database.html#autotoc_md114", null ],
+      [ "Updating from previous versions", "d1/d47/md_EAR_Database.html#updating-from-previous-versions", [
+        [ "From EAR 4.2 to 4.3", "d1/d47/md_EAR_Database.html#autotoc_md115", null ],
+        [ "From EAR 4.1 to 4.2", "d1/d47/md_EAR_Database.html#autotoc_md116", null ],
+        [ "From EAR 3.4 to 4.0", "d1/d47/md_EAR_Database.html#autotoc_md117", null ],
+        [ "From EAR 3.3 to 3.4", "d1/d47/md_EAR_Database.html#autotoc_md118", null ]
       ] ],
-      [ "Database tables description", "d7/d4d/md_EAR-Database.html#autotoc_md119", [
-        [ "Jobs", "d7/d4d/md_EAR-Database.html#autotoc_md120", null ],
-        [ "Applications", "d7/d4d/md_EAR-Database.html#autotoc_md121", null ],
-        [ "Signatures", "d7/d4d/md_EAR-Database.html#autotoc_md122", null ],
-        [ "Power_signatures", "d7/d4d/md_EAR-Database.html#autotoc_md123", null ],
-        [ "GPU_signatures", "d7/d4d/md_EAR-Database.html#autotoc_md124", null ],
-        [ "Loops", "d7/d4d/md_EAR-Database.html#autotoc_md125", null ],
-        [ "Events", "d7/d4d/md_EAR-Database.html#database-tables-events", null ],
-        [ "Global_energy", "d7/d4d/md_EAR-Database.html#autotoc_md126", null ],
-        [ "Periodic_metrics", "d7/d4d/md_EAR-Database.html#autotoc_md127", null ],
-        [ "Periodic_aggregations", "d7/d4d/md_EAR-Database.html#autotoc_md128", null ]
+      [ "Database tables description", "d1/d47/md_EAR_Database.html#autotoc_md119", [
+        [ "Jobs", "d1/d47/md_EAR_Database.html#autotoc_md120", null ],
+        [ "Applications", "d1/d47/md_EAR_Database.html#autotoc_md121", null ],
+        [ "Signatures", "d1/d47/md_EAR_Database.html#autotoc_md122", null ],
+        [ "Power_signatures", "d1/d47/md_EAR_Database.html#autotoc_md123", null ],
+        [ "GPU_signatures", "d1/d47/md_EAR_Database.html#autotoc_md124", null ],
+        [ "Loops", "d1/d47/md_EAR_Database.html#autotoc_md125", null ],
+        [ "Events", "d1/d47/md_EAR_Database.html#database-tables-events", null ],
+        [ "Global_energy", "d1/d47/md_EAR_Database.html#autotoc_md126", null ],
+        [ "Periodic_metrics", "d1/d47/md_EAR_Database.html#autotoc_md127", null ],
+        [ "Periodic_aggregations", "d1/d47/md_EAR_Database.html#autotoc_md128", null ]
       ] ]
     ] ],
-    [ "Supported systems", "dc/d4d/md_Architectures-and-schedulers-supported.html", [
-      [ "CPU Models", "dc/d4d/md_Architectures-and-schedulers-supported.html#autotoc_md130", null ],
-      [ "GPU models", "dc/d4d/md_Architectures-and-schedulers-supported.html#autotoc_md131", null ],
-      [ "Schedulers", "dc/d4d/md_Architectures-and-schedulers-supported.html#autotoc_md132", null ]
+    [ "Supported systems", "db/dc7/md_Architectures_and_schedulers_supported.html", [
+      [ "CPU Models", "db/dc7/md_Architectures_and_schedulers_supported.html#autotoc_md130", null ],
+      [ "GPU models", "db/dc7/md_Architectures_and_schedulers_supported.html#autotoc_md131", null ],
+      [ "Schedulers", "db/dc7/md_Architectures_and_schedulers_supported.html#autotoc_md132", null ]
     ] ],
     [ "Changelog", "d4/d40/md_CHANGELOG.html", [
       [ "EAR 4.3", "d4/d40/md_CHANGELOG.html#autotoc_md134", null ],
@@ -284,13 +284,13 @@ var NAVTREE =
       [ "Jobs executed without the EAR Library: Basic Job accounting", "d8/d8a/md_FAQs.html#autotoc_md146", null ],
       [ "Troubleshooting", "d8/d8a/md_FAQs.html#autotoc_md147", null ]
     ] ],
-    [ "Known issues", "db/df1/md_Known-issues.html", null ]
+    [ "Known issues", "d1/d21/md_Known_issues.html", null ]
   ] ]
 ];
 
 var NAVTREEINDEX =
 [
-"d2/d00/md_Configuration.html"
+"d1/d21/md_Known_issues.html"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

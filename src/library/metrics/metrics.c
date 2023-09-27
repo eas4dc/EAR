@@ -192,7 +192,7 @@ static char        dcgmi_events_str[DCGMI_SETS][DCGMI_NUM_EVENTS*64];
 static uint        dcgmi_curr_ev_set = 0;
 static char        dcgmi_metrics_str[2048];
 static double      dcgmi_elapsed = 0;
-static uint        dcgmi = 1;
+static uint        dcgmi = DCGMI_DEFAULT;
 #else
 static uint        dcgmi = 0;
 #endif

@@ -65,11 +65,11 @@
 #define MASTER_ID masters_info.my_master_rank
 
 /* Verbose levels */
-#define DEBUG_LVL          0
+#define DEBUG_LVL          3
 #define ERROR_LVL          1
 #define WARN_LVL           2
 #define INFO_LVL           WARN_LVL
-#define MPI_SAMPLING_LVL   0
+#define MPI_SAMPLING_LVL   2
 
 #define LB_VERB_LVL        3
 #define MPI_STATS_VERB_LVL INFO_LVL

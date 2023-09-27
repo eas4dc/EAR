@@ -44,6 +44,8 @@
 
 // Others
 #define RELEASE             "@PACKAGE_VERSION@"
+#define VERSION_MAJOR       @VERSION_MAJOR@
+#define VERSION_MINOR       @VERSION_MINOR@
 
 // Legacy
 #define EAR_INSTALL_PATH    "@prefix@"

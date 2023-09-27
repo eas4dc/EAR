@@ -692,7 +692,11 @@ void dyncon_get_power(int fd, request_t *command)
     }
     debug("return_status %d power=%lu", return_status, *power);
 
-    powermon_get_power(&curr_power);
+    //powermon_get_power retrieves the actual reading, whereas powermon_current_power returns
+    //the corrected power reading (making sure it is within the preset values and not a nonsense number),
+    //which is what we want in this case
+    //powermon_get_power(&curr_power);
+    curr_power = (uint64_t) powermon_current_power();
     power->power += curr_power;
     power->num_nodes++;
     debug("return_status %d power=%lu current_power=%lu", return_status, power->power, curr_power);

@@ -395,21 +395,52 @@ void print_eargm_def(eargm_def_t *conf, char tabulate)
     verbosen(VCCONF, "\n");
 }
 
+void energy_units_to_str(uint unit, char *buff)
+{
+    switch(unit) {
+        case 2:
+            strcpy(buff, "M");
+            break;
+        case 1:
+            strcpy(buff, "K");
+            break;
+        default:
+            strcpy(buff, "J");
+            break;
+    }
+}
+
+void powercap_type_to_str(uint unit, char *buff)
+{
+    switch(unit) {
+        case 2:
+            strcpy(buff, "soft powercap");
+            break;
+        case 1:
+            strcpy(buff, "hard powercap");
+            break;
+        default:
+            strcpy(buff, "monitoring");
+            break;
+    }
+}
 void print_eargm_conf(eargm_conf_t *conf)
 {
     int i;
+    char buff[256];
     verbosen(VCCONF,"--> EARGM configuration\n");
-    verbosen(VCCONF,"\t eargm: verbosen %u \tuse_aggregation %u \tt1 %lu \tt2 %lu \tenergy limit: %ld \tport: %u \tmode: %u\tmail: %s\thost: %s\n",
-            conf->verbose,conf->use_aggregation,conf->t1,conf->t2,conf->energy,conf->port, conf->mode, conf->mail, conf->host);
+    verbosen(VCCONF,"\t eargm: verbosen %u \tuse_aggregation %u \tt1 %lu \tt2 %lu \tmode: %u \tmail: %s\n",
+            conf->verbose,conf->use_aggregation, conf->t1, conf->t2, conf->mode, conf->mail);
     verbosen(VCCONF,"\t eargm: defcon levels [%u,%u,%u] grace period %u\n",conf->defcon_limits[0],conf->defcon_limits[1],conf->defcon_limits[2],
             conf->grace_periods);
-    verbosen(VCCONF,"\t policy %u (0=MaxEnergy,other=error) units=%u (-,K,M)\n",conf->policy,conf->units);
+    energy_units_to_str(conf->units, buff);
+    verbosen(VCCONF,"\t policy %u (0=MaxEnergy,other=error) units=%s (-,K,M)\n",conf->policy,buff);
     verbosen(VCCONF,"\t use_log %u report plugins %s\n",conf->use_log, conf->plugins);
-    verbosen(VCCONF,"\t cluster_power_limit %ld powercap_check_period %lu\n",conf->power,conf->t1_power);
-    verbosen(VCCONF,"\t powercap_mode %lu (0=monitoring, 1=auto [def])\n",conf->powercap_mode);
+    powercap_type_to_str(conf->powercap_mode, buff);
+    verbosen(VCCONF,"\t powercap_check_period %lu \tpowercap_mode %s\n", conf->t1_power, buff);
     verbosen(VCCONF,"\t power limit for action %lu and for lower %lu\n",conf->defcon_power_limit, conf->defcon_power_lower);
     verbosen(VCCONF,"\t powercap_limit_action %s and powercap_lower_action %s\n",conf->powercap_limit_action, conf->powercap_lower_action);
-    verbosen(VCCONF,"\t energycap_action %s\n",conf->energycap_action);
+    verbosen(VCCONF,"\t energycap_action %s\n", conf->energycap_action);
     verbosen(VCCONF,"\t EARGM definitions\n");
     for (i = 0; i < conf->num_eargms; i++)
         print_eargm_def(&conf->eargms[i], 1);

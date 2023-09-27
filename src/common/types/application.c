@@ -403,6 +403,8 @@ void verbose_application_data(uint vl, application_t *app)
 
     if (app_sig->gpu_sig.num_gpus) {
         char *gpu_sig_buff = (char *) calloc(4096 , sizeof(char));
+
+				if (gpu_sig_buff != NULL){
         size_t remain_gpusig_buff_len = 4096;
         gpu_app_t *mys;
 
@@ -425,6 +427,7 @@ void verbose_application_data(uint vl, application_t *app)
                 app_summ_hdr_dec_txt, app_summ_hdr_txt, app_summ_hdr_dec_txt, job_info_txt,
                 gpu_sig_buff, app_summ_ftr_dec); // header + job info + gpu info + footer
         free(gpu_sig_buff);
+				}
     } else {
         verbose(vl, "\n%s%s%s\n%s\n%s",
                 app_summ_hdr_dec_txt, app_summ_hdr_txt, app_summ_hdr_dec_txt, job_info_txt, app_summ_ftr_dec); // header + job info + footer

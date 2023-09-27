@@ -279,27 +279,36 @@ void generate_node_ranges(node_island_t *island, char *nodelist)
     island->num_ranges += range_count;
 }
 
+void clean_newlines(char *str)
+{
+    remove_chars(str, '\n');
+    remove_chars(str, '\r');
+ /* the following are hidden characters that may not be seen in a text editor but may exist nonetheless */
+    remove_chars(str, '\a');
+    remove_chars(str, '\b');
+    remove_chars(str, '\f');
+}
 void parse_island(cluster_conf_t *conf, char *line)
 {
     int idx = -1, i = 0;
     int contains_ip = 0;
     int contains_sec_ip = 0;
     int contains_eargm = 0;
-    char tag_parsing = 0;
     char *token;
+    char *first_ptr, *sec_ptr;
 
     if (conf->num_islands < 1)
         conf->islands = NULL;
 
     int current_ranges = 0;
-    //token = strtok_r(line, " ", &primary_ptr);
-    token = strtok(line, "=");
+    clean_newlines(line);
+    token = strtok_r(line, "=", &first_ptr);
     while (token != NULL)
     {
         strtoup(token);
         if (!strcmp(token, "ISLAND"))
         {
-            token = strtok(NULL, " ");
+            token = strtok_r(NULL, " ", &first_ptr);
             int aux = atoi(token);
             idx = -1;
             for (i = 0; i < conf->num_islands; i++)
@@ -316,33 +325,32 @@ void parse_island(cluster_conf_t *conf, char *line)
             }
         }
         else if (!strcmp(token, "MAX_POWER")){
-            token = strtok(NULL, " ");
+            token = strtok_r(NULL, " ", &first_ptr);
             conf->islands[conf->num_islands].max_sig_power=(double)atoi(token);
             verbose(0, "Parsing for this option (MAX_POWER) in Island configuration will be deprecated in the future, please change it to a TAG structure\n");
         }
         else if (!strcmp(token, "MIN_POWER")){
-            token = strtok(NULL, " ");
+            token = strtok_r(NULL, " ", &first_ptr);
             conf->islands[conf->num_islands].min_sig_power=(double)atoi(token);
             verbose(0, "Parsing for this option (MIN_POWER) in Island configuration will be deprecated in the future, please change it to a TAG structure\n");
         }
         else if (!strcmp(token, "ERROR_POWER")){
-            token = strtok(NULL, " ");
+            token = strtok_r(NULL, " ", &first_ptr);
             conf->islands[conf->num_islands].max_error_power=(double)atoi(token);
             verbose(0, "Parsing for this option (ERROR_POWER) in Island configuration will be deprecated in the future, please change it to a TAG structure\n");
         }
         else if (!strcmp(token, "MAX_TEMP")){
-            token = strtok(NULL, " ");
+            token = strtok_r(NULL, " ", &first_ptr);
             conf->islands[conf->num_islands].max_temp=(double)atoi(token);
             verbose(0, "Parsing for this option (MAX_TEMP) in Island configuration will be deprecated in the future, please change it to a TAG structure\n");
         }
         else if (!strcmp(token, "POWER_CAP")){
-            token = strtok(NULL, " ");
+            token = strtok_r(NULL, " ", &first_ptr);
             conf->islands[conf->num_islands].max_power_cap=(double)atoi(token);
             verbose(0, "Parsing for this option (POWER_CAP) in Island configuration will be deprecated in the future, please change it to a TAG structure\n");
         }
         else if (!strcmp(token, "POWER_CAP_TYPE")){
-            token = strtok(NULL, " ");
-            strclean(token, '\n');
+            token = strtok_r(NULL, " ", &first_ptr);
             remove_chars(token, ' ');
             strcpy(conf->islands[conf->num_islands].power_cap_type,token);
             verbose(0, "Parsing for this option (POWER_CAP_TYPE) in Island configuration will be deprecated in the future, please change it to a TAG structure\n");
@@ -350,8 +358,7 @@ void parse_island(cluster_conf_t *conf, char *line)
         else if (!strcmp(token, "DBIP"))
         {
             contains_ip = 1;
-            token = strtok(NULL, " ");
-            strclean(token, '\n');
+            token = strtok_r(NULL, " ", &first_ptr);
             int ip_id = -1;
             int id_f = idx < 0 ? conf->num_islands: idx;
             if (conf->islands[id_f].num_ips < 1)
@@ -383,8 +390,8 @@ void parse_island(cluster_conf_t *conf, char *line)
         else if (!strcmp(token, "DBSECIP"))
         {
             contains_sec_ip = 1;
-            token = strtok(NULL, " ");
-            strclean(token, '\n');
+            token = strtok_r(NULL, " ", &first_ptr);
+            debug("entering DBSECIP with token %s\n", token);
             int ip_id = -1;
             int id_f = idx < 0 ? conf->num_islands: idx;
             if (conf->islands[id_f].num_backups < 1)
@@ -418,7 +425,7 @@ void parse_island(cluster_conf_t *conf, char *line)
         else if (!strcmp(token, "NODES"))
         {
             contains_ip = contains_sec_ip = contains_eargm = 0;
-            token = strtok(NULL, " ");
+            token = strtok_r(NULL, " ", &first_ptr);
             int id_f = idx < 0 ? conf->num_islands: idx;
             current_ranges = conf->islands[id_f].num_ranges;
             generate_node_ranges(&conf->islands[id_f], token);
@@ -427,29 +434,21 @@ void parse_island(cluster_conf_t *conf, char *line)
         {
             contains_eargm = 1;
             int id_f = idx < 0 ? conf->num_islands: idx;
-            token = strtok(NULL, " ");
+            token = strtok_r(NULL, " ", &first_ptr);
             int egm_id = atoi(token);
             for (i = current_ranges; i < conf->islands[id_f].num_ranges; i++)
                 conf->islands[id_f].ranges[i].eargm_id = egm_id;
         }
         else if (!strcmp(token, "ISLAND_TAGS"))
         {
-            tag_parsing = 1;
             int i, found = 0;
-            char aux_token[512], *next_token = NULL;
-            token = strtok(NULL, " ");
-            strcpy(aux_token, token);
-            token = strtok(NULL, " ");
-            if (token != NULL && strlen(token) > 0)
-                next_token = token;
-            token = aux_token;
-            token = strtok(token, ",");
+            token = strtok_r(NULL, " ", &first_ptr);
+            token = strtok_r(token, ",", &sec_ptr);
             //this is an alternative to the if(idx<0) system
             int id_f = idx < 0 ? conf->num_islands: idx;
             while (token)
             {
                 found = 0;
-                strclean(token, '\n');
                 //prevent repeats in multi-line island definitions
                 for (i = 0; i < conf->islands[id_f].num_tags && !found; i++)
                 {
@@ -463,23 +462,14 @@ void parse_island(cluster_conf_t *conf, char *line)
                     strcpy(conf->islands[id_f].tags[conf->islands[id_f].num_tags], token);
                     conf->islands[id_f].num_tags++;
                 }
-                token = strtok(NULL, ",");
+                token = strtok_r(NULL, ",", &sec_ptr);
             }
-            token = next_token;
         }
         else if (!strcmp(token, "TAGS") || !strcmp(token, "TAG") )
         {
-            tag_parsing = 1;
-            char aux_token[512], *next_token = NULL;
-            token = strtok(NULL, " ");
-            strcpy(aux_token, token);
-            token = strtok(NULL, " ");
+            token = strtok_r(NULL, " ", &first_ptr);
 
-            if (token != NULL && strlen(token) > 0)
-                next_token = token;
-
-            token = aux_token;
-            token = strtok(token, ",");
+            token = strtok_r(token, ",", &sec_ptr);
             int id_f = idx < 0 ? conf->num_islands: idx;
             int current_num_tags = 0;
             int *current_tags = NULL;
@@ -489,9 +479,7 @@ void parse_island(cluster_conf_t *conf, char *line)
             char found = 0;
             while (token)
             {
-                strclean(token, '\n');
-                current_tags = realloc(current_tags, sizeof(int)*(current_num_tags+1));
-                for (i = 0; i < conf->islands[id_f].num_specific_tags; i++)
+                current_tags = realloc(current_tags, sizeof(int)*(current_num_tags+1)); for (i = 0; i < conf->islands[id_f].num_specific_tags; i++)
                 {
                     if (!strcmp(token, conf->islands[id_f].specific_tags[i]))
                     {
@@ -508,7 +496,7 @@ void parse_island(cluster_conf_t *conf, char *line)
                     conf->islands[id_f].num_specific_tags++;
                 }
                 current_num_tags++;
-                token = strtok(NULL, ",");
+                token = strtok_r(NULL, ",", &sec_ptr);
             }
 
             for (i = current_ranges; i < conf->islands[id_f].num_ranges; i++)
@@ -517,14 +505,11 @@ void parse_island(cluster_conf_t *conf, char *line)
                 memcpy(conf->islands[id_f].ranges[i].specific_tags, current_tags, sizeof(int)*current_num_tags); 
                 conf->islands[id_f].ranges[i].num_tags = current_num_tags; 
             }
-            token = next_token;
             free(current_tags);
         }
 
-        //this is a hack, and the entire function should be rewritten using strtok_r
-        if (tag_parsing) token = strtok(token, "=");
-        else token = strtok(NULL, "=");
-        tag_parsing = 0;
+        token = strtok_r(NULL, "=", &first_ptr);
+        debug("parsing %s token\n", token);
     }
     int id_f = idx < 0 ? conf->num_islands: idx;
     if (!contains_ip)

@@ -29,6 +29,7 @@
 
 #if SCHED_SLURM
 #define BATCH_STEP              ((int) SLURM_BATCH_SCRIPT)
+#define INTERACT_STEP           ((int) SLURM_INTERACTIVE_STEP)
 #endif
 
 #if SCHED_PBS

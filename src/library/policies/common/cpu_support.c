@@ -44,7 +44,7 @@
 #include <library/policies/common/mpi_stats_support.h>
 #include <library/policies/common/imc_policy_support.h>
 
-#define CPU_SAVINGS_LVL 0
+#define CPU_SAVINGS_LVL 2
 
 extern uint dyn_unc;
 extern polctx_t my_pol_ctx;

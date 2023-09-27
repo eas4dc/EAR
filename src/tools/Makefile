@@ -15,6 +15,7 @@ tool_BINS += \
     learning_show \
     get_periodic \
     metrics_show \
+    insert_test \
     learning_delete
 endif
 ifdef GSL_BASE
@@ -53,6 +54,9 @@ learning_show: learning_show.c $(comm_OBJS)
 	$(CCC) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) -lm
 
 metrics_show: metrics_show.c $(comm_OBJS)
+	$(CCC) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) -lm
+
+insert_test: insert_test.c $(comm_OBJS)
 	$(CCC) -o $@ $< $(comm_OBJS) $(DB_LDFLAGS) -lm
 
 get_periodic: get_periodic.c $(comm_OBJS)

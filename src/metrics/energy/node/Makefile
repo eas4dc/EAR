@@ -9,7 +9,8 @@ ener_OBJS = \
     energy_sd650.o \
     energy_inm_power.o \
     energy_SD650N_V2.o \
-    energy_dummy.o
+    energy_dummy.o \
+	  energy_sd650_power.o
 
 ifdef FREEIPMI_BASE
 ener_OBJS +=\
@@ -29,6 +30,7 @@ ener_BINS = \
     energy_inm_power.so \
     energy_SD650N_V2.so \
     energy_dummy.so \
+	  energy_sd650_power.so
 
 ifdef FREEIPMI_BASE
 ener_BINS += \
@@ -65,13 +67,13 @@ energy_redfish.so: energy_redfish.o $(ener_DEPS) $(redfish_DEPS)
 	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ $(redfish_DEPS) $(ener_DEPS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) -pthread -c $<
 
 energy_rapl.so: energy_rapl.o $(rapl_DEPS) $(ener_DEPS)
 	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ $(rapl_DEPS) $(ener_DEPS) -lm 
 
 %.so: %.o $(ener_DEPS)
-	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ $(ener_DEPS) 
+	$(CC) $(CC_FLAGS) $(CFLAGS) -pthread -shared $< -o $@ $(ener_DEPS) 
 
 ######## OPTIONS
 

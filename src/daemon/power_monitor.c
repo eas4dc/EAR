@@ -2856,7 +2856,7 @@ static void set_default_powermon_end(powermon_app_t *app, uint idle)
 
                 /* We'll set what it is configured in the ear.conf (idle governor and P-State). */
                 cgov        = my_node_conf->idle_governor;
-                rest_pstate = ear_max(my_node_conf->idle_pstate, man->cpu.list1_count - 1);
+                rest_pstate = ear_min(my_node_conf->idle_pstate, man->cpu.list1_count - 1);
 
             } else {
                 /* We'll restore the P-State we found before job had started. */
@@ -3102,7 +3102,7 @@ static state_t restore_global_cpu_settings(powermon_app_t *powermon_app)
 
                 /* We'll set what it is configured in the ear.conf (idle governor and P-State). */
                 cgov        = my_node_conf->idle_governor;
-                rest_pstate = ear_max(my_node_conf->idle_pstate, man->cpu.list1_count - 1);
+                rest_pstate = ear_min(my_node_conf->idle_pstate, man->cpu.list1_count - 1);
 
             } else {
                 /* We'll restore the P-State we found before job had started. */

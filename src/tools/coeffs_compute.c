@@ -26,13 +26,14 @@
 #include <common/types/application.h>
 #include <common/types/coefficient.h>
 #include <common/types/configuration/cluster_conf.h>
+#include <common/types/configuration/cluster_conf_db.h>
 #include <common/database/db_helper.h>
 #include <management/cpufreq/cpufreq.h>
 
 #include <library/models/cpu_power_model_default.h>
 #include <metrics/flops/flops.h>
 
-//#define ACCUM_DATA 1
+#define ACCUM_DATA 1
 
 // Temporal buffers
 static char buffer1[SZ_PATH];
@@ -463,7 +464,7 @@ static state_t apps_merge(application_t **apps, uint *apps_count)
 	application_t *apps_o; // Original apps array
 	application_t *apps_n; // Apps by name accumulated
 	uint apps_n_count = 0;
-	int o, b;
+	int o, b, n;
 
 	// This function averages an replicated applications per frequency.
 	apps_o = *apps;
@@ -570,9 +571,12 @@ static state_t db_query(int argc, char *argv[], cluster_conf_t *conf, char *host
 	int job_list;
   char *p_apps = buffer3;
   int app_list;
-    int t, a;
-    //
-    init_db_helper(&conf->database);
+  int t, a;
+  
+  strcpy(conf->database.user, conf->database.user_commands);
+  strcpy(conf->database.pass, conf->database.pass_commands);
+  
+  init_db_helper(&conf->database);
     //
     if ((*apps_count = get_num_applications(1, host_name)) <= 0) {
         return_msg(EAR_ERROR, "while reading applications from this hostname");
@@ -589,7 +593,7 @@ static state_t db_query(int argc, char *argv[], cluster_conf_t *conf, char *host
 
     //
     for (t = 0, a = 0; t < *apps_count; t++){
-		if ((apps_temp[t].signature.time == 0) || (apps_temp[t].signature.DC_power == 0)){ 
+		if ((apps_temp[t].signature.time == 0) || (apps_temp[t].signature.DC_power == 0) || (apps_temp[t].signature.Gflops == 0)){ 
 			apps_temp[t].job.id = (ulong) -1L;
 			continue;
 		}

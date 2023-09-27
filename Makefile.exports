@@ -8,6 +8,7 @@ export FEAT_DB_MYSQL
 export FEAT_DB_PSQL    
 export FEAT_EXAMON
 export FEAT_DB_CASSANDRA
+export FEAT_DB_PROMETHEUS
 export CC
 export CC_FLAGS
 export MPICC
