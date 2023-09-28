@@ -171,6 +171,7 @@ int main(int argc,char *argv[])
         apps[i].node_id[15] = '\0';
       }
       
+#if USE_GPUS
       if(use_gpu){
         gpup = 0.0;
         gpuu = 0.0;
@@ -183,6 +184,7 @@ int main(int argc,char *argv[])
         gpuu = gpuu /apps[i].signature.gpu_sig.num_gpus;
         gpum = gpum /apps[i].signature.gpu_sig.num_gpus;
       }
+#endif
      
 	    compute_sig_vpi(&VPI , &apps[i].signature);
       if(!use_gpu){

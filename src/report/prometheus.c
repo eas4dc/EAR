@@ -268,9 +268,11 @@ state_t report_periodic_metrics(report_id_t *id, periodic_metric_t *mets, uint c
                 node_id, job_text, mets[i].temp, mets[i].end_time*1000);
         buffer_insert(&general_buffer, tmp_text, &mets[i].end_time);
 
+#if USE_GPUS
         sprintf(tmp_text, "periodic_metric_GPU_power_Watts{node=\"%s%s\"} %lu %lu\n", 
                 node_id, job_text, mets[i].GPU_energy/(mets[i].end_time - mets[i].start_time), mets[i].end_time*1000);
         buffer_insert(&general_buffer, tmp_text, &mets[i].end_time);
+#endif
 
         sprintf(tmp_text, "periodic_metric_PCK_power_Watts{node=\"%s%s\"} %lu %lu\n", 
                 node_id, job_text, mets[i].PCK_energy/(mets[i].end_time - mets[i].start_time), mets[i].end_time*1000);
