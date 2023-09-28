@@ -1,3 +1,10 @@
+### EAR 4.3.1
+- Documentation typos fixed.
+- EAR configuration files templates updated.
+- Bugs fixed for intel\_pstate CPUFreq driver support.
+- Powercap bug fixes.
+- ear.conf parsing errors found and fixed.
+
 ### EAR 4.3
 - MPI stats collection now is guided by sampling to minimize the overhead.
 - EARL-EARD communication optimized.
