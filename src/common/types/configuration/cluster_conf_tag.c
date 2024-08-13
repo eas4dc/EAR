@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #define _GNU_SOURCE 
 
@@ -33,7 +26,7 @@
 
 state_t TAG_token(char *token)
 {
-	if (strcasestr(token,"TAG")!=NULL) return EAR_SUCCESS;
+	if (strcasestr(token,"TAG") != NULL) return EAR_SUCCESS;
 	return EAR_ERROR;
 }
 
@@ -54,6 +47,7 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
 
     if (num_tags == 0)
         tags = NULL;
+
 
     token = strtok_r(line, " ", &buffer_ptr);
 
@@ -118,6 +112,18 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
         {
             tags[idx].error_power = atol(value);
         }
+				else if (!strcmp(key, "MAX_TEMP"))
+				{ 
+						tags[idx].max_temp = atol(value);
+				}
+				else if (!strcmp(key, "CPU_TEMP_CAP"))
+				{ 
+						tags[idx].cpu_temp_cap = atol(value);
+				}
+				else if (!strcmp(key, "GPU_TEMP_CAP"))
+				{ 
+						tags[idx].gpu_temp_cap = atol(value);
+				}
         else if (!strcmp(key, "POWERCAP"))
         {
             tags[idx].powercap = atol(value);
@@ -199,6 +205,10 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
             if (!strcmp(value, "NODE"))
                 tags[idx].powercap_type = POWERCAP_TYPE_NODE;
         }
+				else if (!strcmp(key, "POLICY"))
+				{
+					strcpy(tags[idx].default_policy, value);					
+				}
 
 
         token = strtok_r(NULL, " ", &buffer_ptr);
@@ -223,10 +233,10 @@ void power2str(ulong power, char *str)
   return;
 }
 
-void print_tags_conf(tag_t *tag)
+void print_tags_conf(tag_t *tag, int i)
 {
   char buffer[64];
-    verbosen(VCCONF, "--> Tag: %s\ttype: %d\tdefault: %d\tpowercap_type: %d\n", tag->id, tag->type, tag->is_default, tag->powercap_type);
+    verbosen(VCCONF, "Tag[%d]: %s\ttype: %d\tdefault: %d\t policy: '%s'\t powercap_type: %d\n", i, tag->id, tag->type, tag->is_default, tag->default_policy, tag->powercap_type);
     verbosen(VCCONF, "\t\tavx512_freq: %lu\tavx2_freq: %lu\tmax_power: %lu\tmin_power: %lu\terror_power: %lu\t \n", 
                      tag->max_avx512_freq, tag->max_avx2_freq, tag->max_power, tag->min_power, tag->error_power);
 	verbosen(VCCONF, "\t\tgpu_def_freq %lu / cpu_max_pstate %d / imc_max_pstate %d\n", tag->gpu_def_freq, tag->cpu_max_pstate, tag->imc_max_pstate);
@@ -240,5 +250,13 @@ void print_tags_conf(tag_t *tag)
     verbosen(VCCONF,"\t\t powercap %s\n",buffer);
     power2str(tag->max_powercap, buffer);
     verbosen(VCCONF,"\t\t max_powercap %s\n",buffer);
+		if ((tag->cpu_temp_cap == TEMP_CAP_UNLIMITED) && (tag->gpu_temp_cap == TEMP_CAP_UNLIMITED)){
+			verbosen(VCCONF,"\t\tTemperature cap disabled\n");
+		}else{
+			char cpu_tcap[64], gpu_tcap[64];
+			snprintf(cpu_tcap,sizeof(cpu_tcap),"%lu", tag->cpu_temp_cap);
+			snprintf(gpu_tcap,sizeof(gpu_tcap),"%lu", tag->gpu_temp_cap);
+			verbosen(VCCONF,"\t\tTemperature cap enabled: CPU %s / GPU %s\n", (tag->cpu_temp_cap == TEMP_CAP_UNLIMITED)?"ulimited":cpu_tcap, (tag->gpu_temp_cap == TEMP_CAP_UNLIMITED)?"unlimited":gpu_tcap);
+		}
 }
 

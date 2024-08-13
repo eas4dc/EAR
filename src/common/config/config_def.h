@@ -1,51 +1,118 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 
 #ifndef COMMON_CONFIG_DEF_H
 #define COMMON_CONFIG_DEF_H
 
+
 #include <common/config/config_install.h>
 
-/**
- * @defgroup EAR_PATHS EAR installation
- * EAR paths and names.
- * @{
- */
-#define REL_PATH_LIBR                       "lib"
-#define REL_NAME_LIBR                       "libear"
-#define REL_PATH_LOAD                       "lib/libearld.so"
-/** @} */
-/* LOADER definitions */
-#define INTEL_EXT                           "so"
-#define OPENMPI_EXT                         "ompi.so"
-#define CUDA_EXT                            "gen.so"
-#define OPENMP_EXT                          "gen.so"
-#define DEF_EXT                             "gen.so"
+#define LENOVO        0
+#define GRACE_HOOPER  1
+#define CRAY_HPE      2
+#define EAR_NODE_MGR  3
+#define GENERIC 			100
 
 
-#define FUJITSU_MPI_EXT                     "fujitsu.so"
 
-// Maximum number of tries when doing non-blocking communications
-#define MAX_SOCKET_COMM_TRIES               100000000
+/** @name Paths
+ * EAR paths and names. */
+/**@{*/
+#define REL_PATH_LIBR "lib"
+#define REL_NAME_LIBR "libear"
+#define REL_PATH_LOAD "lib/libearld.so"
+/**@}*/
+
+
+/** @name Suffixes
+ * Loader definitions. */
+/**@{*/
+#define INTEL_EXT       "so"
+#define INTELMPI_EXT    "impi.so"
+#define OPENMPI_EXT     "ompi.so"
+#define CUDA_EXT        "gen.so"
+#define OPENMP_EXT      "gen.so"
+#define ONEAPI_EXT			"gen.so"	
+#define DEF_EXT         "gen.so"
+
+#define FUJITSU_MPI_EXT "fujitsu.so"
+#define CRAY_MPI_EXT "cray.so"
+/**@}*/
+
+
+/** @name Database
+ * These definitions affects DB configuration. */
+/**@{*/
+
+/** When set to 1, loops signatures are not reported to the DB to save space. */
+#define LARGE_CLUSTER       0
+
+/* When set to 1, some fields are neither created not reported to the DB to save space. */
+#define DB_SIMPLE           0
+
+/* Maximum number of simultaneous DB connection for mysql user commands. */
+#define MAX_DB_CONNECTIONS  20
+
+/**@}*/
+
+
+/** @name Daemon */
+/**@{*/
+
+/** When set to 1, verbose, debug, and error output is sent to eard.log file stored at EAR_TMP. */
+#define EARD_FILE_LOG               1
+/** Set minimum CPU frequency on idle phases. */
+#define EARD_POWERCAP_IDLE_MINFREQ  0
+/* If set to 1, there should be no issues with jobs running while the node is "idle".
+ * If set to 0, the idle powercap will be POWERCAP_UNLIMITED */
+#define EARD_POWERCAP_IDLE_PERC 1
+/**  */
+#define SYNC_SET_RPC 1
+/**  */
+#define MIX_RPC 1
+/**@}*/
+
+
+/** @name EAR Database Daemon  */
+/**@{*/
+#define EARDBD_TYPES 7
+/**@}*/
+
+
+/** @name EAR Global Manager */
+/**@{*/
+
+/** When set to 1, verbose,debug, and error output is sent to eargmd.log file stored at EAR_TMP. */
+#define EARGMD_FILE_LOG                     1
+
+/** Cluster soft powercap with homogeneous powercap. */
+#define EARGM_POWERCAP_SOFTPC_HOMOGENEOUS   0
+
+/**@}*/
+
+/** Forces EARD and EARGM to be executed as root. */
+#define RUN_AS_ROOT 1
+
+/** Allows normal users to change the CPU frequency without having to be authorized users. */
+#define CPUFREQ_SET_ALL_USERS 1
+
+/** Maximum number of tries when doing non-blocking communications. */
+#define MAX_SOCKET_COMM_TRIES               1000000
 //
-#define EARDBD_TYPES                        7
+
 /* These flags configures EARL */
-/* When set to 1, turbo is allowed */
-#define USE_TURBO                           0
+
+/* Forces the intel pstate to create the cpufreq list using turbo freq. Used in cases where the turbo
+ * is on/off dynamically. It just works when using intel_pstate CPUFreq driver. */
+#define DYNAMIC_BOOST_MGT										0
 /* When set to 1, frequency is set to default when a new loop starts.
  * Otherwise, the current frequency is used till the policy is applied */
 #define RESET_FREQ                          0
@@ -54,12 +121,13 @@
  * generates a warning and a syslog message when activated. Values greather
  * than MAX_ERROR_POWER are considered an error and not reported into the DB */
 #define MIN_SIG_POWER                       30.0
-#define MAX_SIG_POWER                       700.0
-#define MAX_ERROR_POWER                     1000.0
+#define MAX_SIG_POWER                       5000.0
+#define MAX_ERROR_POWER                     5500.0
 #define MAX_TEMP                            150
 #define MAX_POWER_CAP                       0
 #define POWER_CAP_DISABLED                  0
 #define POWER_CAP_UNLIMITED                 1
+#define TEMP_CAP_UNLIMITED                  1
 #define POWER_CAP_AUTO_CONFIG               -1
 #define DEF_POWER_CAP                       POWER_CAP_AUTO_CONFIG
 #define POWER_CAP_TYPE                      "node"
@@ -68,26 +136,12 @@
 #define MAX_IMCF_PSTATE                     5
 #define MAX_IMCF_FREQ                       0
 #define MIN_IMCF_FREQ                       0
-/* When set to 1, powercap events will be reported to database */
+/* When set to 1, powercap events will be reported to database. */
 #define REPORT_POWERCAP                     0
 /* These definitions affects to the output generated by services EAR services
  * When set to 1, some warning messages and written at syslog explicitly */
 #define SYSLOG_MSG                          1
-/* When set to 1, verbose,debug, and error output is sent to eargmd.log file
- * stored at EAR_TMP */
-#define EARGMD_FILE_LOG                     1
-/* When set to 1, verbose,debug, and error output is sent to eard.log file
- * stored at EAR_TMP */
-#define EARD_FILE_LOG                       1
-/** These definitions affects DB configuration */
-/* When set to 1, loops signatures are not reported to the DB to save space */
-#define LARGE_CLUSTER                       0
-/* When set to 1, some fields are neither created not reported to the DB to
- * save space */
-#define DB_SIMPLE                           0
-/* Maximum number of simultaneous DB connection for mysql user commands */
-#define MAX_DB_CONNECTIONS                  20
-/* */
+
 #define PERFORMANCE_GAIN                    0.75
 #define EAR_ACCEPTED_TH                     0.05
 #define EAR_MIN_P_STATE                     4
@@ -103,6 +157,34 @@
 #define DEFAULT_POWER                       300
 #define GRACE_T1                            3
 #define MAX_TIME_DYNAIS_WITHOUT_SIGNATURE   15
+
+
+/* 
+ * To be used by default in eard and eard_dummy
+ */
+#define DEFAULT_EAR_INSTALL_PATH "/usr/lib/ear"
+#define DEFAULT_EAR_ETC_PATH "/etc"
+
+
+#if   SYSTEM_TYPE == LENOVO
+#define DEFAULT_ENERGY_PLUGIN "energy_sd650.so"
+#define DEFAULT_ENERGY_MODEL  "avx512_model.so"
+#elif SYSTEM_TYPE == GRACE_HOOPER
+#define DEFAULT_ENERGY_PLUGIN "grace_hopper_module_power.so"
+#define DEFAULT_ENERGY_MODEL  "avx512_model.so"
+#elif SYSTEM_TYPE == CRAY_HPE
+#define DEFAULT_ENERGY_PLUGIN "energy_cray_pm.so"
+#define DEFAULT_ENERGY_MODEL  "avx512_model.so"
+#elif SYSTEM_TYPE == EAR_NODE_MGR
+#define DEFAULT_ENERGY_PLUGIN "energy_eard_nm.so"
+#define DEFAULT_ENERGY_MODEL  "avx512_model.so"
+#else
+#define DEFAULT_ENERGY_PLUGIN "energy_cpu_gpu.so"
+#define DEFAULT_ENERGY_MODEL  "avx512_model.so"
+#endif
+
+
+
 /* Maximum power error supported. It is used to compute the min time to compute
  * a valid signature */
 #define MAX_POWER_ERROR                     0.05
@@ -126,23 +208,18 @@
 /* Seconds between each EARDBD API connection retrys. */
 #define EARDBD_API_RETRY_SECS               60
 #define MIN_MPI_FOR_LOW_FREQ                20
+
 #define EARGM_DEF_POWERCAP_LIMIT            0
 #define EARGM_DEF_T1_POWER                  60
 /* 1=auto by default, 0=monitoring_only */
-#define EARGM_POWERCAP_DEF_MODE             1
-#define EARGM_POWERCAP_DEF_ACTION           "no_action"
-#define EARGM_ENERGYCAP_DEF_ACTION          "no_action"
-#define EARGM_POWERCAP_DEF_ACTION_LIMIT     90
-#define EARGM_POWERCAP_DEF_ACTION_LOWER     25
-#define LIMIT_LARGE_JOBS                    2
-#define RED_PSTATES_LARGE_JOBS              1
-/* IMC Management and Phases management default options */
-#define  EAR_eUFS                           1
-#define  EAR_IMC_TH                         0.02
-#define  EAR_USE_PHASES                     1
-#define  EAR_USE_LB                         1
-#define  EAR_USE_TURBO_CP                   1
-#define  EAR_LB_TH                          0.8
+#define EARGM_POWERCAP_DEF_MODE         1
+#define EARGM_POWERCAP_DEF_ACTION       "no_action"
+#define EARGM_ENERGYCAP_DEF_ACTION      "no_action"
+#define EARGM_POWERCAP_DEF_ACTION_LIMIT 90
+#define EARGM_POWERCAP_DEF_ACTION_LOWER 25
+#define LIMIT_LARGE_JOBS                2
+#define RED_PSTATES_LARGE_JOBS          1
+
 /* These two options go together. USE_EXT defines if a automatic network
  * extension must be added for inter-nodes communications. Targeted to
  * architectures where hostname returned is not valid to communicate across
@@ -160,6 +237,57 @@
  * Ex: MAX_RANGE 30 and NUM_PROPS 3 -> sum = 3 + 9 + 27 -> depth of propagation = 3 */
 #define MAX_RANGE                           30
 
+/* Whether the security key is send and used by the remote communication layer. If
+ * set to 0, all remote messages will be accepted. Components compiled with 
+ * different values of this constant will NOT be compatible */
+#define USE_SEC_KEY_RC                      0
+#define USE_PMON_SHARED_AREA		    1
 
-#define DCGMI_DEFAULT				0
-#endif //COMMON_CONFIG_DEF_H
+
+/** @name Library
+ * EARL defaults. */
+/**@{*/
+
+/** Enable IMC management. */
+#define  EAR_eUFS         1
+
+/** IMC controller threshold. */
+#define  EAR_IMC_TH       0.02
+
+/** Enable EARL phase detection. */
+#define  EAR_USE_PHASES   1
+
+/** Enable EARL load balance. */
+#define  EAR_USE_LB       1
+#define  EAR_LB_TH        0.8
+
+/** Set turbo for critical path processes. */
+#define  EAR_USE_TURBO_CP 1
+
+/** Enable DCGMI monitoring. */
+#define DCGMI_DEFAULT     0
+
+/** Enable EARL loop reporting. */
+#define EARL_REPORT_LOOPS 1
+
+/** Validates CPU busy waiting behavior. */
+#define EARL_CPUBUSYWAIT_VALIDATE 1
+
+/** When set to 1, turbo is allowed */
+#define USE_TURBO 0
+
+/** Experimental feature. Enables fine-grained metrics monitor and MPI Optimize features. */
+#define MPI_OPTIMIZED 0
+
+/**@}*/
+
+
+/** @name Common
+ * Parameters that set up different EAR components. */
+/**@{*/
+/** Instead of reporting the number of iterations, report the timestamp of the loop. */
+#define REPORT_TIMESTAMP 1
+/**@}*/
+
+
+#endif // COMMON_CONFIG_DEF_H

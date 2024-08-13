@@ -1,23 +1,17 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <termios.h>
 #include <common/config.h>
@@ -40,32 +34,39 @@ int query_filters = 0;
 #define NUM_QUERIES NUM_APP_Q+NUM_LOOP_Q
 
 #if USE_GPUS
-#define CLEAN_GPU_APPS  "DELETE Applications,Jobs,Signatures,Power_signatures,GPU_signatures FROM Applications inner join Jobs on id = job_id AND "\
+#define OPTIMIZE_GSIGS "OPTIMIZE TABLE GPU_signatures"
+#define CLEAN_GPU_APPS  "DELETE Applications,Jobs,Signatures,Power_signatures,GPU_signatures FROM Applications inner join Jobs on Applications.job_id = Jobs.job_id AND "\
 	"Applications.step_id = Jobs.step_id inner join Signatures on Signatures.id = signature_id inner join Power_signatures on "\
 	"Power_signatures.id = power_signature_id INNER JOIN GPU_signatures ON GPU_signatures.id >= min_GPU_sig_id AND "\
 	"GPU_signatures.id <= max_GPU_sig_id "
 
-#define CLEAN_GPU_LOOPS "DELETE Loops,Signatures,GPU_signatures FROM Loops inner join Jobs on id = job_id AND "\
+#define CLEAN_GPU_LOOPS "DELETE Loops,Signatures,GPU_signatures FROM Loops inner join Jobs on Jobs.job_id = Loops.job_id  AND "\
 	"Loops.step_id = Jobs.step_id inner join Signatures on Signatures.id = signature_id "\
 	"INNER JOIN GPU_signatures ON GPU_signatures.id >= min_GPU_sig_id AND "\
 	"GPU_signatures.id <= max_GPU_sig_id "
 #endif
 
-#define CLEAN_MPI_APPS  "DELETE Applications,Jobs,Signatures,Power_signatures from Applications inner join Jobs on id = job_id and Applications.step_id = Jobs.step_id "\
+#define OPTIMIZE_APPS  "OPTIMIZE TABLE Applications"
+#define OPTIMIZE_SIGS  "OPTIMIZE TABLE Signatures"
+#define OPTIMIZE_JOBS  "OPTIMIZE TABLE Jobs"
+#define OPTIMIZE_LOOPS "OPTIMIZE TABLE Loops"
+#define OPTIMIZE_PSIGS "OPTIMIZE TABLE Power_signatures"
+
+#define CLEAN_MPI_APPS  "DELETE Applications,Jobs,Signatures,Power_signatures from Applications inner join Jobs on Applications.job_id = Jobs.job_id and Applications.step_id = Jobs.step_id "\
 	"inner join Signatures on Signatures.id = signature_id inner join Power_signatures on Power_signatures.id = power_signature_id "
 
-#define CLEAN_NMPI_APPS "DELETE Applications,Jobs,Power_signatures from Applications inner join Jobs on id = job_id and Applications.step_id = Jobs.step_id "\
+#define CLEAN_NMPI_APPS "DELETE Applications,Jobs,Power_signatures from Applications inner join Jobs on Applications.job_id = Jobs.job_id and Applications.step_id = Jobs.step_id "\
 	"inner join Power_signatures on Power_signatures.id = power_signature_id "
 
-#define CLEAN_LOOPS_JOBS "DELETE Signatures,Loops FROM Loops INNER JOIN Jobs ON Jobs.id = job_id AND Jobs.step_id = Loops.step_id INNER JOIN Signatures ON Loops.signature_id = Signatures.id "
+#define CLEAN_LOOPS_JOBS "DELETE Signatures,Loops FROM Loops INNER JOIN Jobs ON Jobs.job_id = Loops.job_id AND Jobs.step_id = Loops.step_id INNER JOIN Signatures ON Loops.signature_id = Signatures.id "
 
-#define CLEANUP_LOOPS_JOBS "DELETE Loops FROM Loops INNER JOIN Jobs ON Jobs.id = job_id AND Jobs.step_id = Loops.step_id"
+#define CLEANUP_LOOPS_JOBS "DELETE Loops FROM Loops INNER JOIN Jobs ON Jobs.job_id = Loops.job_id AND Jobs.step_id = Loops.step_id"
 
 #define CLEAN_LOOPS "DELETE Signatures,Loops FROM Loops INNER JOIN Signatures ON Loops.signature_id = Signatures.id "
 
 #define CLEANUP_LOOPS "DELETE Loops FROM Loops "
 
-#define CLEANUP_APPS "DELETE Applications,Jobs from Applications inner join Jobs on id = job_id and Applications.step_id = Jobs.step_id "
+#define CLEANUP_APPS "DELETE Applications,Jobs from Applications inner join Jobs on Applications.job_id = Jobs.job_id and Applications.step_id = Jobs.step_id "
 
 #define CLEANUP_JOBS "DELETE Jobs from Jobs "
 
@@ -85,6 +86,7 @@ void usage(char *app)
 	printf("\t-r\t\tRuns the queries that would be executed. Exclusive with -o. [default:off]\n");
 	printf("\t-l\t\tDeletes Loops and its Signatures. [default:off]\n");
 	printf("\t-a\t\tDeletes Applications and related tables. [default:off]\n");
+	printf("\t-z\t\tOptimizes the tables affected to reduce size. [default:off]\n");
 	printf("\t-h\t\tDisplays this message\n");
 	printf("\n");
 
@@ -144,155 +146,180 @@ int main(int argc,char *argv[])
 	char rm_loops = 0, rm_apps = 0;
 	int i;
 	char opt, *token;
-	char out_type = OUT_QUERY;
+    char out_type = OUT_QUERY;
+    bool optimize_after_clean = false;
 
-	/* No password as default */
-	strcpy(passw, "");
-	/* Root user as default */
+    /* No password as default */
+    strcpy(passw, "");
+    /* Root user as default */
 #if DB_PSQL
-	strcpy(user, "postgres");
+    strcpy(user, "postgres");
 #else
-	strcpy(user, "root");
+    strcpy(user, "root");
 #endif
 
 #if PRIVATE_PASS
-	struct termios t;
-	while ((opt = getopt(argc, argv, "u:pd:j:oalrh")) != -1) {
+    struct termios t;
+    while ((opt = getopt(argc, argv, "u:pd:j:oalrh")) != -1) {
 #else
-		while ((opt = getopt(argc, argv, "u:p:d:j:oalrh")) != -1) {
+        while ((opt = getopt(argc, argv, "u:p:d:j:oalzrh")) != -1) {
 #endif
-			switch(opt)
-			{
-				case 'd':
-					num_days = atoi(optarg);
-					break;
-				case 'j':
-					job_id = atoi(strtok(optarg, "."));
-					token = strtok(NULL, ".");
-					if (token != NULL) step_id = atoi(token);
-					break;
-				case 'p':
+            switch(opt)
+            {
+                case 'd':
+                    num_days = atoi(optarg);
+                    break;
+                case 'j':
+                    job_id = atoi(strtok(optarg, "."));
+                    token = strtok(NULL, ".");
+                    if (token != NULL) step_id = atoi(token);
+                    break;
+                case 'p':
 #if PRIVATE_PASS
-					tcgetattr(STDIN_FILENO, &t);
-					t.c_lflag &= ~ECHO;
-					tcsetattr(STDIN_FILENO, TCSANOW, &t);
+                    tcgetattr(STDIN_FILENO, &t);
+                    t.c_lflag &= ~ECHO;
+                    tcsetattr(STDIN_FILENO, TCSANOW, &t);
 
-					printf("Introduce root's password:");
-					fflush(stdout);
-					fgets(passw, sizeof(passw), stdin);
-					t.c_lflag |= ECHO;
-					tcsetattr(STDIN_FILENO, TCSANOW, &t);
-					strclean(passw, '\n');
-					printf(" \n");
+                    printf("Introduce root's password:");
+                    fflush(stdout);
+                    fgets(passw, sizeof(passw), stdin);
+                    t.c_lflag |= ECHO;
+                    tcsetattr(STDIN_FILENO, TCSANOW, &t);
+                    strclean(passw, '\n');
+                    printf(" \n");
 #else
-					strcpy(passw, optarg);
+                    strcpy(passw, optarg);
 #endif
-					break;
-				case 'u':
-					strcpy(user, optarg);
-					break;
-				case 'l':
-					rm_loops = 1;
-					break;
-				case 'a':
-					rm_apps = 1;
-					break;
-				case 'o':
-					out_type = OUT_QUERY;
-					break;
-				case 'r':
-					out_type = RUN_QUERY;
-					break;
-				case 'h':
-					usage(argv[0]);
-					break;
-			}
-		}
+                    break;
+                case 'u':
+                    strcpy(user, optarg);
+                    break;
+                case 'l':
+                    rm_loops = 1;
+                    break;
+                case 'a':
+                    rm_apps = 1;
+                    break;
+                case 'o':
+                    out_type = OUT_QUERY;
+                    break;
+                case 'r':
+                    out_type = RUN_QUERY;
+                    break;
+                case 'z':
+                    optimize_after_clean = true;
+                    break;
+                case 'h':
+                    usage(argv[0]);
+                    break;
+            }
+        }
 
-		cluster_conf_t my_cluster;
-		char ear_path[256];
-		if (get_ear_conf_path(ear_path) == EAR_ERROR)
-		{
-			printf("Error getting ear.conf path\n"); //error
-			exit(0);
-		}
-		read_cluster_conf(ear_path, &my_cluster);
+        cluster_conf_t my_cluster;
+        char ear_path[256];
+        if (get_ear_conf_path(ear_path) == EAR_ERROR)
+        {
+            printf("Error getting ear.conf path\n"); //error
+            exit(0);
+        }
+        read_cluster_conf(ear_path, &my_cluster);
 
-		if (job_id < 0 && num_days < 1) {
-			printf("A job id or a number of days must be specified, stopping.\n");
-			free_cluster_conf(&my_cluster);
-			exit(0);
-		}
-		if (!rm_apps && !rm_loops) {
-			printf("Either loops or applications need to be asked for removal, stopping.\n");
-			free_cluster_conf(&my_cluster);
-			exit(0);
-		}
+        if (job_id < 0 && num_days < 1) {
+            printf("A job id or a number of days must be specified, stopping.\n");
+            free_cluster_conf(&my_cluster);
+            exit(0);
+        }
+        if (!rm_apps && !rm_loops) {
+            printf("Either loops or applications need to be asked for removal, stopping.\n");
+            free_cluster_conf(&my_cluster);
+            exit(0);
+        }
 #if USE_GPUS
-		uint idx = 1;
+        uint idx = 1;
 #else
-		uint idx = 0;
+        uint idx = 0;
 #endif
 
-		int queries_id = 0;
-		//loops come first or we won't be able to find them
-		if (rm_loops) {
-			if (num_days > 0) {
+        int queries_id = 0;
+        //loops come first or we won't be able to find them
+        if (rm_loops) {
+            if (num_days > 0) {
 #if USE_GPUS
-				strcpy(query[queries_id      ], CLEAN_GPU_LOOPS);
+                strcpy(query[queries_id      ], CLEAN_GPU_LOOPS);
 #endif
-				strcpy(query[queries_id+idx  ], CLEAN_LOOPS_JOBS);
-				strcpy(query[queries_id+idx+1], CLEANUP_LOOPS_JOBS);
-			}
-			else {
+                strcpy(query[queries_id+idx  ], CLEAN_LOOPS_JOBS);
+                strcpy(query[queries_id+idx+1], CLEANUP_LOOPS_JOBS);
+            }
+            else {
 #if USE_GPUS
-				strcpy(query[queries_id      ], CLEAN_GPU_LOOPS);
+                strcpy(query[queries_id      ], CLEAN_GPU_LOOPS);
 #endif
-				strcpy(query[queries_id+idx  ], CLEAN_LOOPS);
-				strcpy(query[queries_id+idx+1], CLEANUP_LOOPS);
-			}
-			queries_id += NUM_LOOP_Q;
-		}
-		if (rm_apps) {
+                strcpy(query[queries_id+idx  ], CLEAN_LOOPS);
+                strcpy(query[queries_id+idx+1], CLEANUP_LOOPS);
+            }
+            queries_id += NUM_LOOP_Q;
+        }
+        if (rm_apps) {
 #if USE_GPUS
-			strcpy(query[queries_id      ], CLEAN_GPU_APPS);
+            strcpy(query[queries_id      ], CLEAN_GPU_APPS);
 #endif
-			strcpy(query[queries_id+idx  ], CLEAN_MPI_APPS);
-			strcpy(query[queries_id+idx+1], CLEAN_NMPI_APPS);
-			strcpy(query[queries_id+idx+2], CLEANUP_APPS);
-			strcpy(query[queries_id+idx+3], CLEANUP_JOBS);
-			queries_id += NUM_APP_Q;
-		}
+            strcpy(query[queries_id+idx  ], CLEAN_MPI_APPS);
+            strcpy(query[queries_id+idx+1], CLEAN_NMPI_APPS);
+            strcpy(query[queries_id+idx+2], CLEANUP_APPS);
+            strcpy(query[queries_id+idx+3], CLEANUP_JOBS);
+            queries_id += NUM_APP_Q;
+        }
 
-		for (i = 0; i < queries_id; i++) {
-			query_filters = 0;
-			if (rm_loops && num_days < 1 && i < NUM_LOOP_Q) { //this is more precise as it doesn't need Jobs to exist to delete them
-				if (job_id > -1) {
-					add_int_filter(query[i], "job_id", job_id);
-				}
-				if (step_id > -1) {
-					add_int_filter(query[i], "step_id", step_id);
-				}
-				continue;
-			}
-			if (job_id > -1) {
-				add_int_filter(query[i], "Jobs.id", job_id);
-			}
-			if (step_id > -1) {
-				add_int_filter(query[i], "Jobs.step_id", step_id);
-			}
-			if (num_days > 0) {
-				add_time_filter(query[i], "Jobs.end_time", num_days);
-			}
-		}
-
-
-		for (i = 0; i < queries_id; i++)
-			send_query(query[i], out_type, &my_cluster, user, passw);
+        for (i = 0; i < queries_id; i++) {
+            query_filters = 0;
+            if (rm_loops && num_days < 1 && i < NUM_LOOP_Q) { //this is more precise as it doesn't need Jobs to exist to delete them
+                if (job_id > -1) {
+                    add_int_filter(query[i], "job_id", job_id);
+                }
+                if (step_id > -1) {
+                    add_int_filter(query[i], "step_id", step_id);
+                }
+                continue;
+            }
+            if (job_id > -1) {
+                add_int_filter(query[i], "Jobs.job_id", job_id);
+            }
+            if (step_id > -1) {
+                add_int_filter(query[i], "Jobs.step_id", step_id);
+            }
+            if (num_days > 0) {
+                add_time_filter(query[i], "Jobs.end_time", num_days);
+            }
+        }
 
 
-		free_cluster_conf(&my_cluster);
+        for (i = 0; i < queries_id; i++)
+            send_query(query[i], out_type, &my_cluster, user, passw);
+
+        if (optimize_after_clean) {
+            if (rm_loops) {
+#if USE_GPUS
+                send_query(OPTIMIZE_GSIGS, out_type, &my_cluster, user, passw);
+#endif
+                send_query(OPTIMIZE_SIGS,  out_type, &my_cluster, user, passw);
+                send_query(OPTIMIZE_LOOPS, out_type, &my_cluster, user, passw);
+            }
+            if (rm_apps) {
+                //GPU_sigs and Signatures would be run twice without this check
+                if (!rm_loops) {
+#if USE_GPUS
+                    send_query(OPTIMIZE_GSIGS, out_type, &my_cluster, user, passw);
+#endif
+                    send_query(OPTIMIZE_SIGS,  out_type, &my_cluster, user, passw);
+                }
+                send_query(OPTIMIZE_PSIGS, out_type, &my_cluster, user, passw);
+                send_query(OPTIMIZE_APPS, out_type, &my_cluster, user, passw);
+                send_query(OPTIMIZE_JOBS, out_type, &my_cluster, user, passw);
+            }
+        }
+
+        free_cluster_conf(&my_cluster);
 
 
-		exit(1);
-	}
+        exit(1);
+    }

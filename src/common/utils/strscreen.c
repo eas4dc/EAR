@@ -1,36 +1,29 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <common/output/verbose.h>
 #include <common/utils/strscreen.h>
 
 #define Y 0
 #define X 1
 #define clrscr()     printf("\e[1;1H\e[2J")
-#define debug(...)   printf(__VA_ARGS__)
 #define buffer(y, x) s->buffer[(y)*s->width+(x)]
 
 static void clean_buffer_background(strscreen_t *s)
 {
-    int y, x;
+    int y, x = 0;
     for (y = 0; y < s->height; ++y) {
         for (x = 0; x < s->width; ++x) {
             buffer(y,x) = s->bckchr;
@@ -40,7 +33,7 @@ static void clean_buffer_background(strscreen_t *s)
     buffer(y-1,x) = '\0';
 }
 
-void wprintf_init(strscreen_t *s, int height, int width, int fd, char bckchr)
+void scprintf_init(strscreen_t *s, int height, int width, int fd, char bckchr)
 {
     s->buffer       = calloc((width+1+000)*height, sizeof(char));
     s->buffer_final = calloc((width+1+100)*height, sizeof(char)); //+100 for the colors
@@ -62,7 +55,7 @@ static void clean_matrix_background(strscreen_t *s)
     }
 }
 
-void wprintf_divide(strscreen_t *s, int p1[2], int p2[2], int *id, cchar *title)
+void scprintf_divide(strscreen_t *s, int p1[2], int p2[2], int *id, cchar *title)
 {
     strscreen_t *div;
     int y;
@@ -87,11 +80,11 @@ void wprintf_divide(strscreen_t *s, int p1[2], int p2[2], int *id, cchar *title)
     clean_matrix_background(div);
 }
 
-void wsprintf(strscreen_t *s, int div_index, int append, int set_title, char *buffer)
+void scsprintf(strscreen_t *s, int div_index, int append, int set_title, char *buffer)
 {
     strscreen_t *div = &(((strscreen_t *) s->divs)[div_index]);
     size_t length = strlen(buffer);
-    int c, x, y;
+    int c, x;
 
     // Cleaning
     if (!append) {
@@ -148,7 +141,7 @@ static void clean_tag(strscreen_t *s, char *tag, char *new_string, uint spaces)
     }
 }
 
-char *wprintf(strscreen_t *s)
+char *scprintf(strscreen_t *s)
 {
     // Copying original buffer
     strcpy(&s->buffer_final[0], &s->buffer[0]);
@@ -160,6 +153,6 @@ char *wprintf(strscreen_t *s)
     // Returning to the terminal original position
     clrscr();
     // Printing in case valid file descriptor
-    if (s->fd >= 0) { dprintf(s->fd, "%s\n", s->buffer_final); }
+    if (s->fd >= 0) { dprintf(s->fd, "%s", s->buffer_final); }
     return s->buffer_final;
 }

@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <string.h>
@@ -46,7 +39,7 @@ int get_default_policies(cluster_conf_t *conf, policy_conf_t **policies, int tag
         // If there's a default tag we search compatibilities with default tags and non-tagged policies
         if (uses_def_tag)
         {
-            if (conf->power_policies[i].tag == NULL || !strcmp(conf->tags[tag_id].id, conf->power_policies[i].tag) || strlen(conf->power_policies[i].tag) < 1)
+            if (!strcmp(conf->tags[tag_id].id, conf->power_policies[i].tag) || strlen(conf->power_policies[i].tag) < 1)
             {
                 policy_aux = realloc(policy_aux, sizeof(policy_conf_t)*(total_policies + 1));
                 memcpy(&policy_aux[total_policies], &conf->power_policies[i], sizeof(policy_conf_t));
@@ -55,7 +48,7 @@ int get_default_policies(cluster_conf_t *conf, policy_conf_t **policies, int tag
         }
         else // if there is no default tag, we just search for non-tagged policies as defaults
         {
-            if (conf->power_policies[i].tag == NULL || strlen(conf->power_policies[i].tag) < 1)
+            if (strlen(conf->power_policies[i].tag) < 1)
             {
                 policy_aux = realloc(policy_aux, sizeof(policy_conf_t)*(total_policies + 1));
                 memcpy(&policy_aux[total_policies], &conf->power_policies[i], sizeof(policy_conf_t));
@@ -79,6 +72,7 @@ void init_policy_conf(policy_conf_t *p)
 //    p->th = 0;
     p->policy = -1;
     p->is_available = 0;
+    p->tag[0] = '\0';
     p->def_freq=(float)0;
     p->p_state=UINT_MAX;
     memset(p->settings, 0, sizeof(double)*MAX_POLICY_SETTINGS);

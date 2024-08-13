@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef EAR_OUTCONF_H
 #define EAR_OUTCONF_H
@@ -34,15 +27,17 @@
 #define VJOBPMON         1 // Job accounting in power monitoring
 #define VJOBPMON_BASIC   0 // Basic job accounting in power monitoring. Only new & end msg
 #define VPMON_DEBUG      3 // Power monitoring debug level. Set to 0 when debugging, 4-5 for disabling.
+#define VTASKMON         2 // Task monitoring
 #define VRAPI            2 // dynamic_configuration
 #define VAPI             2 // eard_api.c
 #define VCHCK            2 // checkpoint
 #define VGM              0 // GM
 #define VGM_PC           0 // GM POWERCAP
-#define VCCONF           0 // cluster_conf
+#define VCCONF_DEF       0 // cluster_conf
 #define VPRIV            0 // cluster_conf
 #define VMYSQL           0 // mysql
 #define VDBH             0 // db_helper.c
 #define VTYPE            2
+#define VCOMM            4 // src/common/messaging
 
 #endif

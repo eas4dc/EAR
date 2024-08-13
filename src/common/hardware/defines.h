@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef HARDWARE_DEFINES_H
 #define HARDWARE_DEFINES_H
@@ -26,7 +19,6 @@
 //  ARCH_ARM64
 //  __ARM_ARCH
 //  __ARM_ARCH_8A
-//  __ARM_FEATURE_SVE
 // You can check it by "gcc -march=native -dM -E - < /dev/null"
 
 #if defined(ARCH_ARM) || defined(ARCH_ARM64) || defined(__ARM_ARCH)
@@ -35,6 +27,9 @@
 #define __ARCH_X86 1
 #endif
 
+// Interesting features:
+// __ARM_FEATURE_SVE
+// __ARM_FEATURE_SVE_BITS
 #if defined(__AVX512F__)
 #define __X86_FEATURE_AVX512
 #endif

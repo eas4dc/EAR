@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 //#define FAKE_GPUS   1
@@ -23,10 +16,11 @@
 #include <management/gpu/archs/dummy.h>
 
 #if FAKE_GPUS
-#define FAKE_N 4 
+#define FAKE_N 4
 static ulong *clock_list[FAKE_N]; // MHz
 static uint	  clock_lens[FAKE_N];
-static ulong  power_list[FAKE_N];
+static ulong  power_list_max[FAKE_N];
+static ulong  power_list_min[FAKE_N];
 #else
 static ulong  clock_khz;
 static ulong *clock_list[1];
@@ -69,26 +63,44 @@ void mgt_gpu_dummy_get_api(uint *api)
 state_t mgt_gpu_dummy_init(ctx_t *c)
 {
     #if FAKE_GPUS
-    power_list[0] = 100;
-    power_list[1] = 120;
-    power_list[2] = 140;
-    power_list[3] = 160;
-    clock_lens[0] = 2;
-    clock_lens[1] = 2;
-    clock_lens[2] = 2;
-    clock_lens[3] = 2;
+    power_list_max[0] = 220;
+    power_list_max[1] = 220;
+    power_list_max[2] = 300;
+    power_list_max[3] = 300;
+    power_list_min[0] = 100;
+    power_list_min[1] = 100;
+    power_list_min[2] = 100;
+    power_list_min[3] = 100;
+    clock_lens[0] = 10;
+    clock_lens[1] = 10;
+    clock_lens[2] = 12;
+    clock_lens[3] = 12;
     clock_list[0] = calloc(clock_lens[0], sizeof(ulong));
     clock_list[1] = calloc(clock_lens[1], sizeof(ulong));
     clock_list[2] = calloc(clock_lens[2], sizeof(ulong));
     clock_list[3] = calloc(clock_lens[3], sizeof(ulong));
-    clock_list[0][0] = 100000;
-    clock_list[0][1] = 150000;
-    clock_list[1][0] = 200000;
-    clock_list[1][1] = 250000;
-    clock_list[2][0] = 300000;
-    clock_list[2][1] = 350000;
-    clock_list[3][0] = 400000;
-    clock_list[3][1] = 450000;
+    clock_list[0][ 0] = clock_list[1][ 0] = 1000000;
+    clock_list[0][ 1] = clock_list[1][ 1] =  900000;
+    clock_list[0][ 2] = clock_list[1][ 2] =  800000;
+    clock_list[0][ 3] = clock_list[1][ 3] =  700000;
+    clock_list[0][ 4] = clock_list[1][ 4] =  600000;
+    clock_list[0][ 5] = clock_list[1][ 5] =  500000;
+    clock_list[0][ 6] = clock_list[1][ 6] =  400000;
+    clock_list[0][ 7] = clock_list[1][ 7] =  300000;
+    clock_list[0][ 8] = clock_list[1][ 8] =  200000;
+    clock_list[0][ 9] = clock_list[1][ 9] =  100000;
+    clock_list[2][ 0] = clock_list[3][ 0] = 1200000;
+    clock_list[2][ 1] = clock_list[3][ 1] = 1100000;
+    clock_list[2][ 2] = clock_list[3][ 2] = 1000000;
+    clock_list[2][ 3] = clock_list[3][ 3] =  900000;
+    clock_list[2][ 4] = clock_list[3][ 4] =  800000;
+    clock_list[2][ 5] = clock_list[3][ 5] =  700000;
+    clock_list[2][ 6] = clock_list[3][ 6] =  600000;
+    clock_list[2][ 7] = clock_list[3][ 7] =  500000;
+    clock_list[2][ 8] = clock_list[3][ 8] =  400000;
+    clock_list[2][ 9] = clock_list[3][ 9] =  300000;
+    clock_list[2][10] = clock_list[3][10] =  200000;
+    clock_list[2][11] = clock_list[3][11] =  100000;
     #else
 	clock_list[0] = &clock_khz;
 	clock_lens[0] = 1;
@@ -162,10 +174,10 @@ state_t mgt_gpu_dummy_freq_limit_get_max(ctx_t *c, ulong *khz)
 {
 	if (khz != NULL) {
         #if FAKE_GPUS
-        khz[0] = clock_list[0][1];
-        khz[1] = clock_list[1][1];
-        khz[2] = clock_list[2][1];
-        khz[3] = clock_list[3][1];
+        khz[0] = clock_list[0][0];
+        khz[1] = clock_list[1][0];
+        khz[2] = clock_list[2][0];
+        khz[3] = clock_list[3][0];
 		#else
         khz[0] = 0;
         #endif
@@ -214,10 +226,8 @@ state_t mgt_gpu_dummy_power_cap_get_current(ctx_t *c, ulong *watts)
 {
 	if (watts != NULL) {
         #if FAKE_GPUS
-        watts[0] = power_list[0];
-        watts[1] = power_list[1];
-        watts[2] = power_list[2];
-        watts[3] = power_list[3];
+        watts[0] = power_list_max[0];
+        watts[1] = power_list_max[1];
 		#else
 		watts[0] = 0;
         #endif
@@ -229,10 +239,10 @@ state_t mgt_gpu_dummy_power_cap_get_default(ctx_t *c, ulong *watts)
 {
 	if (watts != NULL) {
         #if FAKE_GPUS
-        watts[0] = power_list[0];
-        watts[1] = power_list[1];
-        watts[2] = power_list[2];
-        watts[3] = power_list[3];
+        watts[0] = power_list_max[0];
+        watts[1] = power_list_max[1];
+        watts[2] = power_list_max[2];
+        watts[3] = power_list_max[3];
 		#else
 		watts[0] = 0;
         #endif
@@ -244,20 +254,20 @@ state_t mgt_gpu_dummy_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watt
 {
 	if (watts_max != NULL) {
         #if FAKE_GPUS
-        watts_max[0] = power_list[0];
-        watts_max[1] = power_list[1];
-        watts_max[2] = power_list[2];
-        watts_max[3] = power_list[3];
+        watts_max[0] = power_list_max[0];
+        watts_max[1] = power_list_max[1];
+        watts_max[2] = power_list_max[2];
+        watts_max[3] = power_list_max[3];
 		#else
 		watts_max[0] = 0;
         #endif
 	}
 	if (watts_min != NULL) {
         #if FAKE_GPUS
-        watts_min[0] = power_list[0];
-        watts_min[1] = power_list[1];
-        watts_min[2] = power_list[2];
-        watts_min[3] = power_list[3];
+        watts_min[0] = power_list_min[0];
+        watts_min[1] = power_list_min[1];
+        watts_min[2] = power_list_min[2];
+        watts_min[3] = power_list_min[3];
 		#else
 		watts_min[0] = 0;
         #endif

@@ -1,21 +1,16 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 // #define SHOW_DEBUGS 1
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,11 +49,11 @@
 #include <library/policies/common/mpi_stats_support.h>
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
-#include <library/common/library_shared_data.h>
 #include <library/common/global_comm.h>
 #include <library/metrics/metrics.h>
 #include <library/tracer/tracer.h>
 #include <library/tracer/tracer_paraver_comp.h>
+#include <library/loader/module_mpi.h>
 
 #include <report/report.h>
 
@@ -78,7 +73,11 @@
 #define PER_MPI_CALL_STATS 1 // This macro enables the stats computation on each MPI call.
                              // You can disable it for overhead testing.
 
-static timestamp pol_time_init, start_no_mpi;
+#if MPI && PER_MPI_CALL_STATS
+static timestamp pol_time_init;
+#endif
+
+static timestamp start_no_mpi;
 
 static mpi_information_t mpi_stats;
 
@@ -97,7 +96,7 @@ static uint mpi_sampling_enabled = 1;
 
 #else
 static uint dynamic_monitor_state = MPI_SAMPLING_IDLE;
-static uint mpi_sampling_enabled = 0;
+// static uint mpi_sampling_enabled = 0;
 #endif
 static uint monitor_mpi     = 1;
 static uint verb            = 1;
@@ -121,7 +120,9 @@ static uint get_mpi_stats = 0;
 static char mpi_stats_prefix[MAX_PATH_SIZE];
 #endif // MPI_STATS
 
+#if PER_MPI_CALL_STATS && MPI
 static int in_mpi_call;
+#endif
 
 float LB_TH = EAR_LB_TH;
 
@@ -188,7 +189,9 @@ static state_t mpi_stats_evaluate_mean_sd_mag(int nump, double *percs_mpi, doubl
 static state_t mpi_stats_evaluate_median(int nump, double *percs_mpi, double *median);
 
 
+#if MPI_STATS
 static state_t build_mpi_ear_stats_filenames(char *prefix, char *mpi_stats_fn, char *mpi_calls_stats_fn);
+#endif
 
 
 state_t mpi_app_init(polctx_t *c)
@@ -238,14 +241,14 @@ state_t mpi_app_init(polctx_t *c)
         #endif
 
         // TODO: This is redundant since policies call this function only if mpi is enabled
-        if (is_mpi_enabled()) {
+        if (module_mpi_is_enabled()) {
             mpi_stats.rank = sig_shared_region[my_node_id].mpi_info.rank;
         } else {
             mpi_stats.rank = 0;
         }
         #if MPI_SAMPLING
         char * env_mpi_sampling_enabled;
-        if (is_mpi_enabled() && ((env_mpi_sampling_enabled = ear_getenv(FLAG_MPI_SAMPLING_ENABLED)) != NULL)){
+        if (module_mpi_is_enabled() && ((env_mpi_sampling_enabled = ear_getenv(FLAG_MPI_SAMPLING_ENABLED)) != NULL)){
           mpi_sampling_enabled = atoi(env_mpi_sampling_enabled);
         }
         verbose_master(2,"MPI support: MPI sampling set to %s by env var ", (mpi_sampling_enabled?"Enabled":"Disabled"));
@@ -267,163 +270,161 @@ state_t mpi_app_init(polctx_t *c)
 
 state_t mpi_app_end(polctx_t *c)
 {
-    timestamp end;
-    ullong elap;
-    int fd;
+	timestamp end;
 
 #if MPI_OPTIMIZED
-    if (num_mpi_to_optimize) {
+	if (num_mpi_to_optimize) {
 
-      for (uint mo = 0; mo < num_mpi_to_optimize; mo++) {
+		for (uint mo = 0; mo < num_mpi_to_optimize; mo++) {
 
-        verbose(2, "MPI_OPTIMI[%u-%u de %u] call %lu buff %lu dest %lu elap %lu",
-                my_node_id, mo, num_mpi_to_optimize, (ulong) list_mpi_to_optimize[mo].call,
-                (ulong) list_mpi_to_optimize[mo].last_buf, (ulong) list_mpi_to_optimize[mo].last_dest,
-                list_mpi_to_optimize[mo].elap);
-      }
-    }
+			verbose(2, "MPI_OPTIMI[%u-%u de %u] call %lu buff %lu dest %lu elap %lu",
+					my_node_id, mo, num_mpi_to_optimize, (ulong) list_mpi_to_optimize[mo].call,
+					(ulong) list_mpi_to_optimize[mo].last_buf, (ulong) list_mpi_to_optimize[mo].last_dest,
+					list_mpi_to_optimize[mo].elap);
+		}
+	}
 #endif
 
 #if MPI_STATS
-    if (VERB_ON(INFO_LVL + 1)) {
+	if (VERB_ON(INFO_LVL + 1)) {
 
-        for (int i = 0; i < N_CALL_TYPES; i++) {
+		for (int i = 0; i < N_CALL_TYPES; i++) {
 
-            if (mpi_call_count[i]) {
+			if (mpi_call_count[i]) {
 
-                verbose(INFO_LVL + 1, "[%d] CALL %d Time %llu instances %d avg %lf",
-                        my_node_id, i, mpi_call_time[i], mpi_call_count[i],
-                        (double) mpi_call_time[i] / (double) mpi_call_count[i]);
-            }
-        }
-    }
+				verbose(INFO_LVL + 1, "[%d] CALL %d Time %llu instances %d avg %lf",
+						my_node_id, i, mpi_call_time[i], mpi_call_count[i],
+						(double) mpi_call_time[i] / (double) mpi_call_count[i]);
+			}
+		}
+	}
 #endif
 
-    /* Global statistics */
+	/* Global statistics */
 #if MPI_OPTIMIZED
-    timestamp_getprecise(&end);
+	timestamp_getprecise(&end);
 #else
-    timestamp_getfast(&end);
+	timestamp_getfast(&end);
 #endif
 
 #if MPI_SAMPLING
-    if (dynamic_monitor_state == MPI_SAMPLING_IDLE){
-      elap = timestamp_diff(&end, &start_no_mpi, TIME_USECS);
-      mpi_stats.exec_time += elap;
-    }
+	if (dynamic_monitor_state == MPI_SAMPLING_IDLE){
+		ullong elap = timestamp_diff(&end, &start_no_mpi, TIME_USECS);
+		mpi_stats.exec_time += elap;
+	}
 #endif
 
-    if (mpi_stats.total_mpi_calls && mpi_stats.exec_time)
-    {
-        mpi_stats.perc_mpi = (float) mpi_stats.mpi_time / (float) mpi_stats.exec_time;
+	if (mpi_stats.total_mpi_calls && mpi_stats.exec_time)
+	{
+		mpi_stats.perc_mpi = (float) mpi_stats.mpi_time / (float) mpi_stats.exec_time;
 
 #if MPI_STATS
-        if (get_mpi_stats) {
+		if (get_mpi_stats) {
 
-            char mpi_stats_per_call_filename[256];
-            char mpi_stats_filename[256];
+			char mpi_stats_per_call_filename[256];
+			char mpi_stats_filename[256];
 
-            if (state_fail(build_mpi_ear_stats_filenames(mpi_stats_prefix, mpi_stats_filename,
-                           mpi_stats_per_call_filename))) {
-                verbose(MPI_STATS_VERB_LVL, "%sWARNING%s MPI stats files won't be created.", COL_RED, COL_CLR);
-                return EAR_WARNING;
-            }
+			if (state_fail(build_mpi_ear_stats_filenames(mpi_stats_prefix, mpi_stats_filename,
+							mpi_stats_per_call_filename))) {
+				verbose(MPI_STATS_VERB_LVL, "%sWARNING%s MPI stats files won't be created.", COL_RED, COL_CLR);
+				return EAR_WARNING;
+			}
 
-            verbose_master(MPI_STATS_VERB_LVL,"      MPI stats file: %s\nMPI calls stats file: %s",
-                           mpi_stats_filename, mpi_stats_per_call_filename);
+			verbose_master(MPI_STATS_VERB_LVL,"      MPI stats file: %s\nMPI calls stats file: %s",
+					mpi_stats_filename, mpi_stats_per_call_filename);
 
-            // Open mpi_stats_filename to store per process global MPI stats
-            fd = open(mpi_stats_filename, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR);
+			// Open mpi_stats_filename to store per process global MPI stats
+			int fd = open(mpi_stats_filename, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR);
 
-            char mpi_stats_buff[512];
-            char mpi_stats_buff_aux[64];
+			char mpi_stats_buff[512];
+			char mpi_stats_buff_aux[64];
 
-            if (fd < 0) {
-                verbose(MPI_STATS_VERB_LVL, "%sWARNING%s MPI stats file couldn't have opened: %d",
-                        COL_YLW, COL_CLR, errno);
+			if (fd < 0) {
+				verbose(MPI_STATS_VERB_LVL, "%sWARNING%s MPI stats file couldn't have opened: %d",
+						COL_YLW, COL_CLR, errno);
 
-                mpi_info_to_str(&mpi_stats, mpi_stats_buff, sizeof(mpi_stats_buff));
-                verbose(MPI_STATS_VERB_LVL - 1, "MR[%d] %s",
-                        lib_shared_region->master_rank, mpi_stats_buff);
-            } else {
-                // Only the master writes the header
-                if (masters_info.my_master_rank >= 0) {
-                    char mpi_stats_hdr_buff_aux[64];
-                    mpi_info_head_to_str_csv(mpi_stats_hdr_buff_aux, sizeof(mpi_stats_hdr_buff_aux));
-                    snprintf(mpi_stats_buff, sizeof mpi_stats_buff, "mrank;pid;%s\n", mpi_stats_hdr_buff_aux);
-                    write(fd, mpi_stats_buff, strlen(mpi_stats_buff));
-                }
+				mpi_info_to_str(&mpi_stats, mpi_stats_buff, sizeof(mpi_stats_buff));
+				verbose(MPI_STATS_VERB_LVL - 1, "MR[%d] %s",
+						lib_shared_region->master_rank, mpi_stats_buff);
+			} else {
+				// Only the master writes the header
+				if (masters_info.my_master_rank >= 0) {
+					char mpi_stats_hdr_buff_aux[64];
+					mpi_info_head_to_str_csv(mpi_stats_hdr_buff_aux, sizeof(mpi_stats_hdr_buff_aux));
+					snprintf(mpi_stats_buff, sizeof mpi_stats_buff, "mrank;pid;%s\n", mpi_stats_hdr_buff_aux);
+					write(fd, mpi_stats_buff, strlen(mpi_stats_buff));
+				}
 
-                mpi_info_to_str_csv(&mpi_stats, mpi_stats_buff_aux,
-                                    sizeof(mpi_stats_buff_aux));
+				mpi_info_to_str_csv(&mpi_stats, mpi_stats_buff_aux,
+						sizeof(mpi_stats_buff_aux));
 
-                sprintf(mpi_stats_buff, "%d;%d;%s\n", lib_shared_region->master_rank,
-                        sig_shared_region[my_node_id].pid, mpi_stats_buff_aux);
+				sprintf(mpi_stats_buff, "%d;%d;%s\n", lib_shared_region->master_rank,
+						sig_shared_region[my_node_id].pid, mpi_stats_buff_aux);
 
-                write(fd, mpi_stats_buff, strlen(mpi_stats_buff));
-                close(fd);
-            }
+				write(fd, mpi_stats_buff, strlen(mpi_stats_buff));
+				close(fd);
+			}
 
-            // Open mpi_stats_per_call_filename to store per process MPI calls stats
-            fd = open(mpi_stats_per_call_filename, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR);
+			// Open mpi_stats_per_call_filename to store per process MPI calls stats
+			fd = open(mpi_stats_per_call_filename, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR);
 
-            if (fd >= 0) {
-                // Only the master writes the header
-                if (mpi_stats.rank == 0) {
-                    snprintf(mpi_stats_buff, sizeof(mpi_stats_buff),
-                             "Master;Rank;Total MPI calls;MPI_time/Exec_time;Exec_time;Sync_time;"
-                             "Block_time;Collec_time;Total MPI sync calls;Total blocking calls;"
-                             "Total collective calls;Gather;Reduce;All2all;Barrier;Bcast;Send;Comm;Receive;"
-                             "Scan;Scatter;SendRecv;Wait;t_Gather;t_Reduce;t_All2all;t_Barrier;t_Bcast;"
-                             "t_Send;t_Comm;t_Receive;t_Scan;t_Scatter;t_SendRecv;t_Wait\n");
-                    write(fd, mpi_stats_buff, strlen(mpi_stats_buff));
-                }
+			if (fd >= 0) {
+				// Only the master writes the header
+				if (mpi_stats.rank == 0) {
+					snprintf(mpi_stats_buff, sizeof(mpi_stats_buff),
+							"Master;Rank;Total MPI calls;MPI_time/Exec_time;Exec_time;Sync_time;"
+							"Block_time;Collec_time;Total MPI sync calls;Total blocking calls;"
+							"Total collective calls;Gather;Reduce;All2all;Barrier;Bcast;Send;Comm;Receive;"
+							"Scan;Scatter;SendRecv;Wait;t_Gather;t_Reduce;t_All2all;t_Barrier;t_Bcast;"
+							"t_Send;t_Comm;t_Receive;t_Scan;t_Scatter;t_SendRecv;t_Wait\n");
+					write(fd, mpi_stats_buff, strlen(mpi_stats_buff));
+				}
 
-                sprintf(mpi_stats_buff,"%d;%d;%llu;%.4f;%llu;%lu;%lu;%lu;%lu;%lu;%lu;%u;%u;%u;%u;%u;%u;%u;%u;%u;%u;%u;%u;"
-                        "%llu;%llu;%llu;%llu;%llu;%llu;%llu;%llu;%llu;%llu;%llu;%llu\n",
-                        lib_shared_region->master_rank,
-                        mpi_stats.rank,
-                        mpi_stats.total_mpi_calls,
-                        mpi_stats.perc_mpi,
-                        mpi_stats.exec_time,
-                        total_mpi_time_sync,
-                        total_mpi_time_blocking,
-                        total_mpi_time_collectives,
-                        total_synchronizations,
-                        total_blocking_calls,
-                        total_collectives,
-                        mpi_call_count[GATHER],
-                        mpi_call_count[REDUCE],
-                        mpi_call_count[ALL2ALL],
-                        mpi_call_count[BARRIER],
-                        mpi_call_count[BCAST],
-                        mpi_call_count[SEND],
-                        mpi_call_count[COMM],
-                        mpi_call_count[RECEIVE],
-                        mpi_call_count[SCAN],
-                        mpi_call_count[SCATTER],
-                        mpi_call_count[SENDRECV],
-                        mpi_call_count[WAIT],
-                        mpi_call_time[GATHER],
-                        mpi_call_time[REDUCE],
-                        mpi_call_time[ALL2ALL],
-                        mpi_call_time[BARRIER],
-                        mpi_call_time[BCAST],
-                        mpi_call_time[SEND],
-                        mpi_call_time[COMM],
-                        mpi_call_time[RECEIVE],
-                        mpi_call_time[SCAN],
-                        mpi_call_time[SCATTER],
-                        mpi_call_time[SENDRECV],
-                        mpi_call_time[WAIT]
-                        );
-                write(fd, mpi_stats_buff, strlen(mpi_stats_buff));
-            }
-        }
+				sprintf(mpi_stats_buff,"%d;%d;%llu;%.4f;%llu;%lu;%lu;%lu;%lu;%lu;%lu;%u;%u;%u;%u;%u;%u;%u;%u;%u;%u;%u;%u;"
+						"%llu;%llu;%llu;%llu;%llu;%llu;%llu;%llu;%llu;%llu;%llu;%llu\n",
+						lib_shared_region->master_rank,
+						mpi_stats.rank,
+						mpi_stats.total_mpi_calls,
+						mpi_stats.perc_mpi,
+						mpi_stats.exec_time,
+						total_mpi_time_sync,
+						total_mpi_time_blocking,
+						total_mpi_time_collectives,
+						total_synchronizations,
+						total_blocking_calls,
+						total_collectives,
+						mpi_call_count[GATHER],
+						mpi_call_count[REDUCE],
+						mpi_call_count[ALL2ALL],
+						mpi_call_count[BARRIER],
+						mpi_call_count[BCAST],
+						mpi_call_count[SEND],
+						mpi_call_count[COMM],
+						mpi_call_count[RECEIVE],
+						mpi_call_count[SCAN],
+						mpi_call_count[SCATTER],
+						mpi_call_count[SENDRECV],
+						mpi_call_count[WAIT],
+						mpi_call_time[GATHER],
+						mpi_call_time[REDUCE],
+						mpi_call_time[ALL2ALL],
+						mpi_call_time[BARRIER],
+						mpi_call_time[BCAST],
+						mpi_call_time[SEND],
+						mpi_call_time[COMM],
+						mpi_call_time[RECEIVE],
+						mpi_call_time[SCAN],
+						mpi_call_time[SCATTER],
+						mpi_call_time[SENDRECV],
+						mpi_call_time[WAIT]
+							);
+						write(fd, mpi_stats_buff, strlen(mpi_stats_buff));
+			}
+		}
 #endif // MPI_STATS
-    }
+	}
 
-    return EAR_SUCCESS;
+	return EAR_SUCCESS;
 }
 
 
@@ -493,9 +494,9 @@ state_t mpi_call_init(polctx_t *c, mpi_call call_type)
 #if PER_MPI_CALL_STATS && MPI
     
 #if MPI_STATS
-    int collect_stats = (is_mpi_enabled() && (monitor_mpi || get_mpi_stats));
+    int collect_stats = (module_mpi_is_enabled() && (monitor_mpi || get_mpi_stats));
 #else
-    int collect_stats = (is_mpi_enabled() && monitor_mpi);
+    int collect_stats = (module_mpi_is_enabled() && monitor_mpi);
 #endif // MPI_STATS
 
     if (collect_stats)
@@ -563,7 +564,7 @@ state_t mpi_call_end(polctx_t *c, mpi_call call_type)
 {
 #if PER_MPI_CALL_STATS && MPI
     timestamp_t end;
-    if (is_mpi_enabled() && in_mpi_call) {
+    if (module_mpi_is_enabled() && in_mpi_call) {
 
         ullong elap = 0;
 
@@ -678,13 +679,16 @@ state_t mpi_call_end(polctx_t *c, mpi_call call_type)
                     start_no_mpi.tv_sec, start_no_mpi.tv_nsec);
         }
 #endif // SHOW_DEBUGS
-    }
+    } else
+		{
+#if !MPI_OPTIMIZED
+			timestamp_getfast(&end);
+#endif
+		}
 
 #if MPI_OPTIMIZED
     timestamp_getprecise(&start_no_mpi);
 #else
-    // timestamp_getfast(&start_no_mpi);
-    // TODO: end can be uninitialized
     start_no_mpi = end;
 #endif
 
@@ -728,6 +732,9 @@ state_t mpi_call_end(polctx_t *c, mpi_call call_type)
     if (dynamic_monitor_state == MPI_SAMPLING_ENABLED)
     {
       curr_mpis_per_sample++;
+
+			mpis_per_sample = ear_max(mpis_per_sample, 1); // Ensure a value != 0
+
       if (((curr_mpis_per_sample/mpis_per_sample)%10) == 0)
       {
         if (!monitor_mpi) monitor_mpi_calls(ON);
@@ -793,11 +800,11 @@ static state_t mpi_call_read_diff(mpi_information_t *diff, mpi_information_t *la
             i, diff->mpi_time, current.mpi_time, last->mpi_time,
             diff->exec_time, current.exec_time, last->exec_time);
 
-    diff->perc_mpi = (double) diff->mpi_time * 100.0 / (double) diff->exec_time;
+    diff->perc_mpi = ((diff->exec_time > 0) ? (double) diff->mpi_time * 100.0 / (double) diff->exec_time: 0);
 
     // mpi_call_copy(last, &current);
     mpi_call_get_stats(last, &current, -1); // Copy from current to last
-    last->perc_mpi =  (double) last->mpi_time * 100.0 / (double) last->exec_time;
+    last->perc_mpi =  ((last->exec_time > 0) ? (double) last->mpi_time * 100.0 / (double) last->exec_time : 0);
 
     //  Check wether values are correctly bounded
     if (diff->perc_mpi < 0 || diff->perc_mpi > 100 || last->perc_mpi < 0 || last->perc_mpi > 100) {
@@ -843,18 +850,18 @@ state_t mpi_call_types_diff(mpi_calls_types_t * diff, mpi_calls_types_t *current
         mpi_calls_types_t *last)
 {
 
-    diff->mpi_call_cnt         = current->mpi_call_cnt - last->mpi_call_cnt;
-    diff->mpi_time             = current->mpi_time - last->mpi_time;
-    diff->exec_time            = current->exec_time - last->exec_time;
-    diff->mpi_sync_call_cnt    = current->mpi_sync_call_cnt - last->mpi_sync_call_cnt;
-    diff->mpi_collec_call_cnt  = current->mpi_collec_call_cnt - last->mpi_collec_call_cnt;
-    diff->mpi_block_call_cnt   = current->mpi_block_call_cnt - last->mpi_block_call_cnt;
-    diff->mpi_sync_call_time   = current->mpi_sync_call_time - last->mpi_sync_call_time;
-    diff->mpi_collec_call_time = current->mpi_collec_call_time - last->mpi_collec_call_time;
-    diff->mpi_block_call_time  = current->mpi_block_call_time - last->mpi_block_call_time;
-    diff->max_sync_block       = ear_max(current->max_sync_block , last->max_sync_block);
+	diff->mpi_call_cnt         = current->mpi_call_cnt - last->mpi_call_cnt;
+	diff->mpi_time             = current->mpi_time - last->mpi_time;
+	diff->exec_time            = current->exec_time - last->exec_time;
+	diff->mpi_sync_call_cnt    = current->mpi_sync_call_cnt - last->mpi_sync_call_cnt;
+	diff->mpi_collec_call_cnt  = current->mpi_collec_call_cnt - last->mpi_collec_call_cnt;
+	diff->mpi_block_call_cnt   = current->mpi_block_call_cnt - last->mpi_block_call_cnt;
+	diff->mpi_sync_call_time   = current->mpi_sync_call_time - last->mpi_sync_call_time;
+	diff->mpi_collec_call_time = current->mpi_collec_call_time - last->mpi_collec_call_time;
+	diff->mpi_block_call_time  = current->mpi_block_call_time - last->mpi_block_call_time;
+	diff->max_sync_block       = ear_max(current->max_sync_block , last->max_sync_block);
 
-    return EAR_SUCCESS;
+	return EAR_SUCCESS;
 }
 
 
@@ -1055,11 +1062,11 @@ state_t mpi_support_select_critical_path(uint *critical_path, double *percs_mpi,
 
     for (uint i=0; i < num_procs; i++) {
         /*  Decides whether process i is part of the critical path */
-        if (abs(percs_mpi[i] - percs_mpi[*min_mpi]) < (abs(percs_mpi[i] - *median) * critical_path_th)) {
+        if (fabs(percs_mpi[i] - percs_mpi[*min_mpi]) < (fabs(percs_mpi[i] - *median) * critical_path_th)) {
             verbose_master(LB_VERB_LVL, "Process %d selected as part of the critical path", i);
             critical_path[i] = 1;
             total_cp++;
-        } else if (abs(percs_mpi[i] - percs_mpi[*min_mpi]) < abs(percs_mpi[i] - mean)) {
+        } else if (fabs(percs_mpi[i] - percs_mpi[*min_mpi]) < fabs(percs_mpi[i] - mean)) {
             debug("%sWARNING%s Proc %d is closer to the minimum than the mean, but not selected as part of the critical path",
                     COL_RED, COL_CLR, i);
         }
@@ -1266,6 +1273,7 @@ state_t must_be_optimized(mpi_call call_type, p2i buf, p2i dest, ulong *elapsed)
 #endif
 
 
+#if MPI_STATS
 static state_t build_mpi_ear_stats_filenames(char *prefix, char *mpi_stats_fn, char *mpi_calls_stats_fn)
 {
     if (sprintf(mpi_stats_fn, "%s.ear_mpi_stats.", prefix) < 0) {
@@ -1292,6 +1300,7 @@ static state_t build_mpi_ear_stats_filenames(char *prefix, char *mpi_stats_fn, c
 
     return EAR_SUCCESS;
 }
+#endif
 
 /* These functions are used to control peaks of power */
 #define DEF_MAX_TOTAL_POWER       500
@@ -1317,16 +1326,18 @@ void configure_processes_tobe_restored()
   /* This is a simple test where half of the processes will be reduced */
   uint tobe_opt = 0;
 
-
   verbose(2, "EAR-PP[%d] num nodes %d max_app_power %.2lf, delta_node %.2lf delta_job %.2lf ", ear_my_rank, ear_mpi_opt_num_nodes, max_app_power, delta_node, delta_job);
 
   /* If the application is big OR delta is big enough we apply peak power control */
-  if ((delta_node > MAX_POWER_PER_UNIT) || (delta_job > MAX_TOTAL_POWER)){
+  if ((delta_node > MAX_POWER_PER_UNIT) || (delta_job > MAX_TOTAL_POWER))
+	{
     /* If we exceed the limit per node we must be optimized */
-    if (delta_node > MAX_POWER_PER_UNIT){ 
+    if (delta_node > MAX_POWER_PER_UNIT)
+		{ 
       verbose(2, "EAR-PP[%d] node exceeds the limit %.2lf node %.2lf", ear_my_rank, MAX_POWER_PER_UNIT, delta_node);
       tobe_opt = 1;
-    }else{
+    } else
+		{
       /* We exceeed the total limit */
 
       double delta_per_node = delta_job / ear_mpi_opt_num_nodes;
@@ -1428,67 +1439,61 @@ uint process_get_curr_mpi_pstate()
 /*
 * PEAK POWER CONTROL
 */
-#if !SINGLE_CONNECTION && MPI_OPTIMIZED
+#if MPI_OPTIMIZED
+
 static uint in_barrier = 0;
+
 state_t peak_power_mpi_opt_init_optimize(polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id)
 {
 
-        mpi_call nbcall_type = (mpi_call) remove_blocking(call_type);
+	mpi_call nbcall_type = (mpi_call) remove_blocking(call_type);
 
-        /* Specific optimization for barriers */
-        if (is_barrier(nbcall_type)){
-          in_barrier = 1;
+	/* Specific optimization for barriers */
+	if (is_barrier(nbcall_type))
+	{
+		in_barrier = 1;
 
-#if SINGLE_CONNECTION
-          if ((MASTER_ID >= 0) && traces_are_on()) {
-#else
-          if (traces_are_on()) {
-#endif // SINGLE_CONNECTION
-            traces_generic_event(ear_my_rank, my_node_id , TRA_BARRIER, 1);
-          }
+		if (traces_are_on())
+		{
+			traces_generic_event(ear_my_rank, my_node_id , TRA_BARRIER, 1);
+		}
 
+		/* Each process is configured independently */
+		if (state_ok(ear_trylock(&ear_mpi_opt_lock)))
+		{
+			configure_processes_tobe_restored();
 
-          /* Each process is configured independently */
-          if (state_ok(ear_trylock(&ear_mpi_opt_lock))){
+			/* This function returns true when the CPU freq must be modified */
+			if (process_must_be_restored())
+			{
+				pstate_t *sel_pstate, *pstate_list;
+				uint currindex;
+				pstate_list = metrics_get(MGT_CPUFREQ)->avail_list;
+				verbose(2,"EAR-PP[%d]: MPI freq is %lu", ear_my_rank, sig_shared_region[my_node_id].mpi_freq);
+				mgt_cpufreq_get_index(no_ctx,sig_shared_region[my_node_id].mpi_freq, &currindex , 1);
+				if ((currindex + process_get_num_pstates()) > (metrics_get(MGT_CPUFREQ)->avail_count -1)){
+					num_pstates = (metrics_get(MGT_CPUFREQ)->avail_count -1) - currindex;          
+				}
+				sel_pstate = &pstate_list[currindex + process_get_num_pstates()];
 
-              configure_processes_tobe_restored();
-                
-#if MPI_OPTIMIZED
-              /* This function returns true when the CPU freq must be modified */
-              if (process_must_be_restored()){
-                  pstate_t *sel_pstate, *pstate_list;
-                  uint currindex;
-                  pstate_list = metrics_get(MGT_CPUFREQ)->avail_list;
-                  verbose(2,"EAR-PP[%d]: MPI freq is %lu", ear_my_rank, sig_shared_region[my_node_id].mpi_freq);
-                  mgt_cpufreq_get_index(no_ctx,sig_shared_region[my_node_id].mpi_freq, &currindex , 1);
-                  if ((currindex + process_get_num_pstates()) > (metrics_get(MGT_CPUFREQ)->avail_count -1)){
-                                  num_pstates = (metrics_get(MGT_CPUFREQ)->avail_count -1) - currindex;          
-                  }
-                  sel_pstate = &pstate_list[currindex + process_get_num_pstates()];
+				process_set_target_pstate(currindex);
+				process_set_curr_mpi_pstate(currindex + process_get_num_pstates());
+				/* Increments in num_pstates pstates */
+				freqs->cpu_freq[my_node_id] = sel_pstate->khz;
+				*process_id = my_node_id;
+				verbose(2,"EAR-PP[%d]:Reduce CPU freq in barrier for process %d to CPu freq %lu",ear_my_rank,
+						my_node_id, (ulong)sel_pstate->khz);
+				if (traces_are_on()) {
+					traces_generic_event(ear_my_rank, my_node_id , TRA_CPUF_RAMP_UP, sel_pstate->khz);
+				}
 
-                  process_set_target_pstate(currindex);
-                  process_set_curr_mpi_pstate(currindex + process_get_num_pstates());
-                  /* Increments in num_pstates pstates */
-                  freqs->cpu_freq[my_node_id] = sel_pstate->khz;
-                  *process_id = my_node_id;
-                  verbose(2,"EAR-PP[%d]:Reduce CPU freq in barrier for process %d to CPu freq %lu",ear_my_rank,
-                                                my_node_id, (ulong)sel_pstate->khz);
-#if SINGLE_CONNECTION
-                  if ((MASTER_ID >= 0) && traces_are_on()) {
-#else
-                  if (traces_are_on()) {
-#endif // SINGLE_CONNECTION
-                      traces_generic_event(ear_my_rank, my_node_id , TRA_CPUF_RAMP_UP, sel_pstate->khz);
-                  }
-
-              }
-#endif // MPI_OPTIMIZED
-
-              ear_unlock(&ear_mpi_opt_lock);
-          }
-        }else in_barrier = 0;
-        return EAR_SUCCESS;
+			}
+			ear_unlock(&ear_mpi_opt_lock);
+		}
+	} else in_barrier = 0;
+	return EAR_SUCCESS;
 }
+
 
 state_t peak_power_mpi_opt_end_optimize(node_freqs_t *freqs, int *process_id)
 {
@@ -1522,98 +1527,106 @@ state_t peak_power_mpi_opt_end_optimize(node_freqs_t *freqs, int *process_id)
 
 state_t peak_power_mpi_opt_periodic_action(uint *to_be_changed_pstate)
 {
-        uint new_pstate = 0;
+	uint new_pstate = 0;
 #if MPI_OPTIMIZED
-        /* Double validation to avoid getting the lock if not needed */
-        if (process_must_be_restored()){
-        if (state_ok(ear_trylock(&ear_mpi_opt_lock))){
+	/* Double validation to avoid getting the lock if not needed */
+	if (process_must_be_restored())
+	{
+		if (state_ok(ear_trylock(&ear_mpi_opt_lock)))
+		{
+			if (process_must_be_restored() && process_block_is_ready())
+			{
+				verbose(2,"EAR-PP: Process %d must be restored", my_node_id);
+				process_new_step();
 
-                if (process_must_be_restored() && process_block_is_ready()){
-                        verbose(2,"EAR-PP: Process %d must be restored", my_node_id);
-                        process_new_step();
-                        /* We must increment 1 pstate */
-                        if (process_last_step()){
-                                /* Reset number of steps per pstate */
-                                process_reset_steps();
-                                /* If we are below the target */
-                                if (process_get_target_pstate() < process_get_curr_mpi_pstate()){
-                                        new_pstate = process_get_curr_mpi_pstate() - 1;
-                                        verbose(2,"EAR-PP[%d] incrementing 1 pstate (%d)", ear_my_rank, new_pstate);
-                                        // policy_restore_to_mpi_pstate(new_pstate);
-                                        process_set_curr_mpi_pstate(new_pstate);
-                                        /* We have restored the target */
-                                        if (new_pstate == process_get_target_pstate()){
-                                                process_already_restored();
-                                                monitor_relax(earl_mpi_opt);
-                                        }
-                                }
-                        }
-                }
+				/* We must increment 1 pstate */
+				if (process_last_step())
+				{
+					/* Reset number of steps per pstate */
+					process_reset_steps();
 
-                ear_unlock(&ear_mpi_opt_lock);
-        }
-        }
+					/* If we are below the target */
+					if (process_get_target_pstate() < process_get_curr_mpi_pstate())
+					{
+						new_pstate = process_get_curr_mpi_pstate() - 1;
+
+						verbose(2,"EAR-PP[%d] incrementing 1 pstate (%d)", ear_my_rank, new_pstate);
+
+						process_set_curr_mpi_pstate(new_pstate);
+
+						/* We have restored the target */
+						if (new_pstate == process_get_target_pstate())
+						{
+							process_already_restored();
+							monitor_relax(earl_mpi_opt);
+						}
+					}
+				}
+			}
+			ear_unlock(&ear_mpi_opt_lock);
+		}
+	}
 #endif
-        *to_be_changed_pstate = new_pstate;
-        return EAR_SUCCESS;
+	*to_be_changed_pstate = new_pstate;
+	return EAR_SUCCESS;
 }
-#endif // !SINGLE_CONNECTION && MPI_OPTIMIZED
+#endif // MPI_OPTIMIZED
+
 
 void peak_power_mpi_opt_end_summary(int verb_lvl)
 {
 }
 
 
-
 state_t mpi_opt_load(mpi_opt_policy_t * mpi_opt_func)
 {
-        memset(mpi_opt_func, 0, sizeof(mpi_opt_policy_t));
-#if !SINGLE_CONNECTION && MPI_OPTIMIZED
-        if (ear_mpi_opt && (lib_shared_region->num_processes > 1)){
-                char *cmax_tota_power, *cmax_power_per_unit , *cpower_per_pstate, *cidle_power;
+	memset(mpi_opt_func, 0, sizeof(mpi_opt_policy_t));
 #if MPI_OPTIMIZED
-                MAX_TOTAL_POWER    = ((cmax_tota_power     = ear_getenv("MAX_TOTAL_POWER"))    != NULL ? atof(cmax_tota_power): DEF_MAX_TOTAL_POWER);
-                MAX_POWER_PER_UNIT = ((cmax_power_per_unit = ear_getenv("MAX_POWER_PER_UNIT")) != NULL ? atof(cmax_power_per_unit) : DEF_MAX_POWER_PER_UNIT);
-                POWER_PER_PSTATE   = ((cpower_per_pstate = ear_getenv("POWER_PER_PSTATE")) != NULL ? atof(cpower_per_pstate) : DEF_POWER_PER_PSTATE);
-                IDLE_POWER         = ((cidle_power       = ear_getenv("IDLE_POWER"))       != NULL ? atof(cidle_power)       : DEF_IDLE_POWER);
+	if (ear_mpi_opt && lib_shared_region->num_processes > 1)
+	{
+		char *cmax_tota_power, *cmax_power_per_unit , *cpower_per_pstate, *cidle_power;
+		MAX_TOTAL_POWER    = ((cmax_tota_power     = ear_getenv("MAX_TOTAL_POWER"))    != NULL ? atof(cmax_tota_power): DEF_MAX_TOTAL_POWER);
+		MAX_POWER_PER_UNIT = ((cmax_power_per_unit = ear_getenv("MAX_POWER_PER_UNIT")) != NULL ? atof(cmax_power_per_unit) : DEF_MAX_POWER_PER_UNIT);
+		POWER_PER_PSTATE   = ((cpower_per_pstate = ear_getenv("POWER_PER_PSTATE")) != NULL ? atof(cpower_per_pstate) : DEF_POWER_PER_PSTATE);
+		IDLE_POWER         = ((cidle_power       = ear_getenv("IDLE_POWER"))       != NULL ? atof(cidle_power)       : DEF_IDLE_POWER);
 
-                if (MAX_TOTAL_POWER == 0)     MAX_TOTAL_POWER    = DEF_MAX_TOTAL_POWER;
-                if (MAX_POWER_PER_UNIT == 0)  MAX_POWER_PER_UNIT = DEF_MAX_POWER_PER_UNIT;
-                if (POWER_PER_PSTATE == 0)    POWER_PER_PSTATE   = DEF_POWER_PER_PSTATE;
-                if (IDLE_POWER  == 0)         IDLE_POWER         = DEF_IDLE_POWER;
+		if (MAX_TOTAL_POWER == 0)     MAX_TOTAL_POWER    = DEF_MAX_TOTAL_POWER;
+		if (MAX_POWER_PER_UNIT == 0)  MAX_POWER_PER_UNIT = DEF_MAX_POWER_PER_UNIT;
+		if (POWER_PER_PSTATE == 0)    POWER_PER_PSTATE   = DEF_POWER_PER_PSTATE;
+		if (IDLE_POWER  == 0)         IDLE_POWER         = DEF_IDLE_POWER;
 
+		verbose_master(2, "EAR-PP MAX_TOTAL_POWER %.2lf MAX_POWER_PER_UNIT %.2lf POWER_PER_PSTATE %.2lf IDLE_POWER %.2lf",
+									 MAX_TOTAL_POWER, MAX_POWER_PER_UNIT, POWER_PER_PSTATE, IDLE_POWER);
 
-                verbose_master(2, "EAR-PP MAX_TOTAL_POWER %.2lf MAX_POWER_PER_UNIT %.2lf POWER_PER_PSTATE %.2lf IDLE_POWER %.2lf",
-                               MAX_TOTAL_POWER, MAX_POWER_PER_UNIT, POWER_PER_PSTATE, IDLE_POWER);
+		barrier_optimize = 1;
+
+		char *ramp_strategy = ear_getenv("RAMP_UP_STRATEGY");
+		if ((ramp_strategy == NULL) || ((ramp_strategy != NULL) && (strcmp(ramp_strategy,"default") == 0)))
+		{
+			mpi_opt_func->init_mpi = peak_power_mpi_opt_init_optimize;
+			mpi_opt_func->end_mpi  = peak_power_mpi_opt_end_optimize;
+			mpi_opt_func->summary  = peak_power_mpi_opt_end_summary;
+			mpi_opt_func->periodic = peak_power_mpi_opt_periodic_action;
+		} else if ((ramp_strategy != NULL) && (strcmp(ramp_strategy,"monitoring") == 0))
+		{
+			/* Same code, for now, but no optimization will be performed */
+			barrier_optimize = 0;
+			mpi_opt_func->init_mpi = peak_power_mpi_opt_init_optimize;
+			mpi_opt_func->end_mpi  = peak_power_mpi_opt_end_optimize;
+			mpi_opt_func->summary  = peak_power_mpi_opt_end_summary;
+			mpi_opt_func->periodic = peak_power_mpi_opt_periodic_action;
+		}
+	} else barrier_optimize = 0;
 #endif // MPI_OPTIMIZED
-                barrier_optimize = 1;
-
-                char *ramp_strategy = ear_getenv("RAMP_UP_STRATEGY");
-                if ((ramp_strategy == NULL) || ((ramp_strategy != NULL) && (strcmp(ramp_strategy,"default") == 0))){
-
-                  mpi_opt_func->init_mpi = peak_power_mpi_opt_init_optimize;
-                  mpi_opt_func->end_mpi  = peak_power_mpi_opt_end_optimize;
-                  mpi_opt_func->summary  = peak_power_mpi_opt_end_summary;
-                  mpi_opt_func->periodic = peak_power_mpi_opt_periodic_action;
-                }else if ((ramp_strategy != NULL) && (strcmp(ramp_strategy,"monitoring") == 0)){
-                  /* Same code, for now, but no optimization will be performed */
-                  barrier_optimize = 0;
-                  mpi_opt_func->init_mpi = peak_power_mpi_opt_init_optimize;
-                  mpi_opt_func->end_mpi  = peak_power_mpi_opt_end_optimize;
-                  mpi_opt_func->summary  = peak_power_mpi_opt_end_summary;
-                  mpi_opt_func->periodic = peak_power_mpi_opt_periodic_action;
-                }
-        } else barrier_optimize = 0;
-#endif // !SINGLE_CONNECTION && MPI_OPTIMIZED
-        return EAR_SUCCESS;
+	return EAR_SUCCESS;
 }
+
 
 uint is_mpi_intensive()
 {
 #if MPI_SAMPLING
-  if (mpi_sampling_enabled && (dynamic_monitor_state == MPI_SAMPLING_IDLE)) return 0;
+	if (mpi_sampling_enabled && (dynamic_monitor_state == MPI_SAMPLING_IDLE)) return 0;
 #endif
-  if (avg_mpi_calls_per_second() > (MAX_MPI_CALLS_SECOND * 2)) return 1;
-  return 0;
+	if (avg_mpi_calls_per_second() > (MAX_MPI_CALLS_SECOND * 2)) return 1;
+	return 0;
 }
-

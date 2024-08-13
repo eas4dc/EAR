@@ -1,19 +1,13 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * EAR is an open source software, and it is licensed under both the BSD-3 license
- * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
- * and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 
 //#define SHOW_DEBUGS 1
 
@@ -37,6 +31,7 @@
 #include <daemon/shared_configuration.h>
 
 extern uint node_mgr_index;
+extern uint node_mgr_earl_index;
 
 typedef struct cpu_power_model_symbols {
     state_t (*init)       (settings_conf_t *libconf, conf_install_t *conf,
@@ -97,21 +92,24 @@ state_t cpu_power_model_load(settings_conf_t *libconf, architecture_t *arch_desc
             obj_path = basic_path;
         }
     }
-    verbose_master(2, "CPU power model path: %s", obj_path);
+    verbose_master(2, "EAR[%d]CPU power model path: %s", getpid(), obj_path);
 
     state_t st = symplug_open(obj_path, (void **) &cpu_power_models_syms_fun,
                               cpu_power_models_syms_nam, cpu_power_models_funcs_n);
     if (st == EAR_SUCCESS) {
         cpu_power_model_loaded = 1;
-    }
+    }else{
+			verbose_master(2, "EAR[%d] CPU power model not loaded", getpid());
+		}
 
     if (!already_loaded) {
 
         // memcpy(&copy_conf, &libconf->installation, sizeof(conf_install_t));
         memcpy(&copy_arch, arch_desc, sizeof(architecture_t));
 
-        copy_settings = libconf;
     }
+    copy_settings = libconf;
+		verbose_master(2, "EAR[%d] CPU power model loaded ", getpid());
 
     return st;
 }
@@ -151,8 +149,13 @@ state_t cpu_power_model_status()
 
 state_t cpu_power_model_project(lib_shared_data_t *data, shsignature_t *sig, node_mgr_sh_data_t *nmgr)
 {
+		verbose_master(2, "EARL[%d] cpu_power_model_project symbol %s", getpid(), ((cpu_power_models_syms_fun.project != NULL)?"defined":"not defined"));
     if (cpu_power_models_syms_fun.project != NULL) {
+#if WF_SUPPORT
+        cpu_power_models_syms_fun.project(data, sig, nmgr, node_mgr_earl_index);
+#else
         cpu_power_models_syms_fun.project(data, sig, nmgr, node_mgr_index);
+#endif
     }
     return EAR_SUCCESS;
 }

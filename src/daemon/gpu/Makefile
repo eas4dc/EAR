@@ -7,7 +7,7 @@ gpu_mgt_OBJS = \
 
 ######## RULES
 
-all:$(gpu_mgt_OBJS)  
+all: $(gpu_mgt_OBJS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<
@@ -15,6 +15,7 @@ all:$(gpu_mgt_OBJS)
 ######## OPTIONS
 
 install: ;
+
 %.install: ;
 
 clean: rclean;

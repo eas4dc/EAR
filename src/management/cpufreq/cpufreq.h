@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hcpufreq_linpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef MANAGEMENT_CPUFREQ_H
 #define MANAGEMENT_CPUFREQ_H
@@ -33,41 +26,20 @@
 // This API is designed to set the governor and frequency in the node. The 
 // procedure is the usual: load, init, get/set and dispose. To check
 // architecture limitations read the headers in archs folder.
-//
-// Props:
-// 	- Thread safe: yes.
-//	- Daemon bypass: yes.
-//  - Dummy API: yes.
-//
-// Compatibility:
-//  -------------------------------------------------------------------------------
-//  | Architecture    | F/M | Comp. | Granularity | Effective granularity         |
-//  -------------------------------------------------------------------------------
-//  | Intel HASWELL   | 63  | v     | Thread      | Core                          |
-//  | Intel BROADWELL | 79  | v     | Thread      | Core                          |
-//  | Intel SKYLAKE   | 85  | v     | Thread      | Core                          |
-//  | Intel ICELAKE   | 106 | v     | Thread      | Core                          |
-//  | AMD ZEN+/2      | 17h | v     | Thread      | Core (socket in virtual mode) |
-//  | AMD ZEN3        | 19h | x     | Thread      | Core (socket in virtual mode) |
-//  -------------------------------------------------------------------------------
-//
-// Folders:
-//	- archs: different node architectures, such as AMD and Intel.
-//	- drivers: API contacting to different system drivers, such as acpi_cpufreq.
-//	- tests: examples.
-//
-// Options:
-//  - You can set the environment variable HACK_AMD_ZEN_VIRTUAL to 1 to enable
-//    the virtual P_STATEs system instead the current HSMP procedure.
-//
-// Use example:
-//	- You can find an example in cpufreq/tests folder.
+
+typedef struct freq_details_s {
+    ullong freq_max; // Boost included
+    ullong freq_min;
+    ullong freq_base;
+    ullong freq_nominal; // Normally the same than freq_base
+} freq_details_t;
 
 typedef struct mgt_ps_driver_ops_s
 {
 	state_t (*init)                  ();
     state_t (*dispose)               ();
     state_t (*reset)                 ();
+    void    (*get_freq_details)      (freq_details_t *details);
 	state_t (*get_available_list)    (const ullong **freq_list, uint *freq_count);
 	state_t (*get_current_list)      (const ullong **freq_list);
 	state_t (*get_boost)             (uint *boost_enabled);
@@ -83,10 +55,12 @@ typedef struct mgt_ps_driver_ops_s
 
 typedef struct mgt_ps_ops_s
 {
+    void    (*get_info)             (apinfo_t *info);
 	state_t (*init)                 (ctx_t *c);
 	state_t (*dispose)              (ctx_t *c);
-	state_t (*count_available)      (ctx_t *c, uint *pstate_count);
-	state_t (*get_available_list)   (ctx_t *c, pstate_t *pstate_list);
+    void    (*get_freq_details)     (freq_details_t *details);
+    state_t (*count_available)      (ctx_t *c, uint *pstate_count);
+    state_t (*get_available_list)   (ctx_t *c, pstate_t *pstate_list);
 	state_t (*get_current_list)     (ctx_t *c, pstate_t *pstate_list);
 	state_t (*get_nominal)          (ctx_t *c, uint *pstate_index);
 	state_t (*get_index)            (ctx_t *c, ullong freq_khz, uint *pstate_index, uint closest);
@@ -103,8 +77,13 @@ typedef struct mgt_ps_ops_s
 /** The first function to call, because discovers the system and sets the internal API. */
 state_t mgt_cpufreq_load(topology_t *tp, int eard);
 
-/** Returns the loaded API. */
-state_t mgt_cpufreq_get_api(uint *api);
+/** Deprecated. Returns the loaded API. */
+void mgt_cpufreq_get_api(uint *api);
+
+void mgt_cpufreq_get_info(apinfo_t *info);
+
+/** Deprecated. Returns the number of CPUs. */
+void mgt_cpufreq_count_devices(ctx_t *c, uint *dev_count);
 
 /** The second function to call, initializes all the data. */
 state_t mgt_cpufreq_init(ctx_t *c);
@@ -112,7 +91,7 @@ state_t mgt_cpufreq_init(ctx_t *c);
 /** Frees its allocated memory. */
 state_t mgt_cpufreq_dispose(ctx_t *c);
 
-state_t mgt_cpufreq_count_devices(ctx_t *c, uint *dev_count);
+void mgt_cpufreq_get_freq_details(freq_details_t *details);
 
 /** Returns the available P_STATE (struct) list. The allocated list depends on the user. */
 state_t mgt_cpufreq_get_available_list(ctx_t *c, const pstate_t **pstate_list, uint *pstate_count);
@@ -135,6 +114,13 @@ state_t mgt_cpufreq_set_current(ctx_t *c, uint pstate_index, int cpu);
 /** Resets to the default configuration. */
 state_t mgt_cpufreq_reset(ctx_t *c);
 
+/** Allocates a list of current P_STATE per CPU (devices). */
+void mgt_cpufreq_data_alloc(pstate_t **pstate_list, uint **index_list);
+
+void mgt_cpufreq_data_print(pstate_t *ps_list, uint ps_count, int fd);
+
+char *mgt_cpufreq_data_tostr(pstate_t *ps_list, uint ps_count, char *buffer, int length);
+
 // Governor subsystem
 #define mgt_cpufreq_get_governor(c, g) mgt_cpufreq_governor_get(c, g)
 #define mgt_cpufreq_set_governor(c, g) mgt_cpufreq_governor_set(c, g)
@@ -156,12 +142,5 @@ state_t mgt_cpufreq_governor_set_list(ctx_t *c, uint *governor);
 
 /** Gets if governor is available to set. */
 int mgt_cpufreq_governor_is_available(ctx_t *c, uint governor);
-
-/** Allocates a list of current P_STATE per CPU (devices). */
-state_t mgt_cpufreq_data_alloc(pstate_t **pstate_list, uint **index_list);
-
-void mgt_cpufreq_data_print(pstate_t *ps_list, uint ps_count, int fd);
-
-char *mgt_cpufreq_data_tostr(pstate_t *ps_list, uint ps_count, char *buffer, int length);
 
 #endif //MANAGEMENT_CPUFREQ_H

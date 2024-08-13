@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <fcntl.h>
 #include <errno.h>
@@ -26,7 +19,7 @@
 #include <daemon/eard_checkpoint.h>
 
 extern char nodename[MAX_PATH_SIZE];
-extern ulong eard_max_pstate;
+extern ulong eard_min_pstate;
 
 void save_eard_conf(eard_dyn_conf_t *eard_dyn_conf)
 {
@@ -69,7 +62,7 @@ void restore_eard_conf(eard_dyn_conf_t *eard_dyn_conf)
 	read_my_node_conf_fd_binary(fd,eard_dyn_conf->nconf);	
 	read_powermon_app_fd_binary(fd,eard_dyn_conf->pm_app);
 	verbose(VCHCK,"restoring node conf");
-	eard_max_pstate=eard_dyn_conf->nconf->max_pstate;
+	eard_min_pstate=eard_dyn_conf->nconf->max_pstate;
 	verbose(VCHCK,"Node information recovered");
 	print_my_node_conf(eard_dyn_conf->nconf);
 	verbose(VCHCK,"Job recovered");

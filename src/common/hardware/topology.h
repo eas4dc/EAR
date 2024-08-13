@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef COMMON_HARDWARE_TOPOLOGY_H_
 #define COMMON_HARDWARE_TOPOLOGY_H_
@@ -26,7 +19,7 @@
 #define TOPO_UNDEFINED        -1
 #define TOPO_CL_COUNT         (4+1) // Cache levels count, L0 to L4, but 0 doesn't exists
 // Supported vendors
-#define VENDOR_UNKNOWN         TOPO_UNDEFINED
+#define VENDOR_UNKNOWN          TOPO_UNDEFINED
 #define VENDOR_INTEL            0
 #define VENDOR_AMD              1
 #define VENDOR_ARM              2
@@ -117,8 +110,6 @@ typedef struct topology_s {
     int   nmi_watchdog;	  // NMI watdog enabled.
     int   apicids_found;  // List of CPUs ApicId's found.
     int   initialized;    // 1 if the topology is initialized
-    ulong base_freq;      // Nominal CPU clock, in KHz
-    int   boost_enabled;
     int   avx512;         // 1 if AVX-512 is enabled
     int   sve;            // 1 if ARM-SVE is enabled
     int   sve_bits;       // Counts the ARM-SVE vector bits
@@ -133,10 +124,8 @@ state_t topology_init(topology_t *topo);
 
 state_t topology_close(topology_t *topo);
 
-state_t topology_print(topology_t *topo, int fd);
+void topology_print(topology_t *topo, int fd);
 
-state_t topology_tostr(topology_t *topo, char *buffer, size_t n);
-// This function won't be public, use topo.base_freq value instead.
-state_t topology_freq_getbase(uint cpu, ulong *freq_base);
+char *topology_tostr(topology_t *topo, char *buffer, size_t n);
 
 #endif

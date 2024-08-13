@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -21,23 +14,23 @@
 #include <common/output/debug.h>
 #include <metrics/cpufreq/cpufreq_base.h>
 #include <management/cpufreq/archs/dummy.h>
+#include <management/cpufreq/cpufreq_base.h>
 
-static ullong base_freq;
 static uint cpu_count;
+static cfb_t bf;
 
 state_t mgt_cpufreq_dummy_load(topology_t *tp_in, mgt_ps_ops_t *ops)
 {
 	cpu_count = tp_in->cpu_count;
-	// Base freq
-	topology_freq_getbase(0, (ulong *) &base_freq);
-	if (base_freq == 0LLU) {
-		base_freq = tp_in->base_freq;
-	}
+    // Getting base frequency and boost
+    cpufreq_base_init(tp_in, &bf);
 	//
 	apis_put(ops->init,               mgt_cpufreq_dummy_init);
 	apis_put(ops->dispose,            mgt_cpufreq_dummy_dispose);
-	apis_put(ops->count_available,    mgt_cpufreq_dummy_count_available);
-	apis_put(ops->get_available_list, mgt_cpufreq_dummy_get_available_list);
+    apis_put(ops->get_info,           mgt_cpufreq_dummy_get_info);
+    apis_put(ops->get_freq_details,   mgt_cpufreq_dummy_get_freq_details);
+    apis_put(ops->count_available,    mgt_cpufreq_dummy_count_available);
+    apis_put(ops->get_available_list, mgt_cpufreq_dummy_get_available_list);
 	apis_put(ops->get_current_list,   mgt_cpufreq_dummy_get_current_list);
 	apis_put(ops->get_nominal,        mgt_cpufreq_dummy_get_nominal);
 	apis_put(ops->get_index,          mgt_cpufreq_dummy_get_index);
@@ -49,7 +42,6 @@ state_t mgt_cpufreq_dummy_load(topology_t *tp_in, mgt_ps_ops_t *ops)
 	apis_put(ops->set_governor,       mgt_cpufreq_dummy_governor_set);
 	apis_put(ops->set_governor_mask,  mgt_cpufreq_dummy_governor_set_mask);
 	apis_put(ops->set_governor_list,  mgt_cpufreq_dummy_governor_set_list);
-
 	return EAR_SUCCESS;
 }
 
@@ -63,16 +55,29 @@ state_t mgt_cpufreq_dummy_dispose(ctx_t *c)
 	return EAR_SUCCESS;
 }
 
+void mgt_cpufreq_dummy_get_info(apinfo_t *info)
+{
+    info->api = API_DUMMY;
+    info->devs_count = 1;
+}
+
+void mgt_cpufreq_dummy_get_freq_details(freq_details_t *details)
+{
+    details->freq_base = bf.frequency;
+    details->freq_max  = bf.frequency;
+    details->freq_min  = bf.frequency;
+}
+
 state_t mgt_cpufreq_dummy_count_available(ctx_t *c, uint *pstate_count)
 {
-	*pstate_count = 1;
-	return EAR_SUCCESS;
+    *pstate_count = 1;
+    return EAR_SUCCESS;
 }
 
 state_t mgt_cpufreq_dummy_get_available_list(ctx_t *c, pstate_t *pstate_list)
 {
 	pstate_list[0].idx = 0;
-	pstate_list[0].khz = base_freq;
+	pstate_list[0].khz = bf.frequency;
 	return EAR_SUCCESS;
 }
 
@@ -81,8 +86,8 @@ state_t mgt_cpufreq_dummy_get_current_list(ctx_t *c, pstate_t *pstate_list)
 	debug("mgt_cpufreq_dummy_get_current_list");
 	int i;
 	for (i = 0; i < cpu_count; ++i) {
-		pstate_list[i].idx = i;
-		pstate_list[i].idx = base_freq;
+		pstate_list[i].idx = 0;
+		pstate_list[i].khz = bf.frequency;
 	}
 	return EAR_SUCCESS;
 }

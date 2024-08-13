@@ -1,19 +1,14 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
+// #define SHOW_DEBUGS 1
 
 #include <stdlib.h>
 #include <string.h>
@@ -27,8 +22,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
-// #define SHOW_DEBUGS 1
 
 #include <common/config.h>
 #include <common/system/time.h>
@@ -70,7 +63,7 @@ int create_loop(loop_t *l)
     }
 }
 
-int loop_init(loop_t *loop, ulong job_id, ulong step_id, const char *node_id, ulong event, ulong size, ulong level)
+int loop_init(loop_t *loop, ulong job_id, ulong step_id, ulong local_id, const char *node_id, ulong event, ulong size, ulong level)
 {
     int ret;
 
@@ -78,8 +71,11 @@ int loop_init(loop_t *loop, ulong job_id, ulong step_id, const char *node_id, ul
 
     if ((ret=create_loop_id(&loop->id, event, size, level)) != EAR_SUCCESS) return ret;
 
-    loop->jid     = job_id;
-    loop->step_id = step_id;
+    loop->jid      = job_id;
+    loop->step_id  = step_id;
+#if WF_SUPPORT
+    loop->local_id = local_id;
+#endif
 
     memcpy(loop->node_id, node_id, sizeof loop->node_id);
 
@@ -174,51 +170,89 @@ int append_loop_text_file(char *path, loop_t *loop,job_t *job, int add_header, i
 
 int create_loop_header(char * header, char *path, int ts, uint num_gpus, int single_column)
 {
-    char *HEADER_NOTS = "JOBID;STEPID;NODENAME;AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;" \
-                         "ITER_TIME_SEC;CPI;TPI;MEM_GBS;IO_MBS;PERC_MPI;DC_NODE_POWER_W;DRAM_POWER_W;PCK_POWER_W;CYCLES;INSTRUCTIONS;GFLOPS;L1_MISSES;" \
-                         "L2_MISSES;L3_MISSES;SPOPS_SINGLE;SPOPS_128;SPOPS_256;SPOPS_512;DPOPS_SINGLE;DPOPS_128;DPOPS_256;" \
-                         "DPOPS_512";
+#if WF_SUPPORT
+	char *HEADER_JOB = "JOBID;STEPID;APPID";
+#else
+	char *HEADER_JOB = "JOBID;STEPID";
+#endif // WF_SUPPORT
 
+	char *HEADER_NOTS = ";NODENAME;AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;"\
+											 "ITER_TIME_SEC;CPI;TPI;MEM_GBS;IO_MBS;PERC_MPI;DC_NODE_POWER_W;"\
+											 "DRAM_POWER_W;PCK_POWER_W;CYCLES;INSTRUCTIONS;GFLOPS;L1_MISSES;"\
+											 "L2_MISSES;L3_MISSES;SPOPS_SINGLE;SPOPS_128;SPOPS_256;"\
+											 "SPOPS_512;DPOPS_SINGLE;DPOPS_128;DPOPS_256;DPOPS_512";
 #if USE_GPUS
     char gpu_header[512];
-    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
+#if WF_SUPPORT
+    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"\
+														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS";
+#else
+    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"\
+														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
+#endif // WF_SUPPORT
+#else
+		char HEADER_GPU_SIG[1] = "\0";
 #endif
+
 #if REPORT_TIMESTAMP
     char *HEADER_LOOP = ";LOOPID;LOOP_NEST_LEVEL;LOOP_SIZE;TIMESTAMP";
 #else
     char *HEADER_LOOP = ";LOOPID;LOOP_NEST_LEVEL;LOOP_SIZE;ITERATIONS";
 #endif
-    char HEADER[2048] = "";
+
+		char HEADER_TS[16] = ";ELAPSED;DATE";
+    if (!ts) {
+			memset(HEADER_TS, 0, sizeof(HEADER_TS));
+    }
+
+		// Be careful if some day the number of GPUs has more than two digits :) .
+		size_t header_len = strlen(HEADER_JOB) + strlen(HEADER_NOTS) + strlen(HEADER_GPU_SIG) * num_gpus + strlen(HEADER_LOOP) + strlen(HEADER_TS) + 1;
+		if (header)
+		{
+			header_len += strlen(header);
+		}
+
+		// Allocate exactly what we need
+    char *HEADER = calloc(header_len, sizeof(char));
 
     if (file_is_regular(path)) {
         debug("%s is a regular file", path);
+				free(HEADER);
         return EAR_SUCCESS;
     }
 
-    if (header != NULL) strncpy(HEADER, header, sizeof(HEADER));
-    strncat(HEADER,HEADER_NOTS,sizeof(HEADER));
+    if (header != NULL) strncpy(HEADER, header, header_len - 1);
+    strncat(HEADER, HEADER_JOB, header_len - strlen(HEADER) - 1);
+    strncat(HEADER, HEADER_NOTS, header_len - strlen(HEADER) - 1);
 
 #if USE_GPUS
     if (single_column) num_gpus = ear_min(1, num_gpus);
     for (uint j = 0; j < num_gpus; ++j) {
+#if WF_SUPPORT
+        sprintf(gpu_header,HEADER_GPU_SIG,j,j,j,j,j,j);
+#else
         sprintf(gpu_header,HEADER_GPU_SIG,j,j,j,j,j);
-        strncat(HEADER,gpu_header,strlen(gpu_header));
-    }
 #endif
+        strncat(HEADER, gpu_header,  header_len - strlen(HEADER) - 1);
+    }
+#endif // USE_GPUS
 
-    strncat(HEADER, HEADER_LOOP,sizeof(HEADER));
+    strncat(HEADER, HEADER_LOOP, header_len - strlen(HEADER) - 1);
 
     if (ts) {
-        xstrncat(HEADER, ";ELAPSED;DATE", sizeof(HEADER));
+        strncat(HEADER, HEADER_TS, header_len - strlen(HEADER) - 1);
     }
 
     int fd = open(path, OPTIONS, PERMISSION);
     if (fd < 0) {
         debug("File %s could not be opened: %d", path, errno);
+				free(HEADER);
         return EAR_ERROR;
     }
 
     int ret = dprintf(fd, "%s\n", HEADER);
+
+		free(HEADER);
 
     close(fd);
 
@@ -273,7 +307,11 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts, ull
 
     assert(loop!=NULL);
     assert(loop->node_id!=NULL);
+#if WF_SUPPORT
+    dprintf(fd,"%lu;%lu;%lu;",loop->jid,loop->step_id,loop->local_id);
+#else
     dprintf(fd,"%lu;%lu;",loop->jid,loop->step_id);
+#endif
     dprintf(fd, "%s;", loop->node_id);
     signature_print_fd(fd, &loop->signature,1, single_column, sep);
     print_loop_id_fd(fd, &loop->id);
@@ -293,4 +331,34 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts, ull
 
 
     return EAR_SUCCESS;
+}
+
+void loop_serialize(serial_buffer_t *b, loop_t *loop)
+{
+    serial_dictionary_push_auto(b, loop->id.event);
+    serial_dictionary_push_auto(b, loop->id.size);
+    serial_dictionary_push_auto(b, loop->id.level);
+    serial_dictionary_push_auto(b, loop->jid);
+    serial_dictionary_push_auto(b, loop->step_id);
+#if WF_SUPPORT
+    serial_dictionary_push_auto(b, loop->local_id);
+#endif
+    serial_dictionary_push_auto(b, loop->node_id);
+    serial_dictionary_push_auto(b, loop->total_iterations);
+    signature_serialize(b, &loop->signature);
+}
+
+void loop_deserialize(serial_buffer_t *b, loop_t *loop)
+{
+    serial_dictionary_pop_auto(b, loop->id.event);
+    serial_dictionary_pop_auto(b, loop->id.size);
+    serial_dictionary_pop_auto(b, loop->id.level);
+    serial_dictionary_pop_auto(b, loop->jid);
+    serial_dictionary_pop_auto(b, loop->step_id);
+#if WF_SUPPORT
+    serial_dictionary_pop_auto(b, loop->local_id);
+#endif
+    serial_dictionary_pop_auto(b, loop->node_id);
+    serial_dictionary_pop_auto(b, loop->total_iterations);
+    signature_deserialize(b, &loop->signature);
 }

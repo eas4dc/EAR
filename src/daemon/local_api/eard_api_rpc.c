@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -25,6 +18,7 @@
 #include <limits.h>
 #include <time.h>
 
+#include <common/config.h>
 #include <common/system/lock.h>
 #include <common/system/poll.h>
 #include <daemon/local_api/eard_api_rpc.h>
@@ -36,6 +30,7 @@ static int       rpc_disconnected;
 extern int       ear_fd_req;
 extern int       ear_fd_ack;
 
+// ???
 extern afd_set_t eard_api_client_fd;
 extern uint ack_ready_negative , ack_ready_positive;
 
@@ -175,18 +170,14 @@ static state_t static_rpc(uint call, char *data, size_t size, char *recv_data, s
     if (state_fail(s = eard_send(ear_fd_req, call, EAR_SUCCESS, data, size, NULL))) {
         return_unlock(s, &lock_rpc);
     }
-    // Receiving the data and returning the RPC state
-
-
-   #if MIX_RPC
+    // ???
+    #if MIX_RPC
     int ack_ready;
-   ack_ready = aselect(&eard_api_client_fd, 3000, NULL);
-   AFD_ZERO(&eard_api_client_fd);
-   AFD_SETT(ear_fd_ack, &eard_api_client_fd, NULL);
-   #endif
-
-
-
+    ack_ready = aselect(&eard_api_client_fd, 3000, NULL);
+    AFD_ZERO(&eard_api_client_fd);
+    AFD_SETT(ear_fd_ack, &eard_api_client_fd, NULL);
+    #endif
+    // Receiving the data and returning the RPC state
 	#if SYNC_SET_RPC
     if (expc_size == UINT_MAX) {
         expc_size = 0;
@@ -224,6 +215,40 @@ state_t eard_rpc_buffered(uint call, char *data, size_t size, char **buffer, siz
 	/* UINT_MAX in size_t means size will come on the header, unknown size */
 	return static_rpc(call, data, size, rpc_buffer, recv_size, UINT_MAX);
 }
+
+#if 0
+state_t eard_rpc_cached(uint call, char *data, size_t size, char *recv_data, size_t expc_size)
+{
+    char path[SZ_PATH];
+    char *tmp = "/tmp";
+    state_t s;
+
+    if (getenv("EAR_TMP") != NULL) {
+        tmp = getenv("EAR_TMP");
+    }
+    sprintf("%s/.eard_rpc_%u", tmp, call);
+    // Try to read /tmp/.eard_rpc_id
+    if (state_ok(ear_file_read(path, recv_data, size))) {
+        return EAR_SUCCESS;
+    }
+    // Get the lock_file /tmp/.eard_rpc_id.lock
+
+    // Try to read again /tmp/.eard_rpc_id
+    if (state_ok(ear_file_read(path, recv_data, size))) {
+        // Free lock file
+        return EAR_SUCCESS;
+    }
+    if (state_fail(s = eard_rpc(call, size, recv_data, expc_size))) {
+        // Free lock file
+        return s;
+    }
+    // Save the content
+
+    // Free the lock file
+
+    return EAR_SUCCESS;
+}
+#endif
 
 state_t eard_rpc_answer(int fd, uint call, state_t s, char *data, size_t size, char *error)
 {

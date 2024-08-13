@@ -1,0 +1,31 @@
+/*********************************************************************
+ * Copyright (c) 2024 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
+#ifndef METRICS_ENERGY_CPU_LINUX_POWERCAP_H
+#define METRICS_ENERGY_CPU_LINUX_POWERCAP_H
+
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <common/hardware/topology.h>
+
+state_t linux_powercap_load(topology_t * tp_in);
+
+state_t linux_powercap_get_granularity(ctx_t * c, uint * granularity);
+
+state_t linux_powercap_init(ctx_t * c);
+
+state_t linux_powercap_dispose(ctx_t * c);
+
+state_t linux_powercap_count_devices(ctx_t * c, uint * devs_count_in);
+
+state_t linux_powercap_read(ctx_t * c, ullong * values);
+
+#endif

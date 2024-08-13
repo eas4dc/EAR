@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -27,9 +20,19 @@
 #include <common/output/debug.h>
 #include <metrics/common/file.h>
 
+int filemagic_exists(char *path)
+{
+    if (access(path, R_OK) != 0) {
+        debug("File '%s' can not be accessed", path);
+        return_msg(0, strerror(errno));
+    }
+    return 1;
+}
+
 int filemagic_can_read(char *path, int *fd)
 {
     if (access(path, R_OK) != 0) {
+        debug("File '%s' can not be accessed to read", path);
         return_msg(0, strerror(errno));
     }
     if (fd != NULL) {
@@ -68,7 +71,7 @@ static int filemagic_can_msomething(char *format, int index_count, int **fds, in
             return 0;
         }
     }
-    *fds = calloc(index_count, sizeof(int));
+    *fds = calloc((unsigned int)index_count, sizeof(int));
     for (i = 0; i < index_count; ++i) {
         sprintf(buffer, format, i);
         if (!can(buffer, &((*(fds))[i]))) {
@@ -110,22 +113,26 @@ int filemagic_word_read(int fd, char *word, int reset_position)
     return 1;
 }
 
-int filemagic_word_write(int fd, char *word, int s, int line_break)
+int filemagic_word_write(int fd, char *word, int len, int line_break)
 {
     int i, r, p;
     // Adding a line break
     if (line_break) {
-        s += 1;
-        word[s-1] = '\n';
-        word[s] = '\0';
+        len += 1;
+        word[len-1] = '\n';
+        word[len  ] = '\0';
     }
-    for (i = 0, r = 1, p = s; i < s && r > 0;) {
+    for (i = 0, r = 1, p = len; i < len && r > 0;) {
         r = pwrite(fd, (void *) &word[i], p, i);
-        i = i + r;
-        p = s - i;
+        i = i   + r;
+        p = len - i;
+    }
+    // Recovering from line break
+    if (line_break) {
+        word[len-1] = '\0';
     }
     if (r == -1) {
-        return_print(0, "while writing '%s' in cpufreq file (%s)", word, strerror(errno));
+        return_print(0, "%s when writing '%s' in cpufreq file", strerror(errno), word);
     }
     return 1;
 }
@@ -139,7 +146,7 @@ int filemagic_word_mwrite(int *fds, int fds_count, char *word, int line_break)
     // Adding a line break
     if (line_break) {
         word[len]   = '\n';
-        word[len+1] = '0';
+        word[len+1] = '\0';
         len++;
     }
     for (i = 0; i < fds_count; ++i) {
@@ -147,6 +154,10 @@ int filemagic_word_mwrite(int *fds, int fds_count, char *word, int line_break)
         if (!filemagic_word_write(fds[i], word, len, 0)) {
             s = 0;
         }
+    }
+    // Recovering from line break
+    if (line_break) {
+        word[len-1] = '\0';
     }
     return s;
 }

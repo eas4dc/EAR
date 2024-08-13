@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef COMMON_CONFIG_ENV_H
 #define COMMON_CONFIG_ENV_H
@@ -94,9 +87,12 @@
 #define HACK_ENERGY_PLUGIN           "HACK_ENERGY_PLUGIN"       // This var forces to load a specific energy plugin.
 #define HACK_POWER_POLICY            "HACK_POWER_POLICY"       // This var forces to load a specific power policy. Replaces (SCHED_PREFIX)_EAR_POWER_POLICY.
 #define HACK_GPU_POWER_POLICY        "HACK_GPU_POWER_POLICY"   // This var forces to load a specific gpu power policy. Replaces (SCHED_PREFIX)_EAR_GPU_POWER_POLICY.
+#define HACK_GPU_POLICY_PENALTY      "HACK_GPU_POLICY_PENALTY" // Sets the threshold penalty tolered by Min-GPU-Ebnergy policy.. Replaces (SCHED_PREFIX)_EAR_GPU_POLICY_PENALTY.
 #define HACK_POWER_MODEL             "HACK_POWER_MODEL"        // This var forces to load a specific power model plugin. Replaces (SCHED_PREFIX)_EAR_POWER_MODEL.
+#define HACK_GPU_ENERGY_MODEL        "HACK_GPU_ENERGY_MODEL"   // This var forces to load a specific GPU energy model plugin. Replaces (SCHED_PREFIX)_EAR_GPU_POWER_MODEL.
 #define HACK_CPU_POWER_MODEL         "HACK_CPU_POWER_MODEL"    // This var forces to load a specific cpu power model plugin.
 #define HACK_EARL_COEFF_FILE         "HACK_EARL_COEFF_FILE"    // This var forces to load a specific coefficient file
+#define HACK_EARL_GPU_COEFF_FILE     "HACK_EARL_GPU_COEFF_FILE"    // This var forces to load a specific coefficient file for GPU models
 #define HACK_DYNAIS_WINDOW_SIZE      "HACK_DYNAIS_WINDOW_SIZE" // This var forces a specific dynais windows size. Replaces (SCHED_PREFIX)_EAR_DYNAIS_WINDOW_SIZE.
 #define HACK_DEF_FREQ                "HACK_DEF_FREQ"           // This var forces a different default frequency than the predefined for a policy. Replaces (SCHED_PREFIX)_EAR_DEF_FREQ.
 #define HACK_EARL_VERBOSE            "HACK_EARL_VERBOSE"       // This var forces an EARL verbosity.
@@ -106,12 +102,15 @@
 
 /**
  * @defgroup OTHER Other
- * These variables are not HACKS as there is no other way to specify in EAR.
+ * These variables are not HACKS and there is not other way to specify in EAR.
  * @{
  */
+#define FLAG_EAR_DEBUG							 "EAR_DEBUG"
 #define FLAG_TRACE_PLUGIN            "EAR_TRACE_PLUGIN"       // Sets the trace plugin in EARL.
 #define FLAG_GPU_DEF_FREQ            "EAR_GPU_DEF_FREQ"       // This var sets a default GPU frequency.
 #define FLAG_GPU_DCGMI_ENABLED       "EAR_GPU_DCGMI_ENABLED"  // if DCGMI is enable at compile time, this flag allows to explicitly disable it: Default 1. (Use 1/0)
+#define FLAG_DCGMI_SAMPLING_PERIOD	 "EAR_DCGMI_SAMPLING_PERIOD" // Set the period of the DCGMI metrics sampling monitor. Be careful, as very low values can introduce considerable overhead. This variable is read as a single precision floating point number.
+#define FLAG_DCGM_ALL_EVENTS 				 "EAR_DCGM_ALL_EVENTS" // Request to collect and report all DCGM events.
 
 #define FLAG_LOADER_APPLICATION      "EAR_LOADER_APPLICATION" // This variable forces to load the NON MPI version of the library for a given application (i.e. SLURM_LOADER_LOAD_NO_MPI_LIB=gromacs).
 #define FLAG_LOAD_MPI_VERSION        "EAR_LOAD_MPI_VERSION"   // This variable is used for not detected MPI application (python) to specify which version it is: intel, ompi, etc
@@ -128,6 +127,8 @@
 #define FLAG_TURBO_CP                "USE_TURBO_FOR_CP"
 #define FLAG_MIN_CPUFREQ             "EAR_MIN_CPUFREQ"        // Sets a minimum CPU frequency policies can set.
 #define FLAG_NTWRK_IMC               "EAR_NTWRK_IMC"          // Tells the IMC policy the application uses IMC freq for network operations, making the policy less aggressive.
+#define FLAG_DISABLE_NODE_METRICS    "EAR_DISABLE_NODE_METRICS" // If defined, This job will not be considered for node metrics and policy will not be applied : To be used in MASTER/WORKED use cases
+#define FLAG_NTASK_WORK_SHARING      "EAR_NTASK_WORK_SHARING"   // Tells EAR to consider the N tasks created by the scheduler as a single job (for non MPI use cases).
 #define FLAG_TRY_TURBO               "EAR_TRY_TURBO"          // If policies have make CPU frequency be at maximum, try to boost the CPU frequency.
 #define FLAG_REPORT_ADD              "EAR_REPORT_ADD"
 #define FLAG_USE_ENERGY_MODELS       "EAR_USE_ENERGY_MODELS"  // Tells policies to use power models instead of probe and error DVFS.
@@ -139,6 +140,7 @@
 
 #define FLAG_NO_AFFINITY_MASK        "EARL_NO_AFFINITY_MASK"   // Prevents EARL from using the affinity mask. Only for special use cases
 #define FLAG_REPORT_LOOPS            "EARL_REPORT_LOOPS"       // Reports or not report EAR library loops
+#define FLAG_EAR_DEBUG               "EAR_DEBUG"
 
 //#define FLAG_USE_PRIO                "EAR_USE_PRIO"           // Enables CPU priority system.
 #define FLAG_PRIO_CPUS               "EAR_PRIO_CPUS"          // A list of priorities for each CPU.
@@ -150,6 +152,10 @@
 #define FLAG_BW_FAKE_PHASE           "EARL_BW_FAKE_PHASE"
 #define FLAG_FORCE_SHARED_NODE       "EARL_FORCE_SHARED_NODE"
 #define FLAG_DISABLE_CNTD            "EAR_DISABLE_CNTD"       // disables automatic CNTD loadin
+#define FLAG_USE_DLB                 "EAR_USE_DLB_TALP"
+
+#define FLAG_PYTHON_MULTIPROC "EARL_PYTHON_MULTIPROC" // Enables features supporting applications which use Python's multiprocessing module. Currently, this variable has the same effect as FLAG_NO_SIGHANDLER
+#define FLAG_NO_SIGHANDLER 				"EARL_NO_SIGHANDLER" 		// Configures EARL to not configure any signal handler. This is useful to avoid conflicts with applications which want to handle signals.
 
 /** @} */
 
@@ -169,6 +175,7 @@
 #define FLAG_SHOW_SIGNATURES         "EAR_SHOW_SIGNATURES"
 #define FLAG_REPORT_NODE_SIGNATURES  "EAR_REPORT_NODE_SIGNATURES"
 #define FLAG_REPORT_ALL_SIGNATURES   "EAR_REPORT_ALL_SIGNATURES"
+#define FLAG_REPORT_CPUPOW_MODEL     "EAR_REPORT_CPUPOW_MODEL"    // Asks the cpu power model to print per process data
 #define FLAG_SHARE_INFO_PPROC        "EAR_SHARE_INFO_PER_PROCESS" // Forces to share all the signatures.
 #define FLAG_SHARE_INFO_PNODE 	     "EAR_SHARE_INFO_PER_NODE"    // Forces to share only the average signature per node.
 #define FLAG_APP_MGR_POLICIES	     "EAR_APP_MGR_POLICIES"
@@ -190,5 +197,16 @@
 #define SCHED_TRY_TURBO              "SLURM_TRY_TURBO"                     // TODO: Deprectated.
 #define SCHED_LOAD_BALANCE_TH        "SLURM_LOAD_BALANCE_TH"               // TODO: Deprectated.
 /** @} */
+
+
+/*
+ * EARD flags
+ */
+
+#define EARD_USE_MINCPUFREQ_PC       "EARD_USE_MINCPUFREQ_PC"							// EARD will apply min CPU freq when idle periods
+#define EAR_POWERCAP_POLICY_NODE     "EAR_POWERCAP_POLICY_NODE"           // Defines the EARD powercapo plugin for domain node
+#define EAR_POWERCAP_POLICY_CPU      "EAR_POWERCAP_POLICY_CPU"            // Defines the EARD powercapo plugin for domain CPU
+#define EAR_POWERCAP_POLICY_DRAM     "EAR_POWERCAP_POLICY_DRAM"           // Defines the EARD powercapo plugin for domain DRAM
+#define EAR_POWERCAP_POLICY_GPU      "EAR_POWERCAP_POLICY_GPU"            // Defines the EARD powercapo plugin for domain GPU
 
 #endif //COMMON_CONFIG_ENV_H

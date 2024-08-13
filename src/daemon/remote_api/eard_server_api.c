@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -106,6 +99,63 @@ void close_ips()
         warning("IPS were not initialised.\n");
     }
 }
+
+
+/* Uncomment to fake the EARD allocation error 
+ * Set to 1 to simulate a situation where the "general" allocation fails,
+ * but the individual suceeds.
+ * Set to 2 to simulate a situation where every allocation, however small, fails.
+ */
+//#define FAKE_EARD_ALLOC_ERROR 0
+
+#define CHECK_ALLOC 1
+
+/* checks if the propagation will have enough memory for its items 
+ * Returns:
+ * 0 if it cannot allocate the minimum
+ * 1 if it can only allocate the minimum
+ * 2 if it can allocate the requested size
+ * */
+int can_allocate(request_t *command, size_t size, int num_items)
+{
+    /* Since we've had errors with out of memory before, we check beforehand if we can allocate
+     * enough memory for all the statuses for all */
+
+#if CHECK_ALLOC
+    uint32_t tmp_size;
+    char *tmp;
+    verbose(0, "prefetching %lu bytes to check if status propagation is possible", total_ips*size);
+
+    if (command->num_nodes > 0) tmp_size = command->num_nodes;
+    else tmp_size = total_ips;
+    if (tmp_size == 0) { //no propagation, current node is a leaf node
+        tmp_size = num_items; 
+    }
+#ifdef FAKE_EARD_ALLOC_ERROR
+#warning Compiling with fake allocation errors in EARD ON.
+    tmp = NULL;
+#else
+    tmp = calloc(tmp_size, size);
+#endif
+    if (tmp == NULL) {
+        error("EARD does not have enough memory for propagation, returning");
+
+#if FAKE_EARD_ALLOC_ERROR != 2
+        tmp = calloc(num_items, size); //minimum required
+#endif
+        if (tmp == NULL) {
+            error("EARD does not have enough memory for a single status");
+            return 0;
+        }
+        return 1;
+    }
+    verbose(0, "prefetching was successful, freeing memory");
+
+    free(tmp);
+#endif
+    return 2; //everything can be allocated
+}
+
 
 char can_propagate(request_t *command)
 {
@@ -404,6 +454,9 @@ int propagate_powercap_status(request_t *command, uint port, powercap_status_t *
 {
     powercap_status_t *temp_status, *final_status;
 
+    int check = can_allocate(command, sizeof(powercap_status_t), 1);
+    if (check == 0) return 0;
+
     // if the current node is a leaf node (either last node or ip_init had failed)
     // we allocate the power_status in this node and return
     if (!can_propagate(command)) 
@@ -433,9 +486,11 @@ int propagate_get_power(request_t *command, uint port, power_check_t **power)
 {
     power_check_t *temp_power, *final_power;
 
+    int check = can_allocate(command, sizeof(power_check_t), 1);
+    if (check == 0) return 0;
     // if the current node is a leaf node (either last node or ip_init had failed)
     // we allocate the power_status in this node and return
-    if (!can_propagate(command)) 
+    if (!can_propagate(command) || check == 1) 
     {
         final_power = calloc(1, sizeof(power_check_t));
         *power = final_power;
@@ -462,13 +517,17 @@ int propagate_release_idle(request_t *command, uint port, pc_release_data_t *rel
 {
     pc_release_data_t *new_released;
     
+    int check = can_allocate(command, sizeof(pc_release_data_t), 1);
+    if (check == 0) return 0;
+
     // if the current node is a leaf node (either last node or ip_init had failed)
     // we allocate the power_status in this node and return
-    if (!can_propagate(command)) 
+    if (!can_propagate(command) || check == 1) 
     {
         memset(release, 0, sizeof(pc_release_data_t));
         return 1;
     }
+
     request_header_t head = propagate_data(command, port, (void **)&new_released);
 
     if (head.type != EAR_TYPE_RELEASED || head.size < sizeof(pc_release_data_t))
@@ -484,43 +543,48 @@ int propagate_release_idle(request_t *command, uint port, pc_release_data_t *rel
 
 }
 
-int propagate_and_cat_data(request_t *command, uint port, void **status, size_t size,uint type, int num_items)
+int propagate_and_cat_data(request_t *command, uint port, void **status, size_t size, uint type, int num_items)
 {
     char *temp_status, *final_status;
     int *ip;
     int num_status = 0;
-		int i;
+    int i;
+
+    //case 0 we need to return immediately
+    //case 1 we can allocate the minim (where we cannot propagate)
+    //case 2 we proceed as normal
+    int check = can_allocate(command, size, num_items);
+    if (check == 0) return 0;
 
     // if the current node is a leaf node (either last node or ip_init had failed)
     // we set the status for this node and return
-    if (!can_propagate(command)) 
+    if (!can_propagate(command) || check == 1)
     {
         final_status = (char *)calloc(num_items, size);
         for (i=0;i<num_items;i++){
-          ip = (int *)((char *)final_status + i*size);
-          if (self_id < 0 || ips == NULL)
-            *ip = get_self_ip();
-          else
-            *ip = ips[self_id];
+            ip = (int *)((char *)final_status + i*size);
+            if (self_id < 0 || ips == NULL)
+                *ip = get_self_ip();
+            else
+                *ip = ips[self_id];
         }
         debug("generic_status has %d status\n", num_items);
         *status = final_status;
         return num_items;
-
     }
 
     // propagate request and receive the data
     request_header_t head = propagate_data(command, port, (void **)&temp_status);
     num_status = head.size / size;
-    
+
     if (head.type != type || head.size < size)
     {
         final_status = (char *)calloc(num_items, size);
         for (i=0;i<num_items;i++){
-          ip = (int *)((char *)final_status + i*size);
-          *ip = ips[self_id];
+            ip = (int *)((char *)final_status + i*size);
+            *ip = ips[self_id];
         }
-				if (head.size > 0) free(temp_status);
+        if (head.size > 0) free(temp_status);
         *status = final_status;
         return num_items;
     }
@@ -528,20 +592,14 @@ int propagate_and_cat_data(request_t *command, uint port, void **status, size_t 
     //memory allocation with the current node
     final_status = (char *)calloc(num_status + num_items, size);
     memcpy(final_status, temp_status, head.size);
-#if 0
+
     //current node info
-    ip = (int *)&final_status[num_status*size];
-    *ip = ips[self_id];
-    *status = final_status;
-    num_status++;   //we add the original status
-#endif
-		//current node info
     for (i=0;i<num_items;i++){
-      ip = (int *)((char *)&final_status[num_status*size] + i*size);
-      *ip = ips[self_id];
+        ip = (int *)((char *)&final_status[num_status*size] + i*size);
+        *ip = ips[self_id];
     }
     *status = final_status;
-		num_status += num_items;   //we add the original status
+    num_status += num_items;   //we add the original status
     free(temp_status);
 
     return num_status;
@@ -553,6 +611,7 @@ int propagate_status(request_t *command, uint port, status_t **status)
     int num_status;
     status_t *temp_status;
     num_status = propagate_and_cat_data(command, port, (void **)&temp_status, sizeof(status_t), EAR_TYPE_STATUS, 1);
+    if (num_status == 0) return 0;
     temp_status[num_status-1].ok = STATUS_OK;
     *status=temp_status;
     return num_status;
@@ -563,6 +622,7 @@ int propagate_app_status(request_t *command, uint port, app_status_t **status, i
     int num_status;
     app_status_t *temp_status;
     num_status = propagate_and_cat_data(command, port, (void **)&temp_status, sizeof(app_status_t), EAR_TYPE_APP_STATUS, num_apps);
+    if (num_status == 0) return 0;
     *status = temp_status;
     return num_status;
 }

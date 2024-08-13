@@ -4,10 +4,13 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC -Wall
 
 all:
 
-post: libtest.so
+post: libtest.so gpuprof_test
 
 libtest.so: test.c
 	$(CC) -I $(SRCDIR) -fPIC --shared -o $@ $^ ../../libmetrics.a ../../../common/libcommon.a -lm -lpthread -ldl
+
+gpuprof_test: gpuprof_test.c ../gpuprof.h ../../common/apis.h ../../libmetrics.a ../../../common/libcommon.a
+	$(CC) $(CFLAGS) -o $@ gpuprof_test.c ../../libmetrics.a ../../../common/libcommon.a -lpthread -lm -ldl
 
 ######## OPTIONS
 

@@ -4,9 +4,9 @@
 * Energy management. It has been developed in the context of the
 * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
 *
-* Copyright © 2017-present BSC-Lenovo
+* 
 * BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
+* 
 *
 * EAR is an open source software, and it is licensed under both the BSD-3 license
 * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
@@ -21,6 +21,7 @@
 #include <library/api/mpi_support.h>
 #include <library/policies/policy_ctx.h>
 #include <library/common/library_shared_data.h>
+#include <common/system/execute.h>
 
 #if MPI_OPTIMIZED
 #include <common/system/lock.h>
@@ -90,8 +91,6 @@ state_t mpi_stats_evaluate_similarity(double *current_perc_mpi, double *last_per
 state_t must_be_optimized(mpi_call call_type, p2i buf, p2i dest, ulong *elapsed);
 #endif
 state_t already_optimized(mpi_call call_type, p2i buf, p2i dest);
-void *get_stack(int lv);
-void print_stack();
 
 /** Copies MPI metrics from \p src to \p dst.
  * If `src` is a NULL pointer, `dst` is filled with the MPI metrics of the `i`-th process
@@ -128,14 +127,16 @@ uint process_get_curr_mpi_pstate();
 uint process_get_num_pstates();
 void process_reset_steps();
 
+
 /* MPI Optimization functions */
 
-typedef struct mpi_opt_policy {
-  state_t (*init_mpi)   (polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id);
-  state_t (*end_mpi)    (node_freqs_t *freqs, int *process_id);
-  void    (*summary)   (int verb_lvl);
-  state_t (*periodic)    (uint *to_be_changed_pstate);
-}mpi_opt_policy_t;
+typedef struct mpi_opt_policy
+{
+  state_t (*init_mpi) (polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id);
+  state_t (*end_mpi)	(node_freqs_t *freqs, int *process_id);
+  void    (*summary)	(int verb_lvl);
+  state_t (*periodic)	(uint *to_be_changed_pstate);
+} mpi_opt_policy_t;
 
 state_t mpi_opt_load(mpi_opt_policy_t * mpi_opt_func);
 

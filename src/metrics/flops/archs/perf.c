@@ -1,139 +1,233 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
 #include <common/system/time.h>
 #include <common/output/debug.h>
+#include <common/math_operations.h>
 #include <metrics/common/perf.h>
 #include <metrics/flops/archs/perf.h>
 
-// 0       1       2      3      4      5      6      7      8
-// CPU-SP, CPU-DP, 128SP, 128DP, 256SP, 256DP, 512HP, 512SP, 512DP
-static ullong arm8a[6]     = { 0x80c3, 0x80c5, 0x80c7, 0x80c2, 0x80c4, 0x80c6 }; // FIXED 16-32-64, SVE-16-32-64
-static ullong hwell_evs[8] = { 0x02c7, 0x01c7, 0x08c7, 0x04c7, 0x20c7, 0x10c7, 0x80c7, 0x40c7 };
-static ullong zen_evs[1]   = { 0xff03 }; // FpRetSseAvxOps (Old event: 0x04cb)
-static ullong weights[8];
-static uint   levels[8];
-static double mults[8];
-static perf_t perfs[8];
-static uint   counter;
-static uint   started;
+typedef struct fmeta_s {
+    perf_t perf;
+    int    offset;
+    double weight;
+    int    enabled;
+    cchar  *desc;
+} fmeta_t;
 
-void set_flops(ullong event, uint type, uint level, ullong weight, double multiplier)
+static fmeta_t meta[8];
+static uint    meta_count;
+static uint    started;
+static uint    enabled_count;
+
+void set_flops(ullong event, uint type, int offset, double weight, cchar *desc)
 {
-    state_t s;
-
-    if (state_fail(s = perf_open(&perfs[counter], NULL, 0, type, (ulong) event))) {
-        debug("perf_open returned %d (%s)", s, state_msg);
-        return;
+    meta[meta_count].offset      = offset;
+    meta[meta_count].weight      = weight;
+    meta[meta_count].desc        = desc;
+    meta[meta_count].enabled     = 1;
+    // Opening perf event (some events might be accepted but don't work)
+    if (state_fail(perf_open(&meta[meta_count].perf, NULL, 0, type, (ulong) event))) {
+        debug("perf_open returned: %s", state_msg);
+        meta[meta_count].enabled = 0;
+    } else {
+        enabled_count++;
     }
-    mults[counter]  = multiplier;
-    levels[counter] = level;
-    weights[level]  = weight;
-    counter++;
+    meta_count++;
 }
 
 void flops_perf_load(topology_t *tp, flops_ops_t *ops)
 {
-	if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_HASWELL_X) {
-		set_flops(hwell_evs[0], PERF_TYPE_RAW, 0,  1, 1.0); // SP
-		set_flops(hwell_evs[1], PERF_TYPE_RAW, 1,  1, 1.0); // DP
-		set_flops(hwell_evs[2], PERF_TYPE_RAW, 2,  4, 1.0); // 128SP
-		set_flops(hwell_evs[3], PERF_TYPE_RAW, 3,  2, 1.0); // 128DP
-		set_flops(hwell_evs[4], PERF_TYPE_RAW, 4,  8, 1.0); // 256SP
-		set_flops(hwell_evs[5], PERF_TYPE_RAW, 5,  4, 1.0); // 256DP
-		set_flops(hwell_evs[6], PERF_TYPE_RAW, 6, 16, 1.0); // 512SP
-		set_flops(hwell_evs[7], PERF_TYPE_RAW, 7,  8, 1.0); // 512DP
-	}
-	else if (tp->vendor == VENDOR_AMD && tp->family >= FAMILY_ZEN) {
-        // This is not precise, but can tell something about AVX computing
-		set_flops(zen_evs[0], PERF_TYPE_RAW, 4, 8, 1.0); // We have to check this again
-	}
-    else if (tp->vendor == VENDOR_ARM) { // && ARMv8a or greater) {
-        // The NEON (128 bit) event has to be tested, so we are just going to SVE.
-        set_flops(arm8a[0], PERF_TYPE_RAW, 0, 1, 1.0); // FIXED values works for float, double, but
-        set_flops(arm8a[1], PERF_TYPE_RAW, 0, 1, 1.0); // also for SIMD NEON. Which is a pity because
-        set_flops(arm8a[2], PERF_TYPE_RAW, 1, 1, 1.0); // we wanted to get fine grained results.
-        set_flops(arm8a[3], PERF_TYPE_RAW, 6, 1, ((double) tp->sve_bits) / 128.0); // Its is divided to
-        set_flops(arm8a[4], PERF_TYPE_RAW, 6, 1, ((double) tp->sve_bits) / 128.0); // match with the tests
-        set_flops(arm8a[5], PERF_TYPE_RAW, 7, 1, ((double) tp->sve_bits) / 128.0); // iterations.
+    if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_HASWELL_X) {
+        set_flops(0x02c7, PERF_TYPE_RAW, 0,  1.0, "FP_ARITH_INST_RETIRED.SCALAR_SINGLE");
+        set_flops(0x01c7, PERF_TYPE_RAW, 1,  1.0, "FP_ARITH_INST_RETIRED.SCALAR_DOUBLE");
+        set_flops(0x08c7, PERF_TYPE_RAW, 2,  4.0, "FP_ARITH_INST_RETIRED.128B_PACKED_SINGLE");
+        set_flops(0x04c7, PERF_TYPE_RAW, 3,  2.0, "FP_ARITH_INST_RETIRED.128B_PACKED_DOUBLE");
+        set_flops(0x20c7, PERF_TYPE_RAW, 4,  8.0, "FP_ARITH_INST_RETIRED.256B_PACKED_SINGLE");
+        set_flops(0x10c7, PERF_TYPE_RAW, 5,  4.0, "FP_ARITH_INST_RETIRED.256B_PACKED_DOUBLE");
+        set_flops(0x80c7, PERF_TYPE_RAW, 6, 16.0, "FP_ARITH_INST_RETIRED.512B_PACKED_SINGLE");
+        set_flops(0x40c7, PERF_TYPE_RAW, 7,  8.0, "FP_ARITH_INST_RETIRED.512B_PACKED_DOUBLE");
+    }
+    else if (tp->vendor == VENDOR_AMD && tp->family >= FAMILY_ZEN) {
+        // In theory, this event counts 128 and 256 bits operations from SSE and
+        // AVX FLOPs. But it can not distinguish between types. We are saving
+        // the register readings in 256f by pure arbitrariness.
+        set_flops(0xff03, PERF_TYPE_RAW, 4, 1.0, "FpRetSseAvxOps");
+    }
+    else if (tp->vendor == VENDOR_ARM && tp->model == MODEL_FX1000) {
+        // We can mix these offsets because share the same weight. FIXED events
+        // combines floats, doubles and also SIMD NEON.
+        set_flops(0x80c3, PERF_TYPE_RAW, 2,                             1.0, "FP_HP_FIXED_OPS_SPEC");
+        set_flops(0x80c5, PERF_TYPE_RAW, 2,                             1.0, "FP_SP_FIXED_OPS_SPEC");
+        set_flops(0x80c7, PERF_TYPE_RAW, 3,                             1.0, "FP_DP_FIXED_OPS_SPEC");
+        set_flops(0x80c2, PERF_TYPE_RAW, 6, ((double) tp->sve_bits) / 128.0, "FP_HP_SCALE_OPS_SPEC");
+        set_flops(0x80c4, PERF_TYPE_RAW, 6, ((double) tp->sve_bits) / 128.0, "FP_SP_SCALE_OPS_SPEC");
+        set_flops(0x80c6, PERF_TYPE_RAW, 7, ((double) tp->sve_bits) / 128.0, "FP_DP_SCALE_OPS_SPEC");
+    }
+    else if (tp->vendor == VENDOR_ARM && tp->sve) {
+        // FIXED also counts VFP_SPEC operations.
+        set_flops(0x80c3, PERF_TYPE_RAW, 2,                             1.0, "FP_FIXED_OPS_SPEC");
+        set_flops(0x80c2, PERF_TYPE_RAW, 6, ((double) tp->sve_bits) / 128.0, "FP_SCALE_OPS_SPEC");
+    }
+    else if (tp->vendor == VENDOR_ARM) {
+        // ASE_SPEC is multiplied by x4 because we are counting float32x4_t, the
+        // mean value of float16x8_t, float32x4_t and float64x2_t.
+        set_flops(0x0075, PERF_TYPE_RAW, 0,  1.0, "VFP_SPEC");
+        set_flops(0x0074, PERF_TYPE_RAW, 2,  4.0, "ASE_SPEC");
     } else {
-		debug(Generr.api_incompatible);
-        return;
-	}
-    if (!counter) {
+	    debug("%s", Generr.api_incompatible);
         return;
     }
-    apis_put(ops->get_api,         flops_perf_get_api);
-    apis_put(ops->get_granularity, flops_perf_get_granularity);
-    apis_put(ops->get_weights,     flops_perf_get_weights);
+    if (!enabled_count) {
+        return;
+    }
+    apis_put(ops->get_info,        flops_perf_get_info);
     apis_put(ops->init,            flops_perf_init);
     apis_put(ops->dispose,         flops_perf_dispose);
     apis_put(ops->read,            flops_perf_read);
+    apis_put(ops->data_diff,       flops_perf_data_diff);
+    apis_put(ops->internals_tostr, flops_perf_internals_tostr);
+    debug("Loaded PERF");
 }
 
-void flops_perf_get_api(uint *api)
+void flops_perf_get_info(apinfo_t *info)
 {
-    *api = API_PERF;
+    info->api         = API_PERF;
+    info->scope       = SCOPE_PROCESS;
+    info->granularity = GRANULARITY_PROCESS;
+    info->devs_count  = 1;
+    info->bits        = 64;
 }
 
-void flops_perf_get_granularity(uint *granularity)
-{
-    *granularity = GRANULARITY_PROCESS;
-}
-
-void flops_perf_get_weights(ullong **weights_in)
-{
-    *weights_in = weights;
-}
-
-state_t flops_perf_init(ctx_t *c)
+state_t flops_perf_init()
 {
 	uint i;
 	if (!started) {
-		for (i = 0; i < counter; ++i) {
-			perf_start(&perfs[i]);
+		for (i = 0; i < meta_count; ++i) {
+            if (meta[i].enabled) {
+			    perf_start(&meta[i].perf);
+            }
 		}
 		++started;
 	}
 	return EAR_SUCCESS;
 }
 
-state_t flops_perf_dispose(ctx_t *c)
+state_t flops_perf_dispose()
 {
+  uint i;
+  if (started){
+    for (i = 0; i < meta_count; ++i) {
+      perf_close(&meta[i].perf);
+    }
+    started = 0;
+		meta_count = 0;
+  }
 	return EAR_SUCCESS;
 }
 
-state_t flops_perf_read(ctx_t *c, flops_t *fl)
+state_t flops_perf_read(flops_t *fl)
 {
     ullong *p = (ullong *) fl;
-    double dvalue;
     ullong value;
+    state_t s;
     int i;
 
+    // Cleaning flops_t structure
     memset(fl, 0, sizeof(flops_t));
+    // Getting time
     timestamp_get(&fl->time);
-    for (i = 0; i < counter; ++i) {
-        value = 0LU;
-        perf_read(&perfs[i], (long long *) &value);
-        debug("values[%d]: %lu", i, value);
-        dvalue = (double) value;
-        p[levels[i]] += (ullong) (dvalue * mults[i]);
+    // Reading
+    for (i = 0; i < meta_count; ++i) {
+        if (meta[i].enabled) {
+            p[i] = value = 0LLU;
+            if (state_ok(s = perf_read(&meta[i].perf, (long long *) &value))) {
+                p[i] = value;
+            }
+            debug("values[%d]: %llu (state %d)", meta[i].offset, value, s);
+        }
     }
     return EAR_SUCCESS;
+}
+
+void flops_perf_data_togfs(flops_t *flD, double *gfs)
+{
+    
+}
+
+void flops_perf_data_diff(flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs)
+{
+    flops_t flA; // flAux (holds the temporary flops_t)
+    flops_t flB; // flAux (holds the final flops_t)
+    ullong *pA = (ullong *) &flA;
+    ullong *pB = (ullong *) &flB;
+    ATTR_UNUSED ullong *pD = (ullong *)  flD;
+    ullong *p2 = (ullong *)  fl2;
+    ullong *p1 = (ullong *)  fl1;
+    ullong time = 0LLU;
+    int i;
+
+    // Cleaning
+    memset(&flA, 0, sizeof(flops_t));
+    memset(&flB, 0, sizeof(flops_t));
+    if (gfs != NULL) { *gfs = 0.0; }
+    if (flD != NULL) { memset(flD, 0, sizeof(flops_t)); }
+    // Reading milliseconds and converting to seconds for decimals
+    if ((time = timestamp_diff(&fl2->time, &fl1->time, TIME_MSECS)) == 0LLU) {
+        // If no time passed, then flops difference an Gigaflops are zero.
+        return;
+    }
+    flB.secs = (double) time;
+    flB.secs = flB.secs / 1000.0;
+    // Instruction differences (PERF registers are 64 bits long)
+    for (i = 0; i < meta_count; ++i) {
+        if (meta[i].enabled) {
+            // Is overflow_zero because sometimes values at time X are under
+            // values al time Y, being X greater than Y. This is because perf
+            // multiplexing process.
+            pA[i] = overflow_zeros_u64(p2[i], p1[i]);
+            debug("values[%d->%d]: %llu - %llu = %llu", i, meta[i].offset, p2[i], p1[i], pA[i]);
+        }
+    }
+    // Sorting and computing GFLOPs
+    for (i = 0; i < meta_count; ++i) {
+        pB[meta[i].offset] += pA[i] * ((ullong) meta[i].weight);
+        debug("FLOPS[%d->%d] += %llu * %0.2lf",
+            i, meta[i].offset, pA[i], meta[i].weight);
+        flB.gflops += ((double) pA[i]) * meta[i].weight;
+    }
+    flB.gflops = (flB.gflops / flB.secs) / ((double) 1E9);
+    debug("Total GFLOPS: %0.2lf", flB.gflops);
+    // Debugging
+    debug("Total f64  insts: %llu", flB.f64 );
+    debug("Total d64  insts: %llu", flB.d64 );
+    debug("Total f128 insts: %llu", flB.f128);
+    debug("Total d128 insts: %llu", flB.d128);
+    debug("Total f256 insts: %llu", flB.f256);
+    debug("Total d256 insts: %llu", flB.d256);
+    debug("Total f512 insts: %llu", flB.f512);
+    debug("Total d512 insts: %llu (%0.2lf s)", flB.d512, flB.secs);
+    // Copying data
+    if (flD != NULL) { memcpy(flD, &flB, sizeof(flops_t)); }
+    if (gfs != NULL) { *gfs = flB.gflops; }
+}
+
+void flops_perf_internals_tostr(char *buffer, int length)
+{
+    cchar *offstr[] = { "F64 ", "D64 ", "F128", "D128", "F256", "D256", "F512", "D512" };
+    cchar *state[] = { "failed", "loaded" };
+    int i, c;
+    for (i = c = 0; i < meta_count; ++i) {
+        c += sprintf(&buffer[c], "FLOPS %s: %s event %s * %-2.2lf\n", offstr[meta[i].offset],
+                     state[meta[i].enabled], meta[i].desc, meta[i].weight);
+    }
 }

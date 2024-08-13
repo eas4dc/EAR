@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -51,6 +44,10 @@ state_t mgt_cpufreq_eard_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_drive
 	if (!eards_connected()) {
 		return_msg(EAR_ERROR, "EARD (daemon) not connected");
 	}
+    // Driver is used in many things, without it this API can't do anything by now
+    if (ops_driver->init == NULL) {
+        return_msg(EAR_ERROR, "Driver is not available");
+    }
 	if (state_fail(s = eard_rpc(RPC_GET_API, NULL, 0, (char *) &eard_api, sizeof(int)))) {
 		return s;
 	}
@@ -64,6 +61,7 @@ state_t mgt_cpufreq_eard_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_drive
 	// Setting references
 	apis_put(ops->init,               mgt_cpufreq_eard_init);
 	apis_put(ops->dispose,            mgt_cpufreq_eard_dispose);
+	apis_put(ops->get_info,           mgt_cpufreq_eard_get_info);
 	apis_put(ops->count_available,    mgt_cpufreq_eard_count_available);
 	apis_put(ops->get_available_list, mgt_cpufreq_eard_get_available_list);
 	apis_put(ops->get_current_list,   mgt_cpufreq_eard_get_current_list);
@@ -133,6 +131,19 @@ state_t mgt_cpufreq_eard_init(ctx_t *c)
 state_t mgt_cpufreq_eard_dispose(ctx_t *c)
 {
 	return static_dispose(c, EAR_SUCCESS, NULL);
+}
+
+void mgt_cpufreq_eard_get_info(apinfo_t *info)
+{
+    info->api = API_EARD;
+    info->devs_count = cpu_count;
+}
+
+void mgt_cpufreq_eard_get_freq_details(freq_details_t *details)
+{
+    if (driver->get_freq_details != NULL) {
+        driver->get_freq_details(details);
+    }
 }
 
 state_t mgt_cpufreq_eard_count_available(ctx_t *c, uint *pstate_count)

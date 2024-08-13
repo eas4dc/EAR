@@ -1,21 +1,15 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+
+// #define SHOW_DEBUGS 1
 
 #include <unistd.h>
 
@@ -23,6 +17,7 @@
 #include <common/includes.h>
 
 #include <common/output/verbose.h>
+#include <common/output/debug.h>
 
 #include <common/system/lock.h>
 #include <common/system/symplug.h>
@@ -43,13 +38,16 @@ static struct energy_op
     state_t (*data_alloc)    (edata_t *data);
     uint    (*is_null)       (edata_t end);
     state_t (*data_copy)     (edata_t dest, edata_t src);
+    state_t   (*no_privilege_init) ();
+    uint      (*is_privileged)();
+		state_t   (*dispose_not_priv)();
 } energy_ops;
 
 static int  energy_loaded  = 0;
 
 static size_t my_energy_data_size = 0;
 
-static const int   energy_nops    = 9;
+static const int   energy_nops    = 12;
 static const char *energy_names[] = {
 	"energy_datasize",
 	"energy_frequency",
@@ -59,7 +57,10 @@ static const char *energy_names[] = {
 	"energy_dc_read",
 	"energy_data_alloc",
 	"energy_data_is_null",
-	"energy_data_copy"
+	"energy_data_copy",
+	"energy_not_privileged_init",
+	"energy_is_privileged",
+	"energy_dispose_not_priv"
 };
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -82,10 +83,19 @@ state_t eards_dc_read_substitute(void *ctx, edata_t t)
 	return eards_node_dc_energy(t, my_energy_data_size);
 }
 
+void energy_node_dispose()
+{
+	if (energy_loaded && energy_ops.dispose_not_priv != NULL){
+		energy_ops.dispose_not_priv();
+	}
+
+}
+
 state_t energy_node_load(char *path, int eard)
 {
 
 	state_t ret;
+	int requires_privileges = 1;
 	if (state_fail(ret = ear_trylock(&lock))) {
 		return ret;
 	}
@@ -95,8 +105,12 @@ state_t energy_node_load(char *path, int eard)
 		return EAR_SUCCESS;
 	}
 
-    debug("Loading %s plugin...", path);
-    #if FAKE_ERROR_ERROR_PATH
+    verbose(2,"Loading %s plugin...", path);
+		/* If EAR full installation, path is the path of the official energy plugin, if not (EAR lite),
+ 		* It is the path to the eard_nm energy plugin, which is a special case where EAR lite uses an official
+ 		* installation not compatible 
+ 		*/
+    #if FAKE_ENERGY_PLUGIN_ERROR_PATH
     ret = EAR_ERROR;
     #else
     ret = symplug_open(path, (void **) &energy_ops, 
@@ -107,13 +121,30 @@ state_t energy_node_load(char *path, int eard)
 		    ear_unlock(&lock);
         return_msg(ret, "Energy plugin symbols can not be opened.");
     }
+
+		/* If there is a not privileged initialization */
+    if (energy_ops.no_privilege_init != NULL)
+    {
+        debug("The loaded plugin requires a non-priviledged init...");
+        energy_ops.no_privilege_init();
+    }
+
     
     energy_loaded = 1;
 
+    if (energy_ops.is_privileged != NULL){
+	    requires_privileges = energy_ops.is_privileged();
+	    debug("Energy lib doesn't requires root privileges");
+    }
+
 	int root_privileges = (getuid() == 0);
 
-	if (!root_privileges) {
-  #if FAKE_ERROR_EARD_NOT_CONNECTED
+	if (!root_privileges && requires_privileges ) {
+		/* We try to connect with EARD: Regular EARL context */
+	#if FAKE_EARD_NOT_CONNECTED_ENERGY_PLUGIN
+	verbose(0,"FAKE_EARD_NOT_CONNECTED_ENERGY_PLUGIN used");
+	#endif
+  #if FAKE_EARD_NOT_CONNECTED_ENERGY_PLUGIN
     if (0){
   #else
 		if (eard && eards_connected()) {
@@ -121,6 +152,9 @@ state_t energy_node_load(char *path, int eard)
 			energy_ops.read = eards_dc_read_substitute;
 			debug("energy_dc_read is eards");
 		} else {
+			/* If we cannot, we replace with a dummy and the EARL will try to compute
+ 			* the power doing CPU+GPU 
+ 			*/
 			energy_ops.read = dummy_dc_read_substitute;
 			debug("energy_dc_read is dummy");
 		}

@@ -1,5 +1,5 @@
 CFLAGS  = $(CC_FLAGS) -O2 -I$(SRCDIR) $(CONSTANTS) -Wall $(DB_CFLAGS)
-LDFLAGS = $(DB_LDFLAGS) -lm -pthread -ldl -rdynamic 
+LDFLAGS = -lm -pthread -ldl -rdynamic 
 
 ######## INSTALLATION
 
@@ -31,32 +31,32 @@ gpu_mgt_OBJS = \
 	gpu/gpu_mgt.o
 
 eard_OBJS = \
-		eard_node_services.o\
+    eard_node_services.o\
     eard_checkpoint.o \
     power_monitor.o \
-	  app_mgt.o \
+    app_mgt.o \
     shared_configuration.o \
+    shared_pmon.o \
     app_api/app_server_api.o \
     node_metrics.o \
-		log_eard.o
+    log_eard.o
 
 eard_OBJS += \
     $(remote_api_OBJS) \
     $(powercap_OBJS) \
     $(gpu_mgt_OBJS) \
-		$(local_api_OBJS) \
-		$(report_OBJ) \
+    $(local_api_OBJS) \
+    $(report_OBJ) \
     $(SRCDIR)/management/libmgt.a \
     $(SRCDIR)/metrics/libmetrics.a \
-		$(SRCDIR)/common/libcommon.a	
+    $(SRCDIR)/common/libcommon.a
 
 ######## RULES
 
-all: all.components $(eard_BINS) $(oths_BINS) all.others
+all: all.components $(eard_BINS) $(oths_BINS) all.others shared_pmon.o
 
 eard: eard.c $(eard_OBJS)
 	$(CC) $(CFLAGS) $(DB_CFLAGS) -o $@ $< $(eard_OBJS) $(LDFLAGS) -lpthread
-
 
 power_monitor.o: power_monitor.c power_monitor.h 
 	$(CC) $(CFLAGS) -c $<  $(SLURM_CFLAGS)
@@ -70,6 +70,8 @@ eard_node_services.o:eard_node_services.c local_api/eard_api.h local_api/eard_ap
 shared_configuration.o: shared_configuration.c shared_configuration.h
 	$(CC) $(CFLAGS) -fPIC -c $<
 
+shared_pmon.o: shared_pmon.c shared_pmon.h power_monitor_app.h
+	$(CC) $(CFLAGS) -fPIC -c $<
 
 eard_checkpoint.o: eard_checkpoint.c eard_checkpoint.h
 	$(CC) $(CFLAGS) -c $<
@@ -80,7 +82,7 @@ install: install.components install.others eard.ginstall;
 
 %.install: %.install.components %.install.others;
 
-clean: clean.components clean.others eard.gclean rclean;
+clean: clean.components clean.others rclean; #Do not add eard.gclean
 
 ######## SUBFOLDERS
 

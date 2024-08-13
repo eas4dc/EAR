@@ -1,24 +1,18 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
 #include <stdlib.h>
 #include <pthread.h>
+#include <common/output/debug.h>
 #include <metrics/cpufreq/cpufreq.h>
 #include <metrics/cpufreq/archs/eard.h>
 #include <metrics/cpufreq/archs/dummy.h>
@@ -29,7 +23,7 @@ static cpufreq_ops_t ops;
 static uint cpu_count;
 static uint api;
 
-state_t cpufreq_load(topology_t *tp, int eard)
+state_t cpufreq_load(topology_t *tp, int force_api)
 {
 	state_t s;
 	while (pthread_mutex_trylock(&lock));
@@ -38,19 +32,24 @@ state_t cpufreq_load(topology_t *tp, int eard)
 		return EAR_SUCCESS;
 	}
 	api = API_DUMMY;
-	if (state_ok(s = cpufreq_eard_status(tp, &ops, eard))) {
+    if (API_IS(force_api, API_DUMMY)) {
+        goto dummy;
+    }
+	if (state_ok(s = cpufreq_eard_status(tp, &ops, API_IS(force_api, API_EARD)))) {
 		api = API_EARD;
 		debug("Loaded EARD");
+	}else{
+		debug("Not loaded EARD: %s (%d)", state_msg, s);
 	}
-	debug("Not loaded EARD: %s (%d)", state_msg, s);
 	if (state_ok(s = cpufreq_intel63_status(tp, &ops))) {
 		api = API_INTEL63;
 		debug("Loaded INTEL63");
+	}else{
+		debug("Not loaded INTEL63: %s (%d)", state_msg, s);
 	}
-	debug("Not loaded INTEL63: %s (%d)", state_msg, s);
+dummy:
 	if (state_ok(s = cpufreq_dummy_status(tp, &ops))) {}
 	debug("Loaded metrics/cpufreq/DUMMY %p", ops.data_diff);
-	
 	cpu_count = tp->cpu_count;
 	pthread_mutex_unlock(&lock);
 	return EAR_SUCCESS;

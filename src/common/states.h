@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef STATES_H
 #define STATES_H
@@ -27,15 +20,15 @@
 // Error definitions. ALWAYS use EAR_ERROR instead more specific
 // definitions. Use specific errors ONLY when you are controlling
 // differently from outside.
-#define EAR_SUCCESS              0
-#define EAR_ERROR               -1
-#define EAR_WARNING             -2
-#define EAR_NOT_INITIALIZED		-8
+#define EAR_SUCCESS					 0
+#define EAR_ERROR						-1
+#define EAR_WARNING					-2
+#define EAR_NOT_INITIALIZED	-8
 #define EAR_BAD_ARGUMENT		-13
 #define EAR_SYSCALL_ERROR		-18
-#define EAR_TIMEOUT				-21
-#define EAR_UNDEFINED			-24
-#define EAR_CANCELLED           -25
+#define EAR_TIMEOUT					-21
+#define EAR_UNDEFINED				-24
+#define EAR_CANCELLED				-25
 
 /* error buffer */
 char state_buffer[SZ_BUFFER] __attribute__((weak));

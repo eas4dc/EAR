@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef MANAGEMENT_CPUFREQ_FREQUENCY
 #define MANAGEMENT_CPUFREQ_FREQUENCY
@@ -28,6 +21,21 @@
 // purpose is to connect EAR project with the cpufreq API without having to
 // adapt and test the old code. The old frequency API without cpufreq is in
 // recovery folder. Take a look into cpufreq.h to learn about compiling options.
+
+#define check_usrspace_gov_set(st, vrb_lvl) \
+    if (state_fail(st))\
+    {\
+       if (state_is(st, EAR_WARNING))\
+       {\
+            verbose(vrb_lvl, "%s", state_msg);\
+       } else if (state_is(st, EAR_NOT_INITIALIZED))\
+       {\
+           verbose(vrb_lvl, "%sERROR%s %s", COL_RED, COL_CLR, state_msg);\
+       } else\
+       {\
+            verbose(vrb_lvl, "%sERROR%s Setting userspace governor.", COL_RED, COL_CLR);\
+       }\
+    }
 
 typedef struct governor {
 	char name[128];
@@ -52,8 +60,6 @@ ulong frequency_get_nominal_freq();
 ulong frequency_get_nominal_pstate();
 // Returns a list of available frequencies.
 ulong *frequency_get_freq_rank_list();
-// Sets a frequency per CPU (privileged).
-ulong frequency_set_cpu(ulong freq_khz, uint cpu);
 // Sets a frequency in a CPU (privileged).
 ulong frequency_set_all_cpus(ulong freq_khz);
 // Sets a frequency if a bit is set (privileged).
@@ -68,10 +74,8 @@ uint frequency_freq_to_pstate(ulong freq_khz);
 ulong frequency_pstate_to_freq_list(uint pstate_index, ulong *freq_list, uint pstate_count);
 // Converts a frequency into P_STATE by searching in a list.
 uint frequency_freq_to_pstate_list(ulong freq_khz, ulong *freq_list, uint pstate_count);
-// Sets the governor performance (privileged).
-void frequency_set_performance_governor_all_cpus();
 // Sets the governor userspace (privileged).
-void frequency_set_userspace_governor_all_cpus();
+state_t frequency_set_userspace_governor_all_cpus();
 // Given a frequency returns if is valid.
 int frequency_is_valid_frequency(ulong freq_khz);
 // Given a P_STATE returns if is valid.
@@ -83,12 +87,11 @@ ulong frequency_closest_frequency(ulong freq_khz);
 //
 ulong frequency_closest_high_freq(ulong freq_khz, int pstate_minimum);
 
-// Gets the current governor.
-void get_governor(governor_t *_governor);
 // Sets a specific governor (privileged).
 void set_governor(governor_t *_governor);
 
-
 void verbose_frequencies(int cpus, ulong *f);
+
 void vector_print_pstates(uint *pstates, uint num_cpus);
+
 #endif //MANAGEMENT_CPUFREQ_FREQUENCY

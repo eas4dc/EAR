@@ -1,19 +1,16 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
+
+#ifndef _EARL_EXTERNS_ALLOC_H
+#define _EARL_EXTERNS_ALLOC_H
 
 #include <linux/limits.h>
 #include <common/types/application.h>
@@ -65,9 +62,10 @@ int my_node_id;
 
 uint sh_sig_per_node=1;
 uint sh_sig_per_proces=0;
-uint show_signatures=0;
 uint report_node_sig=0;
 uint report_all_sig=0;
 
 uint earl_phase_classification = APP_COMP_BOUND;
 topology_t mtopo;
+
+#endif // _EARL_EXTERNS_ALLOC_H

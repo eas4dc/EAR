@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <common/system/file.h>
 #include <slurm_plugin/slurm_plugin.h>
@@ -32,29 +25,25 @@ static char command[SZ_PATH];
 //
 static int fd_master = -1;
 
-#define PERMS000(T) 0
-#define PERMS100(T) S_IR ## T
-#define PERMS010(T) S_IW ## T
-#define PERMS001(T) S_IX ## T
-#define PERMS110(T) (PERMS100(T)) | (PERMS010(T))
-#define PERMS111(T) (PERMS100(T)) | (PERMS010(T)) | (PERMS001(T))
-#define PEXPA(...) __VA_ARGS__
-#define PERMS(u, g, o) PEXPA(PERMS ## u)(USR) | PEXPA(PERMS ## g)(GRP) | PEXPA(PERMS ## o)(OTH)
-
 // Master/slave 1
 int lock_master(char *path_tmp, int job_id)
 {
     plug_verbose(_sp, 3, "function lock_master");
     // Creating temp folder
     if ((access(path_tmp, W_OK) != 0) && (errno == ENOENT)) {
-        mkdir(path_tmp, PERMS(111,000,000)); 
+        if ((mkdir(path_tmp, PERMS(111,110,110)) != 0) && (errno != EEXIST)) {
+            plug_error(_sp, "while creating TMP folder: %s", strerror(errno));
+            //exit(0);
+            return -1;
+        }
     }
-    // Creating erun folder
-    sprintf(path_job, "%s/erun%d", path_tmp, job_id);
-    mkdir(path_job, PERMS(111,110,110)); 
     // Creating job folder
     sprintf(path_job, "%s/erun%d", path_tmp, job_id);
-    mkdir(path_job, PERMS(111,110,110));
+    if ((mkdir(path_job, PERMS(111,110,110)) != 0) && (errno != EEXIST)) {
+        plug_error(_sp, "while creating job folder: %s", strerror(errno));
+        //exit(0);
+        return -1;
+    }
     // Setting the paths
     xsprintf(path_master_lock, "%s/master.lock", path_job);
     xsprintf(path_master_step, "%s/master.step", path_job);

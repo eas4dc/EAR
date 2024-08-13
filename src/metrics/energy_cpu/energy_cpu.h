@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef NMETICS_ENERGY_CPU_H
 #define NMETICS_ENERGY_CPU_H
@@ -36,6 +29,7 @@ state_t energy_cpu_dispose(ctx_t *c);
 
 state_t energy_cpu_get_api(uint *api_int);
 
+
 // Data
 state_t energy_cpu_data_alloc(ctx_t *c, ullong **values, uint *rapl_count);
 
@@ -50,6 +44,8 @@ state_t energy_cpu_count_devices(ctx_t *c, uint *count);
 
 // Getters
 state_t energy_cpu_read(ctx_t *c, ullong *values);
+
+state_t energy_cpu_read_copy(ctx_t *c, ullong *v2, ullong *v1, ullong *vD);
 
 // Other
 double energy_cpu_compute_power(double energy, double elapsed_time);

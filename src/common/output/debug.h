@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef EAR_DEBUG_H
 #define EAR_DEBUG_H
@@ -21,19 +14,25 @@
 #include <stdio.h>
 #include <string.h>
 
-// You can use _debug to avoid SHOW_DEBUGS definition.
-// Try to avoid including debug in header files.
+#define DEBUG_ENABLED     1
+int  debug_channel	       __attribute__((weak)) = 2;
+int adebug_enabled         __attribute__((weak)) = 0;
 
 #define ENABLE_DEBUG     0
 #define DEBUG_SET_FD(fd) debug_channel = fd;
-int debug_channel	     __attribute__((weak)) = 2;
+
+// Set
+#define  DEBUG_SET_FD(fd)  debug_channel = fd;
+#define ADEBUG_SET_EN(en) adebug_enabled = en;
 
 // Long format
 #if 1
 #define _debug(...) \
-    dprintf(debug_channel, "%s:%s:%d: ", __FILE__, __FUNCTION__, __LINE__); \
-    dprintf(debug_channel, __VA_ARGS__); \
-    dprintf(debug_channel, "\n");
+    do { \
+      dprintf(debug_channel, "%s:%s:%d: ", __FILE__, __FUNCTION__, __LINE__); \
+      dprintf(debug_channel, __VA_ARGS__); \
+      dprintf(debug_channel, "\n"); \
+    } while(0);
 #else
 // Short format
 #define _debug(...) \
@@ -42,7 +41,7 @@ int debug_channel	     __attribute__((weak)) = 2;
 #endif
 
 // Traditional debug
-#if SHOW_DEBUGS && ENABLE_DEBUG
+#if SHOW_DEBUGS && DEBUG_ENABLED
 #define debug(...) \
 { \
     _debug(__VA_ARGS__); \
@@ -51,11 +50,12 @@ int debug_channel	     __attribute__((weak)) = 2;
 #define debug(...)
 #endif
 
-// Conditional debug
-#define cdebug(condition, ...) \
+// Active debug
+#define adebug(...) \
 { \
-    if (condition) { \
-        _debug(__VA_ARGS__); \
+    if (adebug_enabled) { \
+        dprintf(debug_channel, __VA_ARGS__); \
+        dprintf(debug_channel, "\n"); \
     } \
 }
 

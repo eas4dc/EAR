@@ -1,0 +1,24 @@
+.\" Manpage for ear_create_database.
+.TH man 8 "August 2024" "5.0" "edb_clean_pm man page"
+.SH NAME
+edb_clean_pm \- Removes monitoring metrics from EAR databases.
+.SH SYNOPSIS
+edb_clean_pm
+.SH DESCRIPTION
+edb_clean_pm removes monitoring-related data from EAR databases. This is data stored in the Periodic_metrics table, which contains records of the status of nodes at set intervals of time.
+
+This command is made to be easy to run with a cron job, with the idea to automate maintenance of the database and prevent it from growing into excessive sizes, by providing an easy way to delete data that is older than a certain amount of days. 
+
+.SH OPTIONS
+	-p				The program will request the database user's password.
+	-d ndays		Days to preserve. It will delete any data older than ndays.
+	-o				Prints out the queries that would be executed. Exclusive with -r. [default:on]
+	-r				Runs the queries that would be executed. Exclusive with -o. [default:off]
+	-h				Displays this message
+
+.SH SEE ALSO
+edb_creat, ereport, eacct
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+EAR suport team (ear-support@bsc.es)

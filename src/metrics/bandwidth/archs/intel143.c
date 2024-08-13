@@ -25,23 +25,21 @@
 #include <common/output/debug.h>
 #include <metrics/bandwidth/archs/intel143.h>
 
-static ushort sap_ids[2] = { 0x3251, 0x00 };
-static char  *sap_dfs[2] = { "00.1", NULL };
-//
+// Document: SPR Uncore Perfmon Programming Guide
 static pci_t *pcis;
 static uint   pcis_count;
 static uint   imc_maps_count;
 static uint   imc_ctrs_count;
 static char **imc_maps;
-static uint  *imc_ctrs;
-static uint  *imc_ctls;
+// Table 1-12. Uncore Performance Monitoring Registers
+static ushort sap_ids[2] = { 0x3251, 0x00 };
+static char  *sap_dfs[2] = { "00.1", NULL };
 
-static state_t load_icelake()
+static state_t load_sapphire()
 {
 	addr_t addr_hi;
 	addr_t addr_lo;
 	addr_t addr_fi;
-	uint ctrs, ctls;
 	uint p, i;
 	state_t s;
 
@@ -69,13 +67,13 @@ static state_t load_icelake()
 			}
 			addr_lo = (addr_lo & 0x7FF) << 12;
 			// Channel0 Ctr0
-			addr_fi = (addr_hi | addr_lo) + 0x22800;
+			addr_fi = (addr_hi | addr_lo) + 0x22800; // + SPR_IMC_MMIO_CHN_OFFSET (0x22800)
 			if (state_ok(s = pci_mmio_map(addr_fi, (void **) &imc_maps[(p*8)+(i*2)+0]))) {
 				debug("IMC%u CHANNEL0 physical address = 0x%lx (0x%lx | 0x%lx + 0x22800) (map 0x%lx)",
 					(p*4)+i, addr_fi, addr_hi, addr_lo, imc_maps[(p*8)+(i*2)+0]);
 			}
 			// Channel1 Ctr0
-			addr_fi = (addr_hi | addr_lo) + 0x2a800;
+			addr_fi = (addr_hi | addr_lo) + 0x2a800; // + SPR_IMC_MMIO_CHN_OFFSET + SPR_IMC_MMIO_CHN_STRIDE (0x8000)
 			if (state_ok(s = pci_mmio_map(addr_fi, (void **) &imc_maps[(p*8)+(i*2)+1]))) {
 				debug("IMC%u CHANNEL1 physical address = 0x%lx (0x%lx | 0x%lx + 0x26800) (map 0x%lx)",
 					(p*4)+i, addr_fi, addr_hi, addr_lo, imc_maps[(p*8)+(i*2)+1]);
@@ -99,7 +97,7 @@ state_t bwidth_intel143_load(topology_t *tp, bwidth_ops_t *ops)
 	}
 	// It is shared by all Intel's architecture from Haswell to Skylake
 	debug("PCIs count: %d", pcis_count);
-	if (state_fail(s = load_icelake())) {
+	if (state_fail(s = load_sapphire())) {
 		return s;
 	}
 	// In the future it can be initialized in read only mode
@@ -125,10 +123,10 @@ BWIDTH_F_GET_INFO(bwidth_intel143_get_info)
 state_t bwidth_intel143_init(ctx_t *c)
 {
     int i;
-    // Activating controllers (found as *_PMON_CTLx in Unit PMON state - Counter and Control Pairs section)
+    // Section: IMC Performance Monitoring Overview
     for (i = 0; i < imc_ctrs_count; ++i) {
-        write64(i, 0x40, 0x00ff05);
-        debug("MC_CHy_PCI_PMON_FIXED_CTL%d: 0x%llx", i, read64(i, 0x40));
+        write64(i, 0x40, 0x00ff05); // 0x40 CTL0, UMASK[15:8]: RD+WR(0xFF), EVENT[7:0]: CAS_COUNT (0x05)
+        debug("MC_CHy_PCI_PMON_CTL%d: 0x%llx", i, read64(i, 0x40));
     }
     return EAR_SUCCESS;
 }
@@ -150,7 +148,7 @@ state_t bwidth_intel143_read(ctx_t *c, bwidth_t *bw)
     timestamp_get(&bw[imc_ctrs_count].time);
     for (i = 0; i < imc_ctrs_count; ++i) {
         bw[i].cas = read64(i, 0x08);
-	    debug("MC_CHy_PCI_PMON_FIXED_CTR%d: %llu cas", i, bw[i].cas);
+	    debug("MC_CHy_PCI_PMON_CTR%d: %llu cas", i, bw[i].cas);
     }
 	return EAR_SUCCESS;
 }

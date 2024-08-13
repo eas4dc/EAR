@@ -1,19 +1,13 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 
 
 #include <stdio.h>
@@ -29,10 +23,9 @@
 #include <library/dynais/dynais.h>
 #include <library/api/clasify.h>
 #include <library/states/states_comm.h>
+#include <library/loader/module_mpi.h>
 #include <library/loader/module_cuda.h>
-#include <library/api/mpi_support.h>
 #include <library/policies/common/mpi_stats_support.h>
-
 
 #define WARN_CLASSIFY  1
 #define INFO_CLASSIFY  2
@@ -84,35 +77,60 @@ char * phase_to_str(uint phase)
 }
 
 
+void classify_verbose(uint vl)
+{
+	verbose_master(vl, "CPU bound (CPI  < %.2lf GBS < %.2lf) MEM bound (CPI > %2.lf GBS > %.2lf)",
+		CPI_CPU_BOUND, GBS_CPU_BOUND, CPI_MEM_BOUND, GBS_MEM_BOUND);
+}
+
 state_t classify_init(topology_t *tp_in)
 {
   switch (tp_in->vendor){
     case VENDOR_INTEL:
       /* Before Sylake */
       if (tp_in->model <= MODEL_BROADWELL_X){
-        return EAR_SUCCESS;
+				goto report_classify;
       }
       /* Skylake */
       if (tp_in->model < MODEL_ICELAKE_X){
-        return EAR_SUCCESS;
+				goto report_classify;
       }
       /* Icelake */
-      if (tp_in->model >= MODEL_ICELAKE_X){
-        return EAR_SUCCESS;
+      if ((tp_in->model >= MODEL_ICELAKE_X) && (tp_in->model < MODEL_SAPPHIRE_RAPIDS)){
+				goto report_classify;
       }
+			/* Sphire Rapids */
+			if (tp_in->model >= MODEL_SAPPHIRE_RAPIDS){
+				CPI_CPU_BOUND =       0.4;
+				GBS_CPU_BOUND =       180;
+				CPI_MEM_BOUND =				0.4;
+				GBS_MEM_BOUND =				250;
+				goto report_classify;
+			}	
+
       break;
     case VENDOR_AMD:
       /* Zen2 = Rome */
       if (tp_in->family < FAMILY_ZEN3){
-        return EAR_SUCCESS;
+				CPI_CPU_BOUND =       0.6;
+				GBS_CPU_BOUND =       250;
+				CPI_MEM_BOUND =       0.9;
+				GBS_MEM_BOUND =       350;
+				goto report_classify;
       }
       /* Zen3 = Milan */
       if (tp_in->family >= FAMILY_ZEN3){
-        return EAR_SUCCESS;
+				CPI_CPU_BOUND =       0.6;
+				GBS_CPU_BOUND =       400;
+				CPI_MEM_BOUND =       0.9;
+				GBS_MEM_BOUND =       500;
+				goto report_classify;
       }
       break;
     default:break;
   }
+report_classify:
+	classify_verbose(INFO_CLASSIFY);
   return EAR_SUCCESS;
 }
 
@@ -153,7 +171,7 @@ static uint first_warning_mpi_th = 1;
 state_t must_switch_to_time_guide(ulong last_sig_elapsed, uint *ear_guided)
 { 
     /* Changed to force the EARL to use dynais as much as possible */
-    if (!is_mpi_enabled()){
+    if (!module_mpi_is_enabled()){
       *ear_guided = TIME_GUIDED;
       return EAR_SUCCESS;
     }
@@ -232,19 +250,17 @@ state_t is_cpu_busy_waiting(signature_t *sig, uint num_cpus, uint *busy)
         if (c1 || c2 || c3) {
             char hdr_msg[] = "--- Busy waiting values (value/thresh) ---";
 
-            int ret;
             char cpi_msg[32];
-            ret = snprintf(cpi_msg, sizeof cpi_msg, "CPI class=%u (%.3lf/%.3lf)", c1, sig->CPI, CPI_BUSY_WAITING);
+            snprintf(cpi_msg, sizeof cpi_msg, "CPI class=%u (%.3lf/%.3lf)", c1, sig->CPI, CPI_BUSY_WAITING);
 
-            char gbs_msg[32];
-            ret = snprintf(gbs_msg, sizeof gbs_msg, "Mem. bwidth class=%u (%.3lf/%.3lf)", c2, sig->GBS, GBS_BUSY_WAITING);
+            char gbs_msg[64];
+            snprintf(gbs_msg, sizeof gbs_msg, "Mem. bwidth class=%u (%.3lf/%.3lf)", c2, sig->GBS, GBS_BUSY_WAITING);
 
             char gflops_msg[32];
-            ret = snprintf(gflops_msg, sizeof gflops_msg, "GFLOP/s class=%u %.3lf/%.3lf)", c3, sig->Gflops, GFLOPS_BUSY_WAITING);
+            snprintf(gflops_msg, sizeof gflops_msg, "GFLOP/s class=%u %.3lf/%.3lf)", c3, sig->Gflops, GFLOPS_BUSY_WAITING);
 
             char busy_waiting_msg[64];
-            ret = snprintf(busy_waiting_msg, sizeof busy_waiting_msg,
-                           "App node workload declared as busy waiting: %u", *busy);
+            snprintf(busy_waiting_msg, sizeof busy_waiting_msg, "App node workload declared as busy waiting: %u", *busy);
 
             int max_strlen = strlen(busy_waiting_msg);
             /*

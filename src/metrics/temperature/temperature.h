@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef METRICS_TEMPERATURE_H
 #define METRICS_TEMPERATURE_H
@@ -51,10 +44,15 @@ state_t temp_dispose(ctx_t *c);
 state_t temp_count_devices(ctx_t *c, uint *devs_count);
 /** Reads the last temperature value and the average per device. */
 state_t temp_read(ctx_t *c, llong *temp_list, llong *average);
+
+state_t temp_read_copy(ctx_t *c, llong *t2, llong *t1, llong *tD, llong *average);
+
 // Data
 state_t temp_data_alloc(llong **temp_list);
 
-state_t temp_data_copy(llong *temp_list2, llong *temp_list1);
+state_t temp_data_copy(llong *tempD, llong *tempS);
+
+void temp_data_diff(llong *temp2, llong *temp1, llong *tempD, llong *average);
 
 state_t temp_data_free(llong **temp_list);
 

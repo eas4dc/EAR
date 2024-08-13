@@ -1,3 +1,12 @@
+############################################################################
+# Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+#
+# This program and the accompanying materials are made
+# available under the terms of the Eclipse Public License 2.0
+# which is available at https://www.eclipse.org/legal/epl-2.0/
+#
+# SPDX-License-Identifier: EPL-2.0
+############################################################################
 ##*****************************************************************************
 ## $Id$
 ##*****************************************************************************
@@ -40,14 +49,20 @@ AC_DEFUN([X_AC_SLURM],
 
     AC_ARG_WITH(
         [slurm],
-        AS_HELP_STRING(--with-slurm=PATH,Specify path to SLURM installation),
+        AS_HELP_STRING(--with-slurm=PATH,Specify path to SLURM installation. Use no to disable),
         [
-			_x_ac_slurm_dirs_root="$withval"
-            _x_ac_slurm_aux="$withval"
-			_x_ac_slurm_custom="yes"
+		    if test "x$withval" = "xno"; then
+                _x_ac_slurm_force="no"
+    		else
+			    _x_ac_slurm_dirs_root="$withval"
+                _x_ac_slurm_aux="$withval"
+	    		_x_ac_slurm_custom="yes"
+            fi
 		]
     )
-
+   
+    # Forced no through --without-slurm 
+    if test "x$_x_ac_slurm_force" != "xno"; then
     AC_CACHE_CHECK(
         [for SLURM root directory],
         [_cv_slurm_dir_root],
@@ -65,6 +80,11 @@ AC_DEFUN([X_AC_SLURM],
 				fi
         ]
     )
+    else
+        if test "x$SCHED_NAME" = "xSLURM"; then
+            SCHED_NAME=""
+        fi
+    fi
 
     # Force custom (if custom = yes but dir (not dirs) root is empty)
     if test "x$_x_ac_slurm_custom" = "xyes" && test -z "$_cv_slurm_dir_root"; then

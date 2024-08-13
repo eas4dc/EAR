@@ -1,10 +1,4 @@
-CC_FLAGS += $(CONSTANTS)
-CFLAGS = $(CC_FLAGS) -fPIC -shared -Wextra 
-
 ######## INSTALLATION
-
-stat_BINS = libmetrics.a
-dyna_BINS = libmetrics.so
 
 ######## FILES
 
@@ -22,10 +16,10 @@ mets_OBJS = \
     $(SRCDIR)/metrics/common/omsr.o \
     $(SRCDIR)/metrics/common/oneapi.o \
     $(SRCDIR)/metrics/common/perf.o \
-    $(SRCDIR)/metrics/common/popen.o \
     $(SRCDIR)/metrics/common/pstate.o \
     $(SRCDIR)/metrics/common/rsmi.o \
     $(SRCDIR)/metrics/common/redfish.o \
+    $(SRCDIR)/metrics/common/cray_pm_counters.o \
     $(SRCDIR)/metrics/accumulators/power_metrics.o \
     $(SRCDIR)/metrics/bandwidth/bandwidth.o \
     $(SRCDIR)/metrics/bandwidth/archs/amd17.o \
@@ -48,9 +42,12 @@ mets_OBJS = \
     $(SRCDIR)/metrics/energy/cpu/intel63.o \
     $(SRCDIR)/metrics/energy_cpu/energy_cpu.o \
     $(SRCDIR)/metrics/energy_cpu/archs/cpu_util.o \
+    $(SRCDIR)/metrics/energy_cpu/archs/linux_powercap.o \
     $(SRCDIR)/metrics/energy_cpu/archs/dummy.o \
+    $(SRCDIR)/metrics/energy_cpu/archs/linux_powercap.o \
     $(SRCDIR)/metrics/energy_cpu/archs/eard.o \
     $(SRCDIR)/metrics/energy_cpu/archs/msr.o \
+    $(SRCDIR)/metrics/energy_cpu/archs/perf.o \
     $(SRCDIR)/metrics/flops/flops.o \
     $(SRCDIR)/metrics/flops/archs/perf.o \
     $(SRCDIR)/metrics/flops/archs/dummy.o \
@@ -67,6 +64,7 @@ mets_OBJS = \
     $(SRCDIR)/metrics/proc/stat.o \
     $(SRCDIR)/metrics/gpu/gpu.o \
     $(SRCDIR)/metrics/gpu/gpuproc.o \
+    $(SRCDIR)/metrics/gpu/gpuprof.o \
     $(SRCDIR)/metrics/gpu/archs/cupti.o \
     $(SRCDIR)/metrics/gpu/archs/dcgmi.o \
     $(SRCDIR)/metrics/gpu/archs/dummy.o \
@@ -74,24 +72,28 @@ mets_OBJS = \
     $(SRCDIR)/metrics/gpu/archs/nvml.o \
     $(SRCDIR)/metrics/gpu/archs/oneapi.o \
     $(SRCDIR)/metrics/gpu/archs/rsmi.o \
+    $(SRCDIR)/metrics/gpu/archs/gpuprof_nvml.o \
+    $(SRCDIR)/metrics/gpu/archs/gpuprof_dcgmi.o \
+    $(SRCDIR)/metrics/gpu/archs/gpuprof_dummy.o \
     $(SRCDIR)/metrics/temperature/temperature.o \
     $(SRCDIR)/metrics/temperature/archs/amd17.o \
     $(SRCDIR)/metrics/temperature/archs/intel63.o \
     $(SRCDIR)/metrics/temperature/archs/dummy.o \
     $(SRCDIR)/metrics/io/io.o
 
+
 ######## RULES
 
-all: all.components $(stat_BINS) $(dyna_BINS)
+all: all.components metrics.o libmetrics.a 
 
 post: test
 	@ $(MAKE) -C 'gpu' post || exit
 
-libmetrics.a: $(mets_OBJS)
-	$(AR) rvs $@ $(mets_OBJS)
+metrics.o: metrics.c
+	$(CC) $(CC_FLAGS) -I$(SRCDIR) -fPIC -c $<
 
-libmetrics.so: $(mets_OBJS)
-	$(CC) $(CFLAGS) -o $@ $(mets_OBJS)
+libmetrics.a: metrics.o $(mets_OBJS)
+	$(AR) rvs $@ $^
 
 test: metrics.c
 	$(CC) -I $(SRCDIR) -DTEST=1 -fPIC -o $@ $^ libmetrics.a ../daemon/local_api/libeard.a ../common/libcommon.a -lm -lpthread -ldl
@@ -118,13 +120,14 @@ clean: clean.components rclean
 	@ $(MAKE) -C 'gpu'          $* || exit
 	@ $(MAKE) -C 'cpi'          $* || exit
 	@ $(MAKE) -C 'cpufreq'      $* || exit
-	@ $(MAKE) -C 'energy'       $* || exit
 	@ $(MAKE) -C 'flops'        $* || exit
 	@ $(MAKE) -C 'imcfreq'      $* || exit
 	@ $(MAKE) -C 'io'           $* || exit
 	@ $(MAKE) -C 'proc'         $* || exit
 	@ $(MAKE) -C 'temperature'  $* || exit
 	@ $(MAKE) -C 'energy_cpu'   $* || exit
+	@ $(MAKE) -C 'energy'       $* || exit
+
 
 ######## DEPENDENCIES
 

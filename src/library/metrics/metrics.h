@@ -1,29 +1,29 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 
 #ifndef EAR_EAR_METRICS_H
 #define EAR_EAR_METRICS_H
 
+#include <common/config.h>
 #include <common/hardware/topology.h>
-// #include <common/types/application.h>
-#include <library/common/library_shared_data.h>
 #include <metrics/common/apis.h>
 #include <metrics/io/io.h>
+#include <library/common/library_shared_data.h>
+#include <metrics/proc/stat.h>
 #include <library/api/clasify.h>
+#include <library/metrics/dcgmi_lib.h>
+#if DLB_SUPPORT
+#include <library/metrics/dlb_talp_lib.h>
+#endif
+
 
 #define MGT_CPUFREQ 1
 #define MGT_IMCFREQ 2
@@ -36,19 +36,11 @@
 #define MGT_GPU     9
 #define MET_GPU     10
 
+
 /** For each phase */
 typedef struct phase_info {
   ullong elapsed;
 } phase_info_t;
-
-typedef struct dcgmi_sig{
-  uint    dcgmi_sets;
-	uint    dcgmi_gpus;
-  uint    dcgmi_num_ev;
-  uint    **dcgmi_events;
-  uint    *dcgmi_instances;
-  dcgmi_t **dcgmi_metrics;
-} dcgmi_sig_t;
 
 
 typedef struct sig_ext
@@ -64,6 +56,11 @@ typedef struct sig_ext
     float              tpenalty;
     phase_info_t       earl_phase[EARL_MAX_PHASES];
     dcgmi_sig_t        dcgmis;
+#if DLB_SUPPORT
+		earl_talp_t				 earl_talp_data;
+#endif
+		proc_stat_t        proc_ps;
+		ulong              sel_mem_freq_khz;
 } sig_ext_t;
 
 /** New metrics **/
@@ -109,11 +106,15 @@ void compute_per_process_and_job_metrics(signature_t *sig);
 /* Computes metrics per-iteration, very lightweight */
 state_t metrics_new_iteration(signature_t *sig);
 
+/* Resets metrics for new processes , after fork*/
+void metrics_lib_reset();
+
 #if MPI_OPTIMIZED
 void metrics_start_cpupower();
 
 void metrics_read_cpupower();
 #endif
+
 
 #if DCGMI
 uint metrics_dcgmi_enabled();
@@ -121,5 +122,8 @@ uint metrics_dcgmi_enabled();
 
 /* Returns the number of iterations per second in the last computed signature */
 float metrics_iter_per_second();
+
+
+uint metrics_CPU_phase_ok();
 
 #endif //EAR_EAR_METRICS_H

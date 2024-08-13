@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #if DB_MYSQL
 #include <mysql/mysql.h>
@@ -40,10 +33,10 @@
 #define ALL_QUERY4  "DELETE FROM Learning_jobs"
 
 #define POW_SIG_QUERY "DELETE FROM Power_signatures WHERE id IN (SELECT power_signature_id from Learning_applications " \
-                        "INNER JOIN Learning_jobs ON Learning_jobs.id=job_id AND Learning_jobs.step_id=Learning_applications.step_id "\
+                        "INNER JOIN Learning_jobs ON Learning_jobs.job_id=Learning_applications.job_id AND Learning_jobs.step_id=Learning_applications.step_id "\
                         "WHERE " 
 #define NODE_QUERY  "DELETE Learning_signatures, Learning_applications, Learning_jobs FROM Learning_jobs " \
-                    "INNER JOIN Learning_applications INNER JOIN Learning_signatures ON Learning_jobs.id=job_id " \
+                    "INNER JOIN Learning_applications INNER JOIN Learning_signatures ON Learning_jobs.job_id=Learning_applications.job_id " \
                     "AND Learning_jobs.step_id=Learning_applications.step_id AND Learning_signatures.id=signature_id "\
                     "WHERE "
 

@@ -1,0 +1,23 @@
+[Unit]
+Description=EDCMON - EAR Data Center Monitor service
+#ConditionPathExists=/var/ear
+#Wants=req1.service req2.service
+#After=req1.service req2.service
+
+
+[Service]
+Type=simple
+Environment="EAR_ETC=/opt/ear-5.0/etc"
+Environment="EAR_INSTALL_PATH=/opt/ear-5.0"
+# nodesensors_report period is not used but the API requires it. The nodesensor_log is the argument showing which report plugin to use
+ExecStart=/opt/ear-5.0/sbin/edcmon --monitor=1000 --relax=1000 --plugins=nodesensors.so:30000+nodesensors_report.so:30000:nodesensor_log+nodesensors_alerts.so:30000:log --verbose
+ExecStop=/bin/kill -TERM $MAINPID
+KillMode=process
+Restart=on-failure
+#RestartSec=1s
+LimitMEMLOCK=infinity
+LimitSTACK=infinity
+
+[Install]
+WantedBy=multi-user.target
+

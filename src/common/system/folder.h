@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef EAR_PRIVATE_FOLDER_H
 #define EAR_PRIVATE_FOLDER_H
@@ -33,7 +26,13 @@ state_t folder_open(folder_t *folder, char *path);
 state_t folder_close(folder_t *folder);
 
 char *folder_getnext(folder_t *folder, char *prefix, char *suffix);
+char *folder_getnextdir(folder_t *folder, char *prefix, char *suffix);
+
+/* Looks for files/folders for a given type. If type is DT_UNKNOWN all types are considered */
+char *folder_getnext_type(folder_t *folder, char *prefix, char *suffix, uint type);
 
 state_t folder_remove(char *path);
+
+state_t folder_rename(char *oldp, char *newp);
 
 #endif //EAR_PRIVATE_FOLDER_H

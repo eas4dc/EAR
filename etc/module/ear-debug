@@ -1,0 +1,14 @@
+#%Module
+
+# CTT user environment
+#
+# Author                : Energy Aware Runtime BSC team
+# Created               : Mon  2 Nov 08:26:00 CEST 2017
+#
+
+module-whatis "Enable EAR verbosity"
+
+setenv    HACK_EARL_VERBOSE "2"
+setenv    SLURM_COMP_VERBOSE "3"
+setenv    EAR_LOADER_VERBOSE "3"
+

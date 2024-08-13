@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 //#define FAKE_GPUS   1
@@ -31,11 +24,11 @@ static uint        root_devs_count = 0;
 static uint        user_devs_count = 0;
 static gpu_devs_t *root_devs;
 static gpu_devs_t *user_devs;
+static uint        eard_api;
 
 void gpu_eard_load(gpu_ops_t *ops, int _eard)
 {
     wide_buffer_t b;
-	uint eard_api;
 	state_t s;
 
     eard = _eard;
@@ -60,7 +53,6 @@ void gpu_eard_load(gpu_ops_t *ops, int _eard)
     if (state_fail(s = eard_rpc_buffered(RPC_MET_GPU_GET_DEVICES, NULL, 0, (char **) &b, NULL))) {
         return;
     }
-    /* Check : Esto es posible ? */
     serial_copy_elem(&b, (char *) &root_devs_count, NULL);
     debug("Received from EARD %u GPUs", root_devs_count);
     if (root_devs_count == 0) {
@@ -71,7 +63,7 @@ void gpu_eard_load(gpu_ops_t *ops, int _eard)
     user_devs_count = root_devs_count;
     // Get a list of devices in user space
     if (ops->get_devices != NULL) {
-        ops->get_devices(NULL, &user_devs, &user_devs_count);
+        ops->get_devices(&user_devs, &user_devs_count);
     } else {
         // If not, just copy root devices
         user_devs = calloc(user_devs_count, sizeof(gpu_devs_t));
@@ -91,18 +83,31 @@ void gpu_eard_load(gpu_ops_t *ops, int _eard)
     }
     #endif
     // If something already loaded
+    apis_put(ops->get_info,      gpu_eard_get_info);
+    apis_put(ops->get_devices,   gpu_eard_get_devices);
     apis_put(ops->init,          gpu_eard_init);
-    apis_put(ops->get_api,       gpu_eard_get_api);
     apis_put(ops->dispose,       gpu_eard_dispose);
-    apis_put(ops->count_devices, gpu_eard_count_devices);
     apis_set(ops->read,          gpu_eard_read);
     apis_set(ops->read_raw,      gpu_eard_read_raw);
     debug("Loaded metrics/gpu/EARD");
 }
 
-void gpu_eard_get_api(uint *api)
+void gpu_eard_get_info(apinfo_t *info)
 {
-    *api = API_EARD;
+    info->api         = API_EARD;
+    info->api_under   = eard_api;
+    info->devs_count  = user_devs_count;
+}
+
+void gpu_eard_get_devices(gpu_devs_t **devs, uint *devs_count)
+{
+    if (devs != NULL) {
+        *devs = calloc(user_devs_count, sizeof(gpu_devs_t));
+        memcpy(*devs, user_devs, user_devs_count*sizeof(gpu_devs_t));
+    }
+    if (devs_count != NULL) {
+        *devs_count = (uint) user_devs_count;
+    }
 }
 
 state_t gpu_eard_init(ctx_t *c)
@@ -112,12 +117,6 @@ state_t gpu_eard_init(ctx_t *c)
 
 state_t gpu_eard_dispose(ctx_t *c)
 {
-	return EAR_SUCCESS;
-}
-
-state_t gpu_eard_count_devices(ctx_t *c, uint *devs_count_in)
-{
-	*devs_count_in = (uint) user_devs_count;
 	return EAR_SUCCESS;
 }
 
@@ -150,13 +149,11 @@ static state_t static_read(uint call, gpu_t *data)
 
 state_t gpu_eard_read(ctx_t *c, gpu_t *data)
 {
-    #if SHOW_DEBUGS
     state_t s = static_read(RPC_MET_GPU_GET_METRICS, data);
+    #if SHOW_DEBUGS
     gpu_data_print(data, debug_channel);
-    return s;
-    #else
-    return static_read(RPC_MET_GPU_GET_METRICS, data);
     #endif
+    return s;
 }
 
 state_t gpu_eard_read_raw(ctx_t *c, gpu_t *data)

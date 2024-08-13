@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -39,21 +32,20 @@ typedef struct pss_s {
 	ullong cof;
 } pss_t;
 
-#define CPU             0
-#define MAX_PSTATES     128
-#define MAX_REGISTERS   8
-#define REG_HWCONF      0xc0010015
-#define REG_LIMITS      0xc0010061
-#define REG_CONTROL     0xc0010062
-#define REG_STATUS      0xc0010063
-#define REG_P0          0xc0010064
-#define REG_P1          0xc0010065
+#define MAX_PSTATES		   128
+#define MAX_REGISTERS	   8
+#define REG_HWCONF		   0xc0010015 //MSRC001_0015 Hardware Configuration (HWCR)
+#define REG_LIMITS		   0xc0010061
+#define REG_CONTROL		   0xc0010062
+#define REG_STATUS		   0xc0010063
+#define REG_P0			   0xc0010064
+#define REG_P1			   0xc0010065
 
 #define p0_khz(cof) ((cof * 1000LLU) + 1000LLU)
 #define p1_khz(cof) ((cof * 1000LLU))
 
 #define READ_BOOST_LIMIT	0x0A  //gets the frequency limit currently enforced or Fmax
-#define WRITE_BOOST_LIMIT 	0x08  //sets the frequency limit 
+#define WRITE_BOOST_LIMIT 	0x08  //sets the frequency limit
 
 static topology_t           tp;
 static mgt_ps_driver_ops_t *driver;
@@ -118,6 +110,7 @@ state_t mgt_cpufreq_amd17_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_driv
 	// Setting references (if driver set is not available, this API neither)
 	apis_put(ops->init,               mgt_cpufreq_amd17_init);
 	apis_put(ops->dispose,            mgt_cpufreq_amd17_dispose);
+	apis_put(ops->get_info,           mgt_cpufreq_amd17_get_info);
 	apis_put(ops->count_available,    mgt_cpufreq_amd17_count_available);
 	apis_put(ops->get_available_list, mgt_cpufreq_amd17_get_available_list);
 	apis_put(ops->get_current_list,   mgt_cpufreq_amd17_get_current_list);
@@ -397,7 +390,21 @@ state_t mgt_cpufreq_amd17_init(ctx_t *c)
 	return EAR_SUCCESS;
 }
 
-/** Getters */
+void mgt_cpufreq_amd17_get_info(apinfo_t *info)
+{
+    info->api = API_AMD17;
+    info->devs_count = tp.cpu_count;
+}
+
+void mgt_cpufreq_amd17_get_freq_details(freq_details_t *details)
+{
+    // Driver is always present since is required for the load. But frequency
+    // details are not guaranteed.
+    if (driver->get_freq_details != NULL) {
+        driver->get_freq_details(details);
+    }
+}
+
 state_t mgt_cpufreq_amd17_count_available(ctx_t *c, uint *pstate_count)
 {
 	*pstate_count = pss_count;
@@ -474,7 +481,7 @@ state_t get_current_hsmp(ctx_t *c, pstate_t *pstate_list)
         args[0] = tp.cpus[cpu].apicid;
         reps[0] = 0;
         // Calling HSMP
-        hsmp_send(tp.cpus[cpu].socket_id, READ_BOOST_LIMIT, args, reps); //response is freq (MHz)
+        hsmp_send(tp.cpus[cpu].socket_id, HSMP_READ_BOOST_LIMIT, args, reps); //response is freq (MHz)
         debug("HSMP read %u", reps[0]);
 
         pstate_list[cpu].idx = pss_nominal;
@@ -586,7 +593,7 @@ static state_t set_pstate_hsmp(uint cpu, uint pst, uint test)
     debug("setting PS%d: %u MHz in cpu %d (apic %d) [%u]",
         pst, getbits32(args[0], 15, 0), cpu, getbits32(args[0], 31, 16), args[0]);
 
-    return hsmp_send(tp.cpus[cpu].socket_id, WRITE_BOOST_LIMIT, args, reps);
+    return hsmp_send(tp.cpus[cpu].socket_id, HSMP_WRITE_BOOST_LIMIT, args, reps);
 }
 
 // Sets the current P_STATE to MSR P1 adding new frequency.
@@ -648,7 +655,7 @@ static state_t set_pstate0_hsmp(uint cpu)
     debug("setting PS0: %u MHz in cpu %d (apic %d) [%u]",
         getbits32(args[0], 15, 0), cpu, getbits32(args[0], 31, 16), args[0]);
 
-    return hsmp_send(tp.cpus[cpu].socket_id, WRITE_BOOST_LIMIT, args, reps);
+    return hsmp_send(tp.cpus[cpu].socket_id, HSMP_WRITE_BOOST_LIMIT, args, reps);
 }
 
 // Sets the current P_STATE to MSR P0

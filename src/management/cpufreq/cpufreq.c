@@ -1,21 +1,14 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-// #define SHOW_DEBUGS 1
+//#define SHOW_DEBUGS 1
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -39,14 +32,14 @@ static uint                api;
 
 state_t mgt_cpufreq_load(topology_t *tp, int eard)
 {
-	state_t s;
-	while (pthread_mutex_trylock(&lock));
-	if (api != API_NONE) {
-		pthread_mutex_unlock(&lock);
-		return EAR_SUCCESS;
-	}
-	cpu_count = tp->cpu_count;
-	// Driver API load
+    state_t s;
+    while (pthread_mutex_trylock(&lock));
+    if (api != API_NONE) {
+        pthread_mutex_unlock(&lock);
+        return EAR_SUCCESS;
+    }
+    cpu_count = tp->cpu_count;
+    // Driver API load
     mgt_acpi_cpufreq_load(tp, &ops_driver);
     mgt_intel_pstate_load(tp, &ops_driver);
 	// API load
@@ -78,15 +71,37 @@ state_t mgt_cpufreq_load(topology_t *tp, int eard)
 	debug("Loaded DUMMY");
     // PRIORITY subsystem
     mgt_cpufreq_prio_load(tp, eard);
+		debug("API %d", api);
     // Finishing
-	pthread_mutex_unlock(&lock);
-	return EAR_SUCCESS;
+    pthread_mutex_unlock(&lock);
+    return EAR_SUCCESS;
 }
 
-state_t mgt_cpufreq_get_api(uint *api_in)
+void mgt_cpufreq_get_api(uint *api)
 {
-	*api_in = api;
-	return EAR_SUCCESS;
+    apinfo_t info;
+    mgt_cpufreq_get_info(&info);
+    *api = info.api;
+}
+
+void mgt_cpufreq_get_info(apinfo_t *info)
+{
+    info->layer       = "CPUFREQ";
+    info->api         = API_NONE;
+    info->devs_count  = 0;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_THREAD;
+
+    if (ops.get_info != NULL) {
+        ops.get_info(info);
+    }
+}
+
+void mgt_cpufreq_count_devices(ctx_t *c, uint *devs_count)
+{
+    apinfo_t info;
+    mgt_cpufreq_get_info(&info);
+    *devs_count = info.devs_count;
 }
 
 state_t mgt_cpufreq_init(ctx_t *c)
@@ -107,11 +122,11 @@ state_t mgt_cpufreq_dispose(ctx_t *c)
     return mgt_cpufreq_prio_dispose();
 }
 
-/** Data */
-state_t mgt_cpufreq_count_devices(ctx_t *c, uint *dev_count)
+void mgt_cpufreq_get_freq_details(freq_details_t *details)
 {
-	*dev_count = cpu_count;
-	return EAR_SUCCESS;
+    if (ops.get_freq_details != NULL) {
+        ops.get_freq_details(details);
+    }
 }
 
 state_t mgt_cpufreq_get_available_list(ctx_t *c, const pstate_t **pstate_list, uint *pstate_count)
@@ -198,7 +213,7 @@ int mgt_cpufreq_governor_is_available(ctx_t *c, uint governor)
 
 
 /** Data */
-state_t mgt_cpufreq_data_alloc(pstate_t **pstate_list, uint **index_list)
+void mgt_cpufreq_data_alloc(pstate_t **pstate_list, uint **index_list)
 {
 	if (pstate_list) {
 		*pstate_list = calloc(cpu_count, sizeof(pstate_t));
@@ -206,7 +221,6 @@ state_t mgt_cpufreq_data_alloc(pstate_t **pstate_list, uint **index_list)
 	if (index_list) {
 		*index_list = calloc(cpu_count, sizeof(uint));
 	}
-	return EAR_SUCCESS;
 }
 
 void mgt_cpufreq_data_print(pstate_t *ps_list, uint ps_count, int fd)

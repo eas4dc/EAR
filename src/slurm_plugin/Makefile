@@ -60,7 +60,7 @@ install: erun.ginstall plug.ginstall;
 
 %.install: ;
 
-clean: erun.gclean plug.gclean rclean;
+clean: erun.gclean rclean;
 
 ######## DEPENDENCIES
 

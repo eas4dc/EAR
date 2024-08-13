@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,7 +25,7 @@
 void print_islands_conf(node_island_t *conf)
 {
 	int i, j;
-	verbosen(VCCONF, "Islands configuration\n");
+	verbosen(VCCONF, "Island[%u] \n", conf->id);
 	verbosen(VCCONF, "--->id: %u (min_power %.0lf, max_power %.0lf,power_cap %.1lf power_cap_type=%s)\n", conf->id,conf->min_sig_power,conf->max_sig_power,conf->max_power_cap,conf->power_cap_type);
 	verbosen(VCCONF, "--->       (power>%.0lf or temp>%lu are errors)\n", conf->max_error_power,conf->max_temp);
     if (conf->num_tags > 0)
@@ -76,61 +69,76 @@ void print_islands_conf(node_island_t *conf)
 
 void print_cluster_conf(cluster_conf_t *conf)
 {
-	verbosen(VCCONF, "\nDIRECTORIES\n--->DB_pathname: %s\n--->TMP_dir: %s\n--->ETC_dir: %s\n",
+	verbosen(VCCONF, "\n>>>>> Path specifications <<<<<\n");
+
+	verbosen(VCCONF, "\nDB file_pathname: %s\n--->EAR_TMP: %s\n--->EAR_ETC: %s\n",
 			conf->DB_pathname, conf->install.dir_temp, conf->install.dir_conf);
 	verbosen(VCCONF, "\nPlugins_path: %s\n",conf->install.dir_plug);
-	verbosen(VCCONF, "PLUGINS: Energy %s power_models %s\n",conf->install.obj_ener,conf->install.obj_power_model);
+	verbosen(VCCONF, "\nDefault plugins: Energy %s power_models %s\n",conf->install.obj_ener,conf->install.obj_power_model);
     if (strlen(conf->net_ext) > 1)
     {
-    	verbosen(VCCONF, "\nGLOBALS\n--->Verbose: %u\n--->Default_policy: %s\n--->Min_time_perf_acc: %u\n--->Network_extension: %s\n",
+    	verbosen(VCCONF, "\nVerbose: %u\n--->Default_policy: %s\n--->Min_time_perf_acc: %u\n--->Network_extension: %s\n",
 	    		conf->verbose, conf->power_policies[conf->default_policy].name, conf->min_time_perf_acc, conf->net_ext);
     }
     else
     {
-    	verbosen(VCCONF, "\nGLOBALS\n--->Verbose: %u\n--->Default_policy: %s (id %d)\n--->Min_time_perf_acc: %u\n",
+    	verbosen(VCCONF, "\nVerbose: %u\n--->Default_policy: %s (id %d)\n--->Min_time_perf_acc: %u\n",
 	    		conf->verbose, conf->power_policies[conf->default_policy].name, conf->default_policy, conf->min_time_perf_acc);
     }
 
 	int i;
-	verbosen(VCCONF, "\nAVAILABLE POLICIES\n");
+	verbosen(VCCONF, "\n>>>>> Policies configuration section <<<<<\n");
 	for (i = 0; i < conf->num_policies; i++)
 		print_policy_conf(&conf->power_policies[i]);
-	verbosen(VCCONF, "\nPRIVILEGED USERS\n");
+
+	verbosen(VCCONF, "\n>>>>> Authorization section <<<<<\n");
+	verbosen(VCCONF, "\nUsers \n");
 	for (i = 0; i < conf->num_priv_users; i++)
 		verbosen(VCCONF, "--->user: %s\n", conf->priv_users[i]);
-	verbosen(VCCONF, "\nPRIVILEGED GROUPS\n");
+	verbosen(VCCONF, "\nGroups \n");
 	for (i = 0; i < conf->num_priv_groups; i++)
 		verbosen(VCCONF, "--->groups: %s\n", conf->priv_groups[i]);
-	verbosen(VCCONF, "\nPRIVILEGED ACCOUNTS\n");
+	verbosen(VCCONF, "\nSccounts \n");
 	for (i = 0; i < conf->num_acc; i++)
 		verbosen(VCCONF, "--->acc: %s\n", conf->priv_acc[i]);
-	verbosen(VCCONF, "\nNODE CONFIGURATIONS\n");
+
+
+	verbosen(VCCONF, "\n>>>>> Specific node configurations section <<<<<\n");
 	for (i = 0; i < conf->num_nodes; i++)
 		print_node_conf(&conf->nodes[i]);
-	verbosen(VCCONF, "\nDB MANAGER\n");
-	print_db_manager(&conf->db_manager);
-	verbosen(VCCONF, "\nEARD CONFIGURATION\n");
-	print_eard_conf(&conf->eard);
-	verbosen(VCCONF, "\nEARGM CONFIGURATION\n");
-	print_eargm_conf(&conf->eargm);
+
+	verbosen(VCCONF, "\n>>>>> SQL DB server section <<<<<\n");
 	print_database_conf(&conf->database);
 
-	verbosen(VCCONF, "\nISLES\n");
+	verbosen(VCCONF, "\n>>>>> EARDBD: DB  manager section <<<<<\n");
+	print_db_manager(&conf->db_manager);
+
+	verbosen(VCCONF, "\n>>>>> EARD: Node manager section <<<<<\n");
+	print_eard_conf(&conf->eard);
+
+	verbosen(VCCONF, "\n>>>>> EARGM: System power manager section <<<<<\n");
+	print_eargm_conf(&conf->eargm);
+
+	
+    verbosen(VCCONF, "\n>>>>> TAGS <<<<<<\n");
+    for (i = 0; i < conf->num_tags; i++)
+		print_tags_conf(&conf->tags[i],i );
+
+	verbosen(VCCONF, "\n>>>>> Computational nodes <<<<<\n");
 	for (i = 0; i < conf->num_islands; i++)
 		print_islands_conf(&conf->islands[i]);
-	
-    verbosen(VCCONF, "\nGENERAL TAGS\n");
-    for (i = 0; i < conf->num_tags; i++)
-	{
-		//printf("tagid%d : %s\n", i, conf->tags[i].id);
-		print_tags_conf(&conf->tags[i]);
-	}
 
-	verbosen(VCCONF, "\nENERGY TAGS\n");
+  verbosen(VCCONF, "\n>>>>> Data Center Monitoring  section <<<<<<\n");
+	for (i = 0; i < conf->num_edcmons_tags; i++){
+		print_edcmon_tags_conf(&conf->edcmon_tags[i], i);
+	}
+	verbose(VCCONF," ");
+
+	verbosen(VCCONF, "\n>>>>> Energy tags section <<<<<\n");
 	for (i = 0; i < conf->num_etags; i++)
 		print_energy_tag(&conf->e_tags[i]);
 
-    verbosen(VCCONF, "\nLIBRARY CONF\n");
+    verbosen(VCCONF, "\n>>>>> EAR library section <<<<<\n");
     print_earlib_conf(&conf->earlib);
 
 	verbosen(VCCONF, "\n");

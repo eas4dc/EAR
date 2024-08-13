@@ -1,29 +1,25 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 
 #define _GNU_SOURCE         /* See feature_test_macros(7) */
 #include <errno.h>
+#include <sys/stat.h>
 
 extern char *program_invocation_name;
 extern char *program_invocation_short_name;
 
-#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <stdio.h>
+#include <sys/stat.h>
 #include <common/states.h>
 #include <common/types/types.h>
 #include <common/types/configuration/cluster_conf.h>
@@ -104,7 +100,7 @@ static void log_signature(int fd, signature_t * sig)
 {
 	char sig_str[1024];
 	signature_to_str(sig, sig_str, sizeof(sig_str));
-	dprintf(fd, sig_str);
+	dprintf(fd, "%s", sig_str);
 }
 
 state_t report_applications(report_id_t *id,application_t *apps, uint count)
@@ -112,8 +108,13 @@ state_t report_applications(report_id_t *id,application_t *apps, uint count)
 	if (!must_report) return EAR_SUCCESS;
 
 	for (uint i = 0; i< count; i++){
-		dprintf(fd_apps, "app[%u]: id %lu step %lu user %s start_time %u end_time %u policy %s th %.3lf procs %lu def_cpufreq %lu earl %d node %s ", 
-		i, apps[i].job.id, apps[i].job.step_id, apps[i].job.user_id, (uint)apps[i].job.start_time, (uint)apps[i].job.end_time, apps[i].job.policy, apps[i].job.th, 
+#if WF_SUPPORT
+		ulong lid = apps[i].job.local_id;
+#else 
+		ulong lid = 0;
+#endif
+		dprintf(fd_apps, "app[%u]: id %lu step %lu appid %lu user %s start_time %u end_time %u policy %s th %.3lf procs %lu def_cpufreq %lu earl %d node %s ", 
+		i, apps[i].job.id, apps[i].job.step_id, lid, apps[i].job.user_id, (uint)apps[i].job.start_time, (uint)apps[i].job.end_time, apps[i].job.policy, apps[i].job.th, 
 		apps[i].job.procs, apps[i].job.def_f, apps[i].is_mpi, apps[i].node_id);
 	       log_powersig(fd_apps, &apps[i].power_sig);
 	       log_signature(fd_apps, &apps[i].signature);	
@@ -150,7 +151,6 @@ state_t report_events(report_id_t *id,ear_event_t *eves, uint count)
 
 state_t report_periodic_metrics(report_id_t *id,periodic_metric_t *mets, uint count)
 {
-	printf("report_periodic_metrics\n");
 	if (!must_report) return EAR_SUCCESS;
 	float node, cpu, dram, gpu = 0;
 	long elapsed;
@@ -171,6 +171,10 @@ state_t report_periodic_metrics(report_id_t *id,periodic_metric_t *mets, uint co
 state_t report_misc(report_id_t *id,uint type, const char *data, uint count)
 {
 	if (!must_report) return EAR_SUCCESS;
+	if (type == WF_APPLICATION){
+          report_applications(id, (application_t *)data, count);
+ 	 }
+
 	return EAR_SUCCESS;
 }
 

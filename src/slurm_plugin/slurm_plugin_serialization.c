@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #define _GNU_SOURCE
 
@@ -239,54 +232,51 @@ int plug_print_variables(spank_t sp)
 	if (plug_verbosity_test(sp, 4) != 1) {
 		return ESPANK_SUCCESS;
 	}
-
-	printenv_agnostic(sp, Component.plugin);
-	printenv_agnostic(sp, Component.library);
-	printenv_agnostic(sp, Var.comp_libr.comp);
-	printenv_agnostic(sp, Var.comp_plug.comp);
-	printenv_agnostic(sp, Var.plug_verbose.mod);
-	printenv_agnostic(sp, Var.hack_loader.mod);
-	printenv_agnostic(sp, Var.verbose.flag);
-	printenv_agnostic(sp, Var.policy.flag);
-	printenv_agnostic(sp, Var.policy_th.flag);
-	printenv_agnostic(sp, Var.frequency.flag);
-	printenv_agnostic(sp, Var.p_state.flag);
-	printenv_agnostic(sp, Var.learning.flag);
-	printenv_agnostic(sp, Var.tag.flag);
-	printenv_agnostic(sp, Var.path_usdb.flag);
-	printenv_agnostic(sp, Var.cpus_node_num.slurm);
-	//printenv_agnostic(sp, Var.path_trac.flag);
-//	printenv_agnostic(sp, Var.version.flag);
-	printenv_agnostic(sp, Var.gm_secure.mod);
-	printenv_agnostic(sp, Var.user.info);
-	printenv_agnostic(sp, Var.group.info);
-	printenv_agnostic(sp, Var.ctx_last.mod);
-	printenv_agnostic(sp, Var.was_sbatch.mod);
-	printenv_agnostic(sp, Var.was_srun.mod);
-	printenv_agnostic(sp, Var.name_app.slurm);
-	printenv_agnostic(sp, Var.account.slurm);
-	printenv_agnostic(sp, Var.job_node_list.slurm);
-	printenv_agnostic(sp, Var.job_node_count.slurm);
-	printenv_agnostic(sp, Var.step_node_list.slurm);
-	printenv_agnostic(sp, Var.step_node_count.slurm);
-	printenv_agnostic(sp, Var.verbose.ear);
-	printenv_agnostic(sp, Var.policy.ear);
-	printenv_agnostic(sp, Var.policy_th.ear);
-	printenv_agnostic(sp, Var.frequency.ear);
-	printenv_agnostic(sp, Var.p_state.ear);
-	printenv_agnostic(sp, Var.learning.ear);
-	printenv_agnostic(sp, Var.tag.ear);
-	printenv_agnostic(sp, Var.path_usdb.ear);
-	printenv_agnostic(sp, Var.path_trac.ear);
-	printenv_agnostic(sp, Var.perf_pen.ear);
-	printenv_agnostic(sp, Var.eff_gain.ear);
-	printenv_agnostic(sp, Var.name_app.ear);
-	printenv_agnostic(sp, Var.path_temp.ear);
-	printenv_agnostic(sp, Var.ld_preload.ear);
-	printenv_agnostic(sp, Var.ld_library.ear);
-  printenv_agnostic(sp, "EAR_INSTALL_PATH");
-  printenv_agnostic(sp, "EAR_ETC");
-  printenv_agnostic(sp, "EAR_TMP");
+    printenv_agnostic(sp, Component.plugin);
+    printenv_agnostic(sp, Component.library);
+    printenv_agnostic(sp, Var.comp_libr.comp);
+    printenv_agnostic(sp, Var.comp_plug.comp);
+    printenv_agnostic(sp, Var.plug_verbose.mod);
+    printenv_agnostic(sp, Var.hack_loader.mod);
+    printenv_agnostic(sp, Var.verbose.flag);
+    printenv_agnostic(sp, Var.policy.flag);
+    printenv_agnostic(sp, Var.policy_th.flag);
+    printenv_agnostic(sp, Var.frequency.flag);
+    printenv_agnostic(sp, Var.p_state.flag);
+    printenv_agnostic(sp, Var.learning.flag);
+    printenv_agnostic(sp, Var.tag.flag);
+    printenv_agnostic(sp, Var.path_usdb.flag);
+    printenv_agnostic(sp, Var.cpus_node_num.slurm);
+    printenv_agnostic(sp, Var.gm_secure.mod);
+    printenv_agnostic(sp, Var.user.info);
+    printenv_agnostic(sp, Var.group.info);
+    printenv_agnostic(sp, Var.ctx_last.mod);
+    printenv_agnostic(sp, Var.was_sbatch.mod);
+    printenv_agnostic(sp, Var.was_srun.mod);
+    printenv_agnostic(sp, Var.name_app.slurm);
+    printenv_agnostic(sp, Var.account.slurm);
+    printenv_agnostic(sp, Var.job_node_list.slurm);
+    printenv_agnostic(sp, Var.job_node_count.slurm);
+    printenv_agnostic(sp, Var.step_node_list.slurm);
+    printenv_agnostic(sp, Var.step_node_count.slurm);
+    printenv_agnostic(sp, Var.verbose.ear);
+    printenv_agnostic(sp, Var.policy.ear);
+    printenv_agnostic(sp, Var.policy_th.ear);
+    printenv_agnostic(sp, Var.frequency.ear);
+    printenv_agnostic(sp, Var.p_state.ear);
+    printenv_agnostic(sp, Var.learning.ear);
+    printenv_agnostic(sp, Var.tag.ear);
+    printenv_agnostic(sp, Var.path_usdb.ear);
+    printenv_agnostic(sp, Var.path_trac.ear);
+    printenv_agnostic(sp, Var.perf_pen.ear);
+    printenv_agnostic(sp, Var.eff_gain.ear);
+    printenv_agnostic(sp, Var.name_app.ear);
+    printenv_agnostic(sp, Var.path_temp.ear);
+    printenv_agnostic(sp, Var.ld_preload.ear);
+    printenv_agnostic(sp, Var.ld_library.ear);
+    printenv_agnostic(sp, "EAR_INSTALL_PATH");
+    printenv_agnostic(sp, "EAR_ETC");
+    printenv_agnostic(sp, "EAR_TMP");
     printenv_agnostic(sp, "SLURM_JOBID");
     printenv_agnostic(sp, "SLURM_JOB_ID");
     printenv_agnostic(sp, "SLURM_STEPID");
@@ -312,11 +302,11 @@ int plug_print_items(spank_t sp)
             plug_verbose(sp, 2, #word " = '" format "'", item); \
         }
     #endif
-		#if !ERUN
+    #if !ERUN
     char  *itemStr;
     ullong item64u;
     uint   item32u;
-		#endif
+    #endif
 
     print_item(S_JOB_UID             ,    (uid_t *), item32u, "%d");
     print_item(S_JOB_GID             ,    (gid_t *), item32u, "%d");
@@ -521,7 +511,11 @@ int plug_deserialize_remote(spank_t sp, plug_serialization_t *sd)
 	}
 
 	// Master
+	#if !ERUN && SLURM_VERSION_NUMBER >= 0x170b00
+	hostlist_t *hostlist;
+	#else
 	hostlist_t hostlist;
+	#endif
 	int from_sbatch;
 	int from_srun;
 	char *node;
@@ -654,22 +648,16 @@ int plug_serialize_task_preload(spank_t sp, plug_serialization_t *sd)
 	plug_verbose(sp, 2, "trying to load file '%s'", buffer1);
 
 	// Testing the access to the library folder.
-	if (access(buffer1, X_OK) == 0)
-	{
-		char *ld_buf = sd->job.user.env.ld_preload;
-		// If LD_PRELOAD already exists.
-		if (getenv_agnostic(sp, Var.ld_preload.ear, ld_buf, bsize))
-		{
-			xsprintf(buffer2, "%s:", buffer1);
-			// Append the current LD_PRELOAD content to our library.
-			xsprintf(buffer1, "%s%s", buffer2, ld_buf);
-		}
-		// Setting LD_PRELOAD environment variable.
-		setenv_agnostic(sp, Var.ld_preload.ear, buffer1, 1);
-	} else {
-		plug_verbose(sp, 2, "this file can't be loaded '%s' (%d, %s)",
-			buffer1, errno, strerror(errno));
-	}
+    char *ld_buf = sd->job.user.env.ld_preload;
+    // If LD_PRELOAD already exists.
+    if (getenv_agnostic(sp, Var.ld_preload.ear, ld_buf, bsize))
+    {
+        xsprintf(buffer2, "%s:", buffer1);
+        // Append the current LD_PRELOAD content to our library.
+        xsprintf(buffer1, "%s%s", buffer2, ld_buf);
+    }
+    // Setting LD_PRELOAD environment variable.
+    setenv_agnostic(sp, Var.ld_preload.ear, buffer1, 1);
 
 	// These environment variables are required if loader is loaded.	
 	if (getenv_agnostic(sp, Var.name_app.slurm, buffer1, sizeof(buffer1)) == 1) {

@@ -1,3 +1,12 @@
+############################################################################
+# Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+#
+# This program and the accompanying materials are made
+# available under the terms of the Eclipse Public License 2.0
+# which is available at https://www.eclipse.org/legal/epl-2.0/
+#
+# SPDX-License-Identifier: EPL-2.0
+############################################################################
 AC_DEFUN([X_AC_VAR_BACKUP], [
     CPPFLAGS_backup=$CPPFLAGS
     CPPFLAGS=$1
@@ -71,32 +80,35 @@ AC_DEFUN([AX_BEFORE_FEATURES],
 		docdir=/share/doc/ear
 	fi
 
+
 	#
 	# Disable RPATH
 	#
 	AC_ARG_ENABLE([rpath],
-		AS_HELP_STRING([--disable-rpath], [Disables RPATH/RUNPATH from the compiled binaries])
-	)
+		AS_HELP_STRING([--disable-rpath], [Disables RPATH/RUNPATH from the compiled binaries]))
 
 	#
 	# MPI
 	#
     AC_ARG_ENABLE([mpi],
-        AS_HELP_STRING([--disable-mpi], [Compiles the non-mpi version of the library.])
-    )
+        AS_HELP_STRING([--disable-mpi], [Compiles the non-mpi version of the library.]))
+    AC_ARG_ENABLE([mpi-loader],
+        AS_HELP_STRING([--disable-mpi-loader], [Compiles the non-mpi version of the loader.]))
 
 	AC_ARG_VAR([CC_FLAGS],[Adds parameters to C compiler])
 	AC_ARG_VAR([MPICC],[Defines the MPI compiler])
 	AC_ARG_VAR([MPICC_FLAGS],[Appends parameters to MPI compiler])
 	AC_ARG_VAR([MPI_VERSION],[Adds a suffix to the EAR library referring the MPI version used to compile])
 
-    FEAT_MPI_API=1
+    FEAT_MPI_LIBRARY=1
+    FEAT_MPI_LOADER=1
 
 	if test -z "$MPICC"; then
 		if which mpicc &> /dev/null; then
 			MPICC="`which mpicc`"
 		else
-            FEAT_MPI_API=0
+            FEAT_MPI_LIBRARY=0
+            FEAT_MPI_LOADER=0
 		fi
     else
 		if which $MPICC &> /dev/null; then
@@ -106,7 +118,10 @@ AC_DEFUN([AX_BEFORE_FEATURES],
 
 	# The disable flag has the priority, so it is computed at the end
     if test "x$enable_mpi" = "xno"; then
-        FEAT_MPI_API=0
+        FEAT_MPI_LIBRARY=0
+    fi
+    if test "x$enable_mpi_loader" = "xno"; then
+        FEAT_MPI_LOADER=0
     fi
 
 	if echo "$CC" | grep -q "/"; then
@@ -117,14 +132,20 @@ AC_DEFUN([AX_BEFORE_FEATURES],
 
 	MPI_DIR=`dirname $MPICC`
 	MPI_DIR=`(cd $MPI_DIR/.. && pwd)`
-	MPI_CPPFLAGS="-I\$(MPI_BASE)/include"
+	MPI_CFLAGS="-I\$(MPI_BASE)/include"
+
+    if test -z "$MPICC"; then
+        echo checking for MPI compiler... no
+    else
+        echo checking for MPI compiler... yes
+        echo checking for MPI CFLAGS... -I$MPI_DIR/include
+    fi
 
 	#
 	# Architecture
 	#
 	AC_ARG_ENABLE([avx512],
-		AS_HELP_STRING([--disable-avx512], [Compiles replacing AVX-512 instructions by AVX-2])
-        )
+		AS_HELP_STRING([--disable-avx512], [Compiles replacing AVX-512 instructions by AVX-2]))
 	
 	FEAT_AVX512=1
 
@@ -135,8 +156,7 @@ AC_DEFUN([AX_BEFORE_FEATURES],
 	# GPUs
 	
 	AC_ARG_ENABLE([gpus],
-		AS_HELP_STRING([--disable-gpus], [Does not allocate GPU types nor report any information])
-    )
+		AS_HELP_STRING([--disable-gpus], [Does not allocate GPU types nor report any information]))
 	
 	FEAT_GPUS=1
 	if test "x$enable_gpus" = "xno"; then
@@ -153,6 +173,24 @@ AC_DEFUN([AX_BEFORE_FEATURES],
     # Makefile name
     #
 	AC_ARG_VAR([MAKE_NAME],[Add a name to the compilation. It adds an additional Makefile with a suffix.])
+
+   	#
+   	# System type: Numbers defined in config_def.h
+   	#
+   	SYSTEM_TYPE=100
+   	if test "x$system_type" = "xLenovo"; then
+			SYSTEM_TYPE=0
+		fi
+   	if test "x$system_type" = "xGrace_Hooper"; then
+			SYSTEM_TYPE=1
+		fi
+   	if test "x$system_type" = "xCray_HPE"; then
+			SYSTEM_TYPE=2
+		fi
+   	if test "x$system_type" = "xEAR_Node_Mgr"; then
+			SYSTEM_TYPE=3
+		fi
+		
 ])
 
 AC_DEFUN([AX_AFTER_FEATURES],
@@ -170,22 +208,26 @@ AC_DEFUN([AX_AFTER_FEATURES],
         fi
 	fi
 
-        if test "x$SCHED_NAME" = "xSLURM"; then
+    # Default
+    FEAT_SCHED_SLURM=0
+    FEAT_SCHED_PBS=0
+    FEAT_SCHED_OAR=0
+
+    if test "x$SCHED_NAME" = "xSLURM"; then
         FEAT_SCHED_SLURM=1
         FEAT_SCHED_PBS=0
-				FEAT_SCHED_OAR=0
-		fi
-		if test "x$SCHED_NAME" = "xPBS"; then
+        FEAT_SCHED_OAR=0
+    fi
+    if test "x$SCHED_NAME" = "xPBS"; then
         FEAT_SCHED_SLURM=0
         FEAT_SCHED_PBS=1
         FEAT_SCHED_OAR=0
-		fi
-		if test "x$SCHED_NAME" = "xOAR"; then
+    fi
+    if test "x$SCHED_NAME" = "xOAR"; then
         FEAT_SCHED_SLURM=0
         FEAT_SCHED_PBS=0
         FEAT_SCHED_OAR=1
-		fi
-
+    fi
 
 	#IFS='.' read -r -a array_version <<< "$PACKAGE_VERSION" && echo $array_version[0]
 	#column -t -s '\ $PACKAGE_VERSION
@@ -210,21 +252,23 @@ AC_DEFUN([AX_AFTER_FEATURES],
 	AC_SUBST(MPICC)
 	AC_SUBST(MPICC_FLAGS)
 	AC_SUBST(MPI_DIR)
-	AC_SUBST(MPI_CPPFLAGS)
+	AC_SUBST(MPI_CFLAGS)
 	AC_SUBST(MPI_VERSION)
-	AC_SUBST(FEAT_MPI_API)
+	AC_SUBST(FEAT_MPI_LIBRARY)
+	AC_SUBST(FEAT_MPI_LOADER)
 	AC_SUBST(FEAT_AVX512)
 	AC_SUBST(FEAT_GPUS)
 	AC_SUBST(FEAT_DB_MYSQL)
 	AC_SUBST(FEAT_DB_PGSQL)
 	AC_SUBST(FEAT_SCHED_SLURM)
 	AC_SUBST(FEAT_SCHED_PBS)
-  AC_SUBST(FEAT_SCHED_OAR)
+    AC_SUBST(FEAT_SCHED_OAR)
 	AC_SUBST(EAR_TMP)
 	AC_SUBST(VERSION_MAJOR)
 	AC_SUBST(VERSION_MINOR)
     AC_SUBST(SCHED_DIR)
     AC_SUBST(SCHED_NAME)
+	AC_SUBST(SYSTEM_TYPE)
 ])
 
 AC_DEFUN([AX_AFTER_OUTPUT],

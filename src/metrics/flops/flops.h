@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef METRICS_FLOPS_H
 #define METRICS_FLOPS_H
@@ -65,14 +58,15 @@
 #endif
 
 typedef struct flops_s {
-	ullong f64;
-	ullong d64;
-	ullong f128;
-	ullong d128;
-	ullong f256;
-	ullong d256;
+    ullong f64;
+    ullong d64;
+    ullong f128;
+    ullong d128;
+    ullong f256;
+    ullong d256;
     ullong f512; // 512 field is also used as MAX VECTOR LENGTH flops,
-	ullong d512; // i.e. the ARM's SVE. But in the future maybe union could be.
+    ullong d512; // i.e. the ARM's SVE. But in the future maybe union could be.
+    double gflops;
     union {
         timestamp_t time;
         double secs;
@@ -80,19 +74,17 @@ typedef struct flops_s {
 } flops_t;
 
 typedef struct flops_ops_s {
-    void    (*get_api)         (uint *api);
-    void    (*get_granularity) (uint *granularity);
-    void    (*get_weights)     (ullong **weights);
-	state_t (*init)            (ctx_t *c);
-	state_t (*dispose)         (ctx_t *c);
-	state_t (*read)            (ctx_t *c, flops_t *fl);
+    void    (*get_info)        (apinfo_t *info);
+    state_t (*init)            ();
+    state_t (*dispose)         ();
+    state_t (*read)            (flops_t *fl);
+    void    (*data_diff)       (flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
+    void    (*internals_tostr) (char *buffer, int length);
 } flops_ops_t;
 
-void flops_load(topology_t *tp, int eard);
+void flops_load(topology_t *tp, int force_api);
 
-void flops_get_api(uint *api);
-
-void flops_get_granularity(uint *granularity);
+void flops_get_info(apinfo_t *info);
 
 state_t flops_init(ctx_t *c);
 
@@ -106,14 +98,18 @@ state_t flops_read_copy(ctx_t *c, flops_t *fl2, flops_t *fl1, flops_t *flD, doub
 
 void flops_data_diff(flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
 
-/* Accumulates flops differences and return its data in GFLOPs (accepts NULL). */
-void flops_data_accum(flops_t *fA, flops_t *fD, double *gfs);
-
 void flops_data_copy(flops_t *dst, flops_t *src);
 
 void flops_data_print(flops_t *flD, double gfs, int fd);
 
 void flops_data_tostr(flops_t *flD, double gfs, char *buffer, size_t length);
+
+/* Accumulates flops differences and return its data in GFLOPs (accepts NULL). */
+void flops_data_accum(flops_t *fA, flops_t *fD, double *gfs);
+
+void flops_internals_print(int fd);
+
+void flops_internals_tostr(char *buffer, int length);
 
 // Helpers
 /* Converts a flops difference into old FLOPs array system. */

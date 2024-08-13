@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -29,25 +22,22 @@ static rsmi_t          rsmi;
 static suscription_t  *sus;
 static uint            devs_count;
 static gpu_t          *pool;
-static uint            init;
 static uint            ok_pool;
+static uint            initialized;
 
-void gpu_rsmi_load(gpu_ops_t *ops, int eard)
+static void load_atfork()
 {
-    // If EARD is demanded we do not want pooling.
-    // If EARD is not demanded but RSMI is unprivileged
-    // means that this function is called by the library.
-    #if 0
-    ok_pool = (eard == 0) && (rsmi_is_privileged() == 1);
-    ok_pool = 1;
-    #endif
-    if (eard == 2)      ok_pool = 1;
-    else if (eard == 1) ok_pool = 0;
-    else if (eard == 0){
-      if (rsmi_is_privileged() == 1) ok_pool = 1;
-      else                      ok_pool = 0;
-    }
+    // Just lock control is enough
+    pthread_mutex_unlock(&lock);
+}
 
+void gpu_rsmi_load(gpu_ops_t *ops, int force_api)
+{
+    if (API_IS(force_api, API_DEFAULT)) {
+        ok_pool = 1;
+    } else if (API_IS(force_api, API_FREE)) {
+        ok_pool = rsmi_is_privileged();
+    }
     debug("Pooling %d", ok_pool);
     if (state_fail(rsmi_open(&rsmi))) {
         debug("rsmi_open failed: %s", state_msg);
@@ -57,19 +47,46 @@ void gpu_rsmi_load(gpu_ops_t *ops, int eard)
         debug("rsmi.devs_count failed");
         return;
     }
-    apis_set(ops->get_api,       gpu_rsmi_get_api);
+    // Allocation
+    pool = calloc(devs_count, sizeof(gpu_t));
+    // Atfork control
+    pthread_atfork(NULL, NULL, load_atfork);
+    apis_set(ops->get_info,      gpu_rsmi_get_info);
+    apis_set(ops->get_devices,   gpu_rsmi_get_devices);
     apis_set(ops->init,          gpu_rsmi_init);
     apis_set(ops->dispose,       gpu_rsmi_dispose);
-    apis_set(ops->get_devices,   gpu_rsmi_get_devices);
-    apis_set(ops->count_devices, gpu_rsmi_count_devices);
     apis_pin(ops->read,          gpu_rsmi_read, ok_pool);
     apis_set(ops->read_raw,      gpu_rsmi_read_raw);
     debug("Loaded RSMI");
 }
 
-void gpu_rsmi_get_api(uint *api)
+void gpu_rsmi_get_info(apinfo_t *info)
 {
-    *api = API_RSMI;
+    info->api         = API_RSMI;
+    info->devs_count  = devs_count;
+}
+
+void gpu_rsmi_get_devices(gpu_devs_t **devs_in, uint *devs_count_in)
+{
+    char serial[32];
+    rsmi_status_t r;
+    int i;
+
+    if (devs_in != NULL) {
+        *devs_in = calloc(devs_count, sizeof(gpu_devs_t));
+        //
+        for (i = 0; i < devs_count; ++i) {
+            if ((r = rsmi.get_serial(i, serial, 32)) != RSMI_STATUS_SUCCESS) {
+                return_msg(, "RSMI error");
+            }
+            debug("D%d: %s", i, serial);
+            (*devs_in)[i].serial = (ullong) atoll(serial);
+            (*devs_in)[i].index = i;
+        }
+    }
+    if (devs_count_in != NULL) {
+        *devs_count_in = devs_count;
+    }
 }
 
 state_t gpu_rsmi_init(ctx_t *c)
@@ -78,72 +95,34 @@ state_t gpu_rsmi_init(ctx_t *c)
     timestamp_t time;
     int i;
 
-    if (init) {
+    if (initialized) {
         return s;
     }
-    debug("Initialized");
-    init = 1;
-    // Allocation
-    pool = calloc(devs_count, sizeof(gpu_t));
     // Initializing pool (pool at 0 is not incorrect)
     timestamp_getfast(&time);
     for (i = 0; i < devs_count; ++i) {
         pool[i].time    = time;
         pool[i].correct = 1;
     }
-    if (!ok_pool) {
-        return s;
-    }
+    if (ok_pool) {
     // Initializing monitoring thread suscription.
     sus = suscription();
     sus->call_main  = gpu_rsmi_pool;
     sus->time_relax = 2000;
     sus->time_burst = 1000;
     // Initializing monitoring thread.
-    if (state_fail(s = sus->suscribe(sus))) {
-        debug("GPU monitor FAILS");
-        gpu_rsmi_dispose(c);
+    if (state_ok(s = sus->suscribe(sus))) {
+        initialized = 1;
     }
+    } // ok_pool
     return s;
 }
 
 state_t gpu_rsmi_dispose(ctx_t *c)
 {
-    if (init) {
+    if (initialized) {
         monitor_unregister(sus);
-        free(pool);
-        init = 0;
-    }
-    return EAR_SUCCESS;
-}
-
-state_t gpu_rsmi_get_devices(ctx_t *c, gpu_devs_t **devs_in, uint *devs_count_in)
-{
-    char serial[32];
-    rsmi_status_t r;
-    int i;
-
-    *devs_in = calloc(devs_count, sizeof(gpu_devs_t));
-    //
-    for (i = 0; i < devs_count; ++i) {
-        if ((r = rsmi.get_serial(i, serial, 32)) != RSMI_STATUS_SUCCESS) {
-            return_msg(EAR_ERROR, "RSMI error");
-        }
-        debug("D%d: %s", i, serial);
-        (*devs_in)[i].serial = (ullong) atoll(serial);
-        (*devs_in)[i].index  = i;
-    }
-    if (devs_count_in != NULL) {
-        *devs_count_in = devs_count;
-    }
-
-    return EAR_SUCCESS;
-}
-
-state_t gpu_rsmi_count_devices(ctx_t *c, uint *devs_count_in)
-{
-    if (devs_count_in != NULL) {
-        *devs_count_in = devs_count;
+        initialized = 0;
     }
     return EAR_SUCCESS;
 }
@@ -224,12 +203,11 @@ state_t gpu_rsmi_pool(void *p)
     timestamp_t time;
     double time_diff;
     gpu_t metric;
-    int working;
     int i;
 
     debug("Pooling");
     //
-    working = 0;
+    uint working = 0;
     // Lock
     while (pthread_mutex_trylock(&lock));
     // Time operations

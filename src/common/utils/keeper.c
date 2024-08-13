@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -79,8 +72,12 @@ static void keeper_open()
         return;
     }
     sprintf(path, "%s/ear-dyn.conf", tmp);
+    // If we are root, we change the user and group of the keeper file.
+    if (getuid() == 0) {
+        chown(path, getuid(), getgid());
+    }
     debug("Opening %s", path);
-    if ((fd = open(path, O_RDWR | O_CREAT, F_UR | F_UW | F_GR | F_OR)) < 0) {
+    if ((fd = open(path, O_RDWR | O_CREAT, PERMS(111,100,100))) < 0) {
         debug("Failed: %s", strerror(errno));
         return;
     }

@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -23,16 +16,16 @@
 #include <common/utils/string.h>
 #include <common/utils/serial_buffer.h>
 
-#define psize_alloc(b) (&b->size)
-#define psize_taken(b) ((size_t *) &b->data[0])
-#define pelem_next(b)  ((size_t *) &b->data[sizeof(size_t)])
-#define size_meta      (sizeof(size_t)*2)
+#define psize_alloc(b)     (&b->size) // P* to the total size allocated
+#define psize_taken(b)     ((size_t *) &b->data[0]) // P* to the size taken from size alloc
+#define pelem_unvisited(b) ((size_t *) &b->data[sizeof(size_t)]) // P* to the first unvisited element
+#define ppole_position     (sizeof(size_t)*2) // The first two sizes, taken+next
 
 //  0: size taken
-//  8: elem next (pointer)
+//  8: first unvisited element (pointer)
 // 16: data (first elem size + first elem)
 
-static void serial_debug(wide_buffer_t *b, char *from)
+static void serial_debug(serial_buffer_t *b, char *from)
 {
 	#if SHOW_DEBUGS
 	size_t *size_alloc;
@@ -40,11 +33,10 @@ static void serial_debug(wide_buffer_t *b, char *from)
 	size_t *elem_next;
 	int i, j;
 
-
 	// Taking pointers from first bytes
 	size_alloc = psize_alloc(b);
 	size_taken = psize_taken(b);
-	elem_next  = pelem_next(b);
+	elem_next  = pelem_unvisited(b);
 
 	debug("Wide buffer content: (%s)", from);
 	debug("alloc: %lu", *size_alloc);
@@ -72,42 +64,42 @@ static size_t size_calc(size_t size_pow, size_t size)
 	return size_calc(size_pow*2, size);
 }
 
-static void serial_init(wide_buffer_t *b, size_t size)
+static void serial_init(serial_buffer_t *b, size_t size)
 {
 	size_t *size_alloc;
 	size_t *size_taken;
 	size_t *elem_next;
 
 	// Size meta + size first data size + size data
-	size    = size_calc(SIZE_1KB, size);
-	b->data = calloc(1, size);
+	size        = size_calc(SIZE_1KB, size);
+	b->data     = calloc(1, size);
 	// Taking pointers from first bytes
 	size_alloc  = psize_alloc(b);
 	size_taken  = psize_taken(b);
-	elem_next   = pelem_next(b);
+	elem_next   = pelem_unvisited(b);
 	// Default values
 	*size_alloc = size;
-	*size_taken = size_meta;
-	*elem_next  = size_meta;
+	*size_taken = ppole_position;
+	*elem_next  = ppole_position;
 
 	serial_debug(b, "serial_init");
 }
 
-void serial_alloc(wide_buffer_t *b, size_t size)
+void serial_alloc(serial_buffer_t *b, size_t size)
 {
 	b->data = NULL;
 	b->size = 0;
 	serial_init(b, size);
 }
 
-void serial_free(wide_buffer_t *b)
+void serial_free(serial_buffer_t *b)
 {
 	free(b->data);
 	b->data = NULL;
 	b->size = 0;
 }
 
-void serial_resize(wide_buffer_t *b, size_t size)
+void serial_resize(serial_buffer_t *b, size_t size)
 {
 	size_t *size_alloc;
 
@@ -123,7 +115,7 @@ void serial_resize(wide_buffer_t *b, size_t size)
 	serial_debug(b, "serial_resize");
 }
 
-static void serial_expand(wide_buffer_t *b, size_t size_new_elem)
+static void serial_expand(serial_buffer_t *b, size_t size_new_elem)
 {
 	size_t *size_alloc = psize_alloc(b);
 	size_t *size_taken = psize_taken(b);
@@ -133,24 +125,23 @@ static void serial_expand(wide_buffer_t *b, size_t size_new_elem)
 	}
 }
 
-void serial_clean(wide_buffer_t *b)
+void serial_clean(serial_buffer_t *b)
 {
 	size_t *size_taken;
 	size_t *elem_next;
 	
 	// Resetting content
 	size_taken = psize_taken(b);
-	elem_next  = pelem_next(b);
+	elem_next  = pelem_unvisited(b);
 	// Pointing to the first byte in data
-	*size_taken = size_meta;
-	*elem_next  = size_meta;	
+	*size_taken = ppole_position;
+	*elem_next  = ppole_position;
 	
 	serial_debug(b, "serial_clean");
 }
 
-void serial_reset(wide_buffer_t *b, size_t size)
+void serial_reset(serial_buffer_t *b, size_t size)
 {
-
 	// Resize with new value in case of requirement
 	serial_resize(b, size);
 	// Cleans the metadata
@@ -159,17 +150,17 @@ void serial_reset(wide_buffer_t *b, size_t size)
 	serial_debug(b, "serial_reset");
 }
 
-void serial_rewind(wide_buffer_t *b)
+void serial_rewind(serial_buffer_t *b)
 {
 	size_t *elem;
 	
-	 elem = pelem_next(b);
-	*elem = size_meta;	
+	 elem = pelem_unvisited(b);
+	*elem = ppole_position;
 	
 	serial_debug(b, "serial_rewind");
 }
 
-void serial_add_elem(wide_buffer_t *b, char *data, size_t size)
+void serial_add_elem(serial_buffer_t *b, char *data, size_t size)
 {
 	size_t *size_taken;
 
@@ -187,7 +178,34 @@ void serial_add_elem(wide_buffer_t *b, char *data, size_t size)
 	serial_debug(b, "serial_add_elem");
 }
 
-char *serial_copy_elem(wide_buffer_t *b, char *data, size_t *size)
+// _point gets a pointer to, _copy copies the bytes
+static char *serial_point_next_elem(serial_buffer_t *b, size_t *size)
+{
+    size_t *size_taken;
+    size_t *size_elem;
+    size_t *elem_next;
+    char   *p;
+
+    size_taken = psize_taken(b);
+    elem_next  = pelem_unvisited(b);
+    // It is the end, try to rewind
+    if (*elem_next == *size_taken) {
+        return NULL;
+    }
+    // Copying the content data
+    size_elem = (size_t *) &b->data[*elem_next];
+
+    if (size != NULL) {
+        *size = *size_elem;
+    }
+    // Elem points directly to the data
+    *elem_next += sizeof(size_t);
+    p = &b->data[*elem_next];
+    *elem_next += *size_elem;
+    return p;
+}
+
+char *serial_copy_elem(serial_buffer_t *b, char *data, size_t *size)
 {
 	size_t *size_taken;
 	size_t *size_elem;
@@ -196,7 +214,7 @@ char *serial_copy_elem(wide_buffer_t *b, char *data, size_t *size)
 
 	//
 	size_taken = psize_taken(b);
-	elem_next  = pelem_next(b);
+	elem_next  = pelem_unvisited(b);
 	// It is the end, try to rewind
 	if (*elem_next == *size_taken) {
 		return NULL;
@@ -224,13 +242,71 @@ char *serial_copy_elem(wide_buffer_t *b, char *data, size_t *size)
 	return p;
 }
 
-char *serial_data(wide_buffer_t *b)
+char *serial_data(serial_buffer_t *b)
 {
 	return b->data;
 }
 
-size_t serial_size(wide_buffer_t *b)
+size_t serial_size(serial_buffer_t *b)
 {
 	size_t *size_taken = psize_taken(b);
 	return *size_taken;
+}
+
+void serial_dictionary_push(serial_buffer_t *b, char *tag, char *param, size_t param_size)
+{
+    char ext[4];
+    memset(ext, 0,  4);
+    serial_add_elem(b, tag, strlen(tag)+1);
+    serial_add_elem(b, ext, 4); // Extra space for future complementary data
+    serial_add_elem(b, param, param_size);
+}
+
+int serial_dictionary_pop(serial_buffer_t *b, char *tag, char *param, size_t expected_size)
+{
+    char *param_next;
+    char *tag_next;
+    size_t size = 0;
+
+    // String manipulation
+    serial_rewind(b);
+    // Tag iterations
+    while ((tag_next = serial_point_next_elem(b, NULL)) != NULL) {
+        if (strcmp(tag_next, tag) == 0) {
+            //printf("%s\n", tag_next);
+            // Removing the TAG to avoid revisiting the same parameter. We are
+            // doing this because it's possible to have a tag N times, and we
+            // can't use next_elem variable to prevent revisiting it because a
+            // small change in unpacking call order would escape other previous
+            // parameters of being found.
+            sprintf(tag_next, "%s", "?");
+
+            serial_point_next_elem(b, NULL); //Extra space
+            param_next = serial_point_next_elem(b, &size);
+            memset(param, 0, expected_size);
+
+            if (expected_size >= size) {
+                memcpy(param, param_next, size);
+            } else {
+                memcpy(param, param_next, expected_size);
+            }
+            return 1;
+        }
+        serial_point_next_elem(b, NULL);
+        serial_point_next_elem(b, NULL);
+    }
+    return 0;
+}
+
+void serial_dictionary_print(serial_buffer_t *b)
+{
+    char param[1024];
+    char tag[1024];
+    size_t size;
+
+    while (serial_copy_elem(b, tag, &size) != NULL) {
+        serial_copy_elem(b, param, &size); // Extra space
+        serial_copy_elem(b, param, &size);
+        printf("%s: %lu\n", tag, size);
+    }
 }

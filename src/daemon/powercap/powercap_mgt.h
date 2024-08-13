@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef _PWR_MGT_H
 #define _PWR_MGT_H
@@ -70,8 +63,6 @@ void pmgt_idle_to_run(pwr_mgt_t *phandler);
 void pmgt_run_to_idle(pwr_mgt_t *phandler);
 /* When the measured utilization changes, this funcion re-distributes the power based on that, only internally, it doesn't change the powercap allocated to each component */
 void pmgt_powercap_node_reallocation();
-/* Estimates the powercap status per domain (To be completed )*/
-uint pmgt_powercap_status_per_domain();
 
 /* Returns the current node status using its domains status */
 void pmgt_get_status(pmgt_status_t *status);

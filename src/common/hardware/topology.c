@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -114,27 +107,31 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
 
     if ((fd = open(path, F_RD)) >= 0) {
         do {
-	    aux2  = pread(fd, (void*) &buffer[aux1], SZ_NAME_LARGE, aux1);
-	    aux1 += aux2;
-	} while(aux2 > 0);
-	// Parsing
-	char *tok = strtok(buffer, ",");
-	//
-	while (tok != NULL) {
-	    if ((aux1 = atoi(tok)) != thread) {
-	    	topo->cpus[thread].sibling_id = aux1;
-    		topo->cpus[thread].core_id    = thread;
-
-            if (thread > aux1) {
-		        topo->cpus[thread].core_id   = aux1;
-		        topo->cpus[thread].is_thread = 1;
-		    }
+            // aux2: number of bytes read. aux1: total bytes read.
+            aux2  = pread(fd, (void*) &buffer[aux1], SZ_NAME_LARGE, aux1);
+            aux1 += aux2;
+	    } while(aux2 > 0);
+        // Parsing
+        char *tok = strtok(buffer, ",");
+        // core_id = thread from argument.
+        // sibling_id = detected sibling (we are setting just one)
+        while (tok != NULL) {
+	        if ((aux1 = atoi(tok)) != thread) {
+                topo->cpus[thread].sibling_id = aux1;
+                topo->cpus[thread].core_id    = thread;
+                if (thread > aux1) {
+                    // Is thread mean is not the main thread in the core
+                    // This algorithm won't be valid when there were more
+                    // than one thread per core, maybe in PowerPCs.
+                    topo->cpus[thread].core_id   = aux1;
+                    topo->cpus[thread].is_thread = 1;
+		        }
+	        }
+	        tok = strtok(NULL, ",");
 	    }
-	    tok = strtok(NULL, ",");
-	}
-	close(fd);
+        close(fd);
     } else {
-        debug("Failed while opening '%s': %s", path, strerror(errno));
+        debug("Could not open '%s': %s", path, strerror(errno));
     }
     // Getting the socket_id
 	sprintf(path, "/sys/devices/system/cpu/cpu%d/topology/physical_package_id", thread);
@@ -146,13 +143,12 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
 			aux2  = pread(fd, (void*) &buffer[aux1], SZ_NAME_LARGE, aux1);
 			aux1 += aux2;
 		} while(aux2 > 0);
-
 		topo->cpus[thread].socket_id = atoi(buffer);
 		close(fd);
 	} else {
-        debug("Failed while opening '%s': %s", path, strerror(errno));
+        debug("Could not open '%s': %s", path, strerror(errno));
     }
-    // Cleaning caches
+    // CACHE: Cleaning caches
 	for (i = 0; i < TOPO_CL_COUNT; ++i) {
         topo->cpus[thread].l[i].id = TOPO_UNDEFINED;
     }
@@ -169,9 +165,9 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
                 aux1 += aux2;
             } while(aux2 > 0);
             aux3 = atoi(buffer);
-	    close(fd);
+            close(fd);
         } else {
-            //debug("Failed while opening '%s': %s", path, strerror(errno));
+            //debug("Could not open '%s': %s", path, strerror(errno));
             continue;
         }
         sprintf(path, "/sys/devices/system/cpu/cpu%d/cache/index%d/id", thread, i);
@@ -194,7 +190,7 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
             } else {
                 topo->cpus[thread].l[aux3].id = topo->cpus[thread].core_id;
             }
-            //debug("Failed while opening '%s': %s", path, strerror(errno));
+            //debug("Could not open '%s': %s", path, strerror(errno));
         }
         debug("CPU%d L%d id: %d", thread, aux3, topo->cpus[thread].l[aux3].id);
     }
@@ -209,18 +205,6 @@ state_t topology_copy(topology_t *dst, topology_t *src)
 	p = memcpy(p, src->cpus, sizeof(cpu_t) * src->cpu_count);
 	dst->cpus = (cpu_t *) p;
 	return EAR_SUCCESS;
-}
-
-static void topology_simd(topology_t *topo)
-{
-    if (topo->vendor == VENDOR_ARM) {
-        #ifdef __SVE_VQ_MAX
-        topo->sve_bits = __SVE_VQ_MAX;
-        topo->sve = (topo->sve_bits > 0);
-        #else
-        topo->sve = 0;
-        #endif
-    }
 }
 
 static void topology_watchdog(topology_t *topo)
@@ -243,17 +227,10 @@ static void topology_watchdog(topology_t *topo)
 
 static void topology_cpuinfo(topology_t *topo)
 {
-    ulong base_freq = 0;
     char *line      = NULL;
     char *col       = NULL; //column
-    char *aux       = NULL;
     size_t len      = 0;
     int cpu         = 0;
-
-    // If not found 1GHz --> Replaced by a constant DUMMY to
-    // be able to compare in the EARL
-    //base_freq = 1000000;
-    base_freq = DUMMY_BASE_FREQ;
 
     FILE *cpuinfo = fopen("/proc/cpuinfo", "r");
     while(getline(&line, &len, cpuinfo) != -1) {
@@ -273,37 +250,20 @@ static void topology_cpuinfo(topology_t *topo)
                 topo->avx512 = (strstr(col, "avx512f") != NULL);
             }
         }
-        if (strncmp(line,"model name", 10) == 0){
-            if ((col = strchr(line, '@')) != NULL) {
-                col++;
-                while (*col == ' ') col++;
-                aux = col;
-                while (*col != 'G') col++;
-                *col = '\0';
-                // Converted to KHz
-                base_freq = atof(aux)*1000000;
-            }
-        }
-    }
-    // In case we don't find the base frequency by low level procedures
-    if (topo->base_freq == 0) {
-        topo->base_freq = base_freq;
     }
     topo->apicids_found = (cpu == topo->cpu_count);
     fclose(cpuinfo);
     free(line);
 }
 
-static int is_online(const char *path)
+static int cpu_exists(uint cpu)
 {
-	char c = '0';
+    char path[PATH_MAX];
+    //
+    sprintf(path, "/sys/devices/system/cpu/cpu%d", cpu);
+    //
 	if (access(path, F_OK) != 0) {
-		return 0;
-	}
-	if (state_fail(ear_file_read(path, &c, sizeof(char)))) {
-		return 0;
-	}
-	if (c != '1') {
+        debug("CPU '%s' not found", path);
 		return 0;
 	}
 	return 1;
@@ -311,7 +271,6 @@ static int is_online(const char *path)
 
 state_t topology_init(topology_t *topo)
 {
-    char path[SZ_NAME_LARGE];
     int i, j;
 
     if (topo_static.initialized) {
@@ -336,14 +295,11 @@ state_t topology_init(topology_t *topo)
     topo->avx512           = 0;
     topo->sve              = 0;
     topo->sve_bits         = 0;
-    topo->base_freq        = 0;
-    topo->boost_enabled    = 0;
     topo->initialized      = 1;
     // Counting number of CPUs
-    do {
-        sprintf(path, "/sys/devices/system/cpu/cpu%d/online", topo->cpu_count + 1);
-	topo->cpu_count += 1;
-    } while(is_online(path));
+    while(cpu_exists(topo->cpu_count)) {
+        topo->cpu_count += 1;
+    }
     // Allocating individual CPU memory
     topo->cpus = calloc(topo->cpu_count, sizeof(cpu_t));
     // First assembly characteristics (random CPU, we are supposing all CPUs are the same).
@@ -352,19 +308,25 @@ state_t topology_init(topology_t *topo)
     // Travelling through all CPUs
     for (i = 0; i < topo->cpu_count; ++i) {
     	topology_init_thread(topo, i);
-	// Counting cores
+        // Counting cores
         topo->core_count += !topo->cpus[i].is_thread;
 	    if (topo->cpus[i].is_thread) {
 	        topo->threads_per_core = 2;
 	        topo->smt_enabled = 1;
         }
         // Counting sockets
-        for (j = 0; j < i; ++j) {
-            if (topo->cpus[j].socket_id == topo->cpus[i].socket_id) {
-                break;
+        debug("CPU%d socket_id: %d", i, topo->cpus[i].socket_id);
+        if (topo->cpus[i].socket_id != -1) {
+            for (j = 0; j < i; ++j) {
+                if (topo->cpus[j].socket_id == -1) {
+                    continue;
+                }
+                if (topo->cpus[j].socket_id == topo->cpus[i].socket_id) { 
+                    break;
+                }
             }
+            topo->socket_count += (j == i);
         }
-        topo->socket_count += (j == i);
         // Counting cache banks
         #define cache_count(level, var) \
         for (j = 0; j <= i; ++j) { \
@@ -388,12 +350,11 @@ state_t topology_init(topology_t *topo)
     } else {
         topo->cache_last_level = 1;
     }
+
     // TDP definition (to avoid redundancy)
     void topology_tdp(topology_t *topo);
-
     topology_cpuinfo(topo);
     topology_watchdog(topo);
-    topology_simd(topo);
     topology_tdp(topo);
 
     topology_copy(&topo_static, topo);
@@ -419,7 +380,10 @@ state_t topology_close(topology_t *topo)
     "cache_line_size  : %d\n" \
     "vendor           : %d\n" \
     "family           : %d\n" \
-    "model            : %d\n" \
+    "model            : 0x%x\n" \
+    "brand            : '%s'\n" \
+    "gpr_count        : %d\n" \
+    "gpr_bits         : %d\n" \
     "nmi_watchdog     : %d\n" \
     "avx512           : %d\n" \
     "sve              : %d\n" \
@@ -437,75 +401,23 @@ state_t topology_close(topology_t *topo)
     topo->vendor, \
     topo->family, \
     topo->model, \
+    topo->brand, \
+    topo->gpr_count, \
+    topo->gpr_bits, \
     topo->nmi_watchdog, \
     topo->avx512, \
     topo->sve, \
     topo->sve_bits);
 
-state_t topology_print(topology_t *topo, int fd)
+void topology_print(topology_t *topo, int fd)
 {
 	f_print(dprintf, fd);
-
-	return EAR_SUCCESS;
 }
 
-state_t topology_tostr(topology_t *topo, char *buffer, size_t n)
+char *topology_tostr(topology_t *topo, char *buffer, size_t n)
 {
 	f_print(snprintf, buffer, n);
-
-	return EAR_SUCCESS;
-}
-
-static ulong read_freq(int fd)
-{
-	char freqc[8];
-	ulong freq;
-	int i = 0;
-	char c;
-
-	while((read(fd, &c, sizeof(char)) > 0) && ((c >= '0') && (c <= '9')))
-	{
-		freqc[i] = c;
-    	i++;
-	}
-
-	freqc[i] = '\0';
-	freq = atoi(freqc);
-	return freq;
-}
-
-state_t topology_freq_getbase(uint cpu, ulong *freq_base)
-{
-    static uint read_from_file = 0;
-    char path[1024];
-    int fd;
-
-		/* Read from file works as a bool and avoid re-reading the file. However, if base_freq is dummy we must */
-    if (topo_static.base_freq > 0 && read_from_file && (topo_static.base_freq != DUMMY_BASE_FREQ)) {
-        *freq_base = topo_static.base_freq;
-        return EAR_SUCCESS;
-    }
-    // Using an alternative method
-    sprintf(path,"/sys/devices/system/cpu/cpu%d/cpufreq/scaling_available_frequencies", cpu);
-    if ((fd = open(path, O_RDONLY)) < 0) {
-        *freq_base = topo_static.base_freq;
-        return EAR_ERROR;
-    }
-    read_from_file = 1;
-    ulong f0 = read_freq(fd);
-    ulong f1 = read_freq(fd);
-    ulong fx = f0 - f1;
-
-    if (fx == 1000) {
-        *freq_base = f1;
-    } else {
-        *freq_base = f0;
-    }
-    close(fd);
-
-    topo_static.base_freq = *freq_base;
-
-    return EAR_SUCCESS;
+	return buffer;
 }
 
 #if TEST

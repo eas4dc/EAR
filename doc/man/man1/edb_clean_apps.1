@@ -1,0 +1,30 @@
+.\" Manpage for ear_create_database.
+.TH man 8 "August 2024" "5.0" "edb_clean_apps man page"
+.SH NAME
+edb_clean_apps \- Removes application-related data from EAR databases.
+.SH SYNOPSIS
+edb_clean_apps
+.SH DESCRIPTION
+edb_clean_apps removes application-related data from EAR databases. This includes any data stored in Applications, Jobs, Signatures, Power_signatures, GPU_signatures, and Loops tables. Furthermore, the command will also optimize the database size (unless specified) after deletion.
+
+This command is made to be easy to run with a cron job, with the idea to automate maintenance of the database and prevent it from growing into excessive sizes, by providing an easy way to delete applications that are older than a certain amount of days. Alternatively, one may delete a specific application from database using its Job-Step id.
+
+
+.SH OPTIONS
+	-p				The program will request the database user's password.
+	-u user			Database user to execute the operation (it needs DELETE privileges). [default: root]
+	-j jobid.stepid	Job id and step id to delete. If no step_id is introduced, every step within the job will be deleted
+	-d ndays		Days to preserve. It will delete any jobs older than ndays.
+	-o				Prints out the queries that would be executed. Exclusive with -r. [default:on]
+	-r				Runs the queries that would be executed. Exclusive with -o. [default:off]
+	-l				Deletes Loops and its Signatures. [default:off]
+	-a				Deletes Applications and related tables. [default:off]
+	-z				Optimizes the tables affected to reduce size. [default:off]
+	-h				Displays this message
+
+.SH SEE ALSO
+edb_create, edb_clean_pm, eacct
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+EAR suport team (ear-support@bsc.es)

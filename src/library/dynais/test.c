@@ -6,6 +6,7 @@
 #include <common/states.h>
 #include <library/dynais/dynais.h>
 
+
 topology_t topo;
 dynais_call_t dynais;
 uint panic;

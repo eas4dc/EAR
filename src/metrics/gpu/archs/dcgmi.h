@@ -1,46 +1,32 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef METRICS_GPU_DCGMI_H
 #define METRICS_GPU_DCGMI_H
 
 #include <metrics/gpu/gpu.h>
 
-/*
- * dcgmi profile -l
- * +----------------+----------+------------------------------------------------------+
-| Group.Subgroup | Field ID | Field Tag                                            |
-+----------------+----------+------------------------------------------------------+
-| A.1            | 1002     | sm_active                                            |
-| A.1            | 1003     | sm_occupancy                                         |
-| A.1            | 1004     | tensor_active                                        |
-| A.1            | 1006     | fp64_active                                          |
-| A.2            | 1008     | fp16_active                                          |
-| A.2            | 1013     | tensor_imma_active                                   |
-| A.2            | 1014     | tensor_hmma_active                                   |
-| A.3            | 1007     | fp32_active                                          |
-| B.0            | 1005     | dram_active                                          |
-| C.0            | 1009     | pcie_tx_bytes                                        |
-| C.0            | 1010     | pcie_rx_bytes                                        |
-| D.0            | 1001     | gr_engine_active                                     |
-| E.0            | 1011     | nvlink_tx_bytes                                      |
-| E.0            | 1012     | nvlink_rx_bytes                                      |
-+----------------+----------+------------------------------------------------------+
-*/
+
+#define FP64_SET  0
+#define FP32_SET  1
+#define FP16_SET  1
+#define FP64_EV   1
+#define FP32_EV   0
+#define FP16_EV   1
+#define SM_SET    2
+#define SM_EV     1
+#define TNS_SET   0
+#define TNS_EV    0
+#define DRAM_SET 0
+#define DRAM_EV  2
+
 
 /* for now, we don't need a more complex structure since event numbers
  * are consecutive

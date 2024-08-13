@@ -1,23 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
-
-#if DB_MYSQL
-#include <mysql/mysql.h>
-#endif
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <unistd.h>
@@ -27,8 +16,8 @@
 #include <common/string_enhanced.h>
 #include <common/types/application.h>
 #include <common/types/configuration/cluster_conf.h>
-#include <common/database/db_helper.h>
 
+#include <report/report.h>
 
 void usage(char *name) 
 {
@@ -49,7 +38,8 @@ int main(int argc,char *argv[])
     char test_name[256];
     time_t ttime = time(NULL);
     char ear_path[256];
-	cluster_conf_t my_conf;
+	cluster_conf_t conf;
+    state_t st;
 
     if (argc > 1) { usage(argv[0]); }
     
@@ -58,10 +48,20 @@ int main(int argc,char *argv[])
         printf("Error getting ear.conf path\n");
         exit(0);
     }
-    read_cluster_conf(ear_path, &my_conf);
+    read_cluster_conf(ear_path, &conf);
 
     //db init
-	init_db_helper(&my_conf.database);
+    st = report_load("/home/void/ear_install/lib/plugins", "psql.so");
+    if (st != EAR_SUCCESS) {
+        printf("Error loading report libraries\n");
+        goto exit;
+    }
+    report_id_t id;
+    st = report_init(&id, &conf);
+    if (st != EAR_SUCCESS) {
+        printf("Error initializing report libraries\n");
+        goto exit;
+    }
 
     sprintf(test_name, "test_insert.%ld", ttime);
     application_t *apps = calloc(num_apps, sizeof(application_t));
@@ -74,10 +74,16 @@ int main(int argc,char *argv[])
         apps[i].signature.avg_f = 112;
     }
 
-    db_batch_insert_applications(apps, num_apps);
+    st = report_applications(&id, apps, num_apps);
 
+    if (st != EAR_SUCCESS) {
+        printf("Error while reporting applications\n");
+    }
 
-	free_cluster_conf(&my_conf);
+    free(apps);
+
+exit:
+	free_cluster_conf(&conf);
 
 	return 0;
 }

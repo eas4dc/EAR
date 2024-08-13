@@ -1,19 +1,16 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
+
+#ifndef _EAR_MYSQL_IO_FNCTS_H
+#define _EAR_MYSQL_IO_FNCTS_H
 
 #include <common/config.h>
 #include <common/database/db_io_common.h>
@@ -28,9 +25,11 @@
 #include <common/types/periodic_metric.h>
 #include <common/types/power_signature.h>
 #include <common/types/periodic_aggregation.h>
+#include <stdbool.h>
 
 #include <mysql/mysql.h>
-
+#define ear_db_bool my_bool
+//#define ear_db_bool bool
 
 typedef struct
 {
@@ -40,7 +39,7 @@ typedef struct
 } signature_container_t;
 
 /** Sets the database layer to operate with full signatures or simplified one. */
-void set_signature_simple(char full_sig);
+void set_signature_detail(char full_sig);
 
 /** Sets the database layer to operate with normal periodic_metrics or exteded ones. */
 void set_node_detail(char node_det);
@@ -126,11 +125,6 @@ long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t
 *   EAR_MYSQL_STMT_ERROR on error. */
 int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs);
 
-/** Given a MYSQL connection and a power_signature, inserts said power_signature into
-*   the database. Returns the power_signature's database id on success, and either 
-*   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
-int mysql_insert_power_signature(MYSQL *connection, power_signature_t *pow_sig);
-
 /** Given a MYSQL connection and an array of aplications , inserts said application's
 *   power_signatures into the database. Returns the first power_signature's database
 *   id on success, and either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
@@ -197,3 +191,4 @@ int mysql_retrieve_power_signatures(MYSQL *connection, char *query, power_signat
 /** Given a MYSQL connection and a query, retrieves the corresponding result and stores it in results*/
 int mysql_run_query_string_results(MYSQL *connection, char *query, char ****results, int *num_columns, int *num_rows);
 #endif
+#endif // _EAR_MYSQL_IO_FNCTS_H

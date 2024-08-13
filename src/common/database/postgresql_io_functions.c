@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdlib.h>
 #include <string.h>
@@ -29,14 +22,14 @@
 #if DB_PSQL
 #include <common/database/postgresql_io_functions.h>
 
-#define APPLICATION_PSQL_QUERY   "INSERT INTO Applications (job_id, step_id, node_id, signature_id, power_signature_id) VALUES "
+#define APPLICATION_PSQL_QUERY   "INSERT INTO Applications (job_id, step_id, local_id, node_id, signature_id, power_signature_id) VALUES "
 
-#define LEARNING_APPLICATION_PSQL_QUERY   "INSERT INTO Learning_applications (job_id, step_id, node_id, signature_id, power_signature_id) VALUES "
+#define LEARNING_APPLICATION_PSQL_QUERY   "INSERT INTO Learning_applications (job_id, step_id, local_id, node_id, signature_id, power_signature_id) VALUES "
 
-#define LOOP_PSQL_QUERY              "INSERT INTO Loops (event, size, level, job_id, step_id, node_id, total_iterations," \
+#define LOOP_PSQL_QUERY              "INSERT INTO Loops (event, size, level, job_id, step_id, local_id, node_id, total_iterations," \
                                 "signature_id) VALUES "
 
-#define CREATE_TEMP_JOBS    "CREATE TEMPORARY TABLE temp_jobs(id INT NOT NULL,step_id INT NOT NULL, user_id VARCHAR(128),app_id VARCHAR(128), " \
+#define CREATE_TEMP_JOBS    "CREATE TEMPORARY TABLE temp_jobs(job_id INT NOT NULL,step_id INT NOT NULL, local_id INT NOT NULL, user_id VARCHAR(128),app_id VARCHAR(128), " \
                             "start_time INT NOT NULL,end_time INT NOT NULL,start_mpi_time INT NOT NULL,end_mpi_time INT NOT NULL, "\
                             "policy VARCHAR(256) NOT NULL,threshold FLOAT NOT NULL,procs INT NOT NULL,job_type SMALLINT NOT NULL, def_f INT, "\
                             "user_acc VARCHAR(256), user_group VARCHAR(256), e_tag VARCHAR(256)) ON COMMIT DROP"
@@ -45,19 +38,19 @@
 
 #define LOCK_LEARNING_JOBS_PSQL_QUERY     "LOCK TABLE Learning_jobs IN SHARE ROW EXCLUSIVE MODE"
 
-#define INSERT_NEW_LEARNING_JOBS    "INSERT INTO Learning_jobs SELECT DISTINCT ON (temp_jobs.id, temp_jobs.step_id) temp_jobs.id, temp_jobs.step_id, temp_jobs.user_id, temp_jobs.app_id, "\
+#define INSERT_NEW_LEARNING_JOBS    "INSERT INTO Learning_jobs SELECT DISTINCT ON (temp_jobs.job_id, temp_jobs.step_id, temp_jobs.local_id) temp_jobs.job_id, temp_jobs.step_id, temp_jobs.local_id temp_jobs.user_id, temp_jobs.app_id, "\
                                     "temp_jobs.start_time, temp_jobs.end_time, temp_jobs.start_mpi_time, temp_jobs.end_mpi_time, temp_jobs.policy, temp_jobs.threshold, "\
                                     "temp_jobs.procs, temp_jobs.job_type, temp_jobs.def_f, temp_jobs.user_acc, temp_jobs.user_group, temp_jobs.e_tag "\
-                                    "FROM temp_jobs LEFT OUTER JOIN Learning_jobs ON (Learning_jobs.id = temp_jobs.id AND " \
-                                    "Learning_jobs.step_id = temp_jobs.step_id) WHERE Learning_jobs.id IS NULL"
+                                    "FROM temp_jobs LEFT OUTER JOIN Learning_jobs ON (Learning_jobs.job_id = temp_jobs.job_id AND " \
+                                    "Learning_jobs.step_id = temp_jobs.step_id AND Learning_jobs.local_id = temp_jobs.local_id) WHERE Learning_jobs.id IS NULL"
 
-#define INSERT_NEW_JOBS     "INSERT INTO Jobs SELECT DISTINCT ON (temp_jobs.id, temp_jobs.step_id) temp_jobs.id, temp_jobs.step_id, temp_jobs.user_id, temp_jobs.app_id, "\
+#define INSERT_NEW_JOBS     "INSERT INTO Jobs SELECT DISTINCT ON (temp_jobs.job_id, temp_jobs.step_id, temp_jobs.local_id) temp_jobs.job_id, temp_jobs.step_id, temp_jobs.local_id, temp_jobs.user_id, temp_jobs.app_id, "\
                             "temp_jobs.start_time, temp_jobs.end_time, temp_jobs.start_mpi_time, temp_jobs.end_mpi_time, temp_jobs.policy, temp_jobs.threshold, "\
                             "temp_jobs.procs, temp_jobs.job_type, temp_jobs.def_f, temp_jobs.user_acc, temp_jobs.user_group, temp_jobs.e_tag "\
-                            "FROM temp_jobs LEFT OUTER JOIN Jobs ON (Jobs.id = temp_jobs.id AND " \
-                            "Jobs.step_id = temp_jobs.step_id) WHERE Jobs.id IS NULL"
+                            "FROM temp_jobs LEFT OUTER JOIN Jobs ON (Jobs.job_id = temp_jobs.job_id AND " \
+                            "Jobs.step_id = temp_jobs.step_id AND Jobs.local_id = temp_jobs.local_id) WHERE Jobs.job_id IS NULL"
 
-#define JOB_PSQL_QUERY               "INSERT INTO temp_jobs (id, step_id, user_id, app_id, start_time, end_time, start_mpi_time," \
+#define JOB_PSQL_QUERY               "INSERT INTO temp_jobs (job_id, step_id, local_id, user_id, app_id, start_time, end_time, start_mpi_time," \
                                 "end_mpi_time, policy, threshold, procs, job_type, def_f, user_acc, user_group, e_tag) VALUES "
 
 #define EAR_WARNING_PSQL_QUERY       "INSERT INTO Global_energy (energy_percent, warning_level, inc_th, p_state, GlobEnergyConsumedT1, "\
@@ -134,8 +127,8 @@ char *SIGNATURE_PSQL_QUERY = SIGNATURE_QUERY_FULL;
 
 char *PERIODIC_METRIC_PSQL_QUERY = PERIODIC_METRIC_QUERY_DETAIL;
 
-int per_met_args = PERIODIC_METRIC_ARGS;
-int sig_args = SIGNATURE_ARGS;
+int per_met_args = FULL_PERIODIC_METRIC_ARGS;
+int sig_args = FULL_SIGNATURE_ARGS;
 
 
 void exit_connection(PGconn *conn)
@@ -153,7 +146,7 @@ void exit_connection(PGconn *conn)
 // the procedure to workaround the lack of INSERT IGNORE in postgres <9.5 is: create a temp table, insert into it, filter repetitions and insert into actual table
 //
 
-void set_signature_simple(char full_sig)
+void set_signature_detail(char full_sig)
 {
     full_signature = full_sig;
     if (full_signature)
@@ -181,16 +174,12 @@ void set_node_detail(char node_det)
     if (node_detail)
     {
         PERIODIC_METRIC_PSQL_QUERY = PERIODIC_METRIC_QUERY_DETAIL;
-#if USE_GPUS
-        per_met_args = 11;
-#else
-        per_met_args = 10;
-#endif
+        per_met_args = FULL_PERIODIC_METRIC_ARGS;
     }
     else
     {
         PERIODIC_METRIC_PSQL_QUERY = PERIODIC_METRIC_QUERY_SIMPLE;
-        per_met_args = 6;
+        per_met_args = SIMPLE_PERIODIC_METRIC_ARGS;
     }
 }
 
@@ -420,20 +409,21 @@ int postgresql_retrieve_jobs(PGconn *connection, char *query, job_t **jobs)
     {
         jobs_aux[i].id = htonl( *((int *)PQgetvalue(res, i, 0)));
         jobs_aux[i].step_id = htonl( *((int *)PQgetvalue(res, i, 1)));
-        strcpy(jobs_aux[i].user_id, PQgetvalue(res, i, 2));
-        strcpy(jobs_aux[i].app_id , PQgetvalue(res, i, 3));
-        jobs_aux[i].start_time = htonl( *((time_t *)PQgetvalue(res, i, 4)));
-        jobs_aux[i].end_time = htonl( *((time_t *)PQgetvalue(res, i, 5)));
-        jobs_aux[i].start_mpi_time = htonl( *((time_t *)PQgetvalue(res, i, 6)));
-        jobs_aux[i].end_mpi_time = htonl( *((time_t *)PQgetvalue(res, i, 7)));
-        strcpy(jobs_aux[i].policy, PQgetvalue(res, i, 8));
-        jobs_aux[i].th = double_swap( *((double *)PQgetvalue(res, i, 9)));
-        jobs_aux[i].procs = htonl( *((ulong *)PQgetvalue(res, i, 10))); //this might cause trouble, might have to cast into long
-        jobs_aux[i].type = htonl( *((job_type *)PQgetvalue(res, i, 11)));
-        jobs_aux[i].def_f = htonl( *((ulong *)PQgetvalue(res, i, 12)));
-        strcpy(jobs_aux[i].user_acc, PQgetvalue(res, i, 13));
-        strcpy(jobs_aux[i].group_id, PQgetvalue(res, i, 14));
-        strcpy(jobs_aux[i].energy_tag, PQgetvalue(res, i, 15));
+        jobs_aux[i].local_id = htonl( *((int *)PQgetvalue(res, i, 2)));
+        strcpy(jobs_aux[i].user_id, PQgetvalue(res, i, 3));
+        strcpy(jobs_aux[i].app_id , PQgetvalue(res, i, 4));
+        jobs_aux[i].start_time = htonl( *((time_t *)PQgetvalue(res, i, 5)));
+        jobs_aux[i].end_time = htonl( *((time_t *)PQgetvalue(res, i, 6)));
+        jobs_aux[i].start_mpi_time = htonl( *((time_t *)PQgetvalue(res, i, 7)));
+        jobs_aux[i].end_mpi_time = htonl( *((time_t *)PQgetvalue(res, i, 8)));
+        strcpy(jobs_aux[i].policy, PQgetvalue(res, i, 9));
+        jobs_aux[i].th = double_swap( *((double *)PQgetvalue(res, i, 10)));
+        jobs_aux[i].procs = htonl( *((ulong *)PQgetvalue(res, i, 11))); //this might cause trouble, might have to cast into long
+        jobs_aux[i].type = htonl( *((job_type *)PQgetvalue(res, i, 12)));
+        jobs_aux[i].def_f = htonl( *((ulong *)PQgetvalue(res, i, 13)));
+        strcpy(jobs_aux[i].user_acc, PQgetvalue(res, i, 14));
+        strcpy(jobs_aux[i].group_id, PQgetvalue(res, i, 15));
+        strcpy(jobs_aux[i].energy_tag, PQgetvalue(res, i, 16));
 
     }
    
@@ -633,7 +623,7 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
 {
 	is_learning &= USE_LEARNING_APPS;
 
-    long long i, num_rows, job_id, step_id, sig_id, pow_sig_id;
+    long long i, num_rows, job_id, step_id, sig_id, pow_sig_id, local_id;
     char job_query[256], pow_sig_query[256], sig_query[256];
     job_t *job_aux;
     application_t *apps_aux;
@@ -666,15 +656,18 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
     {
         job_id = htonl( *((int *)PQgetvalue(res, i, 0)));
         step_id = htonl( *((int *)PQgetvalue(res, i, 1)));
-        strcpy(apps_aux[i].node_id, PQgetvalue(res, i, 2));
-        sig_id = htonl( *((int *)PQgetvalue(res, i, 3)));
-        pow_sig_id = htonl( *((int *)PQgetvalue(res, i, 4)));
+        local_id = htonl( *((int *)PQgetvalue(res, i, 2)));
+        strcpy(apps_aux[i].node_id, PQgetvalue(res, i, 3));
+        sig_id = htonl( *((int *)PQgetvalue(res, i, 4)));
+        pow_sig_id = htonl( *((int *)PQgetvalue(res, i, 5)));
 
         /* JOB RETRIEVAL */
         if (is_learning)
-            sprintf(job_query, "SELECT * FROM Learning_jobs WHERE id = %lld AND step_id = %lld", job_id, step_id);
+            sprintf(job_query, "SELECT * FROM Learning_jobs WHERE job_id = %lld AND step_id = %lld AND local_id = %lld",
+                    job_id, step_id, local_id);
         else
-            sprintf(job_query, "SELECT * FROM Jobs WHERE id = %lld AND step_id = %lld", job_id, step_id);
+            sprintf(job_query, "SELECT * FROM Jobs WHERE job_id = %lld AND step_id = %lld AND local_id = %lld",
+                    job_id, step_id, local_id);
 
         if (postgresql_retrieve_jobs(connection, job_query, &job_aux) < 1)
         {
@@ -765,9 +758,10 @@ int postgresql_retrieve_loops(PGconn *connection, char *query, loop_t **loops)
         loops_aux[i].id.level           = htonl( *((int *)PQgetvalue(res, i, 2)));
         loops_aux[i].jid                = htonl( *((int *)PQgetvalue(res, i, 3)));
         loops_aux[i].step_id            = htonl( *((int *)PQgetvalue(res, i, 4)));
-        loops_aux[i].total_iterations   = htonl( *((int *)PQgetvalue(res, i, 6)));
-        sig_id                          = htonl( *((int *)PQgetvalue(res, i, 7)));
-        strcpy(loops_aux[i].node_id, PQgetvalue(res, i, 5));
+        loops_aux[i].local_id           = htonl( *((int *)PQgetvalue(res, i, 5)));
+        loops_aux[i].total_iterations   = htonl( *((int *)PQgetvalue(res, i, 7)));
+        sig_id                          = htonl( *((int *)PQgetvalue(res, i, 8)));
+        strcpy(loops_aux[i].node_id, PQgetvalue(res, i, 6));
 
         /* SIGNATURE RETRIEVAL */
         if (sig_id > 0)
@@ -1312,7 +1306,7 @@ int postgresql_batch_insert_gpu_signatures(PGconn *connection, signature_t *sigs
 
     num_gpu_sigs = reverse_gpu_signature_bytes(sigs, num_sigs);
 
-    if (num_gpu_sigs < 1) return EAR_ERROR;
+    if (num_gpu_sigs < 1) return EAR_BAD_ARGUMENT;
 
     /* Memory allocation */
     param_values = calloc(GPU_SIGNATURE_ARGS*num_sigs, sizeof(char *));
@@ -1415,12 +1409,16 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
     query = calloc((strlen(SIGNATURE_QUERY_FULL)+(num_sigs*sig_args*10)+strlen("ON CONFLICT DO NOTHING")), sizeof(char));
 #if USE_GPUS
 
-    long long starter_gpu_sig_id, num_gpu_sigs = 0, *gpu_sig_ids, current_gpu_sig_id = 0;
+    long long starter_gpu_sig_id, num_gpu_sigs = 0, current_gpu_sig_id = 0;
+    long long *gpu_sig_ids = NULL;
     /* Insert gpu signatures */
     starter_gpu_sig_id = postgresql_batch_insert_gpu_signatures(connection, sigs, num_sigs);
     if (starter_gpu_sig_id != EAR_SUCCESS)
     {
-        verbose(VMYSQL, "Error while inserting gpu signatures\n");
+        //we don't need to print an error message if there were no gpu signatures to insert
+        if (starter_gpu_sig_id != EAR_BAD_ARGUMENT) { 
+            verbose(VMYSQL, "Error while inserting gpu signatures\n");
+        }
     }
     else
     {
@@ -1588,7 +1586,8 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
     PGresult *res = PQexecParams(connection, query, sig_args * num_sigs, NULL, (const char * const *)param_values, param_lengths, param_formats, 1); //0 indicates text mode, 1 is binary
 
 #if USE_GPUS
-    free(gpu_sig_ids);
+    if (gpu_sig_ids != NULL && num_gpu_sigs > 0)
+        free(gpu_sig_ids);
 #endif
     free(param_values);
     free(param_lengths);
@@ -1662,56 +1661,59 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
         /* Parameter binding */
         param_values[0  + offset] = (char *) &apps[i].job.id;
         param_values[1  + offset] = (char *) &apps[i].job.step_id;
-        param_values[2  + offset] = (char *) &apps[i].job.user_id;
-        param_values[3  + offset] = (char *) &apps[i].job.app_id;
-        param_values[4  + offset] = (char *) &apps[i].job.start_time;
-        param_values[5  + offset] = (char *) &apps[i].job.end_time;
-        param_values[6  + offset] = (char *) &apps[i].job.start_mpi_time;
-        param_values[7  + offset] = (char *) &apps[i].job.end_mpi_time;
-        param_values[8  + offset] = (char *) &apps[i].job.policy;
-        param_values[9  + offset] = (char *) &apps[i].job.th;
-        param_values[10 + offset] = (char *) &apps[i].job.procs;
-        param_values[11 + offset] = (char *) &apps[i].job.type;
-        param_values[12 + offset] = (char *) &apps[i].job.def_f;
-        param_values[13 + offset] = (char *) &apps[i].job.user_acc;
-        param_values[14 + offset] = (char *) &apps[i].job.group_id;
-        param_values[15 + offset] = (char *) &apps[i].job.energy_tag;
+        param_values[2  + offset] = (char *) &apps[i].job.local_id;
+        param_values[3  + offset] = (char *) &apps[i].job.user_id;
+        param_values[4  + offset] = (char *) &apps[i].job.app_id;
+        param_values[5  + offset] = (char *) &apps[i].job.start_time;
+        param_values[6  + offset] = (char *) &apps[i].job.end_time;
+        param_values[7  + offset] = (char *) &apps[i].job.start_mpi_time;
+        param_values[8  + offset] = (char *) &apps[i].job.end_mpi_time;
+        param_values[9  + offset] = (char *) &apps[i].job.policy;
+        param_values[10 + offset] = (char *) &apps[i].job.th;
+        param_values[11 + offset] = (char *) &apps[i].job.procs;
+        param_values[12 + offset] = (char *) &apps[i].job.type;
+        param_values[13 + offset] = (char *) &apps[i].job.def_f;
+        param_values[14 + offset] = (char *) &apps[i].job.user_acc;
+        param_values[15 + offset] = (char *) &apps[i].job.group_id;
+        param_values[16 + offset] = (char *) &apps[i].job.energy_tag;
 
         /* Parameter sizes */
         param_lengths[0  + offset] = sizeof(int);
         param_lengths[1  + offset] = sizeof(int);
-        param_lengths[2  + offset] = strlen(apps[i].job.user_id);
-        param_lengths[3  + offset] = strlen(apps[i].job.app_id);
-        param_lengths[4  + offset] = sizeof(int);
+        param_lengths[2  + offset] = sizeof(int);
+        param_lengths[3  + offset] = strlen(apps[i].job.user_id);
+        param_lengths[4  + offset] = strlen(apps[i].job.app_id);
         param_lengths[5  + offset] = sizeof(int);
         param_lengths[6  + offset] = sizeof(int);
         param_lengths[7  + offset] = sizeof(int);
-        param_lengths[8  + offset] = strlen(apps[i].job.policy);
-        param_lengths[9  + offset] = sizeof(apps[i].job.th);
-        param_lengths[10 + offset] = sizeof(int);
-        param_lengths[11 + offset] = sizeof(short);
-        param_lengths[12 + offset] = sizeof(int);
-        param_lengths[13 + offset] = strlen(apps[i].job.user_acc);
-        param_lengths[14 + offset] = strlen(apps[i].job.group_id);
-        param_lengths[15 + offset] = strlen(apps[i].job.energy_tag);
+        param_lengths[8  + offset] = sizeof(int);
+        param_lengths[9  + offset] = strlen(apps[i].job.policy);
+        param_lengths[10 + offset] = sizeof(apps[i].job.th);
+        param_lengths[11 + offset] = sizeof(int);
+        param_lengths[12 + offset] = sizeof(short);
+        param_lengths[13 + offset] = sizeof(int);
+        param_lengths[14 + offset] = strlen(apps[i].job.user_acc);
+        param_lengths[15 + offset] = strlen(apps[i].job.group_id);
+        param_lengths[16 + offset] = strlen(apps[i].job.energy_tag);
 
         /* Parameter formats, 1 is binary 0 is string */
         param_formats[0  + offset] = 1;
         param_formats[1  + offset] = 1;
-        param_formats[2  + offset] = 0;
+        param_formats[2  + offset] = 1;
         param_formats[3  + offset] = 0;
-        param_formats[4  + offset] = 1;
+        param_formats[4  + offset] = 0;
         param_formats[5  + offset] = 1;
         param_formats[6  + offset] = 1;
         param_formats[7  + offset] = 1;
-        param_formats[8  + offset] = 0;
-        param_formats[9  + offset] = 1;
+        param_formats[8  + offset] = 1;
+        param_formats[9  + offset] = 0;
         param_formats[10 + offset] = 1;
         param_formats[11 + offset] = 1;
         param_formats[12 + offset] = 1;
-        param_formats[13 + offset] = 0;
+        param_formats[13 + offset] = 1;
         param_formats[14 + offset] = 0;
         param_formats[15 + offset] = 0;
+        param_formats[16 + offset] = 0;
 
         offset += JOB_ARGS;
     }
@@ -1741,7 +1743,7 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
     if (PQresultStatus(res) != PGRES_COMMAND_OK) verbose(VMYSQL, "ERROR while merging with main table: %s\n", PQresultErrorMessage(res));
     PQclear(res);
 
-    fprintf(stderr, "running query %s\n", "COMMIT");
+    debug("running query %s\n", "COMMIT");
     res = PQexecParams(connection, "COMMIT", 0, NULL, NULL, NULL, NULL, 1); //COMMIT and end transaction block, dropping the table
 
     //reverse_job_bytes(jobs, num_jobs);
@@ -1826,9 +1828,10 @@ int postgresql_batch_insert_loops(PGconn *connection, loop_t *loops, int num_loo
         param_values[2  + offset] = (char *) &loops[i].id.level;
         param_values[3  + offset] = (char *) &loops[i].jid;
         param_values[4  + offset] = (char *) &loops[i].step_id;
-        param_values[5  + offset] = (char *) &loops[i].node_id;
-        param_values[6  + offset] = (char *) &loops[i].total_iterations;
-        param_values[7  + offset] = (char *) &sig_ids[i];
+        param_values[5  + offset] = (char *) &loops[i].local_id;
+        param_values[6  + offset] = (char *) &loops[i].node_id;
+        param_values[7  + offset] = (char *) &loops[i].total_iterations;
+        param_values[8  + offset] = (char *) &sig_ids[i];
 
         /* Parameter sizes */
         param_lengths[0  + offset] = sizeof(int);
@@ -1836,9 +1839,10 @@ int postgresql_batch_insert_loops(PGconn *connection, loop_t *loops, int num_loo
         param_lengths[2  + offset] = sizeof(int);
         param_lengths[3  + offset] = sizeof(int);
         param_lengths[4  + offset] = sizeof(int);
-        param_lengths[5  + offset] = strlen(loops[i].node_id);
-        param_lengths[6  + offset] = sizeof(int);
-        param_lengths[7  + offset] = sizeof(sig_ids[i]);
+        param_lengths[5  + offset] = sizeof(int);
+        param_lengths[6  + offset] = strlen(loops[i].node_id);
+        param_lengths[7  + offset] = sizeof(int);
+        param_lengths[8  + offset] = sizeof(sig_ids[i]);
 
         /* Parameter formats, 1 is binary 0 is string */
         for (j = 0; j < LOOP_ARGS; j++)
@@ -1886,7 +1890,8 @@ int postgresql_batch_insert_applications(PGconn *connection, application_t *apps
 
     char **param_values;
     int i, j, offset, *param_lengths, *param_formats;
-	long long sig_id, pow_sig_id, *sig_ids, *pow_sig_ids;
+	long long sig_id, pow_sig_id, *sig_ids;
+    int32_t *pow_sig_ids = NULL;
     signature_t *sigs;
     power_signature_t *pow_sigs;
     char *query, arg_number[16];
@@ -1897,10 +1902,10 @@ int postgresql_batch_insert_applications(PGconn *connection, application_t *apps
     sigs = calloc(num_apps, sizeof(signature_t));
     pow_sigs = calloc(num_apps, sizeof(power_signature_t));
     sig_ids = calloc(num_apps, sizeof(long long));
-    pow_sig_ids = calloc(num_apps, sizeof(long long));
+    pow_sig_ids = calloc(num_apps, sizeof(int32_t));
     param_values = calloc(APPLICATION_ARGS*num_apps, sizeof(char *));
-    param_lengths = calloc(APPLICATION_ARGS*num_apps, sizeof(int));
-    param_formats = calloc(APPLICATION_ARGS*num_apps, sizeof(int));
+    param_lengths = calloc(APPLICATION_ARGS*num_apps, sizeof(int32_t));
+    param_formats = calloc(APPLICATION_ARGS*num_apps, sizeof(int32_t));
     query = calloc((strlen(LEARNING_APPLICATION_PSQL_QUERY)+(num_apps*APPLICATION_ARGS*10)+strlen("ON CONFLICT DO NOTHING")), sizeof(char));
 
     if (is_learning)
@@ -1968,27 +1973,30 @@ int postgresql_batch_insert_applications(PGconn *connection, application_t *apps
         /* Parameter binding */
         param_values[0  + offset] = (char *) &apps[i].job.id;
         param_values[1  + offset] = (char *) &apps[i].job.step_id;
-        param_values[2  + offset] = (char *) &apps[i].node_id;
+        param_values[2  + offset] = (char *) &apps[i].job.local_id;
+        param_values[3  + offset] = (char *) &apps[i].node_id;
         if (is_mpi)
-            param_values[3  + offset] = (char *) &sig_ids[i];
+            param_values[4  + offset] = (char *) &sig_ids[i];
         else
-            param_values[3  + offset] = (char *) NULL;
+            param_values[4  + offset] = (char *) NULL;
 
-        param_values[4  + offset] = (char *) &pow_sig_ids[i];
+        param_values[5  + offset] = (char *) &pow_sig_ids[i];
 
         /* Parameter sizes */
         param_lengths[0  + offset] = sizeof(int);
         param_lengths[1  + offset] = sizeof(int);
-        param_lengths[2  + offset] = strlen(apps[i].node_id);
-        param_lengths[3  + offset] = sizeof(sig_ids[i]);
-        param_lengths[4  + offset] = sizeof(pow_sig_ids[i]);
+        param_lengths[2  + offset] = sizeof(int);
+        param_lengths[3  + offset] = strlen(apps[i].node_id);
+        param_lengths[4  + offset] = sizeof(sig_ids[i]);
+        param_lengths[5  + offset] = sizeof(pow_sig_ids[i]);
 
         /* Parameter formats, 1 is binary 0 is string */
         param_formats[0  + offset] = 1;
         param_formats[1  + offset] = 1;
-        param_formats[2  + offset] = 0;
-        param_formats[3  + offset] = 1;
+        param_formats[2  + offset] = 1;
+        param_formats[3  + offset] = 0;
         param_formats[4  + offset] = 1;
+        param_formats[5  + offset] = 1;
 
         offset += APPLICATION_ARGS;
     }

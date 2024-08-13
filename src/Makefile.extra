@@ -12,12 +12,12 @@ ifdef REPLACE
 endif
 	@ (test '$($*_BINS)' && cp -f $($*_BINS) $($*_PATH) || true)
 ifdef CHOWN_USR
-	@ (test '$($*_BINS)' && (cd $($*_PATH) && chown $(CHOWN_USR) $($*_BINS)) || true)
+	@ (test '$($*_BINS)' && (cd $($*_PATH) && chown $(CHOWN_USR) $(notdir $($*_BINS))) || true)
 endif
 ifdef CHOWN_GRP
-	@ (test '$($*_BINS)' && (cd $($*_PATH) && chgrp $(CHOWN_GRP) $($*_BINS)) || true)
+	@ (test '$($*_BINS)' && (cd $($*_PATH) && chgrp $(CHOWN_GRP) $(notdir $($*_BINS))) || true)
 endif
-	@ (test '$($*_BINS)' && (cd $($*_PATH) && chmod $($*_PERM) $($*_BINS)) || true)
+	@ (test '$($*_BINS)' && (cd $($*_PATH) && chmod $($*_PERM) $(notdir $($*_BINS))) || true)
 
 %.finstall:
 	@ (mkdir -p $($*_PATH))
@@ -34,3 +34,9 @@ endif
 	@ (cd $($*_PATH) && chmod $($*_PERM) $($*_BINS))
 
 -include .extra
+
+######## FUNCTIONS
+
+define whole
+-Wl,--whole-archive $(1) -Wl,--no-whole-archive
+endef

@@ -1,26 +1,19 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * EAR is an open source software, and it is licensed under both the BSD-3 license
- * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
- * and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
 #include <fcntl.h>
 #include <stddef.h>
 #include <sys/types.h>
-
+#include <sys/stat.h>
 #include <common/output/debug.h>
 #include <common/types/types.h>
 #include <common/types/application.h>
@@ -40,9 +33,13 @@ int get_ear_external_path(char *tmp, uint ID, char *path)
 
 ear_mgt_t *create_ear_external_shared_area(char *path)
 {
+    debug("Creating third party shared area in path %s...", path);
+
+    // Read and write permission for user and group. Read permission for others.
+    mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
+
     ear_mgt_t mgt;
-    debug("Creating third party shared area in path %s", path);
-    return (ear_mgt_t *)create_shared_area(path, (char *)&mgt, sizeof(ear_mgt_t), &fd_resched, 1);
+    return (ear_mgt_t *) create_shared_area(path, perms, (char *) &mgt, sizeof(ear_mgt_t), &fd_resched, 1);
 }
 
 ear_mgt_t *attach_ear_external_shared_area(char *path)

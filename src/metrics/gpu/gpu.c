@@ -1,22 +1,14 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-//#define SHOW_DEBUGS 1
-
+// #define SHOW_DEBUGS 1
 #include <stdlib.h>
 #include <pthread.h>
 #include <common/output/debug.h>
@@ -24,27 +16,28 @@
 #include <metrics/gpu/archs/eard.h>
 #include <metrics/gpu/archs/nvml.h>
 #include <metrics/gpu/archs/dummy.h>
-#include <metrics/gpu/archs/cupti.h>
 #include <metrics/gpu/archs/oneapi.h>
 #include <metrics/gpu/archs/rsmi.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static gpu_ops_t ops;
-static uint devs_count;
-static uint ok_load;
+static gpu_ops_t       ops;
+static uint            devs_count;
+static uint            ok_load;
 
-void gpu_load(int eard)
+void gpu_load(int force_api)
 {
     while (pthread_mutex_trylock(&lock));
     if (ok_load) {
         goto unlock_load;
     }
-    // NVML and ONEAPI are fully loaded.
-    // If not, EARD is fully loaded.
-    gpu_nvml_load(&ops, eard);
-    gpu_rsmi_load(&ops, eard);
-    gpu_oneapi_load(&ops);
-    gpu_eard_load(&ops, eard);
+    if (API_IS(force_api, API_DUMMY)) {
+        goto dummy;
+    }
+    gpu_nvml_load(&ops, force_api);
+    gpu_rsmi_load(&ops, force_api);
+    gpu_oneapi_load(&ops, force_api);
+    gpu_eard_load(&ops, API_IS(force_api, API_EARD));
+dummy:
     gpu_dummy_load(&ops);
     ok_load = 1;
 unlock_load:
@@ -53,33 +46,62 @@ unlock_load:
 
 void gpu_get_api(uint *api)
 {
-    *api = API_NONE;
-    if (ops.get_api != NULL) {
-        return ops.get_api(api);
+    apinfo_t info;
+    gpu_get_info(&info);
+    *api = info.api;
+}
+
+void gpu_get_info(apinfo_t *info)
+{
+    info->layer       = "GPU";
+    info->api         = API_NONE;
+    info->devs_count  = 0;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_PERIPHERAL;
+    if (ops.get_info != NULL) {
+        ops.get_info(info);
+    }
+}
+
+void gpu_get_devices(gpu_devs_t **devs, uint *devs_count)
+{
+    if (ops.get_devices != NULL) {
+        ops.get_devices(devs, devs_count);
     }
 }
 
 state_t gpu_init(ctx_t *c)
 {
+    state_t s = EAR_ERROR;
+    while (pthread_mutex_trylock(&lock));
     if (ops.init != NULL) {
-        ops.init(c);
+        if (state_fail(s = ops.init(c))) {
+            goto unlock_init;
+        }
     }
-    return gpu_count_devices(c, &devs_count);
+    // Number of devices are used in data functions
+    gpu_get_devices(NULL, &devs_count);
+unlock_init:
+    pthread_mutex_unlock(&lock);
+    return s;
 }
 
 state_t gpu_dispose(ctx_t *c)
 {
-    preturn(ops.dispose, c);
+    state_t s = EAR_SUCCESS;
+    while (pthread_mutex_trylock(&lock));
+    if (ops.dispose != NULL) {
+        s = ops.dispose(c);
+    }
+    pthread_mutex_unlock(&lock);
+    return s;
 }
 
-state_t gpu_get_devices(ctx_t *c, gpu_devs_t **devs, uint *devs_count)
+void gpu_set_monitoring_mode(int mode)
 {
-    preturn (ops.get_devices, c, devs, devs_count);
-}
-
-state_t gpu_count_devices(ctx_t *c, uint *devs_count)
-{
-	preturn(ops.count_devices, c, devs_count);
+    if (ops.set_monitoring_mode != NULL) {
+        ops.set_monitoring_mode(mode);
+    }
 }
 
 state_t gpu_read(ctx_t *c, gpu_t *data)
@@ -98,7 +120,8 @@ state_t gpu_read_diff(ctx_t *c, gpu_t *data2, gpu_t *data1, gpu_t *data_diff)
 	if (state_fail(s = gpu_read(c, data2))) {
 		return s;
 	}
-	return gpu_data_diff(data2, data1, data_diff);
+	gpu_data_diff(data2, data1, data_diff);
+    return s;
 }
 
 state_t gpu_read_copy(ctx_t *c, gpu_t *data2, gpu_t *data1, gpu_t *data_diff)
@@ -107,7 +130,8 @@ state_t gpu_read_copy(ctx_t *c, gpu_t *data2, gpu_t *data1, gpu_t *data_diff)
 	if (state_fail(s = gpu_read_diff(c, data2, data1, data_diff))) {
 		return s;
 	}
-	return gpu_data_copy(data1, data2);
+	gpu_data_copy(data1, data2);
+    return s;
 }
 
 static void static_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int i)
@@ -115,15 +139,10 @@ static void static_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int i
 	gpu_t *d3 = &data_diff[i];
 	gpu_t *d2 = &data2[i];
 	gpu_t *d1 = &data1[i];
-	//ullong time_i;
-	//double time_f;
 
 	if (d2->correct != 1 || d1->correct != 1) {
 		return;
 	}
-	// Computing time
-	//time_i = timestamp_diff(&d2->time, &d1->time, TIME_USECS);
-	//time_f = ((double) time_i) / 1000000.0;
 	// Averages
 	if ((d3->samples = d2->samples - d1->samples) == 0) {
 		memset(d3, 0, sizeof(gpu_t));
@@ -149,24 +168,16 @@ static void static_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int i
 	#endif
 }
 
-state_t gpu_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff)
+void gpu_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff)
 {
-	state_t s;
 	int i;
-
-	if (state_fail(s = gpu_data_null(data_diff))) {
-		return s;
-	}
+	gpu_data_null(data_diff);
 	for (i = 0; i < devs_count; i++) {
 		static_data_diff(data2, data1, data_diff, i);
 	}
-	#if 0
-	gpu_data_print(data_diff, debug_channel);
-	#endif
-	return EAR_SUCCESS;
 }
 
-state_t gpu_data_merge(gpu_t *data_diff, gpu_t *data_merge)
+void gpu_data_merge(gpu_t *data_diff, gpu_t *data_merge)
 {
 	int i;
 
@@ -193,79 +204,61 @@ state_t gpu_data_merge(gpu_t *data_diff, gpu_t *data_merge)
 	data_merge->util_gpu /= devs_count;
 	data_merge->temp_gpu /= devs_count;
 	data_merge->temp_mem /= devs_count;
-
-	return EAR_SUCCESS;
 }
 
-state_t gpu_data_alloc(gpu_t **data)
+void gpu_data_alloc(gpu_t **data)
 {
-	if (data == NULL) {
-		return_msg(EAR_ERROR, Generr.input_null);
-	}
 	*data = calloc(devs_count, sizeof(gpu_t));
-	if (*data == NULL) {
-		return_msg(EAR_SYSCALL_ERROR, strerror(errno));
-	}
-	return EAR_SUCCESS;
 }
 
-state_t gpu_data_free(gpu_t **data)
+void gpu_data_free(gpu_t **data)
 {
-	if (data != NULL) {
-		free(*data);
-	}
-	return EAR_SUCCESS;
+    free(*data);
+    *data = NULL;
 }
 
-state_t gpu_data_null(gpu_t *data)
+void gpu_data_null(gpu_t *data)
 {
-	if (data == NULL) {
-		return_msg(EAR_ERROR, Generr.input_null);
-	}
 	memset(data, 0, devs_count * sizeof(gpu_t));
-	return EAR_SUCCESS;
 }
 
-state_t gpu_data_copy(gpu_t *data_dst, gpu_t *data_src)
+void gpu_data_copy(gpu_t *data_dst, gpu_t *data_src)
 {
-	if (data_dst == NULL || data_src == NULL) {
-		return_msg(EAR_ERROR, Generr.input_null);
-	}
 	memcpy(data_dst, data_src, devs_count * sizeof(gpu_t));
-	return EAR_SUCCESS;
 }
 
 void gpu_data_print(gpu_t *data, int fd)
 {
 	int i;
 	for (i = 0; i < devs_count; ++i) {
-		dprintf(fd, "gpu%u: %0.2lfJ, %0.2lfW, %luMHz, %luMHz, %lu%%, %lu%%, %luº, %luº, %u, %lu\n", i,
+		dprintf(fd, "gpu%u: %3.0lf J, %3.0lf W, %4lu MHz, %4lu MHz, %2lu-%2lu usg, %2lu-%lu t, %lu\n", i,
 			data[i].energy_j, data[i].power_w,
 			data[i].freq_gpu / 1000LU, data[i].freq_mem / 1000LU,
 			data[i].util_gpu, data[i].util_mem,
 			data[i].temp_gpu, data[i].temp_mem,
-			data[i].working , data[i].samples);
+			data[i].samples);
 	}
 }
 
-void gpu_data_tostr(gpu_t *data, char *buffer, int length)
+char *gpu_data_tostr(gpu_t *data, char *buffer, int length)
 {
+    char *state[2] = { "er", "ok" };
 	int accuml;
 	size_t s;
 	int i;
 
 	for (i = accuml = 0; i < devs_count && length > 0; ++i) {
 		s = snprintf(&buffer[accuml], length,
-			 "gpu%u: %0.2lfJ, %0.2lfW, %luKHz, %luKHz, %lu, %lu, %lu, %lu, %u, %lu correct=%u\n", i,
+			 "gpu%u: %3.0lf J, %3.0lf W, %7lu KHz, %7lu KHz, %2lu-%2lu usg, %2lu-%lu t, %lu (%s)\n", i,
 			 data[i].energy_j, data[i].power_w,
 			 data[i].freq_gpu, data[i].freq_mem,
 			 data[i].util_gpu, data[i].util_mem,
 			 data[i].temp_gpu, data[i].temp_mem,
-			 data[i].working , data[i].samples,
-			 data[i].correct);
+             data[i].samples, state[data[i].correct]);
 		length = length - s;
 		accuml = accuml + s;
 	}
+    return buffer;
 }
 
 int gpu_is_supported()

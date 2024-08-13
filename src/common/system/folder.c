@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 #include <stdio.h>
@@ -22,6 +15,7 @@
 #include <common/types/generic.h>
 #include <common/system/folder.h>
 #include <common/output/debug.h>
+#include <common/system/file.h>
 
 state_t folder_open(folder_t *folder, char *path)
 {
@@ -34,6 +28,7 @@ state_t folder_open(folder_t *folder, char *path)
 
 state_t folder_close(folder_t *folder)
 {
+  if (folder->dir == NULL) return EAR_SUCCESS;
 	closedir(folder->dir);
 	folder->dir = NULL;
 	return EAR_SUCCESS;
@@ -88,6 +83,62 @@ char *folder_getnext(folder_t *folder, char *prefix, char *suffix)
 	return NULL;
 }
 
+char *folder_getnext_type(folder_t *folder, char *prefix, char *suffix, uint type)
+{
+	struct dirent *file;
+	int lpre, lsuf, lfil;
+	char *pfil;
+
+	pfil = folder->file_name;
+	lpre = (prefix != NULL) ? (int) strlen(prefix) : 0;
+	lsuf = (suffix != NULL) ? (int) strlen(suffix) : 0;
+
+	while ((file = readdir(folder->dir)) != NULL)
+	{
+    if (type != DT_UNKNOWN){
+		  if (file->d_type != type) {
+			  continue;
+		  }
+    }
+
+		if (prefix != NULL)
+		{
+			if (strstr(file->d_name, prefix) != NULL) {
+				strcpy(pfil, &file->d_name[lpre]);
+			} else {
+				continue;
+			}
+		} else {
+			strcpy(pfil, &file->d_name[0]);
+		}
+
+		if ((lfil = (int) strlen(pfil)) <= lsuf) {
+			continue;
+		}
+
+		if (suffix != NULL)
+		{
+			if (strcmp(&pfil[lfil - lsuf], suffix) == 0) {
+				pfil[lfil - lsuf] = '\0';
+				return pfil;
+			} else {
+				continue;
+			}
+		} else {
+			return pfil;
+		}
+	}
+
+	//folder_close(folder);
+
+	return NULL;
+}
+
+char *folder_getnextdir(folder_t *folder, char *prefix, char *suffix)
+{
+	return folder_getnext_type(folder, prefix, suffix, DT_DIR);
+}
+
 state_t folder_remove(char *path)
 {
   char job_path[MAX_PATH_SIZE];
@@ -104,16 +155,28 @@ state_t folder_remove(char *path)
   }
   debug("Cleaning job_path: %s", job_path);
 
-  while ((file = folder_getnext(&job_folder, NULL, NULL)))
+  while ((file = folder_getnext_type(&job_folder, NULL, NULL, DT_UNKNOWN)))
   {
+	if (strcmp(file, ".") == 0) continue;
+	if (strcmp(file, "..") == 0) continue;
     xsnprintf(file_path,sizeof(file_path),"%s/%s",job_path,file);
     debug("Deleting: %s",file_path);
-    unlink(file_path);
+    if (file_is_directory(file_path)){
+	debug("file '%s' is a directory, removing", file_path);
+	folder_remove(file_path);
+    }else unlink(file_path);
   }
-  folder_close(&job_folder);
+  //folder_close(&job_folder);
+  debug("Deleting folder %s", job_path);
   rmdir(job_path);
 	return EAR_SUCCESS;
 
+}
+
+state_t folder_rename(char *oldp, char *newp)
+{
+  if (rename(oldp, newp) >= 0) return EAR_SUCCESS;
+  else                       return EAR_ERROR;
 }
 
 /*

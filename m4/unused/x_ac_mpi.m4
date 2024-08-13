@@ -1,3 +1,12 @@
+############################################################################
+# Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+#
+# This program and the accompanying materials are made
+# available under the terms of the Eclipse Public License 2.0
+# which is available at https://www.eclipse.org/legal/epl-2.0/
+#
+# SPDX-License-Identifier: EPL-2.0
+############################################################################
 ##*****************************************************************************
 ## $Id$
 ##*****************************************************************************
@@ -73,11 +82,11 @@ AC_DEFUN([X_AC_MPI],
 		echo checking for MPI CPPFLAGS... no
 	else
 		MPI_DIR=$_cv_mpi_dir_root
-		MPI_CPPFLAGS="-I\$MPI_BASE$_cv_mpi_dir_incl"
-		echo checking for MPI CPPFLAGS... $MPI_CPPFLAGS
+		MPI_CFLAGS="-I\$MPI_BASE$_cv_mpi_dir_incl"
+		echo checking for MPI CPPFLAGS... $MPI_CFLAGS
 	fi
 
-	AC_SUBST(MPI_CPPFLAGS)
+	AC_SUBST(MPI_CFLAGS)
 	AC_SUBST(MPI_DIR)
 
 	AM_CONDITIONAL(WITH_MPI, test -n "$_cv_mpi_dir_root")

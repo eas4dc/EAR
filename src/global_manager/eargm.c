@@ -1,23 +1,17 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define PRINT_ONLY 1 //prints config and exits
 #define _XOPEN_SOURCE 700 //to get rid of the warning
 
+#define GM_DEBUG 0
 
 #include <time.h>
 #include <errno.h>
@@ -25,21 +19,26 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <signal.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 //#define SHOW_DEBUGS 0
+#include <report/report.h>
+
 #include <common/states.h>
 #include <common/config.h>
 #include <common/colors.h>
 #include <common/system/execute.h>
 #include <common/output/verbose.h>
 #include <common/database/db_helper.h>
+#include <common/utils/sched_support.h>
 
 #include <common/types/generic.h>
 #include <common/types/gm_warning.h>
@@ -103,7 +102,7 @@ cluster_conf_t my_cluster_conf;
 eargm_def_t *e_def;
 char **nodes = NULL;
 int num_eargm_nodes = 0;
-char my_ear_conf_path[GENERIC_NAME];	
+char my_ear_conf_path[GENERIC_NAME] = { 0 };	
 uint total_nodes=0;
 char  unit_name[128],unit_energy[128],unit_power[128];
 
@@ -124,6 +123,8 @@ double perc_energy,perc_time,perc_power;
 double avg_power_t2,avg_power_t1;
 static int fd_my_log=2;
 char host[GENERIC_NAME];
+
+bool use_first_eargm_if_failed = false;
 
 
 void create_tmp(char *tmp_dir) {
@@ -233,8 +234,20 @@ void update_eargm_configuration(cluster_conf_t *conf)
         e_def = get_eargm_conf(conf, host);
     }
     if (e_def == NULL) {
-        error("Couldn't find node in EARGMs list in ear.conf, exiting\n");
-        exit(1);
+        if (use_first_eargm_if_failed) {
+            if (conf->eargm.num_eargms == 0) {
+                error("At least one EARGM definition must be set in ear.conf for a local EARGM to be usabel. Exiting.\n");
+                exit(1);
+            }
+            e_def = &conf->eargm.eargms[0];
+            if (e_def->num_subs > 0) {
+                free(e_def->subs);
+                e_def->num_subs = 0;
+            }
+        } else {
+            error("Couldn't find node in EARGMs list in ear.conf, exiting\n");
+            exit(1);
+        }
     }
     char *nnodes = ear_getenv("EARGM_NODES");
     if (nnodes != NULL)
@@ -583,26 +596,156 @@ void compute_efficiency_of_actions(unsigned long curr_avg_power,unsigned long la
  */
 void usage(char *app)
 {
-    verbose(0, "Usage: %s [-h]|[--help]|verbose_level]", app);
+    verbose(0, "Usage: %s [options]", app);
+    verbose(0, "--help\t\t Displays this message");
+    verbose(0, "--verbose [level]\t\t Sets the level of verbosity");
+    verbose(0, "--conf-path [/path/to/ear.conf]\t\t Overwrites the ear.conf to be used by EARGM");
+    verbose(0, "--nodes [host1,host2]\t\t Specifies which nodes the EARGM will monitor.");
+    verbose(0, "--powercap [limit]\t\t Sets the total power budget for the EARGM to distribute");
+    verbose(0, "--powercap-policy [pol]\t\t Selects the distribution policy [hard, soft, monitor]");
+    verbose(0, "--powercap-period [seconds]\t\t Time between checks of power status");
+    verbose(0, "--suspend-perc [90]\t\t Percentage of power that triggers the suspend_action");
+    verbose(0, "--suspend-action [/path/to/action]\t\t Program to be executed when suspend_perc is reached (once)");
+    verbose(0, "--resume-perc [60]\t\t Percentage of power that triggers the suspend_action");
+    verbose(0, "--resume-action [/path/to/action]\t\t Program to be executed when suspend_perc is reached (once)");
+
+#if 0
     verbose(0, "This program controls the energy consumed in a period T2 seconds defined in $EAR_ETC/ear/ear.conf file");
     verbose(0, "energy is checked every T1 seconds interval");
     verbose(0, "Global manager can be configured in active or passive mode. Automatic actions are taken in active mode (defined in ear.conf file)");
+#endif
+
     exit(0);
+
 }
 
+typedef struct eargm_preconf {
+    char *hosts;
+    int32_t powercap_period;
+    uint32_t powercap;
+    int32_t powercap_policy;
+    int32_t suspend_perc;
+    char *suspend_action;
+    int32_t resume_perc;
+    char *resume_action;
+} eargm_preconf_t;
 
-void parse_args(char *argv[])
+
+void update_eargm_with_preconf(cluster_conf_t *conf, eargm_preconf_t *preconf)
 {
-    if (strcmp(argv[1],"-h")==0 || strcmp(argv[1],"--help")==0){
-        usage(argv[0]);
-        exit(0);
+
+    /* Set energy budget to 0 for this use case */
+    energy_budget = 0;
+
+    if (preconf->powercap_policy >= 0) conf->eargm.powercap_mode = preconf->powercap_policy;
+    if (preconf->powercap > 0) default_cluster_powercap = preconf->powercap;
+    if (preconf->powercap_period > 0) cluster_powercap_period = preconf->powercap_period;
+
+    verbose(VGM, "Final powercap mode %lu. Final powercap %lu, final powercap period %u", 
+            conf->eargm.powercap_mode, default_cluster_powercap, cluster_powercap_period);
+
+    if (preconf->hosts != NULL) {
+        char *expanded_hosts = NULL;
+        expand_list_alloc(preconf->hosts, &expanded_hosts);
+        str_cut_list(expanded_hosts, &nodes, &num_eargm_nodes, ",");
+        verbose(VGM, "Set new nodelist to contact");
     }
-    verbose_arg=atoi(argv[1]);	
+
+    if (preconf->suspend_perc > 0) conf->eargm.defcon_power_limit = preconf->suspend_perc;
+    if (preconf->resume_perc  > 0) conf->eargm.defcon_power_lower = preconf->resume_perc;
+
+    verbose(VGM, "Final suspend percentage %ld%%. Final resume percentage %ld%%.", 
+            conf->eargm.defcon_power_limit, conf->eargm.defcon_power_lower);
+
+    if (preconf->suspend_action != NULL)
+        strncpy(conf->eargm.powercap_limit_action, preconf->suspend_action, GENERIC_NAME);
+    if (preconf->resume_action != NULL) 
+        strncpy(conf->eargm.powercap_lower_action, preconf->resume_action, GENERIC_NAME);
+
 }
 
-#define GM_DEBUG 1
+bool parse_args(int32_t argc, char *argv[], eargm_preconf_t *preconf)
+{
+    bool read = false;
+    int32_t c = 0;
 
-int main(int argc,char *argv[])
+    //set it to -1 so we know if it has been read or not
+    preconf->powercap_policy = -1;
+
+    static struct option long_options[] = {
+        { "help",            no_argument,       0, 'h' },
+        { "verbose",         required_argument, 0, 'v' },
+        { "nodes",           required_argument, 0, 'n' },
+        { "conf-path",       required_argument, 0, 'c' },
+        { "powercap",        required_argument, 0, 'p' },
+        { "powercap-period", required_argument, 0, 'D' },
+        { "powercap-policy", required_argument, 0, 'P' },
+        { "suspend-perc",    required_argument, 0, 's' },
+        { "suspend-action",  required_argument, 0, 'S' },
+        { "resume-perc",     required_argument, 0, 'r' },
+        { "resume-action",   required_argument, 0, 'R' },
+    };
+
+    while (1) {
+        c = getopt_long(argc, argv, "hn:v:c:p:P:D:s:S:r:R:", long_options, NULL);
+        if (c == -1) break;
+        switch(c)
+        {
+            case 'h':
+                usage(argv[0]);
+                break;
+            case 'v':
+                verbose_arg = atoi(optarg);
+                break;
+            case 'n':
+                preconf->hosts = optarg;
+                read = true;
+                break;
+            case 'c':
+                strncpy(my_ear_conf_path, optarg, sizeof(my_ear_conf_path));
+                read = true;
+                break;
+            case 'p':
+                preconf->powercap = atoi(optarg);
+                read = true;
+                break;
+            case 'P':
+                if (!strcasecmp(optarg, "MONITORING")) {
+                    preconf->powercap_policy = MONITOR;
+                } else if (!strcasecmp(optarg, "HARD")) {
+                    preconf->powercap_policy = HARD_POWERCAP;
+                } else if (!strcasecmp(optarg, "SOFT")) {
+                    preconf->powercap_policy = SOFT_POWERCAP;
+                }
+                read = true;
+                break;
+            case 'D':
+                preconf->powercap_period = atoi(optarg);
+                break;
+            case 's':
+                preconf->suspend_perc = atof(optarg);
+                read = true;
+                break;
+            case 'S':
+                preconf->suspend_action = optarg;
+                read = true;
+                break;
+            case 'r':
+                preconf->resume_perc = atof(optarg);
+                read = true;
+                break;
+            case 'R':
+                preconf->resume_action = optarg;
+                read = true;
+                break;
+        }
+    }
+
+    return read;
+}
+
+
+int main(int argc, char *argv[])
 {
     sigset_t set;
     int ret;
@@ -611,16 +754,28 @@ int main(int argc,char *argv[])
     gm_warning_t my_warning;
     unsigned int new_actions;
     risk_t current_risk;
-    if (argc > 2) usage(argv[0]);
-    if (argc==2) parse_args(argv);
+    eargm_preconf_t preconf = { 0 };
+    bool preconf_read = false;
+
+    preconf_read = parse_args(argc, argv, &preconf);
+
+#if RUN_AS_ROOT
+    if (getuid() != 0)
+    {
+        fprintf(stderr, "EARGM error: It must be executed as root. Exiting...\n");
+        exit(0);
+    }
+#endif
 
     gethostname(host, sizeof(host));
     strtok(host, ".");
 
     // We read the cluster configuration and sets default values in the shared memory
-    if (get_ear_conf_path(my_ear_conf_path)==EAR_ERROR){
-        error("Error opening ear.conf file, not available at regular paths ($EAR_ETC/ear/ear.conf)");
-        exit(0);
+    if (strlen(my_ear_conf_path) < 6) {
+        if (get_ear_conf_path(my_ear_conf_path)==EAR_ERROR){
+            error("Error opening ear.conf file, not available at regular paths ($EAR_ETC/ear/ear.conf)");
+            exit(0);
+        }
     }
 #if SYSLOG_MSG
     openlog("eargm",LOG_PID|LOG_PERROR,LOG_DAEMON);
@@ -629,32 +784,46 @@ int main(int argc,char *argv[])
     verbose(VGM,"Using %s as EARGM configuration file",my_ear_conf_path);
     if (read_cluster_conf(my_ear_conf_path,&my_cluster_conf)!=EAR_SUCCESS){
         error(" Error reading cluster configuration");
+        exit(0);
     }
     else{
         //print_cluster_conf(&my_cluster_conf);
         print_eargm_conf(&my_cluster_conf.eargm);
     }
 
-		create_tmp(my_cluster_conf.install.dir_temp);
+    create_tmp(my_cluster_conf.install.dir_temp);
 
     if (my_cluster_conf.eargm.use_log){
         create_log(my_cluster_conf.install.dir_temp, "eargmd", fd_my_log);
     }
     TIMESTAMP_SET_EN(my_cluster_conf.eargm.use_log);
 
+    /* Mark that the port to be used by the EARGM is the one in the first definition if we are using
+     * CLI arguments for a local EARGM. */
+    use_first_eargm_if_failed = preconf_read;
     update_eargm_configuration(&my_cluster_conf);
 
+    if (preconf_read) {
+        update_eargm_with_preconf(&my_cluster_conf, &preconf);
+        verbose(VGM, "Read optional arguments, reprinting the EARGM configuration");
+        print_eargm_conf(&my_cluster_conf.eargm);
+    }
 
 
+    state_t report_ret = report_load(my_cluster_conf.install.dir_plug, my_cluster_conf.eargm.plugins);
+    if (report_ret != EAR_SUCCESS) {
+        error("Error loading report plugins");
+    }
+    report_ret = report_init(NULL, &my_cluster_conf);
+    if (report_ret != EAR_SUCCESS) {
+        error("Error initializing report plugins");
+    }
     switch (policy){
         case MAXENERGY:
             verbose(VGM,"MAXENERGY policy configured with limit %lu %s",energy_budget,unit_name);
             break;
         default: break;
     }	
-
-
-
 
     if ((period_t1<=0) || (period_t2<=0) ) usage(argv[0]);
     cluster_powercap_init(&my_cluster_conf);
@@ -669,7 +838,7 @@ int main(int argc,char *argv[])
 
 
 #if PRINT_ONLY
-	exit(0);
+    exit(0);
 #endif
 
     catch_signals();
@@ -708,185 +877,187 @@ int main(int argc,char *argv[])
 #endif
 
 
-	time(&end_time);
-	start_time=end_time-period_t2;
-	if (db_select_acum_energy( start_time, end_time, divisor, use_aggregation,&last_id,&result)==EAR_ERROR){
-		error("Asking for total energy system. Using aggregated %d",use_aggregation);
-	}
-	verbose(VGM,"db_select_acum_energy inicial %lu%s",result,unit_energy);
-	fill_periods(result);
-	/*
-	 *
-	 *	MAIN LOOP
-	 *			
-	 */
-	if (my_cluster_conf.eargm.mode==0){ 
-		my_warning.inc_th=0; 
-		my_warning.new_p_state=0;
-	}
-	alarm(period_t1);
-	while(1){
-		// Waiting a for period_t1
-		sigsuspend(&set);
-		if (process_created){
-			check_pending_processes();
-		}   
-		if (energy_budget != 0) {
-			// ALARM RECEIVED
-			if (t1_expired){
-				t1_expired=0;
+    time(&end_time);
+    start_time=end_time-period_t2;
+    if (db_select_acum_energy( start_time, end_time, divisor, use_aggregation,&last_id,&result)==EAR_ERROR){
+        error("Asking for total energy system. Using aggregated %d",use_aggregation);
+    }
+    verbose(VGM,"db_select_acum_energy inicial %lu%s",result,unit_energy);
+    fill_periods(result);
+    /*
+     *
+     *	MAIN LOOP
+     *			
+     */
+    if (my_cluster_conf.eargm.mode==0){ 
+        my_warning.inc_th=0; 
+        my_warning.new_p_state=0;
+    }
+    alarm(period_t1);
+    while(1){
+        // Waiting a for period_t1
+        sigsuspend(&set);
+        if (process_created){
+            check_pending_processes();
+        }   
+        if (energy_budget != 0) {
+            // ALARM RECEIVED
+            if (t1_expired){
+                t1_expired=0;
 
-				// Compute the period
-				time(&end_time);
-				start_time=end_time-period_t1;
+                // Compute the period
+                time(&end_time);
+                start_time=end_time-period_t1;
 
-				if (last_id==0){
-					if (db_select_acum_energy( start_time, end_time, divisor, use_aggregation,&last_id,&result)==EAR_ERROR){
-						error("Asking for total energy system. Using aggregated %d",use_aggregation);
-					}
-				}else{
-					if ( db_select_acum_energy_idx(  divisor, use_aggregation,&last_id,&result)<0){
-						error("Asing for last T1 energy period. Using aggregated %d.Last id =%u",use_aggregation,last_id);
-					}
-				}
-				debug("Energy consumed in last T1 %lu %s",result,unit_energy);
-				if (!result){ 
-					verbose(VGM+1,"No results in that period of time found");
-				}else{ 
-					resulti=(int)result;
-					if (resulti < 0) exit(1);
-				}
-				last_avg_power=curr_avg_power;
-				curr_avg_power=(unsigned long)(result/period_t1);
-				verbose(VGM,"%sEnergy consumed in last %u seconds %lu %s. Avg power %lu %s%s",COL_BLU,period_t1,result,unit_energy,curr_avg_power,unit_power,COL_CLR);
+                if (last_id==0){
+                    if (db_select_acum_energy( start_time, end_time, divisor, use_aggregation,&last_id,&result)==EAR_ERROR){
+                        error("Asking for total energy system. Using aggregated %d",use_aggregation);
+                    }
+                }else{
+                    if ( db_select_acum_energy_idx(  divisor, use_aggregation,&last_id,&result)<0){
+                        error("Asing for last T1 energy period. Using aggregated %d.Last id =%u",use_aggregation,last_id);
+                    }
+                }
+                debug("Energy consumed in last T1 %lu %s",result,unit_energy);
+                if (!result){ 
+                    verbose(VGM+1,"No results in that period of time found");
+                }else{ 
+                    resulti=(int)result;
+                    if (resulti < 0) exit(1);
+                }
+                last_avg_power=curr_avg_power;
+                curr_avg_power=(unsigned long)(result/period_t1);
+                verbose(VGM,"%sEnergy consumed in last %u seconds %lu %s. Avg power %lu %s%s",COL_BLU,period_t1,result,unit_energy,curr_avg_power,unit_power,COL_CLR);
 
 
-				new_energy_sample(result);
-				energy_t1=result;
-				total_energy_t2=compute_energy_t2();	
-				perc_energy=((double)total_energy_t2/(double)energy_budget)*(double)100;
+                new_energy_sample(result);
+                energy_t1=result;
+                total_energy_t2=compute_energy_t2();	
+                perc_energy=((double)total_energy_t2/(double)energy_budget)*(double)100;
 
-				uint current_level=defcon(total_energy_t2,energy_t1,total_nodes);
-				set_gm_status(&my_warning,energy_t1,total_energy_t2,energy_budget,period_t1,period_t2,perc_energy,policy);
+                uint current_level=defcon(total_energy_t2,energy_t1,total_nodes);
+                set_gm_status(&my_warning,energy_t1,total_energy_t2,energy_budget,period_t1,period_t2,perc_energy,policy);
 
-				if (!in_action){
-					my_warning.level=current_level;
-					my_warning.inc_th=0;my_warning.new_p_state=0;
-					switch(current_level){
-						case EARGM_NO_PROBLEM:
-							verbose(VGM,"****************************************************************");
-							verbose(VGM,"%s Safe area. energy budget %.2lf%%%s ",COL_GRE,perc_energy,COL_CLR);
-							verbose(VGM,"****************************************************************");
-							if ((my_cluster_conf.eargm.mode) && (last_level==EARGM_NO_PROBLEM) && (!default_state)){ 
-								verbose(VGM,"Restoring default configuration");
-								ear_cluster_restore_conf(&my_cluster_conf);
-								last_risk_sent=EARGM_NO_PROBLEM;
-								default_state=1;
-							}
-							break;
-						case EARGM_WARNING1:
-							last_state=EARGM_WARNING1;
-							in_action+=my_cluster_conf.eargm.grace_periods;
-							verbose(VGM,"****************************************************************");
-							verbose(VGM,"%sWARNING1... we are close to the maximum energy budget %.2lf%% %s",COL_RED,perc_energy,COL_CLR);
-							verbose(VGM,"****************************************************************");
+                if (!in_action){
+                    my_warning.level=current_level;
+                    my_warning.inc_th=0;my_warning.new_p_state=0;
+                    switch(current_level){
+                        case EARGM_NO_PROBLEM:
+                            verbose(VGM,"****************************************************************");
+                            verbose(VGM,"%s Safe area. energy budget %.2lf%%%s ",COL_GRE,perc_energy,COL_CLR);
+                            verbose(VGM,"****************************************************************");
+                            if ((my_cluster_conf.eargm.mode) && (last_level==EARGM_NO_PROBLEM) && (!default_state)){ 
+                                verbose(VGM,"Restoring default configuration");
+                                ear_cluster_restore_conf(&my_cluster_conf);
+                                last_risk_sent=EARGM_NO_PROBLEM;
+                                default_state=1;
+                            }
+                            break;
+                        case EARGM_WARNING1:
+                            last_state=EARGM_WARNING1;
+                            in_action+=my_cluster_conf.eargm.grace_periods;
+                            verbose(VGM,"****************************************************************");
+                            verbose(VGM,"%sWARNING1... we are close to the maximum energy budget %.2lf%% %s",COL_RED,perc_energy,COL_CLR);
+                            verbose(VGM,"****************************************************************");
 
-							if (my_cluster_conf.eargm.mode && last_risk_sent!=EARGM_WARNING1){ // my_cluster_conf.eargm.mode==1 is AUTOMATIC mode
-								create_risk(&current_risk,EARGM_WARNING1);
-								ear_cluster_set_risk(&my_cluster_conf, current_risk, MAXENERGY);
-							}
-							new_actions=send_mail(EARGM_WARNING1,perc_energy);
-							new_actions+=execute_action(energy_t1,total_energy_t2,energy_budget,period_t2,period_t1,unit_energy);
-							pthread_mutex_lock(&plocks);
-							process_created+=new_actions;
-							pthread_mutex_unlock(&plocks);
-							report_status(&my_warning);
-							break;
-						case EARGM_WARNING2:
-							last_state=EARGM_WARNING2;
-							in_action+=my_cluster_conf.eargm.grace_periods;
-							verbose(VGM,"****************************************************************");
-							verbose(VGM,"%sWARNING2... we are close to the maximum energy budget %.2lf%%%s ",COL_RED,perc_energy,COL_CLR);
-							verbose(VGM,"****************************************************************");
-							if (last_risk_sent!=EARGM_WARNING2){ // my_cluster_conf.eargm.mode==1 is AUTOMATIC mode
-								manage_warning(&current_risk,EARGM_WARNING2,my_cluster_conf,0.05,my_cluster_conf.eargm.mode);
+                            if (my_cluster_conf.eargm.mode && last_risk_sent!=EARGM_WARNING1){ // my_cluster_conf.eargm.mode==1 is AUTOMATIC mode
+                                create_risk(&current_risk,EARGM_WARNING1);
+                                ear_cluster_set_risk(&my_cluster_conf, current_risk, MAXENERGY);
+                            }
+                            new_actions=send_mail(EARGM_WARNING1,perc_energy);
+                            new_actions+=execute_action(energy_t1,total_energy_t2,energy_budget,period_t2,period_t1,unit_energy);
+                            pthread_mutex_lock(&plocks);
+                            process_created+=new_actions;
+                            pthread_mutex_unlock(&plocks);
+                            report_status(&my_warning);
+                            break;
+                        case EARGM_WARNING2:
+                            last_state=EARGM_WARNING2;
+                            in_action+=my_cluster_conf.eargm.grace_periods;
+                            verbose(VGM,"****************************************************************");
+                            verbose(VGM,"%sWARNING2... we are close to the maximum energy budget %.2lf%%%s ",COL_RED,perc_energy,COL_CLR);
+                            verbose(VGM,"****************************************************************");
+                            if (last_risk_sent!=EARGM_WARNING2){ // my_cluster_conf.eargm.mode==1 is AUTOMATIC mode
+                                manage_warning(&current_risk,EARGM_WARNING2,my_cluster_conf,0.05,my_cluster_conf.eargm.mode);
 #if 0
-								create_risk(&current_risk,EARGM_WARNING2);
-								set_risk_all_nodes(current_risk,MAXENERGY,my_cluster_conf);
+                                create_risk(&current_risk,EARGM_WARNING2);
+                                set_risk_all_nodes(current_risk,MAXENERGY,my_cluster_conf);
 #endif
-							}
-							my_warning.energy_percent=perc_energy;
-							new_actions=send_mail(EARGM_WARNING2,perc_energy);
-							new_actions+=execute_action(energy_t1,total_energy_t2,energy_budget,period_t2,period_t1,unit_energy);
-							pthread_mutex_lock(&plocks);
-							process_created+=new_actions;
-							pthread_mutex_unlock(&plocks);
-							report_status(&my_warning);
-							break;
-						case EARGM_PANIC:
-							last_state=EARGM_PANIC;
-							in_action+=my_cluster_conf.eargm.grace_periods;
-							verbose(VGM,"****************************************************************");
-							verbose(VGM,"%sPANIC!... we are close or over the maximum energy budget %.2lf%%%s ",COL_RED,perc_energy,COL_CLR);
-							verbose(VGM,"****************************************************************");
-							if (last_risk_sent!=EARGM_PANIC){ // my_cluster_conf.eargm.mode==1 is AUTOMATIC mode
-								manage_warning(&current_risk,EARGM_PANIC,my_cluster_conf,0.1,my_cluster_conf.eargm.mode);
+                            }
+                            my_warning.energy_percent=perc_energy;
+                            new_actions=send_mail(EARGM_WARNING2,perc_energy);
+                            new_actions+=execute_action(energy_t1,total_energy_t2,energy_budget,period_t2,period_t1,unit_energy);
+                            pthread_mutex_lock(&plocks);
+                            process_created+=new_actions;
+                            pthread_mutex_unlock(&plocks);
+                            report_status(&my_warning);
+                            break;
+                        case EARGM_PANIC:
+                            last_state=EARGM_PANIC;
+                            in_action+=my_cluster_conf.eargm.grace_periods;
+                            verbose(VGM,"****************************************************************");
+                            verbose(VGM,"%sPANIC!... we are close or over the maximum energy budget %.2lf%%%s ",COL_RED,perc_energy,COL_CLR);
+                            verbose(VGM,"****************************************************************");
+                            if (last_risk_sent!=EARGM_PANIC){ // my_cluster_conf.eargm.mode==1 is AUTOMATIC mode
+                                manage_warning(&current_risk,EARGM_PANIC,my_cluster_conf,0.1,my_cluster_conf.eargm.mode);
 #if 0
-								create_risk(&current_risk,EARGM_PANIC);	
-								set_risk_all_nodes(current_risk,MAXENERGY,my_cluster_conf);
+                                create_risk(&current_risk,EARGM_PANIC);	
+                                set_risk_all_nodes(current_risk,MAXENERGY,my_cluster_conf);
 #endif
-							}
-							new_actions=send_mail(EARGM_PANIC,perc_energy);
-							new_actions+=execute_action(energy_t1,total_energy_t2,energy_budget,period_t2,period_t1,unit_energy);
-							pthread_mutex_lock(&plocks);
-							process_created+=new_actions;
-							pthread_mutex_unlock(&plocks);
-							report_status(&my_warning);
-							break;
-					}
-				}else{ 
-					/* We can check here the effect of actions */				
-					//compute_efficiency_of_actions(curr_avg_power,last_avg_power,in_action);
-					in_action--;
-					set_gm_grace_period_values(&my_warning);
-				}
-				if (current_level!=last_level) T1_stables=0;
-				else T1_stables++;
-#if USE_DB
-				db_insert_gm_warning(&my_warning);
-#endif
-				last_level = current_level;
-			}// ALARM
-			if (powercap_th_start){
-				cluster_powercap_init(&my_cluster_conf);	
-				powercap_th_start=0;
-			}
-			if (must_refill){
-				must_refill=0;
-				aggregate_samples=period_t2/period_t1;
-				if ((period_t2%period_t1)!=0){
-					verbose(VGM+1,"warning period_t2 is not multiple of period_t1");
-					aggregate_samples++;
-				}
-				if (energy_consumed!=NULL) free(energy_consumed);
-				energy_consumed=malloc(sizeof(ulong)*aggregate_samples);
-				time(&end_time);
-				start_time=end_time-period_t2;
-				last_id=0;
-				if (db_select_acum_energy( start_time, end_time, divisor, use_aggregation,&last_id,&result)<0){
-					error("Asking for total energy system. Using aggregated %d",use_aggregation);
-				}
-				fill_periods(result);
+                            }
+                            new_actions=send_mail(EARGM_PANIC,perc_energy);
+                            new_actions+=execute_action(energy_t1,total_energy_t2,energy_budget,period_t2,period_t1,unit_energy);
+                            pthread_mutex_lock(&plocks);
+                            process_created+=new_actions;
+                            pthread_mutex_unlock(&plocks);
+                            report_status(&my_warning);
+                            break;
+                    }
+                }else{ 
+                    /* We can check here the effect of actions */				
+                    //compute_efficiency_of_actions(curr_avg_power,last_avg_power,in_action);
+                    in_action--;
+                    set_gm_grace_period_values(&my_warning);
+                }
+                if (current_level!=last_level) T1_stables=0;
+                else T1_stables++;
 
-			}
-		}
-	}
+                if (report_misc(NULL, EARGM_WARNINGS, (const char *)&my_warning, 1) != EAR_SUCCESS) {
+                    verbose(VGM,"EARGM[%d]: report EARGM_RECORD FAILED", getpid());
+                }
+
+                last_level = current_level;
+            }// ALARM
+            if (powercap_th_start){
+                cluster_powercap_init(&my_cluster_conf);	
+                powercap_th_start=0;
+            }
+            if (must_refill){
+                must_refill=0;
+                aggregate_samples=period_t2/period_t1;
+                if ((period_t2%period_t1)!=0){
+                    verbose(VGM+1,"warning period_t2 is not multiple of period_t1");
+                    aggregate_samples++;
+                }
+                if (energy_consumed!=NULL) free(energy_consumed);
+                energy_consumed=malloc(sizeof(ulong)*aggregate_samples);
+                time(&end_time);
+                start_time=end_time-period_t2;
+                last_id=0;
+                if (db_select_acum_energy( start_time, end_time, divisor, use_aggregation,&last_id,&result)<0){
+                    error("Asking for total energy system. Using aggregated %d",use_aggregation);
+                }
+                fill_periods(result);
+
+            }
+        }
+    }
 
 #if SYSLOG_MSG
-	closelog();
+    closelog();
 #endif
 
-	return 0;
+    return 0;
 }
 
 

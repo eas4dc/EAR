@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,7 +64,7 @@ int main(int argc,char *argv[])
   char *node_name = NULL;
   cluster_conf_t my_conf;
   application_t *apps;
-  int total_apps = 0;
+  // int total_apps = 0; Not used.
   int num_apps = 0;
   int i;
   double VPI;
@@ -87,18 +80,10 @@ int main(int argc,char *argv[])
 	node_name = argv[1];
 
   // CSV output 
-  char *csv_name;
-  char *csv_name_full;
+  char csv_name[SZ_PATH];
   FILE *fd;
   
-	if (opt_o) {
-    csv_name = "learning_show.";
-    csv_name_full = malloc(strlen(csv_name)+strlen(node_name)+4);
-    strcpy(csv_name_full, csv_name);
-    strcat(csv_name_full, node_name);
-    strcat(csv_name_full, ".csv"); 
-  }
-  
+
   if (strcmp(argv[1], "all") == 0) node_name = NULL;	
 
 	if (get_ear_conf_path(buffer) == EAR_ERROR) {
@@ -116,6 +101,7 @@ int main(int argc,char *argv[])
 	init_db_helper(&my_conf.database);
 	
   num_apps = db_read_applications(&apps, 1, 50, node_name);
+  
 
 
 #if USE_GPUS
@@ -148,10 +134,16 @@ int main(int argc,char *argv[])
 	  } else {
       verbose(0, "Node name;JID;StepID;App name;Def. F.;Avg. F.;Seconds;DC_power;DRAM_power;PCK_power;GBS;CPI;TPI;Gflops;MPI_perc;VPI;GPU_power;GPU_power;GPU_util;GPU_mem_util");
 	  }
-  } 
-  // header
-  if (opt_o){
-    fd = fopen(csv_name_full, "w");	
+  }
+
+
+  // to store results on csv file
+  if (opt_o){ 
+    strcpy(csv_name, "learning_show.");
+    strcat(csv_name, node_name);
+    strcat(csv_name, ".csv"); 
+    // header
+    fd = fopen(csv_name, "w");	
     if(!use_gpu){
 	    fprintf(fd, "node_id\tjob_id\tstep_id\tapp_id\tdef_f\tavg_f\ttime\tDC_power\tDRAM_power\tPCK_power\tGBS\tCPI\tTPI\tGflops\tMPI_perc\tVPI\n");
     }
@@ -161,7 +153,7 @@ int main(int argc,char *argv[])
 	} 
 
   while (num_apps > 0){
-	  total_apps += num_apps;
+	  // total_apps += num_apps; Not used.
     for (i = 0; i < num_apps; i++){
       if (strcmp(buffer, apps[i].node_id) != 0){
         strcpy(buffer, apps[i].node_id);
@@ -240,6 +232,7 @@ int main(int argc,char *argv[])
   }
   
   if (opt_o){
+    printf("\nResults stored in: %s\n", csv_name);
     fclose(fd);
   }
 

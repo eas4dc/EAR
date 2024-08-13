@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef _STATE_COMMON_H
 #define _STATE_COMMON_H
@@ -45,11 +38,19 @@
  * \param[in] new_freq The next frequency applied.
  * \param[in] mode TODO.
  */
-void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname,
-        char *nname, int iterations, ulong prevf, ulong new_freq, char *mode);
+void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nname,
+														 int iterations, ulong prevf, ulong new_freq, char *mode);
 
 void state_report_traces(int master_rank, int my_rank, int lid, loop_t *lsig, ulong freq, ulong status);
 void state_report_traces_state(int master_rank, int my_rank,int lid, ulong status);
 void state_print_policy_state(int master_rank, int st);
+
+/** Sets \p perf_accuracy_min_time and \p lib_period variables.
+ * Order of precedence:
+ * - environment variable EARL_TIME_LOOP_SIGNATURE
+ * - ear.conf's LibraryPeriod field.
+ * The value of \p perf_accuracy_min_time sets a lower bound for \p lib_period.
+ * The value returned by eards_node_energy_frequency sets the lowerest bound. */
+void states_comm_configure_performance_accuracy(cluster_conf_t *cluster_conf, ulong *hw_perf_acc, uint *library_period);
 #endif
 

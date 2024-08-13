@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -35,17 +28,23 @@ static double          line_size;
 
 BWIDTH_F_LOAD(bwidth_amd19_load)
 {
+    uint test[1] = { -1 };
+
     if (tpo->vendor != VENDOR_AMD || tpo->family < FAMILY_ZEN){
         return_msg(, Generr.api_incompatible);
     }
     if (state_fail(hsmp_scan(tpo))) {
         return;
     }
+    // Testing if the function is compatible
+    if (state_fail(hsmp_send(0, HSMP_GET_MAX_DDR_BANDIWDTH, test, test))) {
+        return;
+    }
     if (state_fail(topology_select(tpo, &tp, TPSelect.socket, TPGroup.merge, 0))) {
         return;
     }
     // ZEN3
-    fun = 0x14;
+    fun = HSMP_GET_MAX_DDR_BANDIWDTH;
     line_size = (double) tpo->cache_line_size;
     //
     pool = calloc(tp.cpu_count+1, sizeof(bwidth_t));

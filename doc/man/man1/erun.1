@@ -1,0 +1,62 @@
+.\" Manpage for ear_create_database.
+.TH man 8 "August 2024" "5.0" "erun man page"
+.SH NAME
+erun \- General EAR configuration information.
+.SH SYNOPSIS
+erun
+.SH DESCRIPTION
+erun is a program that simulates all the SLURM and EAR SLURM Plug-in pipeline. It was designed to provide compatibility between MPI implementations not fully compatible with SLURM SPANK plug-in mechanism (e.g., OpenMPI), which is used to set up EAR at job submission.
+
+The syntax to run an MPI application with erun has the form 
+.B mpirun -n <X> erun --program='my_app arg1 arg2 .. argN'.
+With this, mpirun will run X erun processes. Then, erun will launch the application my_app with the arguments passed, if specified. One can use as many parameters as needed, but the semicolons have to cover all of them in case there are more than just the program name.
+
+erun will simulate on the remote node both the local and remote pipelines for all created processes. It has an internal system to avoid repeating functions that are executed just one time per job or node, like SLURM does with its plugins.
+
+.SH OPTIONS
+.SS erun options
+
+.RS
+.nf
+	--nodes=<arg>       Sets the number of nodes.
+	--program=<arg>     Sets the program to run.
+	--clean             Removes the internal files.
+.RE
+
+.SS SLURM options
+.RS
+.nf
+	--ear               Enables/disables Energy Aware Runtime Library
+	--ear-policy		
+	--ear-cpufreq       Specifies the start frequency to be used by EAR policy (in KHz)
+	--ear-policy-th     Specifies the threshold to be used by EAR policy (max 2 decimals) {value=[0..1]}
+	--ear-user-db       Specifies the file to save the user applications metrics summary 'file.nodename.csv' file will be created per node. If not defined, these files won't be generated.
+	--ear-verbose       Specifies the level of the verbosity{value=[0..1]}; default is 0
+	--ear-learning      Enables the learning phase for a given P_STATE {value=[1..n]}
+	--ear-tag           Sets an energy tag (max 32 chars)
+.RE
+
+
+.SH NOTES
+To launch n applications with erun command through an sbatch job, one must set the environment variable SLURM_STEP_ID to values from 0 to n-1 before each mpirun call. This way, erun will inform the EARD the correct step ID to be stored then to the Database.
+
+The --job-id and --nodes parameters create the environment variables that SLURM would have created automatically, because it is possible that your application make use of them. The --clean option removes the temporal files created to synchronize all ERUN processes.
+
+One must load the EAR environment module or define its environment variables in the environment or script for erun to function properly.
+
+.TS
+tab(@), right, box;
+c | c
+rB | r.
+Variable@Parameter
+_
+EAR_INSTALL_PATH=<path>@prefix=<path>
+EAR_TMP=<path>@localstatedir=<path>
+EAR_ETC=<path>@sysconfdir=<path>
+EAR_DEFAULT=<on/off>@default=<on/off>
+.TE
+
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+EAR suport team (ear-support@bsc.es)

@@ -1,21 +1,16 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
+
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -31,6 +26,7 @@
 #include <common/types/configuration/cluster_conf.h>
 #include <daemon/shared_configuration.h>
 #include <library/common/library_shared_data.h>
+#include <library/common/verbose_lib.h>
 
 #include <metrics/flops/flops.h>
 
@@ -94,7 +90,30 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
     ullong inst[MAX_CPUS_SUPPORTED];
     memset(inst, 0, sizeof(ullong)*MAX_CPUS_SUPPORTED);
 
-    
+   if (node_mgr_earl_apps() > MAX_CPUS_SUPPORTED){
+    verbose(0,"EARL ERROR, more apps than CPUS--> return");
+    return EAR_ERROR;
+   }
+
+
+	/* This flag is explicitly requested by users */
+	if (!data->estimate_node_metrics){
+		data->job_signature.PCK_power = 0;
+ 	 	data->job_signature.GBS 				= 0;
+ 	 	data->job_signature.DC_power 	= 0;
+ 	 	data->job_signature.DRAM_power = 0;
+ 	 	data->job_signature.TPI 				= 0;
+		for (uint lp = 0; lp < data->num_processes; lp ++){
+				sig[lp].sig.GBS = 0;
+				sig[lp].sig.TPI = 0;
+				sig[lp].sig.DRAM_power = 0;
+      	sig[lp].sig.DC_power   = 0;
+      	sig[lp].sig.PCK_power  = 0;
+
+		}
+		verbose_master(2,"My job[%d][%d] not estimated node metrics", node_mgr_index,getpid());
+		return EAR_SUCCESS;
+	}
 
     /* compute_total_node_fff compute the metrics only for the calling job. It is needed to iterate over the jobs to have per node */
     uint job_in_process[MAX_CPUS_SUPPORTED];
@@ -106,21 +125,23 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
 
     verbose(2, "CPU power model gflops ...............");
 
-    for (uint j = 0; j < MAX_CPUS_SUPPORTED; j ++) {
+    for (uint j = 0; j < node_mgr_earl_apps(); j ++) {
         /* Power condition is to do only in case the signature is ready */
-        if (nmgr[j].creation_time && nmgr[j].libsh != NULL && nmgr[j].shsig != NULL && nmgr[j].libsh->node_signature.DC_power) {
+        if (nmgr[j].creation_time && nmgr[j].libsh != NULL && nmgr[j].shsig != NULL && nmgr[j].libsh->node_signature.DC_power && nmgr[j].libsh->estimate_node_metrics) {
+				/* If not estimate metrics, this app will not receive neither power of GBs , it is assumed to be a master in a master/worker use case */
+
 
             used_cpus += nmgr[j].libsh->num_cpus;
 
             for (uint lp = 0; lp < nmgr[j].libsh->num_processes; lp++) {
                 if (nmgr[j].shsig[lp].sig.DC_power > 0) {
-                    job_in_process[node_process] = j;
                     L3[node_process]             = nmgr[j].shsig[lp].sig.L3_misses;
                     inst[node_process]           = nmgr[j].shsig[lp].sig.instructions;
                     gflops[node_process]         = nmgr[j].shsig[lp].sig.Gflops;
                     total_gflops                += gflops[node_process];
                     node_L3                     += L3[node_process];
                 }
+                job_in_process[node_process] = j;
                 node_process++;
             }
         }
@@ -180,14 +201,22 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
 
     /* Power : Power is estimated based on CPU activity and Memory activity. Less CPI means more CPU activity and more L3 means more Mem actitivy */
 
+		double CPU_power;
     double GPU_power = 0;
+		CPU_power = lsig->DC_power;
 #if USE_GPUS
     for (uint gid = 0; gid < lsig->gpu_sig.num_gpus; gid++) {
         GPU_power += lsig->gpu_sig.gpu_data[gid].GPU_power;
     }
 #endif
+  	if (CPU_power > GPU_power){   
+    	CPU_power -= GPU_power;
+  	}else {
+    	/* This case should not happen */
+    	if ((lsig->PCK_power > 0 ) && ( lsig->DRAM_power > 0)) CPU_power = lsig->PCK_power + lsig->DRAM_power;
+    	else                                                   CPU_power = 300;
+  	}
 
-    double CPU_power = lsig->DC_power - GPU_power;
     float C = CPU_power - (lsig->DRAM_power + lsig->PCK_power);
 
     debug("Baseline CPU power %lf Constant C = %f", CPU_power, C);
@@ -199,10 +228,10 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
 
     if (cpus_in_node == 0) return EAR_ERROR;
 
-    for (uint j = 0; j < MAX_CPUS_SUPPORTED; j ++) {
+    for (uint j = 0; j < node_mgr_earl_apps(); j ++) {
 
         /* If job is active we compute its power estimated */
-        if (nmgr[j].creation_time && (nmgr[j].libsh != NULL) && (nmgr[j].shsig != NULL)) {
+        if (nmgr[j].creation_time && (nmgr[j].libsh != NULL) && (nmgr[j].shsig != NULL) && nmgr[j].libsh->estimate_node_metrics) {
 
             for (uint proc = 0; proc < nmgr[j].libsh->num_processes; proc++) {
                 float ratio_p = nmgr[j].shsig[proc].num_cpus/cpus_in_node;

@@ -10,6 +10,7 @@ conf_OBJS = policy_conf.o \
 		cluster_conf_generic.o \
 		cluster_conf_earlib.o \
 		cluster_conf_etag.o \
+		cluster_conf_edcmon_tag.o \
 		cluster_conf_tag.o \
 		cluster_conf_db.o \
     cluster_conf.o \

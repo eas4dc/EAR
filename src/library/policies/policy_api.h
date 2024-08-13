@@ -1,27 +1,25 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-#ifndef EAR_POLICIES_API_H
-#define EAR_POLICIES_API_H
+
+#ifndef _EARL_POLICY_API_H
+#define _EARL_POLICY_API_H
+
 
 #include <common/states.h>
-#include <common/types/configuration/policy_conf.h>
-
+#include <common/config.h>
+#include <library/common/externs.h>
 #include <library/policies/policy_ctx.h>
+#include <library/policies/policy_state.h>
+
+const char plugin_api_version = VERSION_MAJOR;
 
 /** This function is called once the plugin symbols are loaded, and policy options are read
  * through environment variables. Plugins use this function to define their internal variables,
@@ -35,6 +33,9 @@ state_t policy_init(polctx_t *c);
  * \param freq_set Output array with per-proc frequency. The plugin must fill this array with the frequencies selected.
  * \param ready Output argument to inform the state of the policy plugin. */
 state_t policy_apply(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs, int *ready);
+
+/** \todo  */
+state_t policy_app_apply(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs,int *ready);
 
 /** This function only is called by a node master process.
  * \param c The policy context within this function is called.
@@ -59,6 +60,16 @@ state_t policy_max_tries(polctx_t *c, int *intents);
  * \param c The policy context within this function is called. */
 state_t policy_end(polctx_t *c);
 
+/** This function is executed at loop init or period init.
+ * \param c The policy context within this function is called.
+ * \param loop_id The loop information. */
+state_t policy_loop_init(polctx_t *c, loop_id_t *loop_id);
+
+/** This function is executed at each loop end.
+ * \param c The policy context within this function is called.
+ * \param loop_id The loop information. */
+state_t policy_loop_end(polctx_t *c, loop_id_t *loop_id);
+
 /** This function is executed at each loop iteration or beginning of a period.
  * \param c The policy context within this function is called.
  * \param sig The signature computed. */
@@ -76,15 +87,12 @@ state_t policy_mpi_init(polctx_t *c, mpi_call call_type, node_freqs_t *freqs, in
  * \param call_type The call type information. */
 state_t policy_mpi_end(polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id);
 
-/** This function is executed at loop init or period init.
- * \param c The policy context within this function is called.
- * \param loop_id The loop information. */
-state_t policy_loop_init(polctx_t *c, loop_id_t *loop_id);
+/** This function is executed when a reconfiguration needs to be done.
+ * \param c The policy context within this function is called. */
+state_t policy_configure(polctx_t *c);
 
-/** This function is executed at each loop end.
- * \param c The policy context within this function is called.
- * \param loop_id The loop information. */
-state_t policy_loop_end(polctx_t *c, loop_id_t *loop_id);
+/** \todo */
+state_t policy_domain(polctx_t *c, node_freq_domain_t *domain);
 
 /** This function confgures freqs based on IO criteria. It is called before call policy_apply.
  * \param c The policy context within this function is called.
@@ -96,7 +104,7 @@ state_t policy_io_settings(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs
  * \param c The policy context within this function is called.
  * \param my_sig The input signature with node metrics.
  * \param freq_set Output array with per-proc frequency. */
-state_t policy_cpu_gpu_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *freqs);
+state_t policy_cpu_gpu_settings(polctx_t *c,signature_t *my_sig, node_freqs_t *freqs);
 
 /** This function confgures freqs based on Busy Waiting criteria. It is called before call policy_apply.
  * \param c The policy context within this function is called.
@@ -108,14 +116,6 @@ state_t policy_busy_wait_settings(polctx_t *c, signature_t *my_sig, node_freqs_t
  * \param c The policy context within this function is called.
  * \param my_sig The input signature with node metrics.
  * \param freq_set Output array with per-proc frequency. */
-state_t policy_restore_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *freqs);
+state_t policy_restore_settings(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs);
 
-/** \todo This function does not exist. */
-state_t policy_set_risk(policy_conf_t *ref, policy_conf_t *current, ulong risk_level, ulong opt_target,
-        ulong mfreq, ulong *nfreq, ulong *f_list, uint nump);
-
-/** This function is executed when a reconfiguration needs to be done.
- * \param c The policy context within this function is called. */
-state_t policy_configure(polctx_t *c);
-
-#endif // EAR_POLICIES_API_H
+#endif // _EARL_POLICY_API_H

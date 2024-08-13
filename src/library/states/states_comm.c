@@ -1,19 +1,13 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 
 #if MPI
 #include <mpi.h>
@@ -31,6 +25,7 @@
 #include <common/config.h>
 #include <common/states.h>
 #include <common/output/verbose.h>
+#include <common/output/debug.h>
 #include <common/colors.h>
 #include <common/math_operations.h>
 #include <common/types/log.h>
@@ -40,18 +35,22 @@
 #include <library/metrics/metrics.h>
 #include <library/tracer/tracer.h>
 #include <library/common/verbose_lib.h>
+#include <daemon/local_api/eard_api.h>
 
 extern masters_info_t masters_info;
 extern float ratio_PPN;
 extern unsigned long long int total_mpi;
 extern uint using_verb_files;
 extern uint per_proc_verb_file;
+extern uint proc_ps_ok;
+extern uint   AID;
 
 #ifdef SHOW_DEBUGS
 static void debug_loop_signature(char *title, signature_t *loop);
 #endif
 
-void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname, char *nname,
+
+void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nname,
         int iterations, ulong prevf, ulong new_freq, char *user_mode)
 {
     double CPI, GBS, POWER, TIME, VPI, FLOPS;
@@ -62,8 +61,9 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
     ulong elapsed;
     timestamp end;
     char mode[32];
-#if 0
-    sig_ext_t *se = (sig_ext_t *)sig->signature.sig_ext;
+		char gflops_str[128];
+#if WF_SUPPORT
+		float GPU_GFlops = 0;
 #endif
 
     if (VERB_GET_LV() == 0) return;
@@ -75,18 +75,17 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
     timestamp_getfast(&end);
     elapsed=timestamp_diff(&end, &ear_application_time_init, TIME_SECS);
 
-    float imcf;
+    float imcf, sel_mem_f;
     char gpu_buff[256];
 
     /* master_rank == 0: The master node rank (is who verboses if verb_level >= 1).
-     * show: FLAG_VERBOSE_SIGNATURE (?)
      * using_verb_files: FLAG_EARL_VERBOSE_PATH
      * per_proc_verb_file: HACK_PROCS_VERB_FILES (per_proc_verb_file == 1 => using_verb_files == 1)
      */
-    if (master_rank == 0 || show || using_verb_files) {
+    if (master_rank == 0 || using_verb_files) {
         
         // MPI info
-		sig_ext_t *sigex      = (sig_ext_t *) sig->signature.sig_ext;
+			sig_ext_t *sigex      = (sig_ext_t *) sig->signature.sig_ext;
         // Only the master shows that information as is who computed it
         // TODO: Does the shared signature have these metrics after the master computed it?
         float      max_mpi    = (master_rank >= 0) ? (sigex->max_mpi) : 0.0;
@@ -112,6 +111,8 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
 
         // IMC
         imcf = (per_proc_verb_file) ? (float) lib_shared_region->job_signature.avg_imc_f / 1000000.0 : (float) sig->signature.avg_imc_f / 1000000.0;
+				// Slaves can't use their extended signature
+				sel_mem_f = (sigex == NULL || master_rank < 0) ? imcf : ((float) sigex->sel_mem_freq_khz / 1000000.0);
 
         // CPI
         // If enabled, each process reports its CPI
@@ -125,7 +126,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
         io_data_t *io_data = (per_proc_verb_file) ? &sig_shared_region[my_node_id].sig.iod : &se->iod;
 #endif
         // If enabled, each process has its own I/O data
-        io_data_t *io_data = (per_proc_verb_file) ? &sig_shared_region[my_node_id].sig.iod : &sigex->iod;
+        io_data_t *io_data = (per_proc_verb_file || master_rank < 0) ? &sig_shared_region[my_node_id].sig.iod : &sigex->iod;
 
         char io_info[256];
         if (sigex != NULL) {
@@ -133,6 +134,16 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
         } else {
             sprintf(io_info, "No IO data");
         }
+
+        // Proc OS statistics
+        char proc_data_str[2048];
+        if ((sigex != NULL) && (proc_ps_ok)) {
+        	proc_stat_t *proc_data = &sigex->proc_ps;
+        	proc_stat_data_to_str(proc_data, proc_data_str, sizeof(proc_data_str));
+				}else{
+					snprintf(proc_data_str, sizeof(proc_data_str), "No process OS statistics");
+				}
+
 
         // TODO: period or time ? time is the time per iteration. This metric is computed periodically by a thread.
         // If enabled each process computes it I/O bandwidth, otherwise the node I/O bandwidth is already computed
@@ -196,12 +207,20 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
             char gpu_sig_hdr[] = "----------- GPU signature -----------\nGPU Id. Power (W) Util (%) Freq (GHz)\0";
             verbose_master(3, "%s", gpu_sig_hdr);
 
-            for(int i = 0; i < gpu_cnt; i++) { 
-
+            for(int i = 0; i < gpu_cnt; i++)
+						{ 
+#if WF_SUPPORT
+                verbose_master(3, "%7d %-9.2f %-8lu %-10lu %-9.2f)", i,
+                        sig->signature.gpu_sig.gpu_data[i].GPU_power,
+                        sig->signature.gpu_sig.gpu_data[i].GPU_util,
+                        sig->signature.gpu_sig.gpu_data[i].GPU_freq,
+												sig->signature.gpu_sig.gpu_data[i].GPU_GFlops);
+#else
                 verbose_master(3, "%7d %-9.2f %-8lu %-10lu)", i,
                         sig->signature.gpu_sig.gpu_data[i].GPU_power,
                         sig->signature.gpu_sig.gpu_data[i].GPU_util,
                         sig->signature.gpu_sig.gpu_data[i].GPU_freq);
+#endif
 
                 gpu_pwr_sum  += sig->signature.gpu_sig.gpu_data[i].GPU_power;
                 gpu_freq_sum += (float) sig->signature.gpu_sig.gpu_data[i].GPU_freq;
@@ -213,6 +232,9 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
                     GPU_FREQ     += sig->signature.gpu_sig.gpu_data[i].GPU_freq; 
                     GPU_UTIL     += sig->signature.gpu_sig.gpu_data[i].GPU_util; 
                     GPU_mem_util     += sig->signature.gpu_sig.gpu_data[i].GPU_mem_util; 
+#if WF_SUPPORT
+                    GPU_GFlops       += sig->signature.gpu_sig.gpu_data[i].GPU_GFlops; 
+#endif
                 }
             } 
             verbose_master(3, "-------------------------------------");
@@ -231,16 +253,25 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
 #endif
 
         debug("%swriting app info%s", COL_YLW, COL_CLR);
-        verbose(2, "EAR%s(%s) at %.2f in %s: LoopID=%lu, LoopSize=%lu-%lu, iterations=%d",
-                mode, aname, PFREQ, nname, sig->id.event, sig->id.size, sig->id.level, iterations); 
+        verbose(2, "EAR%s[%u](%s) at %.2f in %s: LoopID=%lu, LoopSize=%lu-%lu, iterations=%d",
+                mode, AID, aname, PFREQ, nname, sig->id.event, sig->id.size, sig->id.level, iterations); 
 
         debug("%swriting nname at elapsed%s", COL_YLW, COL_CLR)
-        verbosen(1, "EAR%s(%s) at %.3f in %s MR[%d] elapsed %lu sec.: ",
-                mode, aname, PFREQ, nname, master_rank, elapsed); 
+        verbosen(1, "EAR%s[%u](%s) at %.2f/%.2f in %s MR[%d] elapsed %lu sec.: ",
+                mode, AID, aname, PFREQ, sel_mem_f,nname, master_rank, elapsed); 
         verbosen(1, "%s", COL_GRE);
 
+				snprintf(gflops_str, sizeof(gflops_str), "%.2lf", FLOPS);
+
 #if USE_GPUS
-        if (gpu_cnt > 0 ) verbosen(2,"%s", gpu_buff);
+        if (gpu_cnt > 0 ){ 
+#if WF_SUPPORT
+					char gpu_glops[64];
+					snprintf(gpu_glops, sizeof(gpu_glops), "/%.2f", GPU_GFlops);
+					strcat(gflops_str, gpu_glops);
+#endif
+					verbosen(2,"%s", gpu_buff);
+				}
 #endif
 
         strcpy(gpu_buff," ");
@@ -250,7 +281,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
         }
 
         debug("%swriting CPI GBS power...%s", COL_YLW, COL_CLR);
-        verbosen(1,"(CPI=%.3lf GBS=%.2lf Power=%.1lfW Time=%.3lfs\n\tAvgCPUF=%.2fGHz/AvgIMCF=%.2fGHz GFlop/s=%.2lf IO=%.2fMB/s %s) %s", CPI, GBS, POWER, TIME,  AVGF, imcf, FLOPS, IO_MBS, pmpi_txt, gpu_buff);
+        verbosen(1,"(CPI=%.3lf GBS=%.2lf Power=%s%.1lfW%s Time=%.3lfs\n\tAvgCPUF=%.2fGHz/AvgIMCF=%.2fGHz GFlop/s=%s IO=%.2fMB/s %s) %s", CPI, GBS, COL_MGT,POWER, COL_GRE, TIME,  AVGF, imcf, gflops_str, IO_MBS, pmpi_txt, gpu_buff);
 
         if (new_freq > 0){ verbosen(1,"\n\t Next Frequency %.2f",NFREQ);}
 
@@ -270,6 +301,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, int show, char *aname
 
         verbosen(2," VPI %.2f Total MPI calls %llu",VPI, n_mpi_calls);
         verbosen(2,"\n\t IO DATA: %s ",io_info);
+				verbosen(2,"\n\t Proc OS DATA: %s", proc_data_str);
 
         verbose(1,"%s",COL_CLR);
     }
@@ -330,3 +362,52 @@ static void debug_loop_signature(char *title, signature_t *loop)
 }
 #endif
 
+
+void states_comm_configure_performance_accuracy(cluster_conf_t *cluster_conf, ulong *hw_perf_acc, uint *library_period)
+{
+	// Default: ear.conf
+	*hw_perf_acc = (ulong) cluster_conf->min_time_perf_acc;
+	debug("Default values for hw_perf_acc and library_period: %lu and %u", *hw_perf_acc, *library_period);
+
+	// Try to change LibraryPeriod by reading an environment variable
+	char *my_lib_period = ear_getenv("EARL_TIME_LOOP_SIGNATURE");
+	long my_lib_period_l = 0; 
+
+	if (my_lib_period)
+	{
+		my_lib_period_l = atol(my_lib_period);
+	}
+
+	if (my_lib_period_l > 0)
+	{
+		// *hw_perf_acc = (ulong) my_lib_period_l;
+		*library_period = (ulong) my_lib_period_l;
+		debug("library_period overwritten by environment variable: %u", *library_period);
+	}
+
+	// Hardware limit
+	ulong architecture_min_perf_accuracy_time = 0;
+	if (masters_info.my_master_rank >= 0 && eards_connected())
+	{
+		// eards_node_energy_frequency returns the granularity at which the energy
+		// plugin can read the power but we increment this period to minimize the
+		// error in the power read.
+		architecture_min_perf_accuracy_time = eards_node_energy_frequency() * 10;
+		if (architecture_min_perf_accuracy_time == (ulong) EAR_ERROR)
+		{
+			architecture_min_perf_accuracy_time = *hw_perf_acc;
+		}
+
+		debug("eard hw_perf_acc: %lu",
+				architecture_min_perf_accuracy_time);
+	}
+
+	// hw_perf_acc lower bounded by hardware
+	*hw_perf_acc = ear_max(*hw_perf_acc, architecture_min_perf_accuracy_time);
+	debug("hw_perf_acc bounded by energy plug-in: %lu", *hw_perf_acc);
+
+	// library_period is in seconds, hw_perf_acc is in microseconds
+	*library_period = ear_max(*library_period, *hw_perf_acc / 1000000);
+	*hw_perf_acc = *library_period * 1000000;
+	debug("library_period: %u | hw_perf_acc %lu", *library_period, *hw_perf_acc);
+}

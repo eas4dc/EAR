@@ -1,19 +1,13 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * EAR is an open source software, and it is licensed under both the BSD-3 license
- * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
- * and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 
 #include <errno.h>
 #include <fcntl.h>
@@ -23,14 +17,12 @@
 #include <unistd.h>
 #include <semaphore.h>
 #include <time.h>
-//#define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/states.h>
 #include <common/system/file.h>
 #include <common/hardware/topology.h>
 #include <common/output/verbose.h>
 #include <common/environment.h>
-#include <common/types/projection.h>
 
 #include <management/cpufreq/frequency.h>
 
@@ -40,8 +32,8 @@
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
 #include <library/api/clasify.h>
+#include <library/loader/module_mpi.h>
 #include <library/metrics/metrics.h>
-#include <library/policies/policy_api.h>
 #include <library/policies/policy_state.h>
 #include <library/policies/common/imc_policy_support.h>
 #include <library/policies/common/gpu_support.h>
@@ -56,8 +48,6 @@ extern unsigned long ext_def_freq;
 #define FREQ_DEF(f) f
 #endif
 
-#define MASTER (masters_info.my_master_rank >= 0)
-#define MASTER_ID masters_info.my_master_rank
 
 #define SELECT_CPUFREQ 		100
 #define SELECT_IMCFREQ 		101
@@ -96,6 +86,7 @@ extern ulong *cpufreq_diff;
 
 static uint num_processes;
 static ulong nominal_node;
+static node_freq_domain_t me_freq_dom;
 
 /*  Load balance management */
 extern int my_globalrank;
@@ -173,6 +164,12 @@ static state_t policy_mpi_init_optimize(polctx_t *c, mpi_call call_type, node_fr
 static state_t policy_mpi_end_optimize(node_freqs_t *freqs, int *process_id);
 
 
+static state_t create_policy_domain(polctx_t *c, node_freq_domain_t *domain);
+
+
+static energy_model_t cpu_energy_model;
+
+
 state_t policy_init(polctx_t *c)
 {
     if (c == NULL)
@@ -180,8 +177,32 @@ state_t policy_init(polctx_t *c)
         return EAR_ERROR;
     }
 
+		create_policy_domain(c, &me_freq_dom);
+
     char *cnetwork_use_imc = ear_getenv(FLAG_NTWRK_IMC);
     char *cimc_set_by_hw   = ear_getenv(FLAG_LET_HW_IMC);
+
+    if (use_energy_models)
+    {
+      cpu_energy_model = energy_model_load_cpu_model(c->app->user_type, &c->app->installation, &arch_desc);
+
+      if (!cpu_energy_model)
+      {
+				error_lib("Loading energy model");
+        use_energy_models = 0;
+      } else
+      {
+        if (!energy_model_any_projection_available(cpu_energy_model))
+        {
+					error_lib("Not all projections available");
+					use_energy_models = 0;
+				}
+      }
+    } else
+    {
+      cpu_energy_model = NULL;
+    }
+    verbose_master(2, "%sMIN ENERGY%s Using energy models: %u", COL_BLU, COL_CLR, use_energy_models);
 
     int i, sid = 0;
 
@@ -189,7 +210,7 @@ state_t policy_init(polctx_t *c)
 
     debug("min_energy init");
 
-    if (is_mpi_enabled())
+    if (module_mpi_is_enabled())
     {
         mpi_app_init(c);
 
@@ -279,6 +300,11 @@ state_t policy_end(polctx_t *c)
 {
     policy_end_summary(2); // Summary of optimization
 
+    if (use_energy_models)
+    {
+      energy_model_dispose(cpu_energy_model);
+    }
+
     if (c != NULL) {
         return mpi_app_end(c);
     }
@@ -290,7 +316,7 @@ state_t policy_end(polctx_t *c)
 state_t policy_loop_init(polctx_t *c, loop_id_t *l)
 {
     if (c != NULL) {
-        projection_reset(c->num_pstates);
+        // projection_reset(c->num_pstates);
 
         if (!use_energy_models) {
             memset(sig_ready, 0, sizeof(uint) * c->num_pstates);
@@ -300,12 +326,6 @@ state_t policy_loop_init(polctx_t *c, loop_id_t *l)
     }
 
     return EAR_ERROR;
-}
-
-
-state_t policy_loop_end(polctx_t *c,loop_id_t *l)
-{
-    return EAR_SUCCESS;
 }
 
 
@@ -521,8 +541,9 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
 							/* 1.2.2: Se select the maximum CPU freq or the maximum avg CPU freq (avx512 case) */
                             new_freq[i] = ear_min(eff_p_cpuf, frequency_pstate_to_freq(1));
                         }
-                        verbose_master(2, "CPU freq for CP process %d is %lu (!MBOUND use_turbo %u MIN_MPI %u)",
-                                       i, new_freq[i], use_turbo_for_cp, percs_mpi[i] == percs_mpi[min_mpi]);
+												verbose_master(2, "%sCPU freq for CP process %d is %lu (!MBOUND use_turbo %u MIN_MPI %u)%s",
+																COL_RED,i, new_freq[i], use_turbo_for_cp, percs_mpi[i] == percs_mpi[min_mpi],COL_CLR);
+
                         continue;
                     } else {
 						/* The process if part of the critical path BUT is memory bound. We increase the penalty supported */
@@ -536,14 +557,15 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
                     local_penalty = base_penalty + EXTRA_TH * (my_node_mpi_calls[i].perc_mpi - my_node_mpi_calls[min_mpi].perc_mpi) / 10.0;
                 }
             }
-            if (use_energy_models) {
-                /* If energy models are availables, we use them for CPU frequency selection */
+            if (use_energy_models)
+            {
+                /* If energy models are availables, we use them for CPU frequency selection. */
                 curr_freq = def_freq;
                 curr_pstate = def_pstate;
-                compute_reference(c,my_app,&curr_freq,&def_freq,&best_freq,&time_ref,&power_ref);
-                verbose_master(3,"Time ref %lf Power ref %lf Freq ref %lu",time_ref,power_ref,best_freq);
-                compute_cpu_freq_min_energy(c,my_app,best_freq,time_ref,power_ref,
-                        local_penalty,curr_pstate,min_pstate,c->num_pstates,&new_freq[i]);
+                compute_reference(my_app, cpu_energy_model, &curr_freq, &def_freq, &best_freq, &time_ref, &power_ref);
+                verbose_master(3, "Time ref %lf Power ref %lf Freq ref %lu", time_ref, power_ref, best_freq);
+								//verbose_master(3, "Min energy: cur pstate %u min pstate %u max pstate %u", curr_pstate, min_pstate, c->num_pstates);
+                compute_cpu_freq_min_energy(my_app, cpu_energy_model, best_freq, time_ref, power_ref, local_penalty, curr_pstate, min_pstate, c->num_pstates, &new_freq[i]);
                 if (freq_per_core){
                   verbose_master(2, "PROC[%u][%u] CPI %.2f TPI %.2f GFlops %.2f Power %.2f PMPI %.2f penalty %.2lf", MASTER_ID, i,
                   sig_shared_region[i].sig.CPI, sig_shared_region[i].sig.TPI, sig_shared_region[i].sig.Gflops, sig_shared_region[i].sig.DC_power,
@@ -593,6 +615,7 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
             min_cpufreq_sel = ear_min(min_cpufreq_sel, new_freq[i]);
         }
 
+#if MPI_OPTIMIZED
         // You can fill here the mpi_freq field of the sig_shared_region if you are optimizing
         // the application at MPI call level.
         for (uint lp = 0; lp < num_processes; lp++){
@@ -601,9 +624,8 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
             f = new_freq[lp];
           }
           sig_shared_region[lp].mpi_freq = f;
-
         }
-
+#endif
 
         /* If we use the same CPU freq for all cores, we set for all processes */
         if (!freq_per_core) {
@@ -814,6 +836,13 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
     }
     verbose_master(2, "Next min_energy state %u next policy state %u", min_energy_state, *ready);
     min_energy_readiness = *ready;
+
+
+    if (cpu_ready && use_energy_models)
+    {
+	    compute_policy_savings(cpu_energy_model, sig, freqs, &me_freq_dom);
+    }
+
     return EAR_SUCCESS;
 }
 
@@ -853,22 +882,9 @@ state_t policy_max_tries(polctx_t *c,int *intents)
 }
 
 
-state_t policy_domain(polctx_t *c,node_freq_domain_t *domain)
+state_t policy_domain(polctx_t *c, node_freq_domain_t *domain)
 {
-    domain->cpu                  = POL_GRAIN_CORE;
-    if (dyn_unc) domain->mem     = POL_GRAIN_NODE;
-    else         domain->mem     = POL_NOT_SUPPORTED;
-
-#if USE_GPUS
-    if (c->num_gpus) domain->gpu = POL_GRAIN_CORE;
-    else             domain->gpu = POL_NOT_SUPPORTED;
-#else
-    domain->gpu                  = POL_NOT_SUPPORTED;
-#endif
-
-    domain->gpumem = POL_NOT_SUPPORTED;
-
-    return EAR_SUCCESS;
+	return create_policy_domain(c, domain);
 }
 
 
@@ -933,128 +949,128 @@ state_t policy_cpu_gpu_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *fr
 
 state_t policy_io_settings(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs)
 {
-    if (c == NULL) return EAR_ERROR;
+	if (c == NULL) return EAR_ERROR;
 
-    const uint min_ener_io_veb_lvl = 2; // Used to control the verbose level in this function
+	const uint min_ener_io_veb_lvl = 2; // Used to control the verbose level in this function
 
-    verbose_master(min_ener_io_veb_lvl, "%sMIN ENERGY%s CPU I/O settings", COL_BLU, COL_CLR);
+	verbose_master(min_ener_io_veb_lvl, "%sMIN ENERGY%s CPU I/O settings", COL_BLU, COL_CLR);
 
-    cpu_ready = EAR_POLICY_READY;
+	cpu_ready = EAR_POLICY_READY;
 
-    for (uint i = 0; i < num_processes; i++) {
-        freqs->cpu_freq[i] = min_energy_def_freqs.cpu_freq[i];
+	for (uint i = 0; i < num_processes; i++) {
+		freqs->cpu_freq[i] = min_energy_def_freqs.cpu_freq[i];
 
-        signature_t local_sig;
-        signature_from_ssig(&local_sig, &sig_shared_region[i].sig);
+		signature_t local_sig;
+		signature_from_ssig(&local_sig, &sig_shared_region[i].sig);
 
-        uint io_bound;
-        is_io_bound(&local_sig, sig_shared_region[i].num_cpus, &io_bound);
+		uint io_bound;
+		is_io_bound(&local_sig, sig_shared_region[i].num_cpus, &io_bound);
 
-        uint busy_waiting;
+		uint busy_waiting;
 
-        if (!io_bound) {
-            // TODO: Why?
-            // is_cpu_busy_waiting(&local_sig, sig_shared_region[i].num_cpus, &busy_waiting); Oriol
-            is_process_busy_waiting(&sig_shared_region[i].sig, &busy_waiting); // Julita
-            if (busy_waiting) {
-                freqs->cpu_freq[i] = frequency_pstate_to_freq(c->num_pstates - 1);
-            }
-        } else if (me_top.vendor == VENDOR_INTEL) {
-             freqs->cpu_freq[i] = frequency_pstate_to_freq(c->num_pstates - 1);
-        }
+		if (!io_bound)
+		{
+			is_process_busy_waiting(&sig_shared_region[i].sig, &busy_waiting); // Julita
+			if (busy_waiting) {
+				freqs->cpu_freq[i] = frequency_pstate_to_freq(c->num_pstates - 1);
+			}
+		} else if (me_top.vendor == VENDOR_INTEL)
+		{
+			freqs->cpu_freq[i] = frequency_pstate_to_freq(c->num_pstates - 1);
+		}
 
-        char ssig_buff[256];
-        ssig_tostr(&sig_shared_region[i].sig, ssig_buff, sizeof(ssig_buff));
+		char ssig_buff[256];
+		ssig_tostr(&sig_shared_region[i].sig, ssig_buff, sizeof(ssig_buff));
 
-        verbose_master(min_ener_io_veb_lvl, "%s.[%d] [I/O config: %u, I/O busy waiting config: %u] %s",
-                node_name, i, io_bound, busy_waiting, ssig_buff);
-        
-        /* We copy in shared memory to be used later in MPI init/end if needed. */
-	    sig_shared_region[i].new_freq = freqs->cpu_freq[i];
-    }
+		verbose_master(min_ener_io_veb_lvl, "%s.[%d] [I/O config: %u, I/O busy waiting config: %u] %s",
+				node_name, i, io_bound, busy_waiting, ssig_buff);
 
-    memcpy(last_nodefreq_sel.cpu_freq, freqs->cpu_freq, MAX_CPUS_SUPPORTED * sizeof(ulong));
+		/* We copy in shared memory to be used later in MPI init/end if needed. */
+		sig_shared_region[i].new_freq = freqs->cpu_freq[i];
+	}
 
-    if (dyn_unc) {
-        for (uint sock_id=0;sock_id<arch_desc.top.socket_count;sock_id++) {
-            freqs->imc_freq[sock_id*IMC_VAL+IMC_MAX] = imc_max_pstate[sock_id];
-            freqs->imc_freq[sock_id*IMC_VAL+IMC_MIN] = imc_max_pstate[sock_id];
-        }
-        memcpy(last_nodefreq_sel.imc_freq,freqs->imc_freq,imc_devices*IMC_VAL*sizeof(ulong));
-    }
+	memcpy(last_nodefreq_sel.cpu_freq, freqs->cpu_freq, MAX_CPUS_SUPPORTED * sizeof(ulong));
+
+	if (dyn_unc) {
+		for (uint sock_id=0;sock_id<arch_desc.top.socket_count;sock_id++) {
+			freqs->imc_freq[sock_id*IMC_VAL+IMC_MAX] = imc_min_pstate[sock_id];
+			freqs->imc_freq[sock_id*IMC_VAL+IMC_MIN] = imc_min_pstate[sock_id];
+		}
+		memcpy(last_nodefreq_sel.imc_freq,freqs->imc_freq,imc_devices*IMC_VAL*sizeof(ulong));
+	}
 
 #if USE_GPUS
-    if (gpu_plugin.io_settings != NULL){
-      return gpu_plugin.io_settings(c, my_sig, freqs);
-    }else{
-      gpu_ready = EAR_POLICY_READY;
-    }
-    return EAR_SUCCESS;
+	if (gpu_plugin.io_settings != NULL){
+		return gpu_plugin.io_settings(c, my_sig, freqs);
+	}else{
+		gpu_ready = EAR_POLICY_READY;
+	}
+	return EAR_SUCCESS;
 #else
-    gpu_ready = EAR_POLICY_READY;
+	gpu_ready = EAR_POLICY_READY;
 #endif
-    /* GPU mem is pending */
+	/* GPU mem is pending */
 
-    return EAR_SUCCESS;
+	return EAR_SUCCESS;
 }
 
 
 state_t policy_busy_wait_settings(polctx_t *c,signature_t *my_sig,node_freqs_t *freqs)
 {
-    if (c == NULL)
-    {
-        return EAR_ERROR;
-    }
+	if (c == NULL)
+	{
+		return EAR_ERROR;
+	}
 
-    const uint min_ener_bw_veb_lvl = 2; // Used to control the verbose level in this function
+	const uint min_ener_bw_veb_lvl = 2; // Used to control the verbose level in this function
 
-    verbose_master(min_ener_bw_veb_lvl, "%sMIN ENERGY%s CPU Busy waiting settings", COL_BLU, COL_CLR);
+	verbose_master(min_ener_bw_veb_lvl, "%sMIN ENERGY%s CPU Busy waiting settings", COL_BLU, COL_CLR);
 
-    cpu_ready = EAR_POLICY_READY;
+	cpu_ready = EAR_POLICY_READY;
 
-    for (uint i = 0; i < num_processes; i++) { 
+	for (uint i = 0; i < num_processes; i++) { 
 
-        signature_t local_sig;
-        signature_from_ssig(&local_sig, &sig_shared_region[i].sig);
+		signature_t local_sig;
+		signature_from_ssig(&local_sig, &sig_shared_region[i].sig);
 
-        uint busy_waiting;
-        // is_cpu_busy_waiting(&local_sig, sig_shared_region[i].num_cpus, &busy_waiting);
-        is_process_busy_waiting(&sig_shared_region[i].sig, &busy_waiting);
-        char ssig_buff[256];
-        ssig_tostr(&sig_shared_region[i].sig, ssig_buff, sizeof(ssig_buff));
-        if (busy_waiting) {
-            verbose_master(min_ener_bw_veb_lvl, "%s.[%d] Busy waiting config %s", node_name, i, ssig_buff);
-            freqs->cpu_freq[i] = frequency_pstate_to_freq(c->num_pstates - 1);
-        } else {
-            verbose_master(min_ener_bw_veb_lvl, "%s.[%d] NO Busy waiting config %s ", node_name, i, ssig_buff);
-            freqs->cpu_freq[i] = min_energy_def_freqs.cpu_freq[i];
-        }
-        
+		uint busy_waiting;
+		// is_cpu_busy_waiting(&local_sig, sig_shared_region[i].num_cpus, &busy_waiting);
+		is_process_busy_waiting(&sig_shared_region[i].sig, &busy_waiting);
+		char ssig_buff[256];
+		ssig_tostr(&sig_shared_region[i].sig, ssig_buff, sizeof(ssig_buff));
+		if (busy_waiting) {
+			verbose_master(min_ener_bw_veb_lvl, "%s.[%d] Busy waiting config %s", node_name, i, ssig_buff);
+			freqs->cpu_freq[i] = frequency_pstate_to_freq(c->num_pstates - 1);
+		} else {
+			verbose_master(min_ener_bw_veb_lvl, "%s.[%d] NO Busy waiting config %s ", node_name, i, ssig_buff);
+			freqs->cpu_freq[i] = min_energy_def_freqs.cpu_freq[i];
+		}
 
-        /* We copy in shared  memory to be used later in MPI init/end if needed */
-        sig_shared_region[i].new_freq = freqs->cpu_freq[i] ;
-    }
 
-    copy_cpufreq_sel(last_nodefreq_sel.cpu_freq, freqs->cpu_freq, sizeof(ulong)*MAX_CPUS_SUPPORTED);
-    if (dyn_unc){
-        for (uint sock_id=0;sock_id<arch_desc.top.socket_count;sock_id++){
-            freqs->imc_freq[sock_id*IMC_VAL+IMC_MAX] = imc_max_pstate[sock_id];
-            freqs->imc_freq[sock_id*IMC_VAL+IMC_MIN] = imc_max_pstate[sock_id];
-        }
-        memcpy(last_nodefreq_sel.imc_freq,freqs->imc_freq,imc_devices*IMC_VAL*sizeof(ulong));
-    }
+		/* We copy in shared  memory to be used later in MPI init/end if needed */
+		sig_shared_region[i].new_freq = freqs->cpu_freq[i] ;
+	}
+
+	copy_cpufreq_sel(last_nodefreq_sel.cpu_freq, freqs->cpu_freq, sizeof(ulong)*MAX_CPUS_SUPPORTED);
+	if (dyn_unc){
+		for (uint sock_id=0;sock_id<arch_desc.top.socket_count;sock_id++){
+			freqs->imc_freq[sock_id*IMC_VAL+IMC_MAX] = imc_max_pstate[sock_id];
+			freqs->imc_freq[sock_id*IMC_VAL+IMC_MIN] = imc_max_pstate[sock_id];
+		}
+		memcpy(last_nodefreq_sel.imc_freq,freqs->imc_freq,imc_devices*IMC_VAL*sizeof(ulong));
+	}
 #if USE_GPUS
-    if (gpu_plugin.busy_wait_settings != NULL){
-      return gpu_plugin.busy_wait_settings(c, my_sig, freqs);
-    }else{
-      gpu_ready = EAR_POLICY_READY;
-    }
-    return EAR_SUCCESS;
+	if (gpu_plugin.busy_wait_settings != NULL){
+		return gpu_plugin.busy_wait_settings(c, my_sig, freqs);
+	}else{
+		gpu_ready = EAR_POLICY_READY;
+	}
+	return EAR_SUCCESS;
 #else
-    gpu_ready = EAR_POLICY_READY;
+	gpu_ready = EAR_POLICY_READY;
 #endif
-    /* GPU mem is pending */
-    return EAR_SUCCESS;
+	/* GPU mem is pending */
+	return EAR_SUCCESS;
 }
 
 
@@ -1098,7 +1114,7 @@ static state_t int_policy_ok(signature_t *curr_sig, signature_t *last_sig, int *
     my_node_mpi_types_calls = se->mpi_types;
 
     /*  Check for load balance data */
-    if (is_mpi_enabled() && enable_load_balance && use_energy_models) {
+    if (module_mpi_is_enabled() && enable_load_balance && use_energy_models) {
 
         verbose_mpi_calls_types(3, my_node_mpi_types_calls);
 
@@ -1199,9 +1215,22 @@ static state_t int_policy_ok(signature_t *curr_sig, signature_t *last_sig, int *
             *ok = 0;
         }
     }
-    if (*ok == 0) {
+    if (*ok == 0)
+		{
         first_time = 1;
-    }
+    } else
+		{
+        compute_energy_savings(curr_sig, last_sig);
+
+#if USE_ENERGY_SAVING
+				if (curr_sig->sig_ext->saving < 0)
+				{
+          *ok = 0;
+
+          verbose(2, "%sMIN ENERGY POLICY OK%s We are not saving energy.", COL_RED, COL_CLR);
+        }
+#endif
+		}
 
     return EAR_SUCCESS;
 }
@@ -1249,7 +1278,7 @@ static uint policy_no_models_is_better_min_energy(signature_t * curr_sig, signat
 
 static state_t policy_mpi_init_optimize(polctx_t *c, mpi_call call_type, node_freqs_t *freqs, int *process_id)
 {
-#if !SINGLE_CONNECTION && MPI_OPTIMIZED
+#if MPI_OPTIMIZED
     // You can implement optimization at MPI call entry here.
 
     if (ear_mpi_opt &&
@@ -1263,7 +1292,7 @@ static state_t policy_mpi_init_optimize(polctx_t *c, mpi_call call_type, node_fr
 
 static void policy_end_summary(int verb_lvl)
 {
-#if !SINGLE_CONNECTION && MPI_OPTIMIZED
+#if MPI_OPTIMIZED
     // You can show a summary of your optimization at MPI call level here.
 #endif
 }
@@ -1271,7 +1300,7 @@ static void policy_end_summary(int verb_lvl)
 
 static state_t policy_mpi_end_optimize(node_freqs_t *freqs, int *process_id)
 {
-#if !SINGLE_CONNECTION && MPI_OPTIMIZED
+#if MPI_OPTIMIZED
     // You can implement optimization at MPI call exit here.
     if (ear_mpi_opt &&
       (lib_shared_region->num_processes > 1)){
@@ -1279,4 +1308,29 @@ static state_t policy_mpi_end_optimize(node_freqs_t *freqs, int *process_id)
 #endif
 
     return EAR_SUCCESS;
+}
+
+
+static state_t create_policy_domain(polctx_t *c, node_freq_domain_t *domain)
+{
+	if (c && domain)
+	{
+		domain->cpu                  = POL_GRAIN_CORE;
+		if (dyn_unc) domain->mem     = POL_GRAIN_NODE;
+		else         domain->mem     = POL_NOT_SUPPORTED;
+
+#if USE_GPUS
+		if (c->num_gpus) domain->gpu = POL_GRAIN_CORE;
+		else             domain->gpu = POL_NOT_SUPPORTED;
+#else
+		domain->gpu                  = POL_NOT_SUPPORTED;
+#endif
+
+		domain->gpumem = POL_NOT_SUPPORTED;
+
+		return EAR_SUCCESS;
+	} else
+	{
+		return_msg(EAR_ERROR, Generr.input_null);
+	}
 }

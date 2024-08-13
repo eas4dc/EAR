@@ -1,31 +1,12 @@
-/**************************************************************
- *    Energy Aware Runtime (EAR)
- *    This program is part of the Energy Aware Runtime (EAR).
+/*********************************************************************
+ * Copyright (c) 2024 Energy Aware Solutions, S.L
  *
- *    EAR provides a dynamic, transparent and ligth-weigth solution for
- *    Energy management.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- *  It has been developed in the context of the Barcelona Supercomputing Center (BSC)-Lenovo Collaboration project.
- *
- *       Copyright (C) 2017  
- *    BSC Contact     mailto:ear-support@bsc.es
- *    Lenovo contact     mailto:hpchelp@lenovo.com
- *
- *    EAR is free software; you can redistribute it and/or
- *    modify it under the terms of the GNU Lesser General Public
- *    License as published by the Free Software Foundation; either
- *    version 2.1 of the License, or (at your option) any later version.
- *    
- *    EAR is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- *    Lesser General Public License for more details.
- *    
- *    You should have received a copy of the GNU Lesser General Public
- *    License along with EAR; if not, write to the Free Software
- *    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- *    The GNU LEsser General Public License is contained in the file COPYING    
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
 
 #include <errno.h>
 #include <stdio.h>
@@ -164,6 +145,8 @@ static int sdr_get_home_directory ( char *buf, unsigned int buflen)
 								return -1;
 				}
 				debug("pw_dir %s\n", pwd.pw_dir); 
+
+        free(tbuf);
 
 				if (pwd.pw_dir)
 				{
@@ -448,14 +431,20 @@ state_t energy_init(void **c)
 static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
         uint *avgp, uint *currentp, uint *periodp)
 {
+#define destroy_and_return(st) \
+  fiid_obj_destroy(obj_cmd_rs);\
+  return st;
+
     uint8_t mode = IPMI_OEM_INTEL_NODE_MANAGER_STATISTICS_MODE_GLOBAL_POWER_STATISTICS;
     uint8_t domainid = IPMI_OEM_INTEL_NODE_MANAGER_DOMAIN_ID_ENTIRE_PLATFORM;
     uint8_t policyid = 0;
     uint64_t val;
+
     fiid_obj_t obj_cmd_rs = NULL;
 
 		*currentp = 0;
-		if (!inm_initialized) {
+		if (!inm_initialized)
+    {
 			debug("INM not initialized");
 			return EAR_ERROR;
 		}
@@ -476,16 +465,17 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
                 policyid,
                 obj_cmd_rs) < 0){
         debug("Error ipmi_cmd_oem_intel_node_manager_get_node_manager_statistics\n");
-        return EAR_ERROR;
+        destroy_and_return(EAR_ERROR);
     }
 		debug("parsing information from ipmi_cmd_oem_intel_node_manager_get_node_manager_statistics");
+
     if (FIID_OBJ_GET (obj_cmd_rs,
                 "average",
                 &val) < 0)
     {
         debug("FIID_OBJ_GET: 'average': %s\n",
                 fiid_obj_errormsg (obj_cmd_rs));
-        return EAR_ERROR;
+        destroy_and_return(EAR_ERROR);
     }
     *avgp = val; 
     //debug("Average power %d\n", val);
@@ -495,7 +485,7 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
     {
         debug("FIID_OBJ_GET: 'maximum': %s\n",
                 fiid_obj_errormsg (obj_cmd_rs));
-        return EAR_ERROR;
+        destroy_and_return(EAR_ERROR);
     }
     *maxp = val;
     //debug("Maximum power %d\n", val);
@@ -505,7 +495,7 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
     {
         debug("FIID_OBJ_GET: 'minimum': %s\n",
                 fiid_obj_errormsg (obj_cmd_rs));
-        return EAR_ERROR;
+        destroy_and_return(EAR_ERROR);
     }
     *minp = val;
     //debug("Minimum power %d\n", val);
@@ -516,7 +506,7 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
     {
         debug("FIID_OBJ_GET: 'current power': %s\n",
                 fiid_obj_errormsg (obj_cmd_rs));
-        return EAR_ERROR;
+        destroy_and_return(EAR_ERROR);
     }
     *currentp = val;
     if (FIID_OBJ_GET (obj_cmd_rs,
@@ -525,7 +515,7 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
     {
         debug("FIID_OBJ_GET: 'statistics_reporting_period': %s\n",
                 fiid_obj_errormsg (obj_cmd_rs));
-        return EAR_ERROR;
+        destroy_and_return(EAR_ERROR);
     }
     *periodp = val;
     //debug("Statistics reporting period %d\n", val);
@@ -542,9 +532,7 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
        *currentp = nm_free_last_power_measurement;
     }
 
-
-
-    return EAR_SUCCESS;
+    destroy_and_return(EAR_SUCCESS);
 }
 
 /**** These functions are used to accumulate the energy */

@@ -1,10 +1,10 @@
-CFLAGS        = -fPIC -O3 -I$(SRCDIR)
 # Examples
 # CFLAGS_AVX512 = $(CFLAGS) -msse4.1  -msse4.2 -msse3 -mavx512dq -mavx512f -mavx -mcrc32
 # CFLAGS_AVX2   = $(CFLAGS) -msse4.1  -msse4.2 -msse3 -mavx -mcrc32
+
+CFLAGS        = -fPIC -O3 -I$(SRCDIR)
 CFLAGS_AVX2   = $(CFLAGS) -mavx2
 CFLAGS_AVX512 = $(CFLAGS) -march=skylake-avx512
-CFLAGS_AVX512 = $(CFLAGS) -march=icelake-server
 
 ######## FILES
 

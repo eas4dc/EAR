@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef _TAG_CONF_H
 #define _TAG_CONF_H
@@ -21,6 +14,7 @@
 #include <common/config.h>
 #include <common/states.h>
 #include <common/types/generic.h>
+#include <common/types/configuration/policy_conf.h>
 
 typedef struct tags
 {
@@ -33,6 +27,8 @@ typedef struct tags
     ulong max_power;
     ulong min_power;
     ulong max_temp;
+		ulong cpu_temp_cap;
+		ulong gpu_temp_cap;
     ulong error_power;
     ulong gpu_def_freq;
     int   cpu_max_pstate; /* Used as lower limit for policies */
@@ -48,13 +44,13 @@ typedef struct tags
     char powercap_gpu_plugin[GENERIC_NAME];
     char coeffs[GENERIC_NAME];
 	char idle_governor[GENERIC_NAME];
-
+	char default_policy[POLICY_NAME_SIZE];
 } tag_t;
 
 
 state_t TAG_token(char *token);
 state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line);
-void print_tags_conf(tag_t *tag);
+void print_tags_conf(tag_t *tag, int i);
 void power2str(ulong power, char *str);
 
 

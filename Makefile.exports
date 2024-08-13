@@ -1,7 +1,10 @@
 export ARCH
-export FEAT_MPI_API
+export SYSTEM_TYPE
+export FEAT_MPI_LIBRARY
+export FEAT_MPI_LOADER
 export FEAT_AVX512
 export FEAT_RESEARCH
+export FEAT_GPUS
 export FEAT_GPU_OPT  
 export FEAT_AMD_OSCPUFREQ
 export FEAT_DB_MYSQL
@@ -9,6 +12,8 @@ export FEAT_DB_PSQL
 export FEAT_EXAMON
 export FEAT_DB_CASSANDRA
 export FEAT_DB_PROMETHEUS
+export FEAT_WF_SUPPORT   
+export FEAT_DLB
 export CC
 export CC_FLAGS
 export MPICC
@@ -26,6 +31,8 @@ export DB_CFLAGS
 export DB_LDFLAGS
 export CUDA_BASE
 export CUDA_CFLAGS
+export OPENCL_BASE
+export OPENCL_CFLAGS
 export CUPTI_BASE
 export CUPTI_CFLAGS
 export RSMI_BASE
@@ -39,12 +46,14 @@ export REDFISH_CFLAGS
 export FREEIPMI_BASE
 export FREEIPMI_CFLAGS
 export FREEIPMI_LDFLAGS
-export COUNTDOWN_BASE
+export DLB_LIBS
+export DLB_CPPFLAGS
+export DLB_LDFLAGS
 export ROOTDIR
 export SRCDIR
 export DESTDIR
 export ETCDIR
-export TMPDIR
+#export TMPDIR
 export DOCDIR
 export CHOWN_USR
 export CHOWN_GRP

@@ -1,5 +1,5 @@
 .\" Manpage for econtrol.
-.TH man 1 "June 2022" "4.1" "econtrol man page"
+.TH man 1 "August 2024" "5.0" "econtrol man page"
 .SH NAME
 econtrol \- Modify all daemons' parameters or see the state of the cluster's nodes.
 .SH SYNOPSIS
@@ -23,6 +23,8 @@ econtrol is the EAR administration tools for cluster management. This app requir
  --set-powercap  [new_cap]               ->sets the powercap of all nodes to the given value. A node can be specified
                                                 after the value to only target said node.
  --restore-conf                          ->restores the configuration for all nodes
+ --hosts         [hostlist]              ->sends the command only to the specified hosts. 
+ --conf-path     [path_name]             ->specifies the ear.conf path. [default: $EAR_ETC/ear/ear.conf]
  --active-only                           ->supresses inactive nodes from the output in hardware status.
  --health-check                          ->checks all EARDs and EARDBDs for errors and prints all that are unresponsive.
  --mail [address]                        ->sends the output of the program to address.

@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -237,8 +230,11 @@ state_t mgt_gpu_rsmi_freq_limit_get_max(ctx_t *c, ulong *khz)
 	return EAR_SUCCESS;
 }
 
-static state_t clocks_set(int i, uint mhz)
+static state_t clocks_set(int i, ulong mhz)
 {
+    if (mhz == 0LU) {
+        return EAR_SUCCESS;
+    }
     rsmi.set_clock(i, RSMI_FREQ_IND_MAX, mhz, RSMI_CLK_TYPE_SYS);
 	return EAR_SUCCESS;
 }
@@ -309,6 +305,9 @@ state_t mgt_gpu_rsmi_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts
 
 static state_t powercap_set(int i, ulong uw)
 {
+    if (uw == 0LU) {
+        return EAR_SUCCESS;
+    }
     rsmi.set_powercap(i, 0, uw);
 	return EAR_SUCCESS;
 }

@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef MANAGEMENT_CPUFREQ_ARCHS_DEFAULT
 #define MANAGEMENT_CPUFREQ_ARCHS_DEFAULT
@@ -31,7 +24,10 @@ state_t mgt_cpufreq_default_init(ctx_t *c);
 
 state_t mgt_cpufreq_default_dispose(ctx_t *c);
 
-// Data
+void mgt_cpufreq_default_get_info(apinfo_t *info);
+
+void mgt_cpufreq_default_get_freq_details(freq_details_t *details);
+
 state_t mgt_cpufreq_default_count_available(ctx_t *c, uint *pstate_count);
 
 state_t mgt_cpufreq_default_get_available_list(ctx_t *c, pstate_t *pstate_list);

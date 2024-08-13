@@ -9,8 +9,8 @@
 %define __requires_exclude libmpi*.*$|libgsl*
 
 %define name    ear
-%define release   4
-%define version   4.3
+%define release   5
+%define version   5.0
 
 # Information
 # Prefix  Just for when missing any prefix

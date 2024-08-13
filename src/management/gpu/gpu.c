@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -29,14 +22,15 @@
 #include <management/gpu/archs/rsmi.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static mgt_gpu_ops_t ops;
-static uint devs_count;
-static uint ok_load;
+static mgt_gpu_ops_t   ops;
+static uint            loaded;
+static ulong          *generic_list;
+static uint            devs_count;
 
-__attribute__((used)) void mgt_gpu_load(int eard)
+__attribute__((used)) void mgt_gpu_load(int force_api)
 {
     while (pthread_mutex_trylock(&lock));
-    if (ok_load) {
+    if (loaded) {
         goto unlock_load;
     }
     // NVML and ONEAPI can be partially loaded.
@@ -44,9 +38,9 @@ __attribute__((used)) void mgt_gpu_load(int eard)
     mgt_gpu_nvml_load(&ops);
     mgt_gpu_rsmi_load(&ops);
     mgt_gpu_oneapi_load(&ops);
-    mgt_gpu_eard_load(&ops, eard);
+    mgt_gpu_eard_load(&ops, API_IS(force_api, API_EARD));
     mgt_gpu_dummy_load(&ops);
-    ok_load = 1;
+    loaded = 1;
 unlock_load:
     pthread_mutex_unlock(&lock);
 }
@@ -100,9 +94,29 @@ state_t mgt_gpu_freq_limit_reset(ctx_t *c)
 	preturn (ops.freq_limit_reset, c);
 }
 
+state_t mgt_gpu_freq_limit_reset_dev(ctx_t *c, int gpu)
+{
+    if (generic_list == NULL) {
+        mgt_gpu_data_alloc(&generic_list);
+    }
+    mgt_gpu_freq_limit_get_default(c, generic_list);
+    return mgt_gpu_freq_limit_set_dev(c, generic_list[gpu], gpu);
+}
+
 state_t mgt_gpu_freq_limit_set(ctx_t *c, ulong *khz)
 {
 	preturn (ops.freq_limit_set, c, khz);
+}
+
+state_t mgt_gpu_freq_limit_set_dev(ctx_t *c, ulong freq, int gpu)
+{
+    // Check 0s
+    if (generic_list == NULL) {
+        mgt_gpu_data_alloc(&generic_list);
+    }
+    mgt_gpu_data_null(generic_list);
+    generic_list[gpu] = freq;
+    return mgt_gpu_freq_limit_set(c, generic_list);
 }
 
 state_t mgt_gpu_freq_get_valid(ctx_t *c, uint dev, ulong freq_ref, ulong *freq_near)
@@ -148,6 +162,7 @@ state_t mgt_gpu_freq_get_valid(ctx_t *c, uint dev, ulong freq_ref, ulong *freq_n
 
 state_t mgt_gpu_freq_get_next(ctx_t *c, uint dev, ulong freq_ref, uint *freq_idx, uint flag)
 {
+  debug("mgt_gpu_freq_get_next IN: dev %d freq_ref %lu flag %d FREQ_TOP %d", dev, freq_ref, flag, FREQ_TOP);
 	const uint   *freqs_alldevs_count;
 	const ulong **freqs_alldevs;
 	const ulong  *freqs_dev;
@@ -176,10 +191,12 @@ state_t mgt_gpu_freq_get_next(ctx_t *c, uint dev, ulong freq_ref, uint *freq_idx
 	{
 		freq_ceil  = freqs_dev[i+0];
 		freq_floor = freqs_dev[i+1];
+    debug("i: %d freq_ref %lu freq_ceil %lu freq_floor %lu", i, freq_ref, freq_ceil, freq_floor);
 		//
 		if (freq_ref == freq_ceil || (freq_ref < freq_ceil && freq_ref > freq_floor)) {
 			if (flag == FREQ_TOP) {
-				*freq_idx = i-1;
+				//*freq_idx = i-1;
+				*freq_idx = i;
 			} else {
 				*freq_idx = i+1;
 			}
@@ -219,9 +236,28 @@ state_t mgt_gpu_power_cap_reset(ctx_t *c)
 	preturn (ops.power_cap_reset, c);
 }
 
+state_t mgt_gpu_power_cap_reset_dev(ctx_t *c, int gpu)
+{
+    if (generic_list == NULL) {
+        mgt_gpu_data_alloc(&generic_list);
+    }
+    mgt_gpu_power_cap_get_default(c, generic_list);
+    return mgt_gpu_power_cap_set_dev(c, generic_list[gpu], gpu);
+}
+
 state_t mgt_gpu_power_cap_set(ctx_t *c, ulong *watts)
 {
 	preturn (ops.power_cap_set, c, watts);
+}
+
+state_t mgt_gpu_power_cap_set_dev(ctx_t *c, ulong watts, int gpu)
+{
+    if (generic_list == NULL) {
+        mgt_gpu_data_alloc(&generic_list);
+    }
+    mgt_gpu_data_null(generic_list);
+    generic_list[gpu] = watts;
+    return mgt_gpu_power_cap_set(c, generic_list);
 }
 
 state_t mgt_gpu_data_alloc(ulong **data)
@@ -256,4 +292,23 @@ state_t mgt_gpu_data_null(ulong *data)
 int mgt_gpu_is_supported()
 {
     return mgt_gpu_eard_is_supported();
+}
+
+char *mgt_gpu_features_tostr(char *buffer, size_t length)
+{
+    ulong list_max[128];
+    ulong list_min[128];
+    const ulong **list;
+    const uint *count;
+    int i, j = 0;
+
+    mgt_gpu_freq_get_available(no_ctx, &list, &count);
+    for (i = 0; i < devs_count; ++i) {
+        j += sprintf(&buffer[j], "GPU%d: %4lu to %4lu MHz\n", i, list[i][0], list[i][count[i]-1]);
+    }
+    mgt_gpu_power_cap_get_rank(no_ctx, list_min, list_max);
+    for (i = 0; i < devs_count; ++i) {
+        j += sprintf(&buffer[j], "GPU%d: %4lu to %4lu W\n", i, list_max[i], list_min[i]);
+    }
+    return buffer;
 }

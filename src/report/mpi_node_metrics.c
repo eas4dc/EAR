@@ -1,31 +1,29 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 
 // #define SHOW_DEBUGS 1
 
+#include <common/output/debug.h>
 #include <common/includes.h>
 #include <common/config.h>
 
 #include <library/metrics/metrics.h>
 #include <library/common/library_shared_data.h>
+#if DLB_SUPPORT
+#include <library/metrics/dlb_talp_lib.h>
+#endif
 
 #include <report/report.h>
 
-static char nodename[128];
+
 static char csv_log_file[64];
 static char jobid[32];
 
@@ -78,12 +76,7 @@ state_t report_misc(report_id_t *id, uint type, cchar *data, uint count)
 
 static state_t append_data(report_id_t *id, sig_ext_t *data, uint count)
 {
-
     debug("[%d] report mpi node metrics print", id->master_rank);
-
-    if (csv_log_file == NULL) {
-        return EAR_ERROR;
-    }
 
     if (!report_file_created)
     {
@@ -92,13 +85,13 @@ static state_t append_data(report_id_t *id, sig_ext_t *data, uint count)
             return EAR_ERROR;
         }
 
-#if DLB
-        static char header[] = "time,node_id,total_useful_time,max_useful_time,"
-                               "load_balance,parallel_efficiency,max_mpi,min_mpi,avg_mpi,"
-                               "talp_load_balance,talp_parallel_efficiency";
+#if DLB_SUPPORT
+        char header[] = "time,node_id,total_useful_time,max_useful_time,"
+                        "load_balance,parallel_efficiency,max_mpi,min_mpi,avg_mpi"
+												"talp_timestamp,talp_load_balance,talp_parallel_efficiency";
 #else
-        static char header[] = "time,node_id,total_useful_time,max_useful_time,"
-                               "load_balance,parallel_efficiency,max_mpi,min_mpi,avg_mpi";
+        char header[] = "time,node_id,total_useful_time,max_useful_time,"
+                        "load_balance,parallel_efficiency,max_mpi,min_mpi,avg_mpi";
 #endif
 
         if (fprintf(stream, "%s", header) < 0) {
@@ -150,11 +143,20 @@ static state_t append_data(report_id_t *id, sig_ext_t *data, uint count)
 
     // MPI %
     double avg_mpi = avg_mpi_time / (double) max_exec_time;
-    fprintf(stream, "\n%s,%d,%llu,%llu,%lf,%lf,%lf,%lf,%lf",
-            time_buff, id->master_rank, total_useful_time,
-            max_useful_time, load_balance, parallel_eff,
-            data->max_mpi, data->min_mpi, avg_mpi
-           );
+
+#if DLB_SUPPORT
+			fprintf(stream, "\n%s,%d,%llu,%llu,%lf,%lf,%lf,%lf,%lf,%ld,%f,%f",
+							time_buff, id->master_rank, total_useful_time,
+							max_useful_time, load_balance, parallel_eff,
+							data->max_mpi, data->min_mpi, avg_mpi, data->earl_talp_data.timestamp.tv_sec,
+							data->earl_talp_data.load_balance, data->earl_talp_data.parallel_efficiency);
+
+#else
+			fprintf(stream, "\n%s,%d,%llu,%llu,%lf,%lf,%lf,%lf,%lf",
+							time_buff, id->master_rank, total_useful_time,
+							max_useful_time, load_balance, parallel_eff,
+							data->max_mpi, data->min_mpi, avg_mpi);
+#endif
 
     return EAR_SUCCESS;
 }

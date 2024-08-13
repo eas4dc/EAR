@@ -5,8 +5,8 @@ CFLAGS = -fPIC -I$(SRCDIR) $(CONSTANTS) -DUSER_TEST=0
 
 ######## FILES
 
-# The list of libc_OBJS is in Makefile.files
-libc_BINS = libcommon.a
+# The list of full_OBJS is in Makefile.files
+comm_BINS = libdb.a libcommon.a
 comm_OBJS = $(patsubst %.c, %.o, $(shell find -maxdepth 1 -type f -name '*.c'))
 incl_BINS = states.h
 incl_PATH = $(DESTDIR)/include
@@ -14,13 +14,17 @@ incl_PERM = 0660
 
 ######## RULES
 
-all: all.components $(comm_OBJS) $(libc_BINS)
+all: all.components $(comm_OBJS) $(comm_BINS)
 
 %.o: %.c %.h
 	$(CC) $(CC_FLAGS) $(CFLAGS) -c $<
 
-libcommon.a: $(libc_OBJS)
-	$(AR) rvs $@ $(libc_OBJS)
+libcommon.a: $(core_OBJS)
+	$(AR) rvs $@ $(core_OBJS)
+
+libdb.a: $(db_OBJS)
+	$(AR) rvs $@ $(db_OBJS)
+
 
 ######## OPTIONS
 
@@ -43,7 +47,7 @@ clean: clean.components comm.gclean rclean;
 	@ $(MAKE) -C 'system'   	$* || exit
 	@ $(MAKE) -C 'types'    	$* || exit
 	@ $(MAKE) -C 'utils'		$* || exit
-	@ $(MAKE) -C 'external'		$* || exit
+	#@ $(MAKE) -C 'external'		$* || exit
 
 ######## DEPENDENCIES
 

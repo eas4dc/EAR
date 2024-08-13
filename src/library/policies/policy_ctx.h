@@ -1,34 +1,27 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-#ifndef EAR_POLICIES_CTX_H
-#define EAR_POLICIES_CTX_H
+#ifndef _EARL_POLICY_CTX_H
+#define _EARL_POLICY_CTX_H
 
 #include <common/config.h>
 #include <common/states.h>
 #include <common/types/loop.h>
 #include <common/types/application.h>
 #include <common/types/signature.h>
-#include <common/types/projection.h>
 #include <daemon/shared_configuration.h>
 #include <library/api/mpi_support.h>
 #if MPI
 #include <mpi.h>
 #endif
+
 
 #if MPI
 typedef struct mpi_ctx {
@@ -42,28 +35,30 @@ typedef struct mpi_ctx {
 } mpi_ctx_t;
 #endif
 
+
 typedef struct node_freqs {
-	ulong *cpu_freq;
-	ulong *imc_freq;
-	ulong *gpu_freq;
+	ulong *cpu_freq; 			// Freq in KHz
+	ulong *imc_freq;     	// Pstates , no frequency
+	ulong *gpu_freq;      // Freq in KHz (?)
 	ulong *gpu_mem_freq;
 } node_freqs_t;
 
 
-typedef struct policy_context {
+typedef struct policy_context
+{
+	int							 affinity; // Unused
+	int							 pc_limit;
+	int							 mpi_enabled;
+	uint						 num_pstates;
+	uint						 use_turbo;
+	uint						 num_gpus;
+	ulong						 user_selected_freq; // Unused
+	ulong						 reset_freq_opt;
+	ulong						*ear_frequency;
 	settings_conf_t *app;
-	resched_t *reconfigure;
-	ulong user_selected_freq;
-	ulong reset_freq_opt;
-	ulong *ear_frequency;
-	uint  num_pstates;
-	uint use_turbo;
-	//job_t 		*my_job
-	ctx_t     gpu_mgt_ctx;
-	uint      num_gpus;
-	int affinity;
-	int pc_limit;
-	mpi_ctx_t mpi;
+	resched_t				*reconfigure;
+	ctx_t						 gpu_mgt_ctx;
+	mpi_ctx_t				 mpi;
 } polctx_t;
 
 void print_policy_ctx(polctx_t *p);
@@ -103,6 +98,12 @@ typedef struct policy_symbols {
 	state_t (*restore_settings)   (polctx_t *c, signature_t *my_sig, node_freqs_t *freqs);
 } polsym_t;
 
+void compute_avg_sel_freq(ulong * avg_sel_mem_f, ulong *imcfreqs);
 
+void policy_show_domain(node_freq_domain_t *dom);
 
-#endif //EAR_POLICIES_H
+/** Verboses the policy context \p policy_ctx if the verbosity level
+ * of the job is equal or higher than \p verb_lvl. */
+void verbose_policy_ctx(int verb_lvl, polctx_t *policy_ctx);
+
+#endif // _EARL_POLICY_CTX_H

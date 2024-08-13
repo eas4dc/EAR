@@ -1,19 +1,12 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * EAR is an open source software, and it is licensed under both the BSD-3 license
- * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
- * and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <common/environment.h>
@@ -84,4 +77,24 @@ void event_value_to_str(ear_event_t *ev, char *str, size_t max)
     } else {
         snprintf(str, max,  "%lu", ev->value);
     }
+}
+
+void event_serialize(serial_buffer_t *b, ear_event_t *event)
+{
+    serial_dictionary_push_auto(b, event->jid);
+    serial_dictionary_push_auto(b, event->step_id);
+    serial_dictionary_push_auto(b, event->node_id);
+    serial_dictionary_push_auto(b, event->event);
+    serial_dictionary_push_auto(b, event->value);
+    serial_dictionary_push_auto(b, event->timestamp);
+}
+
+void event_deserialize(serial_buffer_t *b, ear_event_t *event)
+{
+    serial_dictionary_pop_auto(b, event->jid);
+    serial_dictionary_pop_auto(b, event->step_id);
+    serial_dictionary_pop_auto(b, event->node_id);
+    serial_dictionary_pop_auto(b, event->event);
+    serial_dictionary_pop_auto(b, event->value);
+    serial_dictionary_pop_auto(b, event->timestamp);
 }

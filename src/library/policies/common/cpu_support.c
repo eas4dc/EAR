@@ -1,19 +1,13 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 
 #define _GNU_SOURCE
 #include <sched.h>
@@ -26,13 +20,12 @@
 #include <unistd.h>
 #include <math.h>
 
-// #define SHOW_DEBUGS 1
+//#define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/states.h>
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
 #include <common/hardware/topology.h>
-#include <common/types/projection.h>
 
 #include <management/cpufreq/frequency.h>
 
@@ -44,194 +37,160 @@
 #include <library/policies/common/mpi_stats_support.h>
 #include <library/policies/common/imc_policy_support.h>
 
-#define CPU_SAVINGS_LVL 2
 
 extern uint dyn_unc;
 extern polctx_t my_pol_ctx;
 extern ear_classify_t phases_limits;
 
-state_t compute_reference(polctx_t *c,signature_t *my_app,ulong *curr_freq,ulong *def_freq,ulong *freq_ref,double *time_ref,
-        double *power_ref)
-{
-    ulong def_pstate, curr_pstate;
 
-    def_pstate = frequency_closest_pstate(def_freq[0]);
-    curr_pstate = frequency_closest_pstate(curr_freq[0]);
-    if (curr_freq[0] != def_freq[0]) // Use configuration when available
+state_t compute_reference(signature_t *signature, energy_model_t energy_model, ulong *curr_freq, ulong *def_freq, ulong *freq_ref, double *time_ref, double *power_ref)
+{
+  ulong def_pstate = frequency_closest_pstate(def_freq[0]);
+  ulong curr_pstate = frequency_closest_pstate(curr_freq[0]);
+  if (curr_freq[0] != def_freq[0]) // Use configuration when available
+  {
+    debug("curr_freq[0] != def_freq[0] %lu != %lu", curr_freq[0], def_freq[0]);
+    if (energy_model_projection_available(energy_model, curr_pstate, def_pstate))
     {
-        debug("curr_freq[0] != def_freq[0] %lu != %lu", curr_freq[0], def_freq[0]);
-        if (projection_available(curr_pstate,def_pstate)==EAR_SUCCESS)
-        {
-						verbose_master(3, "Using projections for references");
-            project_power(my_app,curr_pstate,def_pstate,power_ref);
-            project_time(my_app,curr_pstate,def_pstate,time_ref);
-            freq_ref[0] = def_freq[0];
-        } else {
-            *time_ref = my_app->time;
-            *power_ref = my_app->DC_power;
-            freq_ref[0] = curr_freq[0];
-        }
-    }else{ 
-        /* And we are the nominal freq */
-        *time_ref = my_app->time;
-        *power_ref = my_app->DC_power;
-        freq_ref[0] = curr_freq[0];
-    }
-    return EAR_SUCCESS;
-}
+      verbose_master(3, "Using projections for references");
 
-double get_time_nominal(signature_t *my_app)
-{
-  double t = my_app->time;
-  uint curr, target;
-  if (my_app->def_f != frequency_get_nominal_freq()){
-    target = frequency_get_nominal_pstate();
-    curr   = frequency_closest_pstate(my_app->def_f);
-    project_time(my_app, curr, target, &t);
-  }
-  verbose_master(CPU_SAVINGS_LVL,"Policy savins[%s]: Projecting reference time from %u to %u %lf", node_name, curr, target, t);
-  return t;
-}
+      // If energy_model is invalid, the above condition is false, so we don't need to check
+      // the correctness of the below calls.
+      energy_model_project_power(energy_model, signature, curr_pstate, def_pstate, power_ref);
+      energy_model_project_time(energy_model, signature, curr_pstate, def_pstate, time_ref);
 
-double get_power_nominal(signature_t *my_app)
-{
-  double p = my_app->DC_power;
-  uint curr, target;
-  if (my_app->def_f != frequency_get_nominal_freq()){
-    target = frequency_get_nominal_pstate();
-    curr   = frequency_closest_pstate(my_app->def_f);
-    project_power(my_app, curr, target, &p);
-  }
-  verbose_master(CPU_SAVINGS_LVL,"Policy savins[%s]: Projecting reference power from %u to %u %lf", node_name, curr, target, p);
-  return p;
-}
-
-double get_time_projected(signature_t *my_app, ulong f)
-{
-  double t = my_app->time;
-  uint curr, target;
-  if (f != my_app->def_f){
-    curr   = frequency_closest_pstate(my_app->def_f);
-    target = frequency_closest_pstate(f);
-    project_time(my_app, curr, target, &t);
-  }
-  //verbose(0,"Policy savins[%s] Projecting from %lu-%u to %lu-%u time %lf (ref %.3lf)", node_name, my_app->def_f, curr, f,target, t, my_app->time);
-  return (float)t;
-}
-double get_power_projected(signature_t *my_app, ulong f)
-{
-  double p = my_app->DC_power;
-  uint curr, target;
-  if (f != my_app->def_f) {
-    curr   = frequency_closest_pstate(my_app->def_f);
-    target = frequency_closest_pstate(f);
-    project_power(my_app, curr, target, &p);
-  }
-  //verbose(0," Policy savins[%s] Projecting from %lu-%u to %lu-%u power %lf (ref %.2lf)", node_name, my_app->def_f, curr, f, target, p, my_app->DC_power);
-  return p;
-}
-
-state_t compute_cpu_freq_min_energy(polctx_t *c, signature_t *my_app, ulong freq_ref, double time_ref, double power_ref,
-        double penalty, ulong curr_pstate, ulong minp, ulong maxp, ulong *newf)
-{
-    double vpi;
-    double energy_ref,best_solution,time_max;
-    double power_proj,time_proj,energy_proj;
-    ulong i,from;
-
-    ulong best_freq = freq_ref;
-
-    energy_ref		= power_ref*time_ref;
-    best_solution	= energy_ref;
-    time_max 			= time_ref + (time_ref * penalty);	
-    from 					= curr_pstate;	
-    compute_sig_vpi(&vpi,my_app);
-    verbose_master(3, "CPUfreq algorithm for min_energy timeref %lf powerref %lf energy %lf F=%lu VPI %lf. Pstates %lu...%lu",time_ref,power_ref,
-            energy_ref,best_freq,vpi,minp,maxp);
-    for (i = minp; i < maxp;i++)
+      freq_ref[0] = def_freq[0];
+    } else
     {
-        if (projection_available(from,i) == EAR_SUCCESS)
-        {
-            project_power(my_app,from,i,&power_proj);
-            project_time(my_app,from,i,&time_proj);
-            projection_set(i,time_proj,power_proj);
-            energy_proj = power_proj*time_proj;
-
-            verbose_master(3,"projected from %lu to %lu\t time: %.2lf\t power: %.2lf energy: %.2lf",
-                    from, i, time_proj, power_proj, energy_proj);
-
-            if ((energy_proj < best_solution) && (time_proj < time_max)) {
-                best_freq = frequency_pstate_to_freq(i);
-                verbose(3,"new best solution found %lu",best_freq);
-                best_solution = energy_proj;
-            }
-        }
+      *time_ref = signature->time;
+      *power_ref = signature->DC_power;
+      freq_ref[0] = curr_freq[0];
     }
-    *newf = best_freq;
-    return EAR_SUCCESS;
+  } else
+  { 
+    // And we are running at the nominal freq.
+    *time_ref = signature->time;
+    *power_ref = signature->DC_power;
+    freq_ref[0] = curr_freq[0];
+  }
+
+  return EAR_SUCCESS;
 }
 
-state_t compute_cpu_freq_min_time(signature_t *my_app, int min_pstate, double time_ref,
-        double min_eff_gain, ulong curr_pstate, ulong best_pstate, ulong best_freq, ulong def_freq, ulong *newf){
-    int i;
-    uint try_next;
-    double time_current, power_proj, time_proj, freq_gain, perf_gain, vpi;
-    ulong freq_ref;
 
-    compute_sig_vpi(&vpi,my_app);
-    // error al compilar con verbose_master :( error: identifier "masters_info" is undefined
-    verbose_master(3, "CPUfreq algorithm for min_time. timeref %lf; pstate %lu; F %lu; deffreq %lu; VPI %lf",
-            time_ref, curr_pstate, best_freq, def_freq, vpi);
 
-    try_next = 1;
-    i = best_pstate - 1;
-    time_current = time_ref;
-    while(try_next && (i >= min_pstate))
+state_t compute_cpu_freq_min_energy(signature_t *signature, energy_model_t energy_model, ulong freq_ref, double time_ref, double power_ref, double penalty, ulong curr_pstate, ulong minp, ulong maxp, ulong *newf)
+{
+  double vpi;
+  double energy_ref,best_solution,time_max;
+  double power_proj,time_proj,energy_proj;
+  ulong i,from;
+
+  ulong best_freq = freq_ref;
+
+  energy_ref		= power_ref*time_ref;
+  best_solution	= energy_ref;
+  time_max 			= time_ref + (time_ref * penalty);	
+  from 					= curr_pstate;	
+
+  compute_sig_vpi(&vpi,signature);
+  verbose_master(3, "CPUfreq algorithm for min_energy timeref %lf powerref %lf energy %lf F=%lu VPI %lf. Pstates %lu...%lu", time_ref, power_ref, energy_ref, best_freq, vpi, minp, maxp);
+
+	verbose_master(3, "CPUfreq algorithm for min_energy, projecting from pstate %lu to %lu", minp, maxp);
+	if (from == minp) minp++;
+  for (i = minp; i < maxp; i++)
+  {
+	
+		verbose_master(3, "CPUfreq algorithm testing pstate %lu", i);
+    if (energy_model_projection_available(energy_model, from, i))
     {
-        if (projection_available(curr_pstate,i)==EAR_SUCCESS)
-        {
-            verbose_master(3, "Looking for pstate %d",i);
-            project_power(my_app, curr_pstate, i, &power_proj);
-            project_time(my_app, curr_pstate, i, &time_proj);
-            projection_set(i, time_proj, power_proj);
-            freq_ref = frequency_pstate_to_freq(i);
-            freq_gain = min_eff_gain * (double)(freq_ref - best_freq) / (double)best_freq;
-            perf_gain = (time_current - time_proj) / time_current;
-            if (min_eff_gain < 0.5){
-            verbose_master(3, "%lu to %d time %lf proj time %lf freq gain %lf perf_gain %lf", curr_pstate, i, my_app->time, time_proj,
-                    freq_gain,perf_gain);
-            }else{
-            verbose_master(3, "%lu to %d time %lf proj time %lf freq gain %lf perf_gain %lf", curr_pstate, i, my_app->time, time_proj,
-                    freq_gain,perf_gain);
-            }
-            // OK
-            if (perf_gain>=freq_gain)
-            {
-                verbose(3, "New best solution found: Best freq: %lu; Best pstate: %d; Current time ref: %lf",
-                        freq_ref, i, time_proj);
-                best_freq=freq_ref;
-                best_pstate=i;
-                time_current = time_proj;
-                //i--;
-            }
-            #if 0
-            else
-            {
-                try_next = 0;
-            }
-            #endif
-        } // Projections available
-        else{
-            try_next=0;
-        }
-        i--;
-    }
-    /* Controlar la freq por power cap, si capado poner GREEDY, gestionar req-f */
-    if (best_freq<def_freq) best_freq=def_freq;
-    *newf = best_freq;
-    verbose_master(3, "*new_freq=%lu", *newf);
+      // If energy_model is invalid, the above condition is false, so we don't need to check
+      // the correctness of the below calls.
+      energy_model_project_power(energy_model, signature, from, i, &power_proj);
+      energy_model_project_time(energy_model, signature, from, i, &time_proj);
 
-    return EAR_SUCCESS;
+      energy_proj = power_proj * time_proj;
+
+      verbose_master(3, "projected from %lu to %lu\t time: %.2lf\t power: %.2lf energy: %.2lf",
+          from, i, time_proj, power_proj, energy_proj);
+
+      if ((energy_proj < best_solution) && (time_proj < time_max)) {
+        best_freq = frequency_pstate_to_freq(i);
+        verbose(3,"new best solution found %lu",best_freq);
+        best_solution = energy_proj;
+      }
+    }else{
+			verbose_master(3, "CPUfreq algorithm pstate %lu projection not available", i);
+		}
+  }
+  *newf = best_freq;
+  return EAR_SUCCESS;
+}
+
+state_t compute_cpu_freq_min_time(signature_t *signature, energy_model_t energy_model, int min_pstate, double time_ref, double min_eff_gain, ulong curr_pstate, ulong best_pstate, ulong best_freq, ulong def_freq, ulong *newf)
+{
+  int i;
+  uint try_next;
+  double time_current, power_proj, time_proj, freq_gain, perf_gain, vpi;
+  ulong freq_ref;
+
+  compute_sig_vpi(&vpi, signature);
+  // error al compilar con verbose_master :( error: identifier "masters_info" is undefined
+  verbose_master(3, "CPUfreq algorithm for min_time. timeref %lf; pstate %lu; F %lu; deffreq %lu; VPI %lf", time_ref, curr_pstate, best_freq, def_freq, vpi);
+
+  try_next = 1;
+  i = best_pstate - 1;
+  time_current = time_ref;
+  while(try_next && i >= min_pstate)
+  {
+    if (energy_model_projection_available(energy_model, curr_pstate, i))
+    {
+      verbose_master(3, "Looking for pstate %d",i);
+
+      // If energy_model is invalid, the above condition is false, so we don't need to check
+      // the correctness of the below calls.
+      energy_model_project_power(energy_model, signature, curr_pstate, i, &power_proj);
+      energy_model_project_time(energy_model, signature, curr_pstate, i, &time_proj);
+
+      freq_ref = frequency_pstate_to_freq(i);
+      freq_gain = min_eff_gain * (double)(freq_ref - best_freq) / (double)best_freq;
+      perf_gain = (time_current - time_proj) / time_current;
+
+      if (min_eff_gain < 0.5){
+        verbose_master(3, "%lu to %d time %lf proj time %lf freq gain %lf perf_gain %lf", curr_pstate, i, signature->time, time_proj,
+            freq_gain,perf_gain);
+      }else{
+        verbose_master(3, "%lu to %d time %lf proj time %lf freq gain %lf perf_gain %lf", curr_pstate, i, signature->time, time_proj,
+            freq_gain,perf_gain);
+      }
+      // OK
+      if (perf_gain>=freq_gain)
+      {
+        verbose(3, "New best solution found: Best freq: %lu; Best pstate: %d; Current time ref: %lf",
+            freq_ref, i, time_proj);
+        best_freq=freq_ref;
+        best_pstate=i;
+        time_current = time_proj;
+        //i--;
+      }
+#if 0
+      else
+      {
+        try_next = 0;
+      }
+#endif
+    } // Projections available
+    else{
+      try_next=0;
+    }
+    i--;
+  }
+  /* Controlar la freq por power cap, si capado poner GREEDY, gestionar req-f */
+  if (best_freq<def_freq) best_freq=def_freq;
+  *newf = best_freq;
+  verbose_master(3, "*new_freq=%lu", *newf);
+
+  return EAR_SUCCESS;
 }
 
 uint cpu_supp_try_boost_cpu_freq(int nproc, uint *critical_path, ulong *freqs, int min_pstate){
@@ -391,9 +350,12 @@ void verbose_node_freqs(int vl, node_freqs_t *freqs)
 
 void node_freqs_alloc(node_freqs_t *node_freq)
 {
+		// Frequency in KHz
     node_freq->cpu_freq = calloc(MAX_CPUS_SUPPORTED,sizeof(ulong));
+		// Pstates
     node_freq->imc_freq = calloc(MAX_SOCKETS_SUPPORTED*IMC_VAL,sizeof(ulong));
 #if USE_GPUS
+		// Frequency in KHz (to be verified)
     node_freq->gpu_freq = calloc(MAX_GPUS_SUPPORTED,sizeof(ulong));
     node_freq->gpu_mem_freq = calloc(MAX_GPUS_SUPPORTED,sizeof(ulong));
 #endif

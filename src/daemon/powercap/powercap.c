@@ -1,19 +1,12 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * EAR is an open source software, and it is licensed under both the BSD-3 license
- * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
- * and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <errno.h>
 #include <stdio.h>
@@ -183,7 +176,7 @@ static int set_powercap_value(uint domain, uint limit)
 void set_default_node_powercap_opt(node_powercap_opt_t *my_powercap_opt)
 {
     my_powercap_opt->def_powercap = powermon_get_powercap_def();
-    my_powercap_opt->powercap_idle = ear_max(powermon_get_powercap_def()*POWERCAP_IDLE_PERC, 1);
+    my_powercap_opt->powercap_idle = ear_max(powermon_get_powercap_def()*EARD_POWERCAP_IDLE_PERC, 1);
     my_powercap_opt->current_pc = 0;
     my_powercap_opt->last_t1_allocated = powermon_get_powercap_def();
     my_powercap_opt->max_node_power = powermon_get_max_powercap_def();
@@ -243,7 +236,7 @@ int powercap_init()
     last_status=PC_STATUS_IDLE;
     pc_cpu_strategy=pmgt_get_powercap_cpu_strategy(pcmgr);
     pmgt_set_pc_mode(pcmgr,PC_MODE_TARGET);
-    set_powercap_value(DOMAIN_NODE,my_pc_opt.powercap_idle);
+    set_powercap_value(DOMAIN_NODE, my_pc_opt.powercap_idle);
     debug("powercap initialization finished");
     powercap_monitor_init();
     update_node_powercap_opt_shared_info();
@@ -468,6 +461,7 @@ void print_powercap_opt(powercap_opt_t *opt)
 
 void powercap_set_opt(powercap_opt_t *opt, int id)
 {
+		uint report_ev = 0;
     print_powercap_opt(opt);
     if (!is_powercap_on(&my_pc_opt)) return;    
     if (is_powercap_unlimited()) return;
@@ -494,6 +488,7 @@ void powercap_set_opt(powercap_opt_t *opt, int id)
                         value = -opt->extra_power[id];
                     }
 
+										report_ev = 1;
                     set_powercap_value(DOMAIN_NODE,my_pc_opt.last_t1_allocated);
                 }
                 break;
@@ -509,6 +504,7 @@ void powercap_set_opt(powercap_opt_t *opt, int id)
                     event = RED_POWERCAP;
                     value = -opt->extra_power[id];
                 }
+								report_ev = 1;
                 my_pc_opt.last_t1_allocated=my_pc_opt.last_t1_allocated+opt->extra_power[id];
                 set_powercap_value(DOMAIN_NODE,my_pc_opt.last_t1_allocated);
                 my_pc_opt.powercap_status=PC_STATUS_OK;
@@ -527,10 +523,11 @@ void powercap_set_opt(powercap_opt_t *opt, int id)
             set_powercap_value(DOMAIN_NODE,my_pc_opt.def_powercap);            
             event = SET_ASK_DEF;
             value = 0;
+						report_ev = 1;
         }
     }
     pthread_mutex_unlock(&my_pc_opt.lock);
-    powermon_report_event(event, value);
+    if (report_ev) powermon_report_event(event, value);
 
 }
 

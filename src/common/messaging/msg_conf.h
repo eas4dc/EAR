@@ -1,19 +1,12 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * EAR is an open source software, and it is licensed under both the BSD-3 license
- * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
- * and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 /**
  *    \file remote_conf.h
@@ -106,20 +99,26 @@ typedef union req_data{
 }req_data_t;
 
 typedef struct request{
-    uint        req;
-    uint        node_dist;
-    int         time_code;
-    int         num_nodes;
-    int         *nodes;
+    uint32_t        req;
+    uint32_t        node_dist;
+#if USE_SEC_KEY_RC
+    uint32_t        sec_key;
+#endif
+    int32_t         time_code;
+    int32_t         num_nodes;
+    int32_t         *nodes;
     req_data_t  my_req; //all new variables must be specified after time_code so the first portion aligns with internal_request_t
 }request_t;
 
 typedef struct internal_request {
-    uint    req;
-    uint    node_dist;
-    int     time_code; 
-    int     num_nodes;
-    int     *nodes;
+    uint32_t    req;
+    uint32_t    node_dist;
+#if USE_SEC_KEY_RC
+    uint32_t    sec_key;
+#endif
+    int32_t     time_code; 
+    int32_t     num_nodes;
+    int32_t     *nodes;
 } internal_request_t; //only the necessary my_req content is sent, and what is sent can be identified by the req code 
 
 typedef struct status_node_info{
@@ -136,8 +135,8 @@ typedef struct app_info{
 }app_info_t;
 
 typedef struct request_header {
-    int     type;
-    uint    size;
+    int32_t     type;
+    uint32_t    size;
 } request_header_t;
 
 typedef struct eard_policy_info{
@@ -151,7 +150,7 @@ typedef struct status{
     char                ok;
     status_node_info_t  node;
     app_info_t          app;
-    uint							eardbd_connected;
+    uint                eardbd_connected;
     unsigned int        num_policies;
     eard_policy_info_t  policy_conf[TOTAL_POLICIES];
 } status_t;
@@ -207,6 +206,7 @@ typedef struct power_check {
 #define EAR_RC_STATUS               600
 #define EAR_RC_APP_NODE_STATUS      601
 #define EAR_RC_APP_MASTER_STATUS    602
+#define EAR_RC_NODE_PURGE           603
 
 /* New functions for power limits */
 #define EAR_RC_RED_POWER            700

@@ -1,21 +1,14 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
-*/
-
-// #define SHOW_DEBUGS 1
+//#define SHOW_DEBUGS 1
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -127,11 +120,23 @@ state_t rapl_msr_init(ctx_t *c)
 	if ((s = msr_read(tp.cpus[0].id, &result, sizeof(result), *pu_addr))) {
 		return s;
 	}
-	// Take a look to Intel's RAPL test
-	es_pack_units = pow(0.5, (double) ((result >> 8) & 0x1f)) * 1e9;
-	debug("es_pack_units %lf", es_pack_units);
-	es_core_units = es_pack_units;
-	es_dram_units = pow(0.5, (double) 16) * 1e9;
+	if (tp.model >= MODEL_SAPPHIRE_RAPIDS){
+		es_pack_units = pow(0.5, (double) ((result >> 8) & 0x1f)) * 1e9;
+		es_core_units = es_pack_units;
+		es_dram_units = es_pack_units;
+		debug("eneregy units pck %lf", es_core_units);
+		debug("eneregy units dram %lf", es_dram_units);
+	}else{
+		// It's pending to double check in Intel doc if same algorithn can be applied in all Intel archs
+		// Take a look to Intel's RAPL test
+		es_pack_units = pow(0.5, (double) ((result >> 8) & 0x1f)) * 1e9;
+		debug("es_pack_units %lf", es_pack_units);
+		es_core_units = es_pack_units;
+		es_dram_units = pow(0.5, (double) 16) * 1e9;
+		debug("eneregy units pck %lf", es_core_units);
+		debug("eneregy units dram %lf", es_dram_units);
+	}
+
 	init = 1;
 	return EAR_SUCCESS;
 }
@@ -166,8 +171,9 @@ state_t rapl_msr_read(ctx_t *c, ullong *values)
 		for (t = 0; t < es_pack_count; t++) { //this for loop is a glorified if statement, inherited from previous code
 			msr_read(tp.cpus[i].id, &values[tp.cpu_count+i], sizeof(ullong), es_pack_addr[t]);
 			values[tp.cpu_count + i] &= 0xffffffff;
+            debug("read value %llu from PKG", values[tp.cpu_count + i]);
 			values[tp.cpu_count + i] *= es_pack_units ; //transform to proper units
-			debug("read value %llu from PKG", values[tp.cpu_count + i]);
+            debug("read value %llu from PKG (units %lf)", values[tp.cpu_count + i], es_pack_units);
 		}
 		// DRAM
 		for (t = 0; t < es_dram_count; t++) {

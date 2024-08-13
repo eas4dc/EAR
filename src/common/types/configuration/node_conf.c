@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -41,7 +34,7 @@ int is_smaller_unit(int small, int big)
 	return big; //big will be > 0 if it's a bigger unit
 }
 
-char range_conf_contains_node(node_conf_t *node, char *nodename)
+int range_conf_contains_node(node_conf_t *node, char *nodename)
 {
     char aux_name[256];
     int i, j;
@@ -72,7 +65,7 @@ char range_conf_contains_node(node_conf_t *node, char *nodename)
     return 0;
 }
 
-char island_range_conf_contains_node(node_island_t *node, char *nodename)
+int island_range_conf_contains_node(node_island_t *node, char *nodename)
 {
     char aux_name[256];
     int i, j;
@@ -171,7 +164,7 @@ void report_my_node_conf(my_node_conf_t *my_node_conf)
                 my_node_conf->cpus, my_node_conf->max_pstate,
                 my_node_conf->island, my_node_conf->tag);
         printf("%60.60s", buffer);
-        xsnprintf(buffer, sizeof(buffer), "eardbd main server %s eardbd mirror %s \n", my_node_conf->db_ip, (my_node_conf->db_sec_ip == NULL)?"not defined":my_node_conf->db_sec_ip);
+        xsnprintf(buffer, sizeof(buffer), "eardbd main server %s eardbd mirror %s \n", my_node_conf->db_ip, (strlen(my_node_conf->db_sec_ip) < 1) ? "not defined" : my_node_conf->db_sec_ip);
         printf("%60.60s", buffer);
         xsnprintf(buffer, sizeof(buffer), "coefficients file %s\n", (my_node_conf->coef_file == NULL)?"not defined":my_node_conf->coef_file);
         printf("%60.60s", buffer);
@@ -224,11 +217,14 @@ void print_my_node_conf(my_node_conf_t *my_node_conf)
     int i;
     char buffer[64];
     if (my_node_conf!=NULL){
-        verbose(VCCONF,"My node: cpus %u max_pstate %lu island %u ip %s tag %s",
+        verbose(VCCONF,"My node: cpus %u max_pstate %lu island %u main eardbd %s tag %s",
                 my_node_conf->cpus, my_node_conf->max_pstate,
                 my_node_conf->island, my_node_conf->db_ip, my_node_conf->tag);
-        if (my_node_conf->db_sec_ip!=NULL) {
-            verbose(VCCONF,"sec_ip %s ",my_node_conf->db_sec_ip);
+        if (strlen(my_node_conf->db_sec_ip) > 0) {
+            verbose(VCCONF, "secondary eardbd %s", my_node_conf->db_sec_ip);
+        } else
+        {
+            verbose(VCCONF, "secondary eardbd not set.");
         }
         if (my_node_conf->coef_file!=NULL) {
             verbose(VCCONF,"coeffs %s ",my_node_conf->coef_file);

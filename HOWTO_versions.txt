@@ -15,7 +15,7 @@ Not MPI versions
 The EAR loader automatically loads not mpi applications when three types of symbols are detected: OpenMP, MKL or CUDA. Only shared symbols are detected, so it can happen some application using static linking is not automatically loaded with EAR.
 
 To compile a not MPI version, a manual configuration must be done before recompiling:
--  FEAT_MPI_API = 0 (Makefile in the root SRC EAR directory)
+-  FEAT_MPI_LIBRARY = 0 (Makefile in the root SRC EAR directory)
 -  define FEAT_ONLY_MASTER to 1 in src/common/config/config_install.h
 
 After recompiling, execute make earl.install to reinstall only the library

@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 // #define SHOW_DEBUGS 1
 
@@ -32,16 +25,20 @@
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static imcfreq_ops_t ops;
 
-void imcfreq_load(topology_t *tp, int eard)
+void imcfreq_load(topology_t *tp, int force_api)
 {
 	while (pthread_mutex_trylock(&lock));
 	if (ops.init != NULL) {
 		goto done;
     }
+    if (API_IS(force_api, API_DUMMY)) {
+        goto dummy;
+    }
 	debug("loading imcfreq metrics");
-	imcfreq_eard_load(tp, &ops, eard);
+	imcfreq_eard_load(tp, &ops, API_IS(force_api, API_EARD));
 	imcfreq_intel63_load(tp, &ops);
-	imcfreq_amd17_load(tp, &ops, eard);
+	imcfreq_amd17_load(tp, &ops, API_IS(force_api, API_EARD));
+dummy:
 	imcfreq_dummy_load(tp, &ops);
 done:
 	pthread_mutex_unlock(&lock);

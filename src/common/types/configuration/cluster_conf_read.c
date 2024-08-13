@@ -1,22 +1,18 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * EAR is an open source software, and it is licensed under both the BSD-3 license
- * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
- * and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
+#define _GNU_SOURCE 
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <common/config.h>
 //#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
@@ -537,17 +533,29 @@ void parse_island(cluster_conf_t *conf, char *line)
         conf->num_islands++;
 }
 
-void get_cluster_config(FILE *conf_file, cluster_conf_t *conf)
+state_t EAR_include(char *token)
+{
+    if (strcasestr(token,"include") != NULL){
+      return EAR_SUCCESS;
+    }
+    return EAR_ERROR;
+}
+
+#define ADD_CONTENT 		0
+#define CREATE_CONTENT 	1
+void get_cluster_config(FILE *conf_file, cluster_conf_t *conf, uint action)
 {
     char line[512];
     char def_policy[128];
     char *token;
 
     //filling the default policies before starting
-    conf->num_policies=0;
-    conf->num_etags=0;
-    conf->power_policies = calloc(TOTAL_POLICIES, sizeof(policy_conf_t));
-    fill_policies(conf);
+    if (action != ADD_CONTENT){
+    	conf->num_policies=0;
+    	conf->num_etags=0;
+    	conf->power_policies = calloc(TOTAL_POLICIES, sizeof(policy_conf_t));
+    	fill_policies(conf);
+		}
     while (fgets(line, 512, conf_file) != NULL)
     {
         if (line[0] == '#') continue;
@@ -555,6 +563,17 @@ void get_cluster_config(FILE *conf_file, cluster_conf_t *conf)
         token = strtok(line, "=");
         strtoup(token);
 
+
+
+				if (EAR_include(token) == EAR_SUCCESS){
+					char *file_to_include = strtok(NULL, "=");
+					clean_newlines(file_to_include);
+					verbose(VCCONF, "Include file: '%s'", file_to_include);
+					FILE *fd_include = fopen(file_to_include, "r");
+					if (fd_include != NULL) get_cluster_config(fd_include, conf, ADD_CONTENT);
+					else verbose(VCCONF, "Include file cannot be open %s", strerror(errno));
+					continue;
+				}
 
         if (EARGM_token(token) == EAR_SUCCESS){
             if (EARGM_parse_token(&conf->eargm,token) == EAR_SUCCESS) continue;
@@ -590,6 +609,11 @@ void get_cluster_config(FILE *conf_file, cluster_conf_t *conf)
         if (ETAG_token(token) == EAR_SUCCESS){
             if (ETAG_parse_token(&conf->num_etags,&conf->e_tags,line) == EAR_SUCCESS) continue;
         }
+
+				if (EDCMON_token(token) == EAR_SUCCESS){
+						line[strlen(line)] = '=';
+						if (EDCMON_parse_token(&conf->edcmon_tags, &conf->num_edcmons_tags, line) == EAR_SUCCESS) continue;
+				}
 
         //HARDWARE NODE CONFIG
         else if (!strcmp(token, "NODENAME"))
@@ -721,7 +745,7 @@ int read_cluster_conf(char *conf_path,cluster_conf_t *my_conf)
     }
     memset(my_conf, 0, sizeof(cluster_conf_t));
     set_ear_conf_default(my_conf);
-    get_cluster_config(conf_file, my_conf);
+    get_cluster_config(conf_file, my_conf, CREATE_CONTENT);
     if ((my_conf->num_policies < 1) || (my_conf->num_islands < 1) || (my_conf->default_policy >TOTAL_POLICIES ))
     {
         error( "Error: ear.conf does not contain any island or policy definition or there is no default policy specified.\n");

@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -26,48 +19,82 @@
 #include <metrics/common/oneapi.h>
 #include <management/gpu/archs/oneapi.h>
 
-//static pthread_mutex_t      lock = PTHREAD_MUTEX_INITIALIZER;
-static ulong             *freqs_default;
-static ulong            **freqs_avail_list;
-static uint              *freqs_avail_count;
-static ulong             *power_max_default;
-static uint               devs_count;
-static ze_handlers_t     *devs;
-static ze_t               ze;
+//static pthread_mutex_t           lock = PTHREAD_MUTEX_INITIALIZER;
+static ulong                      *freqs_default;
+static ulong                     **freqs_avail_list;
+static uint                       *freqs_avail_count;
+static ulong                      *power_max_default;
+static zes_power_limit_ext_desc_t *power_descs; //sustaineds
+static uint                       *power_domains;
+static uint                        devs_count;
+static ze_handlers_t              *devs;
+static ze_t                        ze;
 
-#define ret_fail(function) \
+#define DUMMY_FREQ  1000000LU
+#define NO_FREQ    -1
+
+#define if_fail(function, action) \
     if ((z = function) != ZE_RESULT_SUCCESS) { \
         debug("Failed " #function ": %s (0x%x)", oneapi_strerror(z), z); \
-        return EAR_ERROR; \
+        action; \
     }
 
 static state_t get_available_watts()
 {
-    zes_power_sustained_limit_t ps;
-    zes_power_burst_limit_t     pb;
-    zes_power_peak_limit_t      pp;
+    uint                        descs_count = 32;
+    zes_power_limit_ext_desc_t  descs[32];
     uint                        dv;
-    uint                        d;
+    uint                        dm;
+    uint                        de;
     ze_result_t                 z;
+    #if SHOW_DEBUGS
+    char                       *sources[4] __attribute__ ((unused));
+    char                       *levels[6]  __attribute__ ((unused));
+    char                       *units[4]   __attribute__ ((unused));
+    // For debugging
+    levels[ZES_POWER_LEVEL_UNKNOWN]        = "UNKNOWN";
+    levels[ZES_POWER_LEVEL_SUSTAINED]      = "SUSTAINED";
+    levels[ZES_POWER_LEVEL_BURST]          = "BURTS";
+    levels[ZES_POWER_LEVEL_PEAK]           = "PEAK";
+    levels[ZES_POWER_LEVEL_INSTANTANEOUS]  = "INSTANTANEOUS";
+    units[ZES_LIMIT_UNIT_UNKNOWN]          = "of unknown units";
+    units[ZES_LIMIT_UNIT_CURRENT]          = "A"; //We are converting from mA to A
+    units[ZES_LIMIT_UNIT_POWER]            = "W"; //We are converting from mW to W
+    sources[ZES_POWER_SOURCE_ANY]          = "any";
+    sources[ZES_POWER_SOURCE_MAINS]        = "main";
+    sources[ZES_POWER_SOURCE_BATTERY]      = "any";
+    #endif
 
-    power_max_default = calloc(devs_count, sizeof(uint));
-    // Retrieving the domains
-    for (dv = 0; dv < devs_count; ++dv){
-        for (d = 0; d < devs[dv].spowers_count; ++d) {
-            ret_fail(ze.sPowerGetLimits(devs[dv].spowers[d], &ps, &pb, &pp));
-            power_max_default[dv] = ((ulong) ps.power) / 1000LU; // mW
-            debug("-- DEVICE%d POWER DOMAIN%d ---------------", dv, d);
-            debug("defaultLimit: %u", props.defaultLimit);
-            debug("maxLimit: %u", props.maxLimit);
-            debug("minLimit: %u", props.minLimit);
-            debug("sustained.enabled: %u", ps.enabled);
-            debug("sustained.power: %u", ps.power);
-            debug("sustained.interval: %u", ps.interval);
-            debug("burst.enabled: %u", pb.enabled);
-            debug("burst.power: %u", pb.power);
-            debug("peak powerAC: %u", pp.powerAC);
-            debug("peak powerDC: %u", pp.powerDC);
-            debug("----------------------------------------");
+    power_max_default = calloc(devs_count, sizeof(ulong));
+    power_descs       = calloc(devs_count, sizeof(zes_power_limit_ext_desc_t));
+    power_domains     = calloc(devs_count, sizeof(uint));
+    
+    for (dv = 0; dv < devs_count; ++dv) {
+        // Dummyfying the power
+        power_descs[dv].enabled            = 0;
+        power_descs[dv].enabledStateLocked = 1;
+        // 
+        for (dm = 0; dm < devs[dv].spowers_count; ++dm)
+        {
+            if_fail(ze.sPowerGetLimitsExt(devs[dv].spowers[dm], &descs_count, descs), break);
+            if (descs_count == 0) {
+                debug("POWER DEV%d DOM%d DESC0: not found (sub %d)", dv, dm, devs[dv].spowers_props[dm].subdeviceId);
+            }
+            for (de = 0; de < descs_count; ++de) {
+                // Take into the account ps.interval, pb.enabled, pb.power, pp.powerAC and pp.powerDC in future
+                debug("POWER DEV%d DOM%d DESC%d: limit %03d %s at %04d mS interval (%d%d, %s, %s) (sub %d)", dv, dm, de, descs[de].limit / 1000,
+                        units[descs[de].limitUnit], descs[de].interval, descs[de].limitValueLocked, descs[de].intervalValueLocked,
+                        levels[descs[de].level], sources[descs[de].source], devs[dv].spowers_props[dm].subdeviceId);
+                // Subdevice -1 is a root device
+                if (descs[de].level == ZES_POWER_LEVEL_SUSTAINED && devs[dv].spowers_props[dm].subdeviceId == -1) {
+                    power_max_default[dv] = ((ulong) descs[de].limit) / 1000LU;
+                    power_domains[dv] = dm;
+                    memcpy(&power_descs[dv], &descs[de], sizeof(zes_power_limit_ext_desc_t));
+                    #if !SHOW_DEBUGS
+                    break;
+                    #endif
+                }
+            }
         }
     }
     return EAR_SUCCESS;
@@ -75,41 +102,58 @@ static state_t get_available_watts()
 
 static state_t get_available_frequencies()
 {
+    static ulong          dummy_freq = DUMMY_FREQ;
     double                avail_aux[1024];
     zes_freq_range_t      range;
     uint                  dv;
     uint                  d;
     uint                  f;
+    uint                  r; //Real count
     ze_result_t           z;
 
     // Allocating devices counters and pointers
     freqs_avail_count = calloc(devs_count, sizeof(uint));
     freqs_avail_list  = calloc(devs_count, sizeof(ulong *));
     freqs_default     = calloc(devs_count, sizeof(ulong));
-    // Retrieving the domains
+    // Iterating over devices
     for (dv = 0; dv < devs_count; ++dv) {
+        // Dummy
+        freqs_avail_count[dv] = 1;
+        freqs_avail_list[dv]  = &dummy_freq;
+        freqs_default[dv]     = NO_FREQ;
         // Iterating over domains
         for (d = 0; d < devs[dv].sfreqs_count; ++d) {
-            // If is not GPU, is not interesting
+            // If is not GPU, is not interesting. Other types are MEMORY and MEDIA.
+            // Multiple GPU domains are possible... And this is weird.
             if (devs[dv].sfreqs_props[d].type != ZES_FREQ_DOMAIN_GPU) {
                 continue;
             }
-            // Saving the default frequencies
+            // Saving the default frequencies. At least from the last GPU domain read.
+            // This can be a problem? We have no experience.
             freqs_avail_count[dv] = 0;
-            ret_fail(ze.sFrequencyGetAvailableClocks(devs[dv].sfreqs[d], &freqs_avail_count[dv], NULL));
+            if_fail(ze.sFrequencyGetAvailableClocks(devs[dv].sfreqs[d], &freqs_avail_count[dv], NULL),);
             freqs_avail_list[dv] = calloc(freqs_avail_count[dv], sizeof(ulong));
-            ret_fail(ze.sFrequencyGetAvailableClocks(devs[dv].sfreqs[d], &freqs_avail_count[dv], avail_aux));
+            if_fail(ze.sFrequencyGetAvailableClocks(devs[dv].sfreqs[d], &freqs_avail_count[dv], avail_aux),);
             // Converting double to ulong
-            for (f = 0; f < freqs_avail_count[dv]; ++f) {
-                freqs_avail_list[dv][f] = ((ulong) avail_aux[freqs_avail_count[dv]-f-1]) * 1000LU;
+            for (f = r = 0; f < freqs_avail_count[dv]; ++f) {
+                ulong aux_integer1 = ((ulong) avail_aux[freqs_avail_count[dv]-f-1]);
+                ulong aux_integer2 = (aux_integer1 / 100LU) * 100LU;
+                ulong aux_integer3 = aux_integer1 - aux_integer2;
+
+                if (aux_integer3 == 0LU || aux_integer3 == 50LU) {
+                    freqs_avail_list[dv][r] = ((ulong) avail_aux[freqs_avail_count[dv]-f-1]) * 1000LU;
+//                    debug("DV%d PS%02d: %lu", dv, r, freqs_avail_list[dv][r]);
+                    ++r;
+                }
             }
-            ret_fail(ze.sFrequencyGetRange(devs[dv].sfreqs[d], &range));
+            freqs_avail_count[dv] = r;
+            if_fail(ze.sFrequencyGetRange(devs[dv].sfreqs[d], &range),);
             freqs_default[dv] = (ulong) range.max * 1000LU; //MHz
-            debug("-- DEVICE%d FREQS DOMAIN%d ---------------", dv, d);
-            debug("ps0: %lu KHz", freqs_avail_list[dv][0]);
-            debug("ps%d: %lu KHz", freqs_avail_count[dv]-1, freqs_avail_list[dv][freqs_avail_count[dv]-1]);
-            debug("ps_default: %lu KHz", freqs_default[dv]);
-            debug("----------------------------------------");
+
+            debug("DEV%d FREQ DOM%d: %lu to %lu KHz (%u P_STATEs)", dv, d,
+                   freqs_avail_list[dv][0], freqs_avail_list[dv][freqs_avail_count[dv]-1], freqs_avail_count[dv]-1);
+            // We want just one domain
+            break;
         }
     }
     return EAR_SUCCESS;
@@ -117,17 +161,20 @@ static state_t get_available_frequencies()
 
 void mgt_gpu_oneapi_load(mgt_gpu_ops_t *ops)
 {
-    if (state_fail(oneapi_open(&ze))) {
-        debug("oneapi_open failed: %s", state_msg);
+    if (state_fail(oneapi_open_sysman(&ze))) {
+        debug("oneapi_open_sysman failed: %s", state_msg);
         return;
     }
-    if (state_fail(oneapi_get_devices(&devs, &devs_count))) {
+    if (state_fail(oneapi_get_handlers(&devs, &devs_count))) {
         debug("oneapi_get_devices failed: %s", state_msg);
         return;
     }
+    // Check for FREQ and POWER DOMAINS.
+
     // Get static values
     get_available_frequencies();
     get_available_watts();
+    debug("----------------------------------------");
     // Set always
     apis_set(ops->init                  , mgt_gpu_oneapi_init);
     apis_set(ops->dispose               , mgt_gpu_oneapi_dispose);
@@ -174,7 +221,7 @@ state_t mgt_gpu_oneapi_get_devices(ctx_t *c, gpu_devs_t **devs_in, uint *devs_co
     *devs_in = calloc(devs_count, sizeof(gpu_devs_t));
     //
     for (dv = 0; dv < devs_count; ++dv) {
-        (*devs_in)[dv].serial = devs[dv].serial;
+        (*devs_in)[dv].serial = devs[dv].uuid;
         (*devs_in)[dv].index  = dv;
     }
     if (devs_count_in != NULL) {
@@ -191,13 +238,23 @@ state_t mgt_gpu_oneapi_count_devices(ctx_t *c, uint *devs_count_in)
 
 state_t mgt_gpu_oneapi_freq_limit_get_current(ctx_t *c, ulong *khz)
 {
-    //zes_freq_range_t range;
-    //ze_result_t z;
-    int dv;
+    zes_freq_range_t range;
+    int dv, d;
+
     for (dv = 0; dv < devs_count; ++dv) {
-        //ret_fail(ze.sFrequencyGetRange(devs_freq[dv], &range));
-        //khz[dv] = (ulong) range.max * 1000LU;
-        khz[dv] = freqs_default[dv];
+        if (khz != NULL) {
+            khz[dv] = DUMMY_FREQ;
+        }
+        for (d = 0; d < devs[dv].sfreqs_count; ++d) {
+            if (ze.sFrequencyGetRange(devs[dv].sfreqs[d], &range) != ZE_RESULT_SUCCESS) {
+                continue;
+            }
+            debug("zesFrequencyGetRange D%d: %lf", dv, range.max);
+            if (khz != NULL) {
+                khz[dv] = ((ulong) range.max) * 1000LU;
+            }
+            break;
+        }
     }
 	return EAR_SUCCESS;
 }
@@ -206,7 +263,11 @@ state_t mgt_gpu_oneapi_freq_limit_get_default(ctx_t *c, ulong *khz)
 {
     int dv;
     for (dv = 0; dv < devs_count; ++dv) {
-        khz[dv] = freqs_default[dv];
+        if (freqs_default[dv] != NO_FREQ) {
+            khz[dv] = freqs_default[dv];
+        } else {
+            khz[dv] = DUMMY_FREQ;
+        }
     }
 	return EAR_SUCCESS;
 }
@@ -222,13 +283,33 @@ state_t mgt_gpu_oneapi_freq_limit_get_max(ctx_t *c, ulong *khz)
 
 state_t mgt_gpu_oneapi_freq_limit_reset(ctx_t *c)
 {
-    // Nothing by now, the function will be zesPowerGetLimits, but can't be tested yet.
+    zes_freq_range_t range;
+    int dv, d;
+    // In OneAPI documentation: When setting limits to return to factory
+    // settings, specify -1 for both the min and max limit.
+    range.min = -1.0;
+    range.max = -1.0;
+    for (dv = 0; dv < devs_count; ++dv) {
+        for (d = 0; d < devs[dv].sfreqs_count; ++d) {
+            ze.sFrequencySetRange(devs[dv].sfreqs[d], &range);
+        }
+    }
     return EAR_SUCCESS;
 }
 
 state_t mgt_gpu_oneapi_freq_limit_set(ctx_t *c, ulong *khz)
 {
-    // Nothing by now, the function will be zesPowerGetLimits, but can't be tested yet.
+    zes_freq_range_t range;
+    ze_result_t z;
+    int dv, d;
+
+    range.min = -1.0;
+    for (dv = 0; dv < devs_count; ++dv) {
+        for (d = 0; d < devs[dv].sfreqs_count; ++d) {
+            range.max = ((double) khz[dv]) / 1000.0;
+            if_fail(ze.sFrequencySetRange(devs[dv].sfreqs[d], &range), continue);
+        }
+    }
     return EAR_SUCCESS;
 }
 
@@ -245,19 +326,22 @@ state_t mgt_gpu_oneapi_freq_list(ctx_t *c, const ulong ***list_khz, const uint *
 
 state_t mgt_gpu_oneapi_power_cap_get_current(ctx_t *c, ulong *watts)
 {
+#if 0
     zes_power_sustained_limit_t ps;
     zes_power_burst_limit_t     pb;
     zes_power_peak_limit_t      pp;
     ze_result_t                 z;
     int                         dv;
+    int                         d;
 
     for (dv = 0; dv < devs_count; ++dv) {
         watts[dv] = 0LU;
         if (devs[dv].spowers_count) {
-            ret_fail(ze.sPowerGetLimits(devs[dv].spowers[0], &ps, &pb, &pp));
+            if_fail(ze.sPowerGetLimits(devs[dv].spowers[d], &ps, &pb, &pp),);
             watts[dv] = ((ulong) ps.power) / 1000LU; // mW
         }
     }
+#endif
     return EAR_SUCCESS;
 }
 
@@ -285,12 +369,24 @@ state_t mgt_gpu_oneapi_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *wat
 
 state_t mgt_gpu_oneapi_power_cap_reset(ctx_t *c)
 {
-    //
+    // zesPowerSetLimits
     return EAR_SUCCESS;
 }
 
 state_t mgt_gpu_oneapi_power_cap_set(ctx_t *c, ulong *watts)
 {
-    //
+    zes_power_limit_ext_desc_t desc;
+    uint                       one = 1;
+    uint                       dv;
+
+    for (dv = 0; dv < devs_count; ++dv) {
+        // This device do not accepts power limits
+        if (!power_descs[dv].enabled && power_descs[dv].enabledStateLocked) {
+            continue;
+        }
+        memcpy(&desc, &power_descs[dv], sizeof(zes_power_limit_ext_desc_t));
+        desc.limit = ((double) watts[dv]) * 1000.0;
+        ze.sPowerSetLimitsExt(devs[dv].spowers[power_domains[dv]], &one, &power_descs[dv]);
+    }
     return EAR_SUCCESS;
 }

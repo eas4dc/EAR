@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <slurm_plugin/slurm_plugin.h>
 #include <slurm_plugin/slurm_plugin_environment.h>
@@ -75,22 +68,23 @@ static int getenv_local(char *var, char *buf, int len)
 
 static int getenv_remote(spank_t sp, char *var, char *buf, int len)
 {
-	spank_err_t serrno;
-
-	if (var == NULL || buf == NULL) {
-		return 0;
-	}
-	
-	serrno = spank_getenv (sp, var, buf, len);
-
-	if (serrno != ESPANK_SUCCESS) {
-		return 0;
-	}
-	if (strlen(buf) <= 0) {
-		return 0;
-	}
-
-	return 1;
+    char new_var[128];
+    if (var == NULL || buf == NULL) {
+        return 0;
+    }
+    if (spank_getenv (sp, var, buf, len) == ESPANK_SUCCESS) {
+        if (strlen(buf) > 0) {
+            return 1;
+        }
+    }
+    new_var[0] = '\0';
+    strcat(new_var, "SLURM_");
+    if (spank_getenv (sp, strcat(new_var, var), buf, len) == ESPANK_SUCCESS) {
+        if (strlen(buf) > 0) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static int isenv_local(char *var, char *val)
@@ -138,8 +132,7 @@ static int exenv_remote(spank_t sp, char *var)
 
 	serrno = spank_getenv (sp, var, buffer, SZ_PATH);
 
-	return (serrno == ESPANK_SUCCESS || serrno == ESPANK_NOSPACE) &&
-		   (buffer != NULL) && (strlen(buffer)) > 0;
+	return (serrno == ESPANK_SUCCESS || serrno == ESPANK_NOSPACE) && (strlen(buffer) > 0);
 }
 
 static int repenv_local(char *var_old, char *var_new)

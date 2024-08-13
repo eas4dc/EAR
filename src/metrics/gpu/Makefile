@@ -4,7 +4,8 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC -Wall
 
 gpu_BINS = \
     gpu.o \
-    gpuproc.o
+    gpuproc.o \
+    gpuprof.o
 
 ######## RULES
 
@@ -23,6 +24,7 @@ all: $(gpu_BINS) all.components
 
 post:
 	@ $(MAKE) -C 'test' $@ || exit
+	# $(CC) $(CFLAGS) -DTEST_EXAMPLE=1 -o gpuprof_test gpuprof.c ../libmetrics.a ../../common/libcommon.a -lpthread -lm -ldl
 
 install: install.components
 

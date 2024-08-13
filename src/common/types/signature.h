@@ -1,25 +1,19 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * EAR is an open source software, and it is licensed under both the BSD-3 license
- * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
- * and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef _EAR_TYPES_SIGNATURE
 #define _EAR_TYPES_SIGNATURE
 
 #include <common/config.h>
 #include <common/types/generic.h>
+#include <common/utils/serial_buffer.h>
 #include <metrics/io/io.h>
 #include <metrics/gpu/gpu.h>
 #include <metrics/flops/flops.h>
@@ -39,6 +33,9 @@ typedef struct gpu_app {
   ulong  GPU_mem_freq;
   ulong  GPU_util;
   ulong  GPU_mem_util;
+#if WF_SUPPORT
+	float  GPU_GFlops;
+#endif
 } gpu_app_t;
 
 
@@ -79,7 +76,9 @@ typedef struct mini_sig
   double valid_time;
 } ssig_t;
 
-
+// WARNING! This type is serialized through functions signature_serialize and
+// signature_deserialize. If you want to add new types, make sure to update
+// these functions too.
 typedef struct signature
 {
   double DC_power;
@@ -194,5 +193,12 @@ int sig_gpus_used(signature_t *s);
 /** Copies node metrics (i.e., GBS, TPI, DC Node Power) from \p src_ssig
  * to \p dst_ssig. The rest of metrics of the destination are initialised to 0. */
 void ssig_set_node_metrics(ssig_t *dst_ssig, ssig_t *src_ssig);
+
+void signature_serialize(serial_buffer_t *b, signature_t *sig);
+
+void signature_deserialize(serial_buffer_t *b, signature_t *sig);
+
+
+double compute_dc_nogpu_power(signature_t *lsig);
 
 #endif

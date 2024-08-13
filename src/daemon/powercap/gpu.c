@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <errno.h>
 #include <stdio.h>
@@ -214,9 +207,7 @@ state_t enable(suscription_t *sus)
     if (gpu_init(no_ctx)!=EAR_SUCCESS){
         error("Initializing GPU in GPU powercap plugin");
     }
-    if (gpu_data_alloc(&gpu_pc_power_data)!=EAR_SUCCESS){
-        error("Initializing GPU data in powercap");
-    }
+    gpu_data_alloc(&gpu_pc_power_data);
     gpu_data_alloc(&values_gpu_init);
     gpu_data_alloc(&values_gpu_end);
     gpu_data_alloc(&values_gpu_diff);
@@ -297,7 +288,7 @@ static state_t int_set_powercap_value(ulong limit,ulong *gpu_util)
     state_t ret;
     int i;
     float alloc,ualloc;
-    ulong gpu_idle=0,gpu_run=0,total_util=0;
+    ulong total_util=0;
     current_gpu_pc=limit;
 
     if (current_gpu_pc == POWER_CAP_UNLIMITED) {
@@ -311,14 +302,10 @@ static state_t int_set_powercap_value(ulong limit,ulong *gpu_util)
         pdist[i] = 0.0;
         total_util += gpu_util[i];
         if (gpu_util[i] == 0){ 
-            gpu_idle++;
             gpu_pc_curr_power[i] = gpu_pc_min_power[i];
             limit = limit - MIN_GPU_IDLE_POWER;
-        }else{
-            gpu_run++;
         }
     }
-    debug("GPU: Phase 2: Allocating power to %lu running GPUS",gpu_run);
     for (i=0;i<gpu_pc_num_gpus;i++){
         if (gpu_util[i]>0){
             pdist[i] = (float)gpu_util[i]/(float)total_util;

@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #define _GNU_SOURCE 
 
@@ -48,6 +41,14 @@ state_t DB_parse_token(db_conf_t *conf,char *token)
       strclean(token, '\n');
       remove_chars(token, ' ');
       strcpy(conf->ip, token);
+			found = EAR_SUCCESS;
+    }
+    else if (!strcmp(token, "DBSECIP"))
+    {
+      token = strtok(NULL, "=");
+      strclean(token, '\n');
+      remove_chars(token, ' ');
+      strcpy(conf->sec_ip, token);
 			found = EAR_SUCCESS;
     }
     else if (!strcmp(token, "MARIADBUSER") || !strcmp(token, "DBUSER"))
@@ -127,8 +128,8 @@ state_t DB_parse_token(db_conf_t *conf,char *token)
 void print_database_conf(db_conf_t *conf)
 {
   verbosen(VCCONF,"\n--> DB configuration\n");
-  verbosen(VCCONF, "---> IP: %s\tUser: %s\tUser commands %s\tPort:%u\tDB:%s\n",
-      conf->ip, conf->user, conf->user_commands,conf->port, conf->database);
+  verbosen(VCCONF, "---> IP: %s sec_ip %s \tUser: %s\tUser commands %s\tPort:%u\tDB:%s\n",
+      conf->ip, conf->sec_ip, conf->user, conf->user_commands,conf->port, conf->database);
   verbosen(VCCONF,"-->max_connections %u report_node_details %u report_sig_details %u report_loops %u\n",conf->max_connections,conf->report_node_detail,conf->report_sig_detail,conf->report_loops);
 
 
@@ -139,6 +140,7 @@ void set_default_db_conf(db_conf_t *db_conf)
   strcpy(db_conf->database, "EAR");
   strcpy(db_conf->user_commands, "ear_commands");
   strcpy(db_conf->ip, "127.0.0.1");
+  strcpy(db_conf->sec_ip, "");
   db_conf->port = 3306;
   db_conf->max_connections=MAX_DB_CONNECTIONS;
   db_conf->report_node_detail=1;

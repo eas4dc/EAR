@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #define _GNU_SOURCE
 
@@ -470,19 +463,13 @@ void dyncon_get_app_status(int fd, request_t *command)
     powermon_get_app_status(&status[num_status - local_status], local_status, command->req == EAR_RC_APP_MASTER_STATUS);
 
     //if no job is present on the current node or we requested the master node and this one isn't, we free its data
-		if (status[num_status - local_status].job_id == 0 )
+    if (status[num_status - local_status].job_id == 0 )
     {
         verbose(VRAPI,"Only default context created, not app_status returned, removing %d items", local_status);
         num_status -= local_status;
         status = realloc(status, sizeof(app_status_t)*num_status);
     }
-		#if 0
-    if (status[num_status - 1].job_id < 0 || (command->req == EAR_RC_APP_MASTER_STATUS && status[num_status - 1].master_rank != 0))
-    {
-        num_status--;
-        status = realloc(status, sizeof(app_status_t)*num_status);
-    }
-		#endif
+
 
     send_data(fd, sizeof(app_status_t) * num_status, (char *)status, EAR_TYPE_APP_STATUS);
     verbose(VRAPI,"Returning from dyncon_get_app_status %d app_status sent",num_status);
@@ -581,24 +568,24 @@ void dyncon_power_management(int fd, request_t *command)
 
 void update_current_settings(policy_conf_t *cpolicy_settings)
 {
-  int i;
-  settings_conf_t *dyn_conf;
-  resched_t *resched_conf;
+    int i;
+    settings_conf_t *dyn_conf;
+    resched_t *resched_conf;
 
-  for (i=0;i<=max_context_created;i++){
-    if (current_ear_app[i] != NULL){
-      dyn_conf = current_ear_app[i]->settings;
-      resched_conf = current_ear_app[i]->resched;
-      if (dyn_conf->policy == cpolicy_settings->policy){
-        verbose(VRAPI,"current policy options: def freq %lu setting[0]=%.2lf def_pstate %u",dyn_conf->def_freq,dyn_conf->settings[0],dyn_conf->def_p_state);
-        dyn_conf->def_freq = frequency_pstate_to_freq(cpolicy_settings->p_state);
-        memcpy(dyn_conf->settings,cpolicy_settings->settings,sizeof(double)*MAX_POLICY_SETTINGS);
-        dyn_conf->def_p_state = cpolicy_settings->p_state;
-        resched_conf->force_rescheduling = 1;
-        verbose(VRAPI,"new policy options: def freq %lu setting[0]=%.2lf def_pstate %u",dyn_conf->def_freq,dyn_conf->settings[0],dyn_conf->def_p_state);
-      }
+    for (i=0;i<=max_context_created;i++){
+        if (current_ear_app[i] != NULL){
+            dyn_conf = current_ear_app[i]->settings;
+            resched_conf = current_ear_app[i]->resched;
+            if (dyn_conf->policy == cpolicy_settings->policy){
+                verbose(VRAPI,"current policy options: def freq %lu setting[0]=%.2lf def_pstate %u",dyn_conf->def_freq,dyn_conf->settings[0],dyn_conf->def_p_state);
+                dyn_conf->def_freq = frequency_pstate_to_freq(cpolicy_settings->p_state);
+                memcpy(dyn_conf->settings,cpolicy_settings->settings,sizeof(double)*MAX_POLICY_SETTINGS);
+                dyn_conf->def_p_state = cpolicy_settings->p_state;
+                resched_conf->force_rescheduling = 1;
+                verbose(VRAPI,"new policy options: def freq %lu setting[0]=%.2lf def_pstate %u",dyn_conf->def_freq,dyn_conf->settings[0],dyn_conf->def_p_state);
+            }
+        }
     }
-  }
 
 }
 
@@ -656,14 +643,18 @@ void dyncon_get_powerstatus(int fd, request_t *command)
     int return_status;
     char *status_data;
     return_status = propagate_powercap_status(command, my_cluster_conf.eard.port, (powercap_status_t **)&status_data);
-    status = mem_alloc_powercap_status(status_data);
-    free(status_data);
 
     if (return_status < 1) 
     {
         //error
         error("dyncon_get_powerstatus and return status < 1 ");
+        return_status = 0;
+        _write(fd, &return_status, sizeof(return_status));
+        return;
     }
+
+    status = mem_alloc_powercap_status(status_data);
+    free(status_data);
     debug("return_status %d status=%p", return_status, status);
 
     powercap_get_status(&status[return_status - 1], &p_status, command->my_req.release_power);
@@ -689,6 +680,9 @@ void dyncon_get_power(int fd, request_t *command)
     {
         //error
         error("dyncon_get_power and return status < 1 ");
+        return_status = 0;
+        _write(fd, &return_status, sizeof(return_status));
+        return;
     }
     debug("return_status %d power=%lu", return_status, *power);
 
@@ -710,39 +704,39 @@ void dyncon_get_power(int fd, request_t *command)
 
 void dyncon_set_risk(int fd, request_t *command)
 {
-  int i;
-  unsigned long new_max_freq,c_max,mfreq,node_max = 0;
-  settings_conf_t *dyn_conf;
-  resched_t *resched_conf;
+    int i;
+    unsigned long new_max_freq,c_max,mfreq,node_max = 0;
+    settings_conf_t *dyn_conf;
+    resched_t *resched_conf;
 
-	/* How that applies when having TAGS en policies ?: PENDING */
+    /* How that applies when having TAGS en policies ?: PENDING */
 
-  c_max = frequency_pstate_to_freq(my_node_conf->max_pstate);
-  mfreq = c_max;
-  for (i=0;i<my_node_conf->num_policies;i++){
-    if (polsyms_fun[i].set_risk != NULL){
-      verbose(VRAPI,"Setting risk level for %s to %lu",my_node_conf->policies[i].name,(unsigned long)command->my_req.risk.level);
-      polsyms_fun[i].set_risk(&my_original_node_conf.policies[i],&my_node_conf->policies[i],command->my_req.risk.level,command->my_req.risk.target,mfreq,&new_max_freq,f_list,num_f);
-    }
-    for (i=0;i<=max_context_created;i++){
-      if (current_ear_app[i] != NULL){
-        dyn_conf = current_ear_app[i]->settings;
-        resched_conf = current_ear_app[i]->resched;
-        if (dyn_conf->policy == i){
-          verbose(VRAPI,"Current policy for job %lu/%lu is %d", current_ear_app[i]->app.job.id,current_ear_app[i]->app.job.step_id,i);
-          update_current_settings(&my_node_conf->policies[i]);
-          if (new_max_freq != dyn_conf->max_freq){
-            dyn_conf->max_freq = new_max_freq;
-            resched_conf->force_rescheduling = 1;
-            if (node_max < new_max_freq) node_max = node_max;
-          }
+    c_max = frequency_pstate_to_freq(my_node_conf->max_pstate);
+    mfreq = c_max;
+    for (i=0;i<my_node_conf->num_policies;i++){
+        if (polsyms_fun[i].set_risk != NULL){
+            verbose(VRAPI,"Setting risk level for %s to %lu",my_node_conf->policies[i].name,(unsigned long)command->my_req.risk.level);
+            polsyms_fun[i].set_risk(&my_original_node_conf.policies[i],&my_node_conf->policies[i],command->my_req.risk.level,command->my_req.risk.target,mfreq,&new_max_freq,f_list,num_f);
         }
-      }
+        for (i=0;i<=max_context_created;i++){
+            if (current_ear_app[i] != NULL){
+                dyn_conf = current_ear_app[i]->settings;
+                resched_conf = current_ear_app[i]->resched;
+                if (dyn_conf->policy == i){
+                    verbose(VRAPI,"Current policy for job %lu/%lu is %d", current_ear_app[i]->app.job.id,current_ear_app[i]->app.job.step_id,i);
+                    update_current_settings(&my_node_conf->policies[i]);
+                    if (new_max_freq != dyn_conf->max_freq){
+                        dyn_conf->max_freq = new_max_freq;
+                        resched_conf->force_rescheduling = 1;
+                        if (node_max < new_max_freq) node_max = new_max_freq;
+                    }
+                }
+            }
+        }
     }
-  }
-  my_node_conf->max_pstate = frequency_freq_to_pstate(node_max);
-  powermon_new_max_freq(node_max);
-  verbose(VRAPI,"New max frequency is %lu pstate=%lu ",node_max,my_node_conf->max_pstate);
+    my_node_conf->max_pstate = frequency_freq_to_pstate(node_max);
+    powermon_new_max_freq(node_max);
+    verbose(VRAPI,"New max frequency is %lu pstate=%lu ",node_max,my_node_conf->max_pstate);
 
 
 }
@@ -761,10 +755,10 @@ void adap_new_job_req_to_app(application_t *req_app,new_job_req_t *new_job)
 
 static int is_new_command(request_t *comm)
 {
-		if (comm->req == EAR_RC_NEW_JOB || comm->req == EAR_RC_END_JOB || comm->req == EAR_RC_NEW_TASK || comm->req == EAR_RC_STATUS) return 1;
+    if (comm->req == EAR_RC_NEW_JOB || comm->req == EAR_RC_END_JOB || comm->req == EAR_RC_NEW_TASK || comm->req == EAR_RC_STATUS || comm->req == EAR_RC_NODE_PURGE) return 1;
     // if ((comm->req == last_command) && (comm->time_code == last_command_time)) return 0;
     for (uint i=0; i < MAX_HISTORIC_COMM ; i++){
-    //    if ((list_last_commands[i].req == comm->req ) && (list_last_commands[i].time_code == comm->time_code)) return 0;
+        //    if ((list_last_commands[i].req == comm->req ) && (list_last_commands[i].time_code == comm->time_code)) return 0;
         if (!memcmp(&list_last_commands[i], comm, sizeof(request_t))) return 0;
     }
     return 1;
@@ -795,7 +789,7 @@ state_t process_remote_requests(int clientfd) {
     request_t command;
     uint req;
     long ack = EAR_SUCCESS;
-	int num_contexts = 0;
+    int num_contexts = 0;
     verbose(VRAPI, "connection received");
     memset(&command,0,sizeof(request_t));
     command.req = NO_COMMAND;
@@ -804,13 +798,19 @@ state_t process_remote_requests(int clientfd) {
     debug("Process remote request %d", req);
 
     if (req == EAR_SOCK_DISCONNECTED) return req;
+    else if (req == EAR_BAD_ARGUMENT) {
+        verbose(VRAPI, "Recieved command with wrong security key");
+        ack = EAR_IGNORE;
+        send_answer(clientfd, &ack);
+        return EAR_SUCCESS;
+    }
     /* New job and end job are different */
     /* Is it necesary */
     if (!is_new_command(&command)) {
-            verbose(VRAPI, "Recieved repeating command: %u", req);
-            ack = EAR_IGNORE;
-            send_answer(clientfd, &ack);
-            return EAR_SUCCESS;
+        verbose(VRAPI, "Recieved repeating command: %u", req);
+        ack = EAR_IGNORE;
+        send_answer(clientfd, &ack);
+        return EAR_SUCCESS;
     }
 
     //new_job is a special case because ack means that shared files are created
@@ -827,28 +827,28 @@ state_t process_remote_requests(int clientfd) {
             verbose(VRAPI, "*******************************************");
             verbose(VRAPI, "new_job command received %lu", command.my_req.new_job.job.id);
             application_t req_app;
-			// check pending contexts by looking at their pids (if they no longer exists we finish the jobs)
-			num_contexts = mark_contexts_to_finish_by_pid();
-			//do the end_jobs for the marked jobs
-			if (num_contexts) finish_pending_contexts(&my_eh_rapi);
+            // check pending contexts by looking at their pids (if they no longer exists we finish the jobs)
+            num_contexts = mark_contexts_to_finish_by_pid();
+            //do the end_jobs for the marked jobs
+            if (num_contexts) finish_pending_contexts(&my_eh_rapi);
 
-			//begin the new_job
+            //begin the new_job
             adap_new_job_req_to_app(&req_app,&command.my_req.new_job);
             powermon_new_job(NULL, &my_eh_rapi, &req_app, 0, req == EAR_RC_NEW_JOB_LIST);
             send_answer(clientfd, &ack);
             break;
         case EAR_RC_END_JOB:
 #if SLURM_FAKE_ERROR
-			break;
+            break;
 #endif
         case EAR_RC_END_JOB_LIST:
             powermon_end_job(&my_eh_rapi, command.my_req.end_job.jid, command.my_req.end_job.sid, req == EAR_RC_END_JOB_LIST);
-			// mark any pending context for that job if it's an SBATCH
-		    num_contexts = mark_contexts_to_finish_by_jobid(command.my_req.end_job.jid, command.my_req.end_job.sid);
-			// do the end_jobs for the marked jobs
-			if (num_contexts) finish_pending_contexts(&my_eh_rapi);
+            // mark any pending context for that job if it's an SBATCH
+            num_contexts = mark_contexts_to_finish_by_jobid(command.my_req.end_job.jid, command.my_req.end_job.sid);
+            // do the end_jobs for the marked jobs
+            if (num_contexts) finish_pending_contexts(&my_eh_rapi);
 #if SHOW_DEBUGS
-			print_contexts_status();
+            print_contexts_status();
 #endif
             verbose(VRAPI, "end_job command received %lu", command.my_req.end_job.jid);
             verbose(VRAPI, "*******************************************");
@@ -935,6 +935,9 @@ state_t process_remote_requests(int clientfd) {
         case EAR_RC_GET_POWER:
             dyncon_get_power(clientfd, &command);
             return EAR_SUCCESS;
+        case EAR_RC_NODE_PURGE:
+						powermon_purge_old_jobs();
+						return EAR_SUCCESS;
         default:
             error("Invalid remote command %d\n",req);
             req = NO_COMMAND;

@@ -1,3 +1,18 @@
+### EAR 5.0
+- Workflows support. Automatic detection of applications executed with same jobid/stepid.
+- Fixed Intel PSTATE driver to avoid loading if there is a driver already loaded.
+- Robustness improved.
+- OneAPI support for Intel PVC GPUs.
+- EAR Data Center Monitoring component added.
+- Improved metrics and management APIs.
+- Detect the interactive step on slurm systems >= 20.11 if LaunchParameters contains use\_interactive\_step in slurm.conf.
+- Support for getting NVIDIA DCGM metrics.
+- enode\_info tool added.
+- Process resource usage is now reported by the EAR Library logs.
+- Support for non-MPI multi-task applications, when tasks are spawned at invokation time, not from the application itself.
+- Fixes in EAR Loader to support MPI application when MPI symbols can not be detected.
+- GPU GFLOPS are now estimated and reported when using NVIDIA GPUs.
+
 ### EAR 4.3.1
 - Documentation typos fixed.
 - EAR configuration files templates updated.

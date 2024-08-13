@@ -1,21 +1,15 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+
+// #define SHOW_DEBUGS 1
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -49,14 +43,22 @@ static uint init;
 static void append(report_ops_t *aux)
 {
     int f, s;
+
+    // Sets the function 'F' from 'aux' OPs, to the first free position of 'ops'
+    // array.
     ullong *aux1 = (ullong *) aux;
+    // From function 0 (init) to function 6 (misc)
     for (s = 0; s < S_NUM; ++s) {
         if (aux1[s] == 0LLU) {
             continue;
         }
+        // From plugin 0 to plugin 8 (P_NUM)
         for (f = 0; f < P_NUM; ++f) {
+            // Getting plugin F
             ullong *aux2 = (ullong *) &ops[f];
+            // Getting function S
             ullong *aux3 = &aux2[s];
+            // If function S from plugin F is free, set the OP function here
             if (*aux3 == 0LLU) {
                 *aux3 = aux1[s];
                 break;
@@ -94,7 +96,6 @@ static void static_load(const char *install_path, const char *_libs)
         }
         // Loading /install/lib/plugins/report/lib.so
         sprintf(path, "%s/reports/%s", install_path, lib);
-        debug("Loading '%s' plugin", path);
         if (state_fail(s = plug_open(path, (void **) &ops_aux, (cchar **) names, S_NUM, S_FLAGS))) {
             // Loading ./lib.so
             sprintf(path, "./%s", lib);
@@ -117,16 +118,22 @@ next:
 
 state_t report_load(const char *install_path, const char *libs)
 {
+    state_t s = EAR_SUCCESS;
     while (pthread_mutex_trylock(&lock));
     if (init != 0) {
         goto leave;
     }
     static_load(install_path, libs);
     static_load(install_path, ear_getenv(FLAG_REPORT_ADD));
-    init = 1;
+    if (plugins_count > 0) {
+        init = 1;
+    } else {
+        state_msg = "No plugins loaded";
+        s = EAR_ERROR;
+    }
 leave:
     pthread_mutex_unlock(&lock);
-    return EAR_SUCCESS;
+    return_msg(s, state_msg);
 }
 
 state_t report_create_id(report_id_t *id, int local_rank, int global_rank, int master_rank){
@@ -163,30 +170,33 @@ state_t report_create_id(report_id_t *id, int local_rank, int global_rank, int m
     state_t op (type1 var1, type2 var2, type3 var3, type4 var4)
 
 
-#define define(NARGS, op, ...) \
+#define define(NARGS, st, op, ...) \
     func_ ## NARGS (op, __VA_ARGS__) { \
+        state_t sret = st; \
         int p; \
         for (p = 0; p < plugins_count; ++p) { \
             if (ops[p]. op != NULL) { \
-                call_ ## NARGS(op, __VA_ARGS__); \
+                if (state_ok(call_ ## NARGS(op, __VA_ARGS__))) { \
+                    sret = EAR_SUCCESS; \
+                } \
             } \
         } \
-        return EAR_SUCCESS; \
+        return sret; \
     }
 
-define(2, report_init, report_id_t *, id, cluster_conf_t *, cconf);
-define(1, report_dispose, report_id_t *, id);
-define(3, report_applications, report_id_t *, id, application_t *, apps, uint, count);
-define(3, report_loops, report_id_t *, id, loop_t *, loops, uint, count);
-define(3, report_events, report_id_t *, id, ear_event_t *, eves, uint, count);
-define(3, report_periodic_metrics,report_id_t *, id, periodic_metric_t *, mets, uint, count);
-define(4, report_misc, report_id_t *, id, uint, type, const char *, data, uint, count);
+define(2, EAR_ERROR,   report_init, report_id_t *, id, cluster_conf_t *, cconf);
+define(1, EAR_SUCCESS, report_dispose, report_id_t *, id);
+define(3, EAR_SUCCESS, report_applications, report_id_t *, id, application_t *, apps, uint, count);
+define(3, EAR_SUCCESS, report_loops, report_id_t *, id, loop_t *, loops, uint, count);
+define(3, EAR_SUCCESS, report_events, report_id_t *, id, ear_event_t *, eves, uint, count);
+define(3, EAR_SUCCESS, report_periodic_metrics,report_id_t *, id, periodic_metric_t *, mets, uint, count);
+define(4, EAR_SUCCESS, report_misc, report_id_t *, id, uint, type, const char *, data, uint, count);
 
 #if TEST
 int main(int argc, char *argv[])
 {
-		cluster_conf_t cconf;
-		report_id_t id;
+    cluster_conf_t cconf;
+    report_id_t id;
     report_load(NULL, "plug_dummy.so:plug_dummy2.so");
     report_init(&id,&cconf);
     report_applications(&id,NULL, 0);

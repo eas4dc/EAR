@@ -1,21 +1,13 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-// #define SHOW_DEBUGS 1
 #define _GNU_SOURCE
 
 #include <stdio.h>
@@ -23,16 +15,18 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <sys/types.h>
+// #define SHOW_DEBUGS 1
+#include <common/output/debug.h>
+#include <common/utils/string.h>
+#include <common/string_enhanced.h>
+#include <common/config/config_env.h>
 #include <library/loader/loader.h>
-#include <library/loader/module_common.h>
 #include <library/loader/module_mpi.h>
 #include <library/loader/module_cuda.h>
+#include <library/loader/module_common.h>
 #include <library/loader/module_openmp.h>
+#include <library/loader/module_oneapi.h>
 #include <library/loader/module_default.h>
-#include <common/config/config_env.h>
-#include <common/output/debug.h>
-#include <common/string_enhanced.h>
 
 static int _loaded;
 
@@ -61,97 +55,105 @@ static int init()
         verbose(4, "LOADER: loader pid: %d", pid1);
     }
 
-    return 1;	
+    return 1;
     // return pid1 == pid2;
 }
 
 int must_load()
 {
     if ((strstr(program_invocation_name, "bash") == NULL) &&
-            (strstr(program_invocation_name, "hydra") == NULL)){
-        verbose(2,"LOADER: Program %s loaded with EAR",program_invocation_name);
+        (strstr(program_invocation_name, "hydra") == NULL)) {
+        verbose(2, "LOADER: Program %s loaded with EAR", program_invocation_name);
         return 1;
     }
-    verbose(2,"LOADER: Program %s loaded without EAR",program_invocation_name);
+    verbose(2, "LOADER: Program %s loaded without EAR", program_invocation_name);
     return 0;
 }
 
 int load_no_official()
 {
-    char *app_to_load = ear_getenv(FLAG_LOADER_APPLICATION);
-    if (app_to_load == NULL) {
+    char  *envar = ear_getenv(FLAG_LOADER_APPLICATION);
+    char **list;
+    uint   list_count;
+    int    l;
+
+    if (envar == NULL) {
         // TODO: This check is for the transition to the new environment variables.
         // It will be removed when SCHED_LOADER_LOAD_NO_MPI_LIB will be removed, in the next release.
-        app_to_load = ear_getenv(SCHED_LOADER_LOAD_NO_MPI_LIB);
-        if (app_to_load != NULL) {
+        envar = ear_getenv(SCHED_LOADER_LOAD_NO_MPI_LIB);
+        if (envar != NULL) {
             verbose(1, "LOADER: %sWARNING%s %s will be removed on the next EAR release. "
-                    "Please, change it by %s in your submission scripts.",
+                       "Please, change it by %s in your submission scripts.",
                     COL_RED, COL_CLR, SCHED_LOADER_LOAD_NO_MPI_LIB, FLAG_LOADER_APPLICATION);
         } else {
             return 0;
         }
     }
-    if (app_to_load == NULL) return 0;
-    if (strinlist(app_to_load, ",", program_invocation_name)){
-      verbose(1,"LOADER: %s found in list ", program_invocation_name);
-      return 1;
+    if (envar == NULL) {
+        return 0;
     }
-
+    verbose(2, "LOADER: Using %s = %s as special cases", FLAG_LOADER_APPLICATION, envar);
+    if (strtoa((const char *) envar, ',', &list, &list_count) == NULL) {
+        return 0;
+    }
+    for (l = 0; l < list_count; ++l) {
+        if (strstr(program_invocation_name, list[l]) != NULL) {
+            strtoa_free(list);
+            return 1;
+        }
+    }
+    strtoa_free(list);
     return 0;
 }
 
 int load_no_parallel()
 {
-		if (strstr(program_invocation_name,"python") != NULL) return 1;
-		return 0;
+    if (strstr(program_invocation_name, "python") != NULL) return 1;
+    if (strstr(program_invocation_name, "python3") != NULL) return 1;
+    if (strstr(program_invocation_name, "julia") != NULL) return 1;
+    return 0;
 }
 
-void  __attribute__ ((constructor)) loader()
+void __attribute__ ((constructor)) loader()
 {
     char *path_lib_so;
     char *libhack;
 
-
     // Initialization
     if (!init()) {
-        verbose(4, "LOADER: escaping the application '%s'", program_invocation_name);
+        verbose(4, "LOADER[%d]: escaping the application '%s'", getpid(), program_invocation_name);
         return;
     }
-    verbose(2, "LOADER: loading for application '%s'", program_invocation_name);
+    verbose(2, "LOADER[%d]: loading for application '%s'", getpid(), program_invocation_name);
 
-    if (must_load()){
-        module_get_path_libear(&path_lib_so,&libhack);
-        if ((path_lib_so == NULL) && (libhack == NULL)){
-            verbose(1,"LOADER EAR path and EAR debug HACKS are NULL");
-            return ;
+    if (must_load()) {
+        module_get_path_libear(&path_lib_so, &libhack);
+        if ((path_lib_so == NULL) && (libhack == NULL)) {
+            verbose(1, "LOADER: EAR path and EAR debug HACKS are NULL");
+            return;
         }
 
         // Module MPI
-        verbose(2,"Tring MPI module");
+        verbose(2, "LOADER: Trying MPI module");
         _loaded = module_mpi(path_lib_so, libhack);
-
         if (_loaded) return;
-        
-				verbose(2,"Tring openmp/mkl module");
-
-        _loaded = module_constructor_openmp(path_lib_so,libhack);
+        verbose(2, "LOADER: Trying openmp/mkl module");
+        _loaded = module_constructor_openmp(path_lib_so, libhack);
         if (_loaded) return;
-
-        _loaded = module_constructor_cuda(path_lib_so,libhack);
+        _loaded = module_constructor_cuda(path_lib_so, libhack);
         if (_loaded) return;
-
+        _loaded = module_constructor_oneapi(path_lib_so, libhack);
+        if (_loaded) return;
         // Module default
         if (load_no_parallel()) {
-					verbose(2,"Tring default module because app name is %s", program_invocation_name);
-					_loaded = module_constructor(path_lib_so,libhack);
-				}
+            verbose(2, "LOADER: Trying default module because app name is %s", program_invocation_name);
+            _loaded = module_constructor(path_lib_so, libhack);
+        }
         if (_loaded) return;
-
         if (load_no_official()) {
-            verbose(2, "Tring default module");
-            _loaded = module_constructor(path_lib_so,libhack);
+            verbose(2, "LOADER: Tring default module");
+            _loaded = module_constructor(path_lib_so, libhack);
         }
     }
-
     return;
 }

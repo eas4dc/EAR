@@ -4,6 +4,7 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC -Wall
 
 root_OBJS = \
     cpufreq.o \
+	cpufreq_base.o \
     frequency.o \
 	governor.o \
 	priority.o

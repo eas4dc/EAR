@@ -13,4 +13,5 @@ setenv		HACK_EARL_INSTALL_PATH	@prefix@/lib
 setenv    HACK_LOADER_FILE @prefix@/lib/libearld.so
 setenv		HACK_EAR_ETC			@sysconfdir@
 setenv		HACK_EAR_TMP			@localstatedir@
+setenv    EAR_CPU_TDP       "350"
 prepend-path	PATH			"@prefix@/bin"

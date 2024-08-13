@@ -1,32 +1,25 @@
-/*
- * *
- * * This program is part of the EAR software.
- * *
- * * EAR provides a dynamic, transparent and ligth-weigth solution for
- * * Energy management. It has been developed in the context of the
- * * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- * *
- * * Copyright © 2017-present BSC-Lenovo
- * * BSC Contact   mailto:ear-support@bsc.es
- * * Lenovo contact  mailto:hpchelp@lenovo.com
- * *
- * * This file is licensed under both the BSD-3 license for individual/non-commercial
- * * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * * found in COPYING.BSD and COPYING.EPL files.
- * */
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 //#define SHOW_DEBUGS 1
+
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/resource.h>
-
 #include <common/states.h>
+#include <common/system/time.h>
 #include <common/output/debug.h>
-
+#include <common/system/loadavg.h>
 #include <common/hardware/topology.h>
 #include <metrics/energy_cpu/energy_cpu.h>
 #include <metrics/energy_cpu/archs/dummy.h>
-#include <common/system/time.h>
-#include <common/system/loadavg.h>
 
 static uint socket_count, cpu_count;
 static topology_t cpu_util_topo;

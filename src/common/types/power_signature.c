@@ -1,26 +1,20 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <common/types/power_signature.h>
-#include <common/math_operations.h>
 #include <common/config.h>
+#include <common/math_operations.h>
+#include <common/types/power_signature.h>
+
 
 void copy_power_signature(power_signature_t *destiny, power_signature_t *source)
 {
@@ -62,4 +56,30 @@ void clean_db_power_signature(power_signature_t *ps, double limit)
 		if (ps->DC_power > limit)				ps->DC_power = limit;
 		if (ps->DRAM_power > limit)			ps->DRAM_power = 0;
 		if (ps->PCK_power > limit)			ps->PCK_power = 0;
+}
+
+void power_signature_serialize(serial_buffer_t *b, power_signature_t *power_sig)
+{
+    serial_dictionary_push_auto(b, power_sig->DC_power); //
+    serial_dictionary_push_auto(b, power_sig->DRAM_power);
+    serial_dictionary_push_auto(b, power_sig->PCK_power);
+    serial_dictionary_push_auto(b, power_sig->EDP);
+    serial_dictionary_push_auto(b, power_sig->max_DC_power);
+    serial_dictionary_push_auto(b, power_sig->min_DC_power);
+    serial_dictionary_push_auto(b, power_sig->time);
+    serial_dictionary_push_auto(b, power_sig->avg_f);
+    serial_dictionary_push_auto(b, power_sig->def_f);
+}
+
+void power_signature_deserialize(serial_buffer_t *b, power_signature_t *power_sig)
+{
+    serial_dictionary_pop_auto(b, power_sig->DC_power); //
+    serial_dictionary_pop_auto(b, power_sig->DRAM_power);
+    serial_dictionary_pop_auto(b, power_sig->PCK_power);
+    serial_dictionary_pop_auto(b, power_sig->EDP);
+    serial_dictionary_pop_auto(b, power_sig->max_DC_power);
+    serial_dictionary_pop_auto(b, power_sig->min_DC_power);
+    serial_dictionary_pop_auto(b, power_sig->time);
+    serial_dictionary_pop_auto(b, power_sig->avg_f);
+    serial_dictionary_pop_auto(b, power_sig->def_f);
 }

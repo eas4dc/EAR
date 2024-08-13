@@ -1,21 +1,14 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <errno.h>
 #include <stdlib.h>
@@ -53,10 +46,11 @@ static int test_paranoid()
 
 state_t perf_open(perf_t *perf, perf_t *group, pid_t pid, uint type, ulong event)
 {
-    return perf_open_ext(perf, group, pid, type, event, 0);
+    return perf_open_cpu(perf, group, pid, type, event, 0, -1);
 }
 
-state_t perf_open_ext(perf_t *perf, perf_t *group, pid_t pid, uint type, ulong event, uint options)
+
+state_t perf_open_cpu(perf_t *perf, perf_t *group, pid_t pid, uint type, ulong event, uint options, int cpu)
 {
 	int gp_flag =  0;	
 	int gp_fd   = -1;
@@ -82,19 +76,28 @@ state_t perf_open_ext(perf_t *perf, perf_t *group, pid_t pid, uint type, ulong e
 	perf->attr.config         = event;
 //	perf->attr.config         = event | 0x200000;
 //	perf->attr.config1        = 0x200000;
-	perf->attr.exclusive      = options;
-	perf->attr.disabled       = 1;
-	perf->attr.exclude_kernel = 1;
-	perf->attr.exclude_hv     = 1;
+	if (cpu < 0){
+		perf->attr.exclusive      = options;
+		perf->attr.disabled       = 1;
+		#if ESTIMATE_PERF == 0
+		perf->attr.inherit        = 1;
+    	#if PERF_ATTR_SIZE_VER6
+		perf->attr.inherit_thread = 1;
+    	#endif
+		#endif
+		perf->attr.exclude_kernel = 1;
+		perf->attr.exclude_hv     = 1;
+	}
 	perf->attr.read_format    = PERF_FORMAT_TOTAL_TIME_ENABLED | PERF_FORMAT_TOTAL_TIME_RUNNING | gp_flag;
 
-	perf->fd = syscall(__NR_perf_event_open, &perf->attr, pid, -1, gp_fd, 0);
+	perf->fd = syscall(__NR_perf_event_open, &perf->attr, pid, cpu, gp_fd, 0);
 
 	#ifdef SHOW_DEBUGS
+		debug("input: event %lx, group %p and fd %d type %u size %u cpu %d group fd %d", event, group, perf->fd, perf->attr.type, perf->attr.size, cpu, gp_fd);
 	if (perf->fd == -1) {
 		debug("event %lx returned fd %d (no: %d, str: %s)", event, perf->fd, errno, strerror(errno));
 	} else {
-		debug("ok event %lx, group %p and fd %d", event, group, perf->fd);
+		debug("ok event %lx, group %p and fd %d type %u size %u cpu %d group fd %d", event, group, perf->fd, perf->attr.type, perf->attr.size, cpu, gp_fd);
 	}
 	#endif
 	if (perf->fd == -1) {
@@ -200,38 +203,29 @@ state_t perf_read(perf_t *perf, llong *value)
 
 	memset(&value_s, 0, sizeof(struct read_format_s));
 	ret = read(perf->fd, &value_s, sizeof(struct read_format_s));
-
-	#ifdef SHOW_DEBUGS
-	if (ret == -1) {
-		debug("error when reading %d (no: %d)", ret, errno);
-	}
-	#endif
+    debug("PERF read val/ret/err: %llu %d %d", value_s.nrval, ret, errno);
+    //
 	if (ret == -1) {
 		return_msg(EAR_ERROR, strerror(errno));
 	}
-
 	if (value_s.time_running > 0) {
 		time_act = (double) value_s.time_enabled;
 		time_run = (double) value_s.time_running;
 		time_mul = time_act / time_run;
 	}
-
-	debug("time act/run/mul %lf/%lf/%lf (group %p)",
+	debug("PERF time act/run/mul: %0.2lf %0.2lf %0.2lf (group %p)",
 		time_act, time_run, time_mul, perf->group);
 
-	if (perf->group == NULL)
-	{
+	if (perf->group == NULL) {
 		value_d = (double) value_s.nrval;
 		total_d = value_d * time_mul;
 		*value  = (llong) total_d;
+        debug("PERF final value     : %lld", *value);
 	}
-	else for (i = 0; i < value_s.nrval && i < 8; ++i)
-	{
+	else for (i = 0; i < value_s.nrval && i < 8; ++i) {
 		value_d  = (double) value_s.values[i];
 		total_d  = value_d * time_mul;
 		value[i] = (llong) total_d;
-		debug("i=%d value %llu\n",i,value_s.values[i]);
 	}
-
 	return EAR_SUCCESS;
 }

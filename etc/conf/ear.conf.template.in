@@ -1,42 +1,52 @@
 # EAR Configuration File
-#---------------------------------------------------------------------------------------------------
-# DB confguration: This configuration conrrespondons with the DB server installation
-#---------------------------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------------------------
+# DB confguration: This configuration conrrespondons with the DB server installation.
+#-------------------------------------------------------------------------------------------------
 DBIp=127.0.0.1
+
+# Add a secondary IP for high availability
+DBSECIP=add_secondary_ip_for_ha
+
 DBUser=ear_daemon
 DBPassw=password
+
 # User and password for usermode querys.
 DBCommandsUser=ear_commands
 DBCommandsPassw=password
+
 DBDatabase=EAR
 DBPort=3306
-#---------------------------------------------------------------------------------------------------
-# EAR Daemon (EARD) : Update that section to change EARD configuration
-#---------------------------------------------------------------------------------------------------
-## Port is used for connections with the EAR plugin and commands
+#--------------------------------------------------------------------------------------------------
+# EAR Daemon (EARD): Update this section to change EARD configuration.
+#--------------------------------------------------------------------------------------------------
+# Port is used for connections with the EAR plugin and commands.
 NodeDaemonPort=50001
-# Frequency at wich the periodic metrics are reported: In seconds
+# Frequency at wich periodic metrics are reported, in seconds.
 NodeDaemonPowermonFreq=60
-#---------------------------------------------------------------------------------------------------
-# EAR Database Manager (EARDBD): Update that section to change EARDBD configuration
-#---------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------
+# EAR Database Manager (EARDBD): Update this section to change EARDBD configuration.
+#-------------------------------------------------------------------------------------------------
 DBDaemonPortTCP=50002
 DBDaemonPortSecTCP=50003
 DBDaemonSyncPort=50004
-# In seconds
+# Aggregation time id frequency at which power metrics are aggregated in aggregated metrics, in seconds.
 DBDaemonAggregationTime=60
+# Frequency at which buffered data is sent to DB server.
 DBDaemonInsertionTime=30
 # Memory size expressed in MB per process (server and/or mirror) to cache the values.
 DBDaemonMemorySize=120
-#---------------------------------------------------------------------------------------------------
-# EAR Library (EARL)
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
+# EAR Library (EARL): These options modify internal EARL behaviour.
+# Do not modify except you are an expert.
+#--------------------------------------------------------------------------------------------------
 CoefficientsDir=@sysconfdir@/ear/coeffs
+# EAR library default report plugin
 EARLReportPlugins=eard.so
 
-#---------------------------------------------------------------------------------------------------
-# EAR Global Manager (EARGMD) : Update that section to use EARGM 
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
+# EAR Global Manager (EARGMD): Update that section to use EARGM.
+#--------------------------------------------------------------------------------------------------
 # Verbosity
 EARGMVerbose=1
 # '-' are Joules, 'K' KiloJoules and 'M' MegaJoules.
@@ -69,6 +79,8 @@ EARGMPowerCapSuspendAction=no_action
 EARGMPowerCapResumeLimit=40
 # Format for action is: command_name current_power current_limit total_idle_nodes total_idle_power 
 EARGMPowerCapResumeAction=no_action
+# Sets the report plugins to use for EARGM warning and events accounting
+EARGMReportPlugins=mysql.so
 
 # EARGMs must be specified with a unique id, their node and the port that receives remote
 # connections. An EARGM can also act as meta-eargm if the meta field is filled, and it will
@@ -117,9 +129,9 @@ AuthorizedGroups=grp1,grp2
 
 # default powercap plugin can be specified for nodes using the tag. POWERCAP=0 --> disabled, POWERCAP=1 -->unlimited, POWERCAP=N (> 1) limits node to N watts
 
-Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=500 min_power=50 error_power=600 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plug
+Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plug
 in=energy_nm.so
-Tag=6148_GPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=800 min_power=150 error_power=1000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000
+Tag=6148_GPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000
 
 
 #---------------------------------------------------------------------------------------------------

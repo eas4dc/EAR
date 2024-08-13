@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -27,13 +20,17 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static cache_ops_t ops;
 static uint load;
 
-void cache_load(topology_t *tp, int eard)
+void cache_load(topology_t *tp, int force_api)
 {
 	while (pthread_mutex_trylock(&lock));
     if (load) {
         goto out;
     }
+    if (API_IS(force_api, API_DUMMY)) {
+        goto dummy;
+    }
     cache_perf_load(tp, &ops);
+dummy:
     cache_dummy_load(tp, &ops);
     // Getting cache line, is used to get the bandwidth
 	load = 1;
@@ -44,8 +41,14 @@ out:
 
 void cache_get_info(apinfo_t *info)
 {
-    info->layer = "CACHE";
-    return ops.get_info(info);
+    info->layer       = "CACHE";
+    info->api         = API_NONE;
+    info->devs_count  = 0;
+    info->scope       = SCOPE_PROCESS;
+    info->granularity = GRANULARITY_PROCESS;
+    if (ops.get_info != NULL) {
+        ops.get_info(info);
+    }
 }
 
 state_t cache_init(ctx_t *c)
@@ -58,6 +61,7 @@ state_t cache_init(ctx_t *c)
 
 state_t cache_dispose(ctx_t *c)
 {
+  load = 0;
 	return ops.dispose();
 }
 
@@ -110,14 +114,14 @@ snprintf(buffer, length,
     ca->l1d_misses, ca->l2_misses, ca->l3_misses, ca->ll_misses, ca->lbw_misses, gbs);
 }
 
-void cache_details_print(int fd)
+void cache_internals_print(int fd)
 {
     char buffer[1024];
-    cache_details_tostr(buffer, 1024);
+    cache_internals_tostr(buffer, 1024);
     dprintf(fd, "%s", buffer);
 }
 
-void cache_details_tostr(char *buffer, int length)
+void cache_internals_tostr(char *buffer, int length)
 {
-    ops.details_tostr(buffer, length);
+    ops.internals_tostr(buffer, length);
 }

@@ -1,49 +1,64 @@
 # EAR Configuration File
 
-#---------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------
 # DB confguration: This configuration conrrespondons with the DB server installation.
-#---------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------
 DBIp=127.0.0.1
+
+# Add a secondary IP for high availability
+DBSECIP=add_secondary_ip_for_ha
+
 DBUser=ear_daemon
 DBPassw=password
+
 # User and password for usermode querys.
 DBCommandsUser=ear_commands
 DBCommandsPassw=password
+
 DBDatabase=EAR
 DBPort=3306
 DBMaxConnections=20
+
 # Extended node information saves also the average frequency and temperature.
 DBReportNodeDetail=1
+
 # Extended signature information saves also the hardware counters.
 DBreportSIGDetail=1
+
 # Report loop signatures.
 DBReportLoops=1
 
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 # EAR Daemon (EARD): Update this section to change EARD configuration.
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 # Port is used for connections with the EAR plugin and commands.
 NodeDaemonPort=50001
-# Frequency at wich the periodic metrics are reported, in seconds.
+# Frequency at wich periodic metrics are reported, in seconds.
 NodeDaemonPowermonFreq=60
 # Max frequency used by eard. It's max frequency but min pstate.
 NodeDaemonMinPstate=1
 NodeDaemonTurbo=0
 # Defines whether EARD uses the DB.
 NodeUseDB=1
-# Defines if EARD connects with EARDBD to report data or directly with the DB server. Only for testing.
+# Defines if EARD connects with EARDBD to report data or directly with the DB server.
+# Only for testing.
 NodeUseEARDBD=1
-# When set to 1, this flag means EARD must set frequencies before job starts. If not, frequency is only changed in case job runs with EARL.
+
+# When set to 1, this flag means EARD must set frequencies before job starts.
+# If not, frequency is only changed in case job runs with EARL.
 NodeDaemonForceFrequencies=1
+
 # Verbosity.
 NodeDaemonVerbose=1
+
 # When set to 1, the output is saved in 'TmpDir'/eard.log (common configuration) as a log file.
 NodeUseLog=1
-EARDReportPlugins=eardbd.so
 
-#---------------------------------------------------------------------------------------------------
+# Set the report plug-in to be loaded.
+EARDReportPlugins=eardbd.so
+#-------------------------------------------------------------------------------------------------
 # EAR Database Manager (EARDBD): Update this section to change EARDBD configuration.
-#---------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------
 DBDaemonPortTCP=50002
 DBDaemonPortSecTCP=50003
 DBDaemonSyncPort=50004
@@ -63,12 +78,17 @@ DBDaemonMemorySize=120
 DBDaemonUseLog=1
 EARDBDReportPlugins=mysql.so
 
-#---------------------------------------------------------------------------------------------------
-# EAR Library (EARL): These options modify internal EARL behaviour. Do not modify except you are an expert.
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
+# EAR Library (EARL): These options modify internal EARL behaviour.
+# Do not modify except you are an expert.
+#--------------------------------------------------------------------------------------------------
 CoefficientsDir=@sysconfdir@/ear/coeffs
-# Default power policy values
+
+# Sets the minimum period (in microseconds) to do power readings.
+# This value acts as a lower bound of the LibraryPeriod field.
+# However, the energy plug-in is who sets the minimum possible value to do power readings.
 MinTimePerformanceAccuracy=10000000
+
 # DynAIS configuration
 DynAISLevels=10
 DynAISWindowSize=200
@@ -77,6 +97,7 @@ DynAISWindowSize=200
 # After 'DynaisTimeout' seconds, if no signature is computed, EAR will go to periodic mode.
 #
 DynaisTimeout=15
+
 # When EAR goes to periodic mode, it will compute the application signature every 'LibraryPeriod' seconds.
 LibraryPeriod=10
 # EAR will check every N mpi calls whether it must go to periodic mode or not.
@@ -84,9 +105,9 @@ CheckEARModeEvery=1000
 # EAR library default report plugin
 EARLReportPlugins=eard.so
 
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 # EAR Global Manager (EARGMD): Update that section to use EARGM.
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 #
 # Verbosity
 EARGMVerbose=1
@@ -99,6 +120,8 @@ EARGMEnergyPeriodT1=90
 EARGMEnergyPeriodT2=259200
 # '-' are Joules, 'K' KiloJoules and 'M' MegaJoules.
 EARGMEnergyUnits=K
+# EARGM events will be registered through the selected report plugins 
+EARGMReportPlugins=mysql.so
 # Use aggregated periodic metrics or periodic power metrics.
 # Aggregated metrics are only available when EARDBD is running.
 EARGMEnergyUseAggregated=1
@@ -129,6 +152,8 @@ EARGMPowerCapSuspendAction=no_action
 EARGMPowerCapResumeLimit=40
 # Format for action is: command_name current_power current_limit total_idle_nodes total_idle_power 
 EARGMPowerCapResumeAction=no_action
+# Sets the report plugins to use for EARGM warning and events accounting
+EARGMReportPlugins=mysql.so
 
 # EARGMs must be specified with a unique id, their node and the port that receives remote
 # connections. An EARGM can also act as meta-eargm if the meta field is filled, and it will
@@ -147,9 +172,9 @@ EARGMId=1 energy=1800 power=600 node=node1 port=50100 meta=1,2
 EARGMId=2 energy=0 power=500 node=node2 port=50100
 EARGMId=3 energy=0 power=500 node=node3 port=50100
 
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 # Common configuration
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 TmpDir=@localstatedir@
 EtcDir=@sysconfdir@
 InstDir=@prefix@
@@ -185,13 +210,17 @@ AuthorizedGroups=grp1,grp2
 #
 #
 # List of accepted options is: max_avx512(GHz), max_avx2(GHz), max_power(W), min_power(W), error_power(W), coeffs(filename), 
-# powercap(W), powercap_plugin(filename), energy_plugin(filename), gpu_powercap_plugin(filename), max_powercap(W), gpu_def_freq(GHz), 
+# powercap(W), powercap_plugin(filename), energy_plugin(filename), gpu_powercap_plugin(filename), max_powercap(W), gpu_def_freq(KHz), 
 # cpu_max_pstate(0..max_pstate), imc_max_pstate(0..max_imc_pstate), energy_model(filename)
 # imc_max_freq, imc_min_freq, idle_governor(def default), idle_pstate
+# If gpu_def_freq is 0, GPU frequency is not set at job init/end.
+# If gpu_def_freq is greater than 0 and, the EAR Library is being used OR
+# NodeDaemonForceFrequencies is set to 1, then the GPU frequency is set at job init to the
+# minimum between the maximum permitted GPU frequency and gpu_def_freq.
 #
 #
-Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=500 min_power=50 error_power=600 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so 
-Tag=6148_GPU  max_avx512=2.2 max_avx2=2.6 max_power=800 min_power=150 error_power=1000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000
+Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so 
+Tag=6148_GPU  max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000 policy=optimize
 
 #---------------------------------------------------------------------------------------------------
 ## Power policies
@@ -201,7 +230,8 @@ Tag=6148_GPU  max_avx512=2.2 max_avx2=2.6 max_power=800 min_power=150 error_powe
 DefaultPowerPolicy=min_time
 Policy=monitoring Settings=0 DefaultPstate=1 Privileged=0
 Policy=min_time Settings=0.7 DefaultPstate=4 Privileged=0
-Policy=min_energy Settings=0.05 DefaultPstate=1 Privileged=1
+Policy=min_energy Settings=0.05 DefaultPstate=1 Privileged=0
+Policy=optimize Settings=0.00 DefaultPstate=1 Privileged=0
 #
 # For homogeneous systems, default frequencies can be easily specified using freqs.
 # For heterogeneous systems it is preferred to use pstates or use tags 
@@ -232,9 +262,9 @@ EnergyTag=cpu-intensive pstate=1 users=all
 EnergyTag=turbo pstate=0 
 EnergyTag=memory-intensive pstate=4 users=usr1,usr2 groups=grp1,grp2 accounts=acc1,acc2
 
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 # Node Isles
-#---------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 # It is mandatory to specify all the nodes in the cluster, grouped by islands. More than one line
 # per island must be supported to hold nodes with different names or for pointing to different
 # EARDBDs through its IPs or hostnames. 
@@ -258,3 +288,11 @@ Island=0 Nodes=node12[01-80]
 
 # Will use default tag. 
 Island=1 Nodes=node11[01-80] DBIP=node1181 DBSECIP=node1182 
+
+
+# --------------------------------------------------------------------------------------------------
+# Data Center Monitor configuration: Uncomment if needed
+# --------------------------------------------------------------------------------------------------
+
+# A edcmon.template.conf is available at @sysconfdir@/ear/. Change the name if needed
+# include=@sysconfdir@/ear/edcmon.conf

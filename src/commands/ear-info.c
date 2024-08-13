@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -148,17 +141,14 @@ int main(int argc, char *argv[])
     }
     char dummy[SZ_NAME_MEDIUM];
     mode = get_node_server_mirror(&my_cluster, nodename, dummy);
-    if (mode && 1) {
+    if (mode & 1) {
         printf("\nEARDBD server found in node %s.........\n", nodename);
-    } if (mode && 2) {
+    } if (mode & 2) {
         printf("\nEARDBD mirror found in node %s.........\n", nodename);
     }
     if (mode) {
       printf("............................................\n");
     }
-
-    
-
   }
 
   printf("\n\nEnvironment configuration section..............\n");

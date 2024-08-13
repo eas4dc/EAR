@@ -1,4 +1,4 @@
-CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC -Wall
+CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 
 ######## FILES
 
@@ -9,7 +9,10 @@ gpu_OBJS = \
     eard.o \
     nvml.o \
     oneapi.o \
-    rsmi.o
+    rsmi.o \
+    gpuprof_dcgmi.o \
+    gpuprof_dummy.o \
+    gpuprof_nvml.o
 
 ######## RULES
 
@@ -26,6 +29,9 @@ oneapi.o: oneapi.c oneapi.h
 
 rsmi.o: rsmi.c rsmi.h
 	$(CC) $(CFLAGS) $(RSMI_CFLAGS) -c $<
+
+gpuprof_nvml.o: gpuprof_nvml.c gpuprof_nvml.h
+	$(CC) $(CFLAGS) $(CUDA_CFLAGS) -c gpuprof_nvml.c
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<

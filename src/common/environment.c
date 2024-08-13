@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <errno.h>
 #include <fcntl.h>
@@ -26,6 +19,7 @@
 #include <common/config.h>
 //#define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
+#include <common/utils/sched_support.h>
 #include <common/environment.h>
 #include <common/types/generic.h>
 #include <common/types/configuration/cluster_conf.h>
@@ -124,11 +118,19 @@ char *getenv_ear_coeff_db_pathname()
 char *getenv_ear_app_name()
 {
 	char *my_name;
-	my_name=ear_getenv(ENV_APP_NAME);
-	if (my_name!=NULL){
-		if (strcmp(my_name,"")==0) return NULL;
-		conf_ear_app_name=malloc(strlen(my_name)+1);
+
+	my_name = ear_getenv(ENV_APP_NAME);
+	if ((my_name != NULL) && strcmp(my_name,"")){
+		conf_ear_app_name = malloc(strlen(my_name)+1);
+		strcpy(conf_ear_app_name,my_name);
+		return conf_ear_app_name;
+	}
+
+	my_name = ear_getenv("JOB_NAME");
+	if ((my_name != NULL) && strcmp(my_name,"")){
+		conf_ear_app_name = malloc(strlen(my_name)+1);
 		strcpy(conf_ear_app_name,my_name);	
+		return conf_ear_app_name;
 	}
 	return conf_ear_app_name;
 }
@@ -198,7 +200,7 @@ int getenv_ear_reset_freq()
 unsigned long getenv_ear_p_state()
 {
 	char *my_pstate = ear_getenv(ENV_FLAG_PSTATE);
-	int max_p_state;
+	int max_p_state = 0 ;
 
 	// p_state depends on policy it must be called before getenv_ear_p_state, but we check it
 	if (conf_ear_power_policy < 0) getenv_ear_power_policy();
@@ -253,12 +255,7 @@ double getenv_ear_performance_accuracy()
 
 int getenv_ear_local_id()
 {
-	//char *my_local_id;
-	//my_local_id=ear_getenv("SLURM_LOCALID");
-	//if (my_local_id!=NULL){ 
-	//	conf_ear_local_id=atoi(my_local_id);
-	//}
-	// if not defined, it is computed later based on the number of total processes and EAR_NUM_NODES
+	conf_ear_local_id = get_my_sched_node_rank();
 	return conf_ear_local_id;
 }
 

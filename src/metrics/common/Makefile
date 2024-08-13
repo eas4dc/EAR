@@ -7,6 +7,7 @@ comm_OBJS = \
     cupti.o \
     file.o \
     hsmp.o \
+    hsmp_lib.o \
     hwmon.o \
     isst.o \
     likwid.o \
@@ -16,10 +17,10 @@ comm_OBJS = \
     oneapi.o \
     pci.o \
     perf.o \
-    popen.o \
     pstate.o \
     redfish.o \
-    rsmi.o
+    rsmi.o \
+    cray_pm_counters.o
 
 ######## RULES
 

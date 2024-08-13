@@ -10,7 +10,8 @@ supp_OBJS = \
     imc_policy_support.o \
     mpi_stats_support.o \
     pc_support.o \
-	generic.o
+		cpuprio_support.o \
+		generic.o
 
 ########
 

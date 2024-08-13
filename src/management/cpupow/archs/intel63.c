@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 #define DEBUG_POWER_CONSUMING 0
@@ -309,14 +302,16 @@ static state_t debug_monitor(void *x)
     int i;
 
     for (i = 0; i < p->tp->cpu_count; ++i) {
-        if (msr_read(p->tp->cpus[i].id, &reg, sizeof(ullong), p->es_address)) {
-            debug("msr_read: %s", state_msg);
+        if (state_fail(msr_read(p->tp->cpus[i].id, &reg, sizeof(ullong), p->es_address))) {
+            debug("msr_read returned %s", state_msg);
         }
         energy2[i] = getbits64(reg, 31, 0);
+        debug("SOCKET[%u] read: %llu", i, energy2[i]);
         if (energy1[i] > 0) {
             energy = ((double) (energy2[i] - energy1[i])) * pu[i].mult_energy;
             power  = energy / 2.0; // We know its 2 seconds
-            debug("SOCKET[%u] energy: %lf J, power: %lf W", i, energy, power);
+            debug("SOCKET[%u] diff: %llu = %llu - %llu", i, energy2[i] - energy1[i], energy2[i], energy1[i]);
+            debug("SOCKET[%u] energy: %lf J, power: %lf W (UNITS %lf)", i, energy, power, pu[i].mult_energy);
         }
         energy1[i] = energy2[i];
     }
@@ -417,7 +412,7 @@ CPUPOW_F_POWERCAP_IS_ENABLED(mgt_cpupow_intel63_powercap_is_enabled)
         }
         for (i = 0; i < p->tp->cpu_count; ++i) {
             enabled[i] = (watts[i] != p->pi[i].tdp);
-            debug("enabled[%d]: %d", p->tp->cpus[i].id, enabled[i], watts[i], p->pi[i].tdp);
+            debug("enabled[%d]: %d %u %u", p->tp->cpus[i].id, enabled[i], watts[i], p->pi[i].tdp);
         }
         return s;
 }

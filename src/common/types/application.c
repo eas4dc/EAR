@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <fcntl.h>
 #include <errno.h>
@@ -44,8 +37,13 @@ void copy_application(application_t *destiny, application_t *source)
 
 void application_print_channel(FILE *file, application_t *app)
 {
+#if WF_SUPPORT
+    fprintf(file, "application_t: id '%s', job id '%lu.%lu.%lu', node id '%s'\n",
+            app->job.app_id, app->job.id, app->job.step_id, app->job.local_id, app->node_id);
+#else
     fprintf(file, "application_t: id '%s', job id '%lu.%lu', node id '%s'\n",
             app->job.app_id, app->job.id, app->job.step_id, app->node_id);
+#endif
     fprintf(file, "application_t: learning '%d', time '%lf', avg freq '%lu'\n",
             app->is_learning, app->signature.time, app->signature.avg_f);
     fprintf(file, "application_t: pow dc '%lf', pow ram '%lf', pow pack '%lf'\n",
@@ -137,7 +135,6 @@ int print_application_fd(int fd, application_t *app, int new_line, char is_exten
     if (app->signature.time == 0) app->signature.time = app->power_sig.time;
 
     signature_print_fd(fd, &app->signature, is_extended, single_column,',');
-        
 
     if (new_line) {
         dprintf(fd, "\n");
@@ -149,46 +146,90 @@ int print_application_fd(int fd, application_t *app, int new_line, char is_exten
 
 int create_app_header(char * header, char *path, uint num_gpus, char is_extended, int single_column)
 {
-    char *HEADER_BASE = "NODENAME;JOBID;STEPID;USERID;GROUPID;JOBNAME;USER_ACC;ENERGY_TAG;POLICY;POLICY_TH;"\
-                        "AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;TIME_SEC;CPI;TPI;MEM_GBS;IO_MBS;PERC_MPI;DC_NODE_POWER_W;DRAM_POWER_W;"\
-                        "PCK_POWER_W;CYCLES;INSTRUCTIONS;CPU-GFLOPS";
-		char HEADER[4096];
-
 		/* If file already exists we will not add the header */
 		if (file_is_regular(path)) return EAR_SUCCESS;
 
-		if (header != NULL){ 
-			strncpy(HEADER, header, sizeof(HEADER));
-			strncat(HEADER, HEADER_BASE, sizeof(HEADER));
-		}else{
-			strncpy(HEADER, HEADER_BASE, sizeof(HEADER));
+#if WF_SUPPORT
+		char *HEADER_JOB = "NODENAME;JOBID;STEPID;APPID";
+#else
+		char *HEADER_JOB = "NODENAME;JOBID;STEPID";
+#endif // WF_SUPPORT
+
+    char *HEADER_BASE = ";USERID;GROUPID;JOBNAME;USER_ACC;"\
+												 "ENERGY_TAG;POLICY;POLICY_TH;START_TIME;"\
+												 "END_TIME;START_DATE;END_DATE;AVG_CPUFREQ_KHZ;"\
+												 "AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;TIME_SEC;CPI;TPI;MEM_GBS;"\
+												 "IO_MBS;PERC_MPI;DC_NODE_POWER_W;DRAM_POWER_W;PCK_POWER_W;"\
+												 "CYCLES;INSTRUCTIONS;CPU-GFLOPS";
+
+#if USE_GPUS
+#if WF_SUPPORT
+		char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"\
+														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS";
+#else
+		char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"\
+														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
+#endif // WF_SUPPORT
+#else
+	char HEADER_GPU_SIG[1] = "\0";
+#endif // USE_GPUS
+
+		char ext_header[128] = ";L1_MISSES;L2_MISSES;L3_MISSES;SPOPS_SINGLE;SPOPS_128;"\
+														"SPOPS_256;SPOPS_512;DPOPS_SINGLE;DPOPS_128;DP_256;DPOPS_512";
+		if (!is_extended)
+		{
+			memset(ext_header, 0, sizeof(ext_header));
 		}
 
-    if (is_extended) {
-        char *ext_header = ";L1_MISSES;L2_MISSES;L3_MISSES;SPOPS_SINGLE;SPOPS_128;SPOPS_256;SPOPS_512;DPOPS_SINGLE;"\
-                           "DPOPS_128;DP_256;DPOPS_512";
-        xstrncat(HEADER, ext_header, strlen(ext_header));
-    }
-		debug("Creating header with %d GPUS", num_gpus);
-#if USE_GPUS
     // We force here num_gpus in order to be more robust with other formats.
-    num_gpus = MAX_GPUS_SUPPORTED;
+    num_gpus = MAX_GPUS_SUPPORTED * USE_GPUS; // USE_GPUS can set a zero on num_gpus
+		debug("Creating header with %d GPUS", num_gpus);
+
+		size_t header_len = strlen(HEADER_JOB) + strlen(HEADER_BASE) + num_gpus * USE_GPUS * strlen(HEADER_GPU_SIG) + strlen(ext_header) + 1;
+		if (header)
+		{
+			header_len += strlen(header);
+		}
+
+		char *HEADER = calloc(header_len, sizeof(char));
+
+		if (header)
+		{
+			strncat(HEADER, header, header_len - 1);
+		}
+
+		strncat(HEADER, HEADER_JOB, header_len - strlen(HEADER) - 1);
+		strncat(HEADER, HEADER_BASE, header_len - strlen(HEADER) - 1);
+
+		if (is_extended)
+		{
+			strncat(HEADER, ext_header, header_len - strlen(HEADER) - 1);
+    }
+
+#if USE_GPUS
 	if (single_column) num_gpus = ear_min(num_gpus, 1);
-    for (int i = 0; i < num_gpus; i++){
+	for (int i = 0; i < num_gpus; i++)
+	{
         char gpu_hdr[128];
-        xsnprintf(gpu_hdr, sizeof(gpu_hdr), ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC",
-                i, i, i, i, i);
-        xstrncat(HEADER, gpu_hdr, sizeof(gpu_hdr));
+#if WF_SUPPORT
+        snprintf(gpu_hdr, sizeof(gpu_hdr), HEADER_GPU_SIG, i, i, i, i, i, i);
+#else
+        snprintf(gpu_hdr, sizeof(gpu_hdr), HEADER_GPU_SIG, i, i, i, i, i);
+#endif
+        strncat(HEADER, gpu_hdr, header_len - strlen(HEADER) - 1);
     }
 #endif
+
 	  int fd = open(path, OPTIONS, PERMISSION);
     if (fd >= 0) {
     	dprintf(fd, "%s\n", HEADER);
     }
-		close(fd);
+	free(HEADER);;
+	close(fd);
 
 	return EAR_SUCCESS;
 }
+
 
 int append_application_text_file(char *path, application_t *app, char is_extended, int add_header, int single_column)
 {
@@ -325,14 +366,22 @@ void verbose_application_data(uint vl, application_t *app)
 
     char job_info_txt[1024]; // app / user / account / job.step
     int ret = snprintf(job_info_txt, sizeof(job_info_txt),
-                       "--- App id: %s / user id: %s / account: %s / job.step: %lu.%lu ---\n\n"
+#if WF_SUPPORT
+                       "--- App id: %s / user id: %s / account: %s / job.step.appid: %lu.%lu.%lu ---\n\n"
+#else
+                       "--- App id: %s / user id: %s / account: %s / job.step.appid: %lu.%lu ---\n\n"
+#endif
                        "Processes: %lu\n"
                        "Start time: %s End time: %s\n"
                        "Start MPI : %s End MPI :  %s\n\n"
                        "(Power sign.) Wall time: %0.3lf s, nominal freq.: %0.2f GHz, avg. freq: %0.2f GHz\n"
                        "              DC/DRAM/PCK power: %0.3lf/%0.3lf/%0.3lf (W)\n"
                        "              Max/Min DC Power (W): %0.3lf/%0.3lf\n\n",
+#if WF_SUPPORT
+                       app->job.app_id, app->job.user_id, app->job.user_acc, app->job.id, app->job.step_id, app->job.local_id,
+#else
                        app->job.app_id, app->job.user_id, app->job.user_acc, app->job.id, app->job.step_id,
+#endif
                        app->job.procs,
                        st, et,
                        stmpi, etmpi,
@@ -447,7 +496,7 @@ void report_application_data(application_t *app)
 }
 
 // TODO: Try to port the below implementation to verbose_application_data function
-void report_mpi_application_data(application_t *app)
+void report_mpi_application_data(int vl, application_t *app)
 {
     /* Convert values to GHz */
     float avg_f     = ((double) app->signature.avg_f)     / 1000000.0;
@@ -459,8 +508,13 @@ void report_mpi_application_data(application_t *app)
     char job_info_txt[1024]; // app / user / account / job.step
 
     snprintf(job_info_txt, sizeof(job_info_txt),
+#if WF_SUPPORT
+             "--- App id: %s / user id: %s / account: %s / job.step: %lu.%lu.%lu ---\n",
+             app->job.app_id, app->job.user_id, app->job.user_acc, app->job.id, app->job.step_id, app->job.local_id);
+#else
              "--- App id: %s / user id: %s / account: %s / job.step: %lu.%lu ---\n",
              app->job.app_id, app->job.user_id, app->job.user_acc, app->job.id, app->job.step_id);
+#endif
 
     char mpi_info_txt[512]; // signature details
 
@@ -493,15 +547,15 @@ void report_mpi_application_data(application_t *app)
 
     /* Verbose the summary */
 
-    verbose(VTYPE, "%s%s%s\n%s\n", app_summ_hdr_dec_txt, app_summ_hdr_txt, app_summ_hdr_dec_txt, job_info_txt); // header and job info
+    verbose(vl, "%s%s%s\n%s\n", app_summ_hdr_dec_txt, app_summ_hdr_txt, app_summ_hdr_dec_txt, job_info_txt); // header and job info
 
     free(app_summ_hdr_dec_txt);
 
     if (app->is_mpi) {
-        verbose(VTYPE, "%s", mpi_info_txt); // signature details
+        verbose(vl, "%s", mpi_info_txt); // signature details
     }
 
-    verbose_gpu_app(VTYPE, app); // This method outputs GPU summary
+    verbose_gpu_app(vl, app); // This method outputs GPU summary
 
     /* Build a beautiful footer */
 
@@ -511,60 +565,42 @@ void report_mpi_application_data(application_t *app)
     memset(app_summ_ftr_dec, '-', app_summ_ftr_dec_len);
     app_summ_ftr_dec[app_summ_ftr_dec_len] = '\0';
 
-    verbose(VTYPE, "%s", app_summ_ftr_dec);
+    verbose(vl, "%s", app_summ_ftr_dec);
 
     free(app_summ_ftr_dec);
 }
 
-void mark_as_eard_connected(int jid,int sid,int pid)
+void application_serialize(serial_buffer_t *b, application_t *app)
 {
-    int my_id;	
-    char *tmp,con_file[128];
-    int fd;
-    tmp=ear_getenv(ENV_PATH_TMP);
-    if (tmp == NULL){
-        debug("EAR_TMP not defined in mark_as_eard_connected");
-        return;
-    }
-    my_id=create_ID(jid,sid);
-    sprintf(con_file,"%s/.master.%d.%d",tmp,my_id,pid);
-    debug("Creating %s",con_file);	
-    fd=open(con_file,O_CREAT|O_WRONLY,S_IRUSR|S_IWUSR);
-    close(fd);
-    return;
-}
-uint is_already_connected(int jid,int sid,int pid)
-{
-    int my_id;
-    int fd;
-    char *tmp,con_file[128];;
-    tmp=ear_getenv(ENV_PATH_TMP);
-    if (tmp == NULL){ 
-        debug("EAR_TMP not defined in is_already_connected");
-        return 0;
-    }
-    my_id=create_ID(jid,sid);
-    sprintf(con_file,"%s/.master.%d.%d",tmp,my_id,pid);
-    debug("Looking for %s ",con_file);
-    fd=open(con_file,O_RDONLY);
-    if (fd>=0){
-        close(fd);
-        return 1;
-    }
-    return 0;
+    job_serialize(b, &app->job);
+    serial_dictionary_push_auto(b, app->is_mpi);
+    serial_dictionary_push_auto(b, app->is_learning);
+    serial_dictionary_push_auto(b, app->node_id);
+    power_signature_serialize(b, &app->power_sig);
+    signature_serialize(b, &app->signature);
 }
 
-void mark_as_eard_disconnected(int jid,int sid,int pid)
+void application_deserialize(serial_buffer_t *b, application_t *app)
 {
-    int my_id;
-    char *tmp,con_file[128];
-    tmp=ear_getenv(ENV_PATH_TMP);
-    if (tmp == NULL){ 
-        debug("EAR_TMP not defined in mark_as_eard_disconnected");
-        return;
-    }
-    my_id=create_ID(jid,sid);
-    sprintf(con_file,"%s/.master.%d.%d",tmp,my_id,pid);
-    debug("Removing %s",con_file);
-    unlink(con_file);
+    job_deserialize(b, &app->job);
+    serial_dictionary_pop_auto(b, app->is_mpi);
+    serial_dictionary_pop_auto(b, app->is_learning);
+    serial_dictionary_pop_auto(b, app->node_id);
+    power_signature_deserialize(b, &app->power_sig);
+    signature_deserialize(b, &app->signature);
+}
+
+
+
+void fill_basic_sig(application_t *app)
+{
+	app->power_sig.DC_power 		= app->signature.DC_power;
+	app->power_sig.DRAM_power   = app->signature.DRAM_power;
+	app->power_sig.PCK_power    = app->signature.PCK_power;
+	app->power_sig.EDP          = app->signature.EDP;
+	app->power_sig.max_DC_power = app->signature.DC_power;
+	app->power_sig.min_DC_power = app->signature.DC_power;
+	app->power_sig.time         = app->signature.time;
+	app->power_sig.avg_f        = app->signature.avg_f;
+	app->power_sig.def_f        = app->signature.def_f;
 }

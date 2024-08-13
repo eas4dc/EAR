@@ -1,21 +1,14 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/*********************************************************************
+ * Copyright (c) 2024 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
 
-#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -75,12 +68,12 @@ static struct ipmi_rs * sendcmd(struct ipmi_intf * intf, struct ipmi_rq * req)
 	struct ipmi_recv recv;
 	struct ipmi_addr addr;
 	struct ipmi_system_interface_addr bmc_addr = {
-		addr_type:	IPMI_SYSTEM_INTERFACE_ADDR_TYPE,
-		channel:	IPMI_BMC_CHANNEL,
+		.addr_type =	IPMI_SYSTEM_INTERFACE_ADDR_TYPE,
+		.channel =	IPMI_BMC_CHANNEL,
 		};
 	struct ipmi_ipmb_addr ipmb_addr = {
-		addr_type:	IPMI_IPMB_ADDR_TYPE,
-		channel:	intf->channel & 0x0f,
+		.addr_type =	IPMI_IPMB_ADDR_TYPE,
+		.channel =	intf->channel & 0x0f,
 		};
 	static struct ipmi_rs rsp;
 	uint8_t * data = NULL;
@@ -255,6 +248,7 @@ static state_t sd650_power_reading(struct ipmi_intf *intf,struct sd650_node_powe
 };
 
 /* Not used in this plugin */
+#if 0
 static state_t sd650_ene(struct ipmi_intf *intf,struct ipmi_data * out)
 {
 	struct ipmi_rs * rsp;
@@ -292,7 +286,8 @@ static state_t sd650_ene(struct ipmi_intf *intf,struct ipmi_data * out)
   }
 	debug("\n");
 	return EAR_SUCCESS;
-}; 
+}
+#endif
 
 /* Used by monitor */
 static state_t sd650_power_thread_main(void *p)
@@ -301,7 +296,6 @@ static state_t sd650_power_thread_main(void *p)
 	ulong current_elapsed,current_energy;
 	ulong curr_time;
 	state_t st;
-	int etries = 0, lret;
 
 	if (!sd650_power_initialized) return EAR_ERROR;
 
@@ -375,9 +369,6 @@ static state_t sd650_power_thread_init(void *p)
 state_t energy_init(void **c)
 {
 	int ret;
-	struct ipmi_data out;
-	state_t st;
-	
 
 	if (c == NULL) return EAR_ERROR;
         *c = (struct ipmi_intf *)calloc(1,sizeof(struct ipmi_intf));
@@ -461,7 +452,7 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
 
 
 	/* Given we are reading every 2 secs, we compute the current power */
-	ulong curr_elapsed , curr_time;
+	ulong curr_time;
 	ulong current_energy;
 	state_t st;
 

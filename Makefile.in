@@ -1,29 +1,35 @@
-########################################################################################################
+###########################################################################################
+# @configure_input@
 # Flags information:
 #
 # ARCH_X86 and ARCH_ARM define the compiling architecture and are mutually exclusive
-# FEAT_MPI_API allows to compile the MPI EAR library version or non-MPI.
+# FEAT_MPI_LIBRARY allows to compile the MPI EAR library version or non-MPI.
 # FEAT_AVX512 enables/disables the AVX-512 code.
 # FEAT_RESEARCH extend the set of files installed.
 # FEAT_GPU_OPT installs GPU optimization policies. 0 means only monitoring.
 # FEAT_AMD_OSCPUFREQ disables the utilization of virtual PSTATES in AMD and selects OS CPUFreq.
 # FEAT_DB_MYSQL and FEAT_DB_PSQL defines the database (MySQL or PostgreSQL) and are mutually exclusive.
 # REPLACE also replaces the current installation permissions by the user's current values.
-########################################################################################################
+###########################################################################################
 
 # Architectures
 ARCH               = @ARCH@
+SYSTEM_TYPE        = @SYSTEM_TYPE@
 # Features
-FEAT_MPI_API       = @FEAT_MPI_API@
+FEAT_MPI_LIBRARY   = @FEAT_MPI_LIBRARY@
+FEAT_MPI_LOADER    = @FEAT_MPI_LOADER@
 FEAT_AVX512        = @FEAT_AVX512@
-FEAT_SVE           = @FEAT_SVE@
 FEAT_RESEARCH      = 0
+FEAT_GPUS          = @FEAT_GPUS@
 FEAT_GPU_OPT       = 1
 FEAT_AMD_OSCPUFREQ = 0
 FEAT_DB_MYSQL      = @FEAT_DB_MYSQL@
 FEAT_DB_PSQL       = @FEAT_DB_PGSQL@
 FEAT_EXAMON        = 0
 FEAT_DB_CASSANDRA  = 0
+FEAT_WF_SUPPORT    = 1
+FEAT_DLB           = @FEAT_DLB@
+
 # Compilers
 CC                 = @CC@
 CC_FLAGS           = @CC_FLAGS@
@@ -31,7 +37,7 @@ MPICC              = @MPICC@
 MPICC_FLAGS        = @MPICC_FLAGS@
 # Includes
 MPI_BASE           = @MPI_DIR@
-MPI_CFLAGS         = @MPI_CPPFLAGS@
+MPI_CFLAGS         = @MPI_CFLAGS@
 MPI_VERSION        = @MPI_VERSION@
 GSL_BASE           = @GSL_DIR@
 GSL_CFLAGS         = @GSL_CPPFLAGS@
@@ -43,6 +49,8 @@ DB_CFLAGS          = @DB_CFLAGS@
 DB_LDFLAGS         = @DB_LDFLAGS@ @DB_LIBS@
 CUDA_BASE          = @CUDA_DIR@
 CUDA_CFLAGS        = @CUDA_CFLAGS@
+OPENCL_BASE        =
+OPENCL_CFLAGS      =
 CUPTI_BASE         = @CUPTI_DIR@
 CUPTI_CFLAGS       = @CUPTI_CFLAGS@
 RSMI_BASE          = @RSMI_DIR@
@@ -56,17 +64,20 @@ REDFISH_CFLAGS     = @REDFISH_CFLAGS@
 FREEIPMI_BASE      = @FREEIPMI_DIR@
 FREEIPMI_CFLAGS    = @FREEIPMI_CFLAGS@
 FREEIPMI_LDFLAGS   = @FREEIPMI_LDFLAGS@
-COUNTDOWN_BASE     =
+DLB_LIBS           = @DLB_LIBS@
+DLB_CPPFLAGS       = @DLB_CPPFLAGS@
+DLB_LDFLAGS        = @DLB_LDFLAGS@
 # Installation directories and options
 ROOTDIR            = $(shell pwd)
 SRCDIR             = $(ROOTDIR)/src
 DESTDIR            = @prefix@
 ETCDIR             = @sysconfdir@
 TMPDIR             = @localstatedir@
+datarootdir        = @datarootdir@
 DOCDIR             = @docdir@
 CHOWN_USR          = @USER@
 CHOWN_GRP          = @GROUP@
-CONSTANTS          = -DSEC_KEY=10001 -DREPORT_TIMESTAMP=1 -DSYNC_SET_RPC=1 -DUSE_CNTD=0 -DMIX_RPC=1
+CONSTANTS          = -DSEC_KEY=10001 -DESTIMATE_PERF=0 -DSYSTEM_TYPE=@SYSTEM_TYPE@
 REPLACE            =
 
 ######## EXPORTS
@@ -76,6 +87,8 @@ include ./Makefile.exports
 ######## RULES
 
 .PHONY: check functionals
+
+@SET_MAKE@
 
 all:
 	@ $(MAKE) -C 'src' all || exit

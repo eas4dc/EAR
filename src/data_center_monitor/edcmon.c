@@ -1,0 +1,22 @@
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
+//#define SHOW_DEBUGS 1
+
+#include <common/system/plugin_manager.h>
+#include <unistd.h>
+
+int main(int argc, char *argv[])
+{
+    printf("%s: Started....\n", argv[0]);
+    plugin_manager_main(argc, argv);
+    plugin_manager_wait();
+    return 0;
+}

@@ -2,6 +2,8 @@
 
 export EAR_INSTALL_PATH="@prefix@"
 export EAR_SOURCE_PATH="@abs_top_builddir@"
+export EAR_ETC="@sysconfdir@"
+export EAR_TMP="@localstatedir@"
 
 #
 ln -s specs/ear.spec ear.spec

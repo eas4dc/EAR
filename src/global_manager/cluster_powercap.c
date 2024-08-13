@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #define _GNU_SOURCE 
 
@@ -24,6 +17,7 @@
 // #define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/colors.h>
+#include <common/types/log.h>
 #include <common/system/execute.h>
 #include <common/output/verbose.h>
 #include <common/types/generic.h>
@@ -33,9 +27,9 @@
 #include <daemon/remote_api/eard_rapi.h>
 
 #include <global_manager/cluster_powercap.h>
-#include <common/types/log.h>
-#include <common/database/db_helper.h>
 #include <global_manager/log_eargmd.h>
+
+#include <report/report.h>
 
 
 
@@ -92,7 +86,8 @@ void eargm_report_event(uint event_type, ulong value)
 
     event.event     = event_type;
     event.value     = value;
-    db_insert_ear_event(&event);
+    report_events(NULL, &event, 1);
+    //db_insert_ear_event(&event);
 }
 
 
@@ -337,11 +332,14 @@ void cluster_only_powercap()
         /* For heterogeneous clusters we set the max powercap for each node, which should be set by the admin in ear.conf
          * For homogeneous clusters we can simply divide the current power between the number of active nodes. */
         if (max_num_nodes > 0) {
-            //new_limit = current_cluster_powercap/max_num_nodes; 
+#if EARGM_POWERCAP_SOFTPC_HOMOGENEOUS
+            new_limit = current_cluster_powercap/max_num_nodes; 
+#else
             new_limit = UINT_MAX; 
+#endif
             ear_set_powerlimit(&my_cluster_conf, new_limit, nodes, num_eargm_nodes); 
-            verbose(VGM_PC, "cluster_only_powercap: sending new limit %lu", (ulong)new_limit);
-            eargm_report_event(NODE_POWERCAP, (ulong)new_limit);
+            verbose(VGM_PC, "cluster_only_powercap: sending new limit %lu", (ulong) new_limit);
+            eargm_report_event(NODE_POWERCAP, (ulong) new_limit);
         } else {
             warning("No nodes detected for this EARGM");
         }
@@ -592,6 +590,7 @@ void write_shared_data(ulong current_power, ulong freeable_power, ulong requeste
     ext_powercap_data.available_power = freeable_power;
     ext_powercap_data.current_powercap = current_cluster_powercap;
     ext_powercap_data.def_power = default_cluster_powercap;
+    debug("Written shared data with current power %lu and default power %lu", current_cluster_powercap, default_cluster_powercap);
     pthread_mutex_unlock(&ext_mutex);
 }
 
@@ -602,8 +601,11 @@ void cluster_power_monitor()
     num_power_status = ear_get_powercap_status(&my_cluster_conf, &my_cluster_power_status, 1, nodes, num_eargm_nodes);
     if (num_power_status==0){
         verbose(VGM_PC+1,"num_power_status in cluster_check_powercap is 0");
+        write_shared_data(0, 0, 0);
         return;
     }
+    write_shared_data(my_cluster_power_status->current_power, 0, 0);
+	eargm_report_event(CLUSTER_POWER, (ulong)my_cluster_power_status->current_power);
     if (my_cluster_power_status->current_power >= ((float)(current_cluster_powercap*my_cluster_conf.eargm.defcon_power_limit)/100.0) && !actions_executed){
         execute_powercap_limit_action();
     } else if (my_cluster_power_status->current_power <= ((float)(current_cluster_powercap*my_cluster_conf.eargm.defcon_power_lower)/100.0) && actions_executed) {
@@ -625,6 +627,7 @@ void cluster_check_powercap()
     num_power_status = ear_get_powercap_status(&my_cluster_conf, &my_cluster_power_status, 1, nodes, num_eargm_nodes);
     if (num_power_status==0){
         verbose(VGM_PC+1,"num_power_status in cluster_check_powercap is 0");
+        write_shared_data(0, 0, 0); 
         return;
     }
     memset(&cluster_options,0,sizeof(powercap_opt_t));

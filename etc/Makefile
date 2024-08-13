@@ -5,15 +5,17 @@ gen_FOLDERS = $(DESTDIR)/bin \
               $(DESTDIR)/bin/tools \
               $(DESTDIR)/include \
               $(DESTDIR)/lib \
+              $(DESTDIR)/lib/deps \
               $(DESTDIR)/lib/pbs \
               $(DESTDIR)/lib/plugins \
-              $(DESTDIR)/lib/plugins/energy \
-              $(DESTDIR)/lib/plugins/powercap \
-              $(DESTDIR)/lib/plugins/models \
-              $(DESTDIR)/lib/plugins/policies \
               $(DESTDIR)/lib/plugins/eard_policies \
-              $(DESTDIR)/lib/plugins/tracer \
+              $(DESTDIR)/lib/plugins/energy \
+              $(DESTDIR)/lib/plugins/models \
+              $(DESTDIR)/lib/plugins/monitoring \
+              $(DESTDIR)/lib/plugins/policies \
+              $(DESTDIR)/lib/plugins/powercap \
               $(DESTDIR)/lib/plugins/reports \
+              $(DESTDIR)/lib/plugins/tracer \
               $(DESTDIR)/sbin
 
 etc_FOLDERS = $(ETCDIR) \
@@ -23,7 +25,7 @@ etc_FOLDERS = $(ETCDIR) \
               $(ETCDIR)/systemd \
               $(ETCDIR)/slurm 
 
-conf_BINS = ear.conf.template ear.conf.full.template
+conf_BINS = ear.conf.template ear.conf.full.template edcmon.template.conf
 conf_FOLD = conf
 conf_PATH = $(ETCDIR)/ear
 conf_PERM = 0660
@@ -31,14 +33,14 @@ modl_BINS = ear ear-lite
 modl_FOLD = module
 modl_PATH = $(ETCDIR)/module
 modl_PERM = 0666
-serv_BINS = eard.service eardbd.service eargmd.service
+serv_BINS = eard.service eardbd.service eargmd.service edcmon.service
 serv_FOLD = systemd
 serv_PATH = $(ETCDIR)/systemd
 serv_PERM = 0660
 slur_BINS = ear.plugstack.conf
 slur_FOLD = slurm
 slur_PATH = $(ETCDIR)/slurm
-slur_PERM = 0660
+slur_PERM = 0644
 
 ######## OPTIONS
 

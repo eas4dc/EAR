@@ -1,22 +1,15 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-#ifndef TEST_H
-#define TEST_H
+#ifndef MANAGEMENT_H
+#define MANAGEMENT_H
 
 #include <metrics/metrics.h>
 #include <management/cpufreq/cpufreq.h>
@@ -25,16 +18,22 @@
 #include <management/cpupow/cpupow.h>
 #include <management/gpu/gpu.h>
 
-typedef struct manages_apis_s {
+typedef struct manages_info_s {
     apinfo_t cpu; // cpufreq
     apinfo_t pri; // cpuprio
     apinfo_t imc; // imcfreq
     apinfo_t pow; // cpupow
     apinfo_t gpu; // gpu
-} manages_apis_t;
+} manages_info_t;
 
-void management_init(topology_t *tp, int eard, manages_apis_t **m);
+void management_init(manages_info_t *man, topology_t *tp, ullong force_api);
 
-void management_data_print();
+void management_info_get(manages_info_t *m);
 
-#endif //TEST_H
+char *management_info_tostr(manages_info_t *m, char *buffer);
+
+void management_info_print(manages_info_t *m, int fd);
+
+char *management_data_tostr();
+
+#endif //MANAGEMENT_H

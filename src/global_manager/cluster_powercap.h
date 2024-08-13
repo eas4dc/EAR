@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef CLUSTER_POWERCAP_H
 #define CLUSTER_POWERCAP_H
@@ -46,7 +39,7 @@ uint powercap_reallocation(cluster_powercap_status_t *cluster_status,powercap_op
 void send_powercap_options_to_cluster(powercap_opt_t *cluster_options);
 void print_cluster_power_status(cluster_powercap_status_t *my_cluster_power_status);
 uint cluster_get_min_power(cluster_conf_t *conf, char type);
-void cluster_powercap_init();
+void cluster_powercap_init(cluster_conf_t *cc);
 int cluster_power_limited();
 void cluster_check_powercap();
 void cluster_power_monitor();

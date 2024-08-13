@@ -1,23 +1,216 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef LIBRARY_LOADER_MPIF_H
 #define LIBRARY_LOADER_MPIF_H
 
-//#include <library/api/mpi.h>
+#define MPIF_N 93
+
+const char *mpif_names[] __attribute__((weak, visibility("hidden"))) =
+{
+    "mpi_allgather",
+    "mpi_allgatherv",
+    "mpi_allreduce",
+    "mpi_alltoall",
+    "mpi_alltoallv",
+    "mpi_barrier",
+    "mpi_bcast",
+    "mpi_bsend",
+    "mpi_bsend_init",
+    "mpi_cancel",
+    "mpi_cart_create",
+    "mpi_cart_sub",
+    "mpi_comm_create",
+    "mpi_comm_dup",
+    "mpi_comm_free",
+    "mpi_comm_rank",
+    "mpi_comm_size",
+    "mpi_comm_spawn",
+    "mpi_comm_spawn_multiple",
+    "mpi_comm_split",
+    "mpi_file_close",
+    "mpi_file_read",
+    "mpi_file_read_all",
+    "mpi_file_read_at",
+    "mpi_file_read_at_all",
+    "mpi_file_write",
+    "mpi_file_write_all",
+    "mpi_file_write_at",
+    "mpi_file_write_at_all",
+    "mpi_finalize",
+    "mpi_gather",
+    "mpi_gatherv",
+    "mpi_get",
+    "mpi_ibsend",
+    "mpi_init",
+    "mpi_init_thread",
+    "mpi_intercomm_create",
+    "mpi_intercomm_merge",
+    "mpi_iprobe",
+    "mpi_irecv",
+    "mpi_irsend",
+    "mpi_isend",
+    "mpi_issend",
+    "mpi_probe",
+    "mpi_put",
+    "mpi_recv",
+    "mpi_recv_init",
+    "mpi_reduce",
+    "mpi_reduce_scatter",
+    "mpi_request_free",
+    "mpi_request_get_status",
+    "mpi_rsend",
+    "mpi_rsend_init",
+    "mpi_scan",
+    "mpi_scatter",
+    "mpi_scatterv",
+    "mpi_send",
+    "mpi_send_init",
+    "mpi_sendrecv",
+    "mpi_sendrecv_replace",
+    "mpi_ssend",
+    "mpi_ssend_init",
+    "mpi_start",
+    "mpi_startall",
+    "mpi_test",
+    "mpi_testall",
+    "mpi_testany",
+    "mpi_testsome",
+    "mpi_wait",
+    "mpi_waitall",
+    "mpi_waitany",
+    "mpi_waitsome",
+    "mpi_win_complete",
+    "mpi_win_create",
+    "mpi_win_fence",
+    "mpi_win_free",
+    "mpi_win_post",
+    "mpi_win_start",
+    "mpi_win_wait"
+    //#if MPI_VERSION >= 3
+    ,
+    "mpi_iallgather",
+    "mpi_iallgatherv",
+    "mpi_iallreduce",
+    "mpi_ialltoall",
+    "mpi_ialltoallv",
+    "mpi_ibarrier",
+    "mpi_ibcast",
+    "mpi_igather",
+    "mpi_igatherv",
+    "mpi_ireduce",
+    "mpi_ireduce_scatter",
+    "mpi_iscan",
+    "mpi_iscatter",
+    "mpi_iscatterv"
+    //#endif
+};
+
+const char *mpif_names_[] __attribute__((weak, visibility("hidden"))) =
+{
+    "mpi_allgather_",
+    "mpi_allgatherv_",
+    "mpi_allreduce_",
+    "mpi_alltoall_",
+    "mpi_alltoallv_",
+    "mpi_barrier_",
+    "mpi_bcast_",
+    "mpi_bsend_",
+    "mpi_bsend_init_",
+    "mpi_cancel_",
+    "mpi_cart_create_",
+    "mpi_cart_sub_",
+    "mpi_comm_create_",
+    "mpi_comm_dup_",
+    "mpi_comm_free_",
+    "mpi_comm_rank_",
+    "mpi_comm_size_",
+    "mpi_comm_spawn_",
+    "mpi_comm_spawn_multiple_",
+    "mpi_comm_split_",
+    "mpi_file_close_",
+    "mpi_file_read_",
+    "mpi_file_read_all_",
+    "mpi_file_read_at_",
+    "mpi_file_read_at_all_",
+    "mpi_file_write_",
+    "mpi_file_write_all_",
+    "mpi_file_write_at_",
+    "mpi_file_write_at_all_",
+    "mpi_finalize_",
+    "mpi_gather_",
+    "mpi_gatherv_",
+    "mpi_get_",
+    "mpi_ibsend_",
+    "mpi_init_",
+    "mpi_init_thread_",
+    "mpi_intercomm_create_",
+    "mpi_intercomm_merge_",
+    "mpi_iprobe_",
+    "mpi_irecv_",
+    "mpi_irsend_",
+    "mpi_isend_",
+    "mpi_issend_",
+    "mpi_probe_",
+    "mpi_put_",
+    "mpi_recv_",
+    "mpi_recv_init_",
+    "mpi_reduce_",
+    "mpi_reduce_scatter_",
+    "mpi_request_free_",
+    "mpi_request_get_status_",
+    "mpi_rsend_",
+    "mpi_rsend_init_",
+    "mpi_scan_",
+    "mpi_scatter_",
+    "mpi_scatterv_",
+    "mpi_send_",
+    "mpi_send_init_",
+    "mpi_sendrecv_",
+    "mpi_sendrecv_replace_",
+    "mpi_ssend_",
+    "mpi_ssend_init_",
+    "mpi_start_",
+    "mpi_startall_",
+    "mpi_test_",
+    "mpi_testall_",
+    "mpi_testany_",
+    "mpi_testsome_",
+    "mpi_wait_",
+    "mpi_waitall_",
+    "mpi_waitany_",
+    "mpi_waitsome_",
+    "mpi_win_complete_",
+    "mpi_win_create_",
+    "mpi_win_fence_",
+    "mpi_win_free_",
+    "mpi_win_post_",
+    "mpi_win_start_",
+    "mpi_win_wait"
+    //#if MPI_VERSION >= 3
+    ,
+    "mpi_iallgather_",
+    "mpi_iallgatherv_",
+    "mpi_iallreduce_",
+    "mpi_ialltoall_",
+    "mpi_ialltoallv_",
+    "mpi_ibarrier_",
+    "mpi_ibcast_",
+    "mpi_igather_",
+    "mpi_igatherv_",
+    "mpi_ireduce_",
+    "mpi_ireduce_scatter_",
+    "mpi_iscan_",
+    "mpi_iscatter_",
+    "mpi_iscatterv_"
+    //#endif
+};
 
 #endif //LIBRARY_LOADER_MPIF_H

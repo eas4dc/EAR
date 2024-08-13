@@ -3,26 +3,26 @@ LDFLAGS = -pthread -lm -rdynamic -ldl
 
 ######## INSTALLATION
 
-eard_BINS = eardbd
-eard_PATH = $(DESTDIR)/sbin
-eard_PERM = 0770
-oths_BINS = eardbd_api.o
+eardbd_BINS = eardbd
+eardbd_PATH = $(DESTDIR)/sbin
+eardbd_PERM = 0770
+othsbd_BINS = eardbd_api.o
 
 ######## FILES
 
-eard_LIBS = \
+eardbd_LIBS = \
 	$(SRCDIR)/report/report.o \
 	$(SRCDIR)/management/libmgt.a \
 	$(SRCDIR)/metrics/libmetrics.a \
 	$(SRCDIR)/common/libcommon.a \
 
-eard_SRCS = eardbd.c \
+eardbd_SRCS = eardbd.c \
     eardbd_body.c \
     eardbd_sync.c \
     eardbd_signals.c \
     eardbd_storage.c
 
-eard_HDRS = eardbd.h \
+eardbd_HDRS = eardbd.h \
     eardbd_body.h \
     eardbd_sync.h \
     eardbd_signals.h \
@@ -30,21 +30,21 @@ eard_HDRS = eardbd.h \
 
 ######## RULES
 
-all: $(oths_BINS) $(eard_BINS)
+all: $(oths_BINS) $(eardbd_BINS)
 
-eardbd_api.o: eardbd_api.c eardbd_api.h $(eard_LIBS)
+eardbd_api.o: eardbd_api.c eardbd_api.h $(eardbd_LIBS)
 	$(CC) $(CFLAGS) -c $<
 
-eardbd: $(eard_SRCS) $(eard_HDRS) $(eard_LIBS)
-	$(CC) $(CFLAGS) -o $@ $(eard_SRCS) $(eard_LIBS) $(LDFLAGS)
+eardbd: $(eardbd_SRCS) $(eardbd_HDRS) $(eardbd_LIBS)
+	$(CC) $(CFLAGS) -o $@ $(eardbd_SRCS) $(eardbd_LIBS) $(LDFLAGS)
 
 ######## OPTIONS
 
-install: eard.ginstall;
+install: eardbd.ginstall;
 
 %.install: ;
 
-clean: eard.gclean rclean;
+clean: eardbd.gclean rclean;
 
 ######## DEPENDENCIES
 

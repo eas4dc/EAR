@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #if DB_MYSQL
 #include <mysql/mysql.h>
@@ -43,10 +36,10 @@ void usage(char *name)
     exit(0);
 }
 
-#define APPS_QUERY "SELECT Jobs.id, Jobs.step_id, ROUND(AVG(CPI), 4), ROUND(AVG(GBS), 4), ROUND(AVG(TPI), 4), "\
+#define APPS_QUERY "SELECT Jobs.job_id, Jobs.step_id, ROUND(AVG(CPI), 4), ROUND(AVG(GBS), 4), ROUND(AVG(TPI), 4), "\
 	"ROUND(AVG(DC_power), 4), ROUND(AVG(Gflops), 4) FROM "\
-	"Applications INNER JOIN Jobs on Applications.step_id = Jobs.step_id AND job_id = Jobs.id INNER JOIN Signatures "\
-	"ON signature_id = Signatures.id WHERE job_id = %d %s GROUP BY Jobs.id, Jobs.step_id"
+	"Applications INNER JOIN Jobs on Applications.step_id = Jobs.step_id AND Applications.job_id = Jobs.job_id INNER JOIN Signatures "\
+	"ON signature_id = Signatures.id WHERE job_id = %d %s GROUP BY Jobs.job_id, Jobs.step_id"
 
 #define LOOP_QUERY "SELECT job_id, step_id, ROUND(CPI, 4), ROUND(GBS, 4), ROUND(TPI, 4), ROUND(DC_power, 4), "\
 	"ROUND(Gflops, 4) FROM Loops INNER JOIN Signatures ON signature_id = Signatures.id WHERE job_id = %d %s"

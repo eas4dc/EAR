@@ -1,24 +1,19 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/resource.h>
+#include <linux/limits.h>
 #include <database_cache/eardbd.h>
 #include <database_cache/eardbd_body.h>
 #include <database_cache/eardbd_sync.h>
@@ -51,7 +46,7 @@ uint                    sockets_timeout;
 // Descriptors
 struct sockaddr_storage addr_new;
 afd_set_t               fds_active;
-long                    fd_hosts[FD_SETSIZE]; // Saving host IPs
+long                    fd_hosts[EDB_MAX_CONNECTIONS + 48]; // Saving host IPs
 // Nomenclature:
 // 	- Server: main buffer of the gathered metrics. Inserts buffered metrics in
 //	the database.
@@ -181,13 +176,15 @@ static void init_general_configuration(int argc, char **argv, cluster_conf_t *co
 
 	/* Reporting plugin */
 	if (state_fail(report_load(conf_clus->install.dir_plug,conf_clus->db_manager.plugins))){
-		edb_error("Report plugin load failed");
-		report_create_id(&rid, -1, -1, -1);
-	}else{
-		report_create_id(&rid, 0, 0, 0);
+		edb_error("Report error during loading: %s", state_msg);
+        exit(EXIT_FAILURE);
 	}
+    // Creating a report id
+    report_create_id(&rid, 0, 0, 0);
+	// Initializing
 	if (state_fail(report_init(&rid, conf_clus))){
-		edb_error("Report plugin initialization failed");
+        edb_error("Report error during initialization: %s", state_msg);
+        exit(EXIT_FAILURE);
 	}
 	debug("dbcon info: '%s'    plugin", conf_clus->db_manager.plugins);
 	if (strcmp(conf_clus->db_manager.plugins,"mysql.so") == 0){
@@ -647,6 +644,15 @@ void create_tmp(char *tmp_dir) {
         }
 }
 
+static void change_limits()
+{
+	struct rlimit rl;
+	getrlimit(RLIMIT_NOFILE, &rl);
+	debug("current limit %lu max %lu", rl.rlim_cur, rl.rlim_max);
+	rl.rlim_cur = rl.rlim_max;
+	setrlimit(RLIMIT_NOFILE, &rl);
+
+}
 
 int main(int argc, char **argv)
 {
@@ -655,6 +661,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
+	change_limits();
 	while(!exitting)
 	{
 		//

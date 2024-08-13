@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* This file is licensed under both the BSD-3 license for individual/non-commercial
-* use and EPL-1.0 license for commercial use. Full text of both licenses can be
-* found in COPYING.BSD and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 #define DEBUG_POWER_CONSUMING 0
@@ -32,10 +25,10 @@
 #include <management/cpupow/archs/amd17.h>
 
 #define NO_REG                         0x00
-#define HSMP_PKG_POWER_STATUS          0x04 //ReadSocketPower
-#define HSMP_PKG_POWER_LIMIT_READ      0x06 //ReadSocketPowerLimit
-#define HSMP_PKG_POWER_LIMIT_WRITE     0x05 //WriteSocketPowerLimit
-#define HSMP_PKG_POWER_INFO            0x07 //ReadMaxSocketPowerLimit
+#define HSMP_PKG_POWER_STATUS          HSMP_READ_SOCKET_POWER
+#define HSMP_PKG_POWER_LIMIT_READ      HSMP_READ_SOCKET_POWER_LIMIT
+#define HSMP_PKG_POWER_LIMIT_WRITE     HSMP_WRITE_SOCKET_POWER_LIMIT
+#define HSMP_PKG_POWER_INFO            HSMP_READ_MAX_SOCKET_POWER_LIMIT
 #define HSMP_DRAM_POWER_STATUS         NO_REG
 #define HSMP_DRAM_POWER_LIMIT_READ     NO_REG
 #define HSMP_DRAM_POWER_LIMIT_WRITE    NO_REG

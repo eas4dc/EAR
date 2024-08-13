@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef _EAR_TYPES_JOB
 #define _EAR_TYPES_JOB
@@ -22,49 +15,33 @@
 #include <stdint.h>
 #include <common/config.h>
 #include <common/types/generic.h>
+#include <common/utils/serial_buffer.h>
 
-/* Proposal for new job
+// WARNING! This type is serialized through functions job_serialize and
+// job_deserialize. If you want to add new types, make sure to update these
+// functions too.
 typedef struct job
 {
-    job_id  id;
-    job_id  step_id;
-    char    user_id[UID_NAME];
-    char    app_id[GENERIC_NAME];
-    char    user_acc[GENERIC_NAME];
-	char	energy_tag[ENEGY_TAG_SIZE];
-    time_t  start_time;
-    time_t  end_time;
-    time_t  start_mpi_time;
-    time_t  end_mpi_time;
-    char    policy[POLICY_NAME];
-    double  th;
-    ulong   procs;
-    job_type    type;
-    ulong       def_f;
-} job_t;
-*/
-
-typedef struct job
-{
-	job_id 	 id;
-	job_id 	 step_id;
-	char 	   user_id[GENERIC_NAME];
-	char 	   group_id[GENERIC_NAME];
-	char 	   app_id[GENERIC_NAME];
+	job_id 	 id; //ulong
+	job_id 	 step_id; //ulong
+#if WF_SUPPORT
+    job_id 	 local_id;
+#endif
+	char 	 user_id[GENERIC_NAME];
+	char 	 group_id[GENERIC_NAME];
+	char 	 app_id[GENERIC_NAME];
 	char     user_acc[GENERIC_NAME];
-	char	   energy_tag[ENERGY_TAG_SIZE];
-  time_t 	 start_time;
+	char	 energy_tag[ENERGY_TAG_SIZE];
+    time_t 	 start_time;
 	time_t	 end_time;
 	time_t 	 start_mpi_time;
 	time_t	 end_mpi_time;
-	char 	   policy[POLICY_NAME];
+	char 	 policy[POLICY_NAME];
 	double   th;
 	ulong 	 procs; 
-	job_type type;	
+	job_type type; //uchar
 	ulong    def_f;
 } job_t;
-
-
 
 // Function declarations
 
@@ -96,5 +73,9 @@ void report_job(job_t *job);
 void print_job_fd_binary(int fd, job_t *job);
 /** Memory is already allocated for the job */
 void read_job_fd_binary(int fd, job_t *job);
+
+void job_serialize(serial_buffer_t *b, job_t *job);
+
+void job_deserialize(serial_buffer_t *b, job_t *job);
 
 #endif

@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,9 +93,19 @@ state_t gpu_mgr_init()
 		debug("GPU %u freq limits: def %lu max %lu current %lu",i,def_khz[i],max_khz[i],current_khz[i]);
 		debug("GPU %u power limits:def %lu min %lu max %lu current %lu",i,def_w[i],min_w[i],max_w[i],current_w[i]);
 	}
-	if (my_node_conf->gpu_def_freq == 0){
-		my_node_conf->gpu_def_freq = max_khz[0];
-	}
+    /* If gpu_def_freq == 0 --> GPU is not set at job init/end
+     * If gpu_def_freq > max GPU freq --> gpu_def_freq <- max GPU freq
+     * else --> not modified
+     * if gpu_def_freq > 0 --> GPU frequency will be set at job init/end */
+	if (my_node_conf->gpu_def_freq > 0)
+    {
+		my_node_conf->gpu_def_freq = ear_min(my_node_conf->gpu_def_freq, max_khz[0]);
+        verbose(VCONF, "Configuring GPU default frequency at job init/end to %lu",
+                my_node_conf->gpu_def_freq);
+	} else
+    {
+        verbose(VCONF, "Configuring GPU default frequency at job init/end DISABLED");
+    }
   ret = mgt_gpu_freq_list(no_ctx, (const ulong ***) &mgt_gpu.avail_list, (const uint **) &mgt_gpu.avail_count);
   if (ret != EAR_SUCCESS){
     debug("mgt_gpu_freq_list");

@@ -1,0 +1,21 @@
+#%Module
+
+
+module-whatis "Enable usage of Energy Aware Runtime with Singularity"
+
+setenv		EAR_INSTALL_PATH	/opt/ear-5.0
+setenv		EAR_ETC			/opt/ear-5.0/etc
+setenv		EAR_TMP			/var/ear
+setenv		EAR_DEFAULT		"on"
+prepend-path	PATH			"/opt/ear-5.0/bin"
+prepend-path	MANPATH			"/opt/ear-5.0/man"
+
+# Singularity specific
+
+append-path APPTAINER_BIND /opt/ear-5.0:/opt/ear-5.0:ro,/var/ear:/var/ear:rw
+setenv    APPTAINERENV_EAR_INSTALL_PATH /opt/ear-5.0
+setenv    APPTAINERENV_EAR_TMP /var/ear
+setenv    APPTAINERENV_EAR_ETC /opt/ear-5.0/etc
+setenv    APPTAINERENV_EARL_REPORT_LOOP "1"
+setenv    APPTAINERENV_APPEND_PATH "/opt/ear-5.0/bin"
+

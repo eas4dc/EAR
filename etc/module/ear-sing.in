@@ -1,0 +1,21 @@
+#%Module
+
+
+module-whatis "Enable usage of Energy Aware Runtime with Singularity"
+
+setenv		EAR_INSTALL_PATH	@prefix@
+setenv		EAR_ETC			@sysconfdir@
+setenv		EAR_TMP			@localstatedir@
+setenv		EAR_DEFAULT		"on"
+prepend-path	PATH			"@prefix@/bin"
+prepend-path	MANPATH			"@prefix@/man"
+
+# Singularity specific
+
+append-path APPTAINER_BIND @prefix@:@prefix@:ro,@localstatedir@:@localstatedir@:rw
+setenv    APPTAINERENV_EAR_INSTALL_PATH @prefix@
+setenv    APPTAINERENV_EAR_TMP @localstatedir@
+setenv    APPTAINERENV_EAR_ETC @sysconfdir@
+setenv    APPTAINERENV_EARL_REPORT_LOOP "1"
+setenv    APPTAINERENV_APPEND_PATH "@prefix@/bin"
+

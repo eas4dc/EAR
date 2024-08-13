@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -130,7 +123,7 @@ state_t hsmp_scan(topology_t *tp)
         uint args[2] = { 68, -1 };
         uint reps[2] = {  0, -1 };
         
-        if (state_fail(s = hsmp_send(0, 0x01, args, reps))) {
+        if (state_fail(s = hsmp_send(0, HSMP_TEST, args, reps))) {
             return unlock_msg0(s, "HSMP not enabled");
         }
         // Ping checking
@@ -188,7 +181,6 @@ state_t hsmp_send(int socket, uint function, uint *args, uint *reps)
 	mailopt_t arg;
 	uint response;
 	uint timeout;
-	uint intents;
 	state_t s;
 	int a;
 
@@ -197,7 +189,7 @@ state_t hsmp_send(int socket, uint function, uint *args, uint *reps)
 	arg.name = mail->arg0.name;
 	response = HSMP_NOT_READY;
 	timeout  = 500;
-	intents  = 0;
+	uint intents  = 0;
 	// Locking
 	while (pthread_mutex_trylock(&lock));
 	//
@@ -222,16 +214,16 @@ retry:
 	}
 	if (response == HSMP_NOT_READY) {
 		if (--timeout == 0) {
-			return unlock_msg(s, "Timeout, waiting too long for an HSMP response");
+			return unlock_msg(EAR_ERROR, "Timeout, waiting too long for an HSMP response");
 		}
 		++intents;
 		goto retry;
 	}
 	if (response == HSMP_INVALID_ID) {
-		return unlock_msg(s, "Invalid mail function id");
+		return unlock_msg(EAR_ERROR, "Invalid mail function id");
 	}
 	if (response == HSMP_INVALID_ARG) {
-		return unlock_msg(s, "Invalid mail argument");
+		return unlock_msg(EAR_ERROR, "Invalid mail argument");
 	}
 	debug("HSMP answered after %d intents", intents);
 	// Reading the values
@@ -242,8 +234,7 @@ retry:
 			return unlock_msg(s, state_msg);
 		}
 	}
-
-	return unlock_msg(EAR_SUCCESS, "OK");
+	return unlock_msg(EAR_SUCCESS, "");
 }
 
 #if TEST

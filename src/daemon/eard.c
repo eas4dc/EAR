@@ -1,19 +1,16 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
+//#define SHOW_DEBUGS 1
+
+#define _GNU_SOURCE
 
 #include <signal.h>
 #include <pthread.h>
@@ -25,14 +22,15 @@
 #include <strings.h>
 #include <string.h>
 #include <math.h>
+#include <errno.h>
 
-//#define SHOW_DEBUGS 1
 #include <common/includes.h>
 #include <common/environment.h>
 #include <common/types/pc_app_info.h>
 #include <common/hardware/hardware_info.h>
 #include <common/system/monitor.h>
 #include <common/system/execute.h>
+#include <common/output/debug.h>
 
 #include <report/report.h>
 
@@ -50,7 +48,7 @@
 
 #include <daemon/eard.h>
 #include <daemon/eard_node_services.h>
-#include <daemon/local_api/eard_api_conf.h>
+#include <daemon/local_api/eard_api.h>
 #include <daemon/remote_api/dynamic_configuration.h>
 #include <daemon/power_monitor.h>
 #include <daemon/powercap/powercap.h>
@@ -63,6 +61,14 @@
 #endif
 
 #define MIN_INTERVAL_RT_ERROR 3600
+
+
+#define eard_error(msg, ...) \
+	do { \
+		fflush(NULL);\
+		fprintf(stderr, "%s: " msg "\n", program_invocation_name, ##__VA_ARGS__);\
+		_exit(EXIT_FAILURE);\
+	} while (0);
 
 #if APP_API_THREAD
 pthread_t app_eard_api_th;
@@ -130,7 +136,7 @@ state_t report_connection_status = EAR_SUCCESS;
 static int fd_my_log = 2;
 
 unsigned long eard_max_freq;
-int eard_max_pstate;
+int eard_min_pstate;
 
 char ear_tmp[MAX_PATH_SIZE];
 char nodename[MAX_PATH_SIZE];
@@ -145,6 +151,7 @@ topology_t node_desc;
 int fd_rapl[MAX_PACKAGES];
 
 #define EARD_RESTORE 1
+
 
 /*************** To recover hardware settings **************/
 
@@ -368,10 +375,10 @@ void reopen_log()
 //
 // eard creates different pipes to receive requests and to send values requested
 void Usage(char *app) {
-				verbose(VEARD_INIT, "Usage: %s [-h|verbose_level]", app);
+				verbose(VEARD_INIT, "usage: %s [verbose_level] [-h | --help]", app);
 				verbose(VEARD_INIT, "\tear.conf file is used to define node settings. It must be available at");
-				verbose(VEARD_INIT, "\t $EAR_ETC/ear/ear.conf");
-				_exit(1);
+				verbose(VEARD_INIT, "\t$EAR_ETC/ear/ear.conf");
+				_exit(EXIT_FAILURE);
 }
 
 //region SIGNALS
@@ -496,7 +503,7 @@ void signal_catcher()
 
 void configure_new_values( cluster_conf_t *cluster, my_node_conf_t *node) {
 				policy_conf_t *my_policy;
-				eard_max_pstate = node->max_pstate;
+				eard_min_pstate = node->max_pstate;
 				// Default policy is just in case
 				default_policy_context.policy  = MONITORING_ONLY;
 				default_policy_context.p_state = EAR_MIN_P_STATE;
@@ -527,8 +534,8 @@ void configure_new_values( cluster_conf_t *cluster, my_node_conf_t *node) {
 
 void configure_default_values( cluster_conf_t *cluster, my_node_conf_t *node) {
 				policy_conf_t *my_policy;
-				eard_max_pstate = node->max_pstate;
-				verbose(VEARD+1,"Max pstate for this node is %d",eard_max_pstate);
+				eard_min_pstate = node->max_pstate;
+				verbose(VEARD+1,"Max pstate for this node is %d",eard_min_pstate);
 				// Default policy is just in case
 				default_policy_context.policy  = MONITORING_ONLY;
 				default_policy_context.p_state = EAR_MIN_P_STATE;
@@ -664,6 +671,21 @@ int get_exec_name(char *name,int name_size)
 				return 0;
 }
 
+static void print_basic_configuration(uint vl)
+{
+	verbose(vl, "EARD[%s] Architectural compiled limits ", nodename);
+	verbose(vl, "EARD[%s] MAX_CPUS_SUPPORTED      %u", nodename, MAX_CPUS_SUPPORTED);
+	verbose(vl, "EARD[%s] MAX_SOCKETS_SUPPORTED 	%u", nodename, MAX_SOCKETS_SUPPORTED);
+	verbose(vl, "EARD[%s] MAX_GPUS_SUPPORTED      %u", nodename, MAX_GPUS_SUPPORTED);
+	verbose(vl, "EARD[%s] USE_GPUS                %u", nodename, USE_GPUS);
+	verbose(vl, "EARD[%s] VERSION                 %u", nodename, VERSION_MAJOR);
+	verbose(vl, "EARD[%s] SUBVERSION              %u", nodename, VERSION_MINOR);
+	verbose(vl, "EARD[%s] Library default options ", nodename);
+	verbose(vl, "EARD[%s] EAR_eUFS                %u", nodename, EAR_eUFS);
+	verbose(vl, "EARD[%s] MAX_CPUF_PSTATE         %u", nodename, MAX_CPUF_PSTATE);
+	verbose(vl, "EARD[%s] MAX_IMCF_PSTATE         %u", nodename, MAX_IMCF_PSTATE);
+}
+
 
 /*
  *
@@ -675,96 +697,116 @@ int get_exec_name(char *name,int name_size)
 
 int main(int argc, char *argv[]) 
 {
-				char my_name[1024];
-				unsigned long ear_node_freq;
-				int ret;
+	char    my_name[1024];
+	ulong   ear_node_freq;
+    int     node_size;
+    int     ret;
+    state_t s;
 
-				// Usage
-				if (argc > 2) {
-								Usage(argv[0]);
-				}
+	// Usage
+	if (argc > 2) {
+		Usage(argv[0]);
+	}
+	// Check
+	if (argc == 2) {
+		if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+			Usage(argv[0]);
+		}
+		// Verbose level was set instead of help message requested
+		verb_level = atoi(argv[1]);
+		if ((verb_level < 0) || (verb_level > 4)) {
+			Usage(argv[0]);
+		}
+	}
 
+	set_ear_verbose(verb_level);
+	VERB_SET_LV(verb_level);
 
+#if RUN_AS_ROOT
+	if (getuid() != 0) {
+		// error(EXIT_FAILURE, 0, "eard must be executed as root.");
+		eard_error("It must be executed as root.");
+	}
+#endif
 
-				verbose(VCONF, "Starting eard...................pid %d", getpid());
-				create_log("/tmp", "eard_journal", fd_my_log);
+	verbose(VCONF, "Starting eard...................pid %d", getpid());
+	create_log("/tmp", "eard_journal", fd_my_log);
 
-				// We get nodename to create per_node files
-				if (gethostname(nodename, sizeof(nodename)) < 0) {
-								error("Error getting node name (%s)", strerror(errno));
-								_exit(1);
-				}
-				strtok(nodename, ".");
-				verbose(VEARD_INIT,"Executed %s in node name %s", argv[0],nodename);
-				get_exec_name(my_name,sizeof(my_name));
-				verbose(VEARD_INIT,"My name is %s",my_name);
+	// We get nodename to create per_node files
+	if (gethostname(nodename, sizeof(nodename)) < 0) {
+		error("Error getting node name (%s)", strerror(errno));
+		_exit(EXIT_FAILURE);
+	}
 
-				/** CONFIGURATION **/
-				int node_size;
-				state_t s;
+	strtok(nodename, ".");
+	get_exec_name(my_name, sizeof(my_name));
+	verbose(VEARD_INIT, "My name is %s and i'm running at %s", my_name, nodename);
 
-				init_eard_rt_log();
-				log_report_eard_min_interval(MIN_INTERVAL_RT_ERROR);
-				verbose(VEARD_INIT,"Reading hardware topology");
+    init_eard_rt_log();
+    log_report_eard_min_interval(MIN_INTERVAL_RT_ERROR);
 
-                /** Change the open file limit */
-                struct rlimit rl;
-                getrlimit(RLIMIT_NOFILE, &rl);
-                debug("current limit %lu max %lu", rl.rlim_cur, rl.rlim_max);
-                rl.rlim_cur = rl.rlim_max;
-                setrlimit(RLIMIT_NOFILE, &rl);
+    /** Change the open file limit */
+    struct rlimit rl;
+    getrlimit(RLIMIT_NOFILE, &rl);
+    debug("current limit %lu max %lu", rl.rlim_cur, rl.rlim_max);
+    rl.rlim_cur = rl.rlim_max;
+    setrlimit(RLIMIT_NOFILE, &rl);
                 
-                /* We initialize topology */
-                s = topology_init(&node_desc);
-                node_size = node_desc.cpu_count;
+    /* We initialize topology */
+    s = topology_init(&node_desc);
+    node_size = node_desc.cpu_count;
 
-                if (state_fail(s) || node_size <= 0 || node_desc.socket_count <= 0) {
-                    error("topology information can't be initialized (%d)", s);
-                    _exit(1);
-                }
-                topology_print(&node_desc, verb_channel);
+    if (state_fail(s) || node_size <= 0 || node_desc.socket_count <= 0) {
+        error("topology information can't be initialized (%d)", s);
+        _exit(1);
+    }
 
-                verbose(VEARD_INIT,"Topology detected: sockets %d, cores %d, threads %d",
-                        node_desc.socket_count, node_desc.core_count, node_desc.cpu_count);
+    // Reading Cluster configuration
+    verbose(VEARD_INIT,"Reading ear.conf configuration");
+    if (get_ear_conf_path(my_ear_conf_path) == EAR_ERROR) {
+        error("Error opening ear.conf file, not available at regular paths ($EAR_ETC/ear/ear.conf)");
+        _exit(0);
+    }
+    if (read_cluster_conf(my_ear_conf_path, &my_cluster_conf) != EAR_SUCCESS) {
+        error(" Error reading cluster configuration\n");
+        _exit(1);
+    }
+    compute_default_pstates_per_policy(my_cluster_conf.num_policies, my_cluster_conf.power_policies);
 
-								#ifndef __ARCH_ARM
-                if (msr_test(&node_desc, MSR_WR) != EAR_SUCCESS){
-                    error("msr files are not available, please check the msr kernel module is loaded (modprobe msr)");
-                    _exit(1);
-                }
-								#endif
+    // Services
+    services_init(&node_desc);
+    services_print(&node_desc, &my_cluster_conf);
 
-                //
-                verbose(VEARD_INIT,"Initializing frequency list");
-                /* We initialize frecuency */
-                if (frequency_init(0) < 0) {
-                    error("frequency information can't be initialized");
-                    verbose(VEARD_INIT, "frequency information can't be initialized");
-                    _exit(1);
-                }
-                verbose(VEARD_INIT,"Reading ear.conf configuration");
-                // We read the cluster configuration and sets default values in the shared memory
-                if (get_ear_conf_path(my_ear_conf_path) == EAR_ERROR) {
-                    error("Error opening ear.conf file, not available at regular paths ($EAR_ETC/ear/ear.conf)");
-                    _exit(0);
-                }
-                if (read_cluster_conf(my_ear_conf_path, &my_cluster_conf) != EAR_SUCCESS) {
-                    error(" Error reading cluster configuration\n");
-                    _exit(1);
+    // Depcrecated frequency service (cleaning pending)
+    if (frequency_init(0) < 0) {
+        verbose(VEARD_INIT, "frequency information can't be initialized");
+        _exit(1);
+    }
+
+    // Reading Node configuration
+    if ((my_node_conf = get_my_node_conf(&my_cluster_conf, nodename)) == NULL) {
+        error( " Node %s not found in ear.conf, exiting\n", nodename);
+        _exit(0);
+    }
+
+    // More Cluster and Node configuration
+    verbose(VEARD_INIT,"%d Nodes detected in ear.conf configuration",my_cluster_conf.cluster_num_nodes);
+    check_policy_values(my_node_conf->policies,my_node_conf->num_policies);
+    copy_my_node_conf(&my_original_node_conf, my_node_conf);
+    update_global_configuration_with_local_ssettings(&my_cluster_conf,my_node_conf);
+
+    print_basic_configuration(1);
+    print_cluster_conf(&my_cluster_conf);
+    print_my_node_conf(my_node_conf);
+
+    // Things to sort
+    if (argc < 2) {
+                    // If verbose level not given as program argument, we set the default.
+                    set_verbose_variables();
                 } else {
-                    verbose(VEARD_INIT,"%d Nodes detected in ear.conf configuration",my_cluster_conf.cluster_num_nodes);
-                    compute_default_pstates_per_policy(my_cluster_conf.num_policies, my_cluster_conf.power_policies);
-                    print_cluster_conf(&my_cluster_conf);
-                    my_node_conf = get_my_node_conf(&my_cluster_conf, nodename);
-                    if (my_node_conf == NULL) {
-                        error( " Node %s not found in ear.conf, exiting\n", nodename);
-                        _exit(0);
-                    }
-                    check_policy_values(my_node_conf->policies,my_node_conf->num_policies);
-                    print_my_node_conf(my_node_conf);
-                    copy_my_node_conf(&my_original_node_conf, my_node_conf);
-                    update_global_configuration_with_local_ssettings(&my_cluster_conf,my_node_conf);
+                    TIMESTAMP_SET_EN(my_cluster_conf.eard.use_log);
                 }
+
                 verbose(VEARD_INIT,"Serializing cluster_conf");
                 serialize_cluster_conf(&my_cluster_conf, &ser_cluster_conf, &ser_cluster_conf_size);
                 verbose(VEARD_INIT,"Serialized cluster conf requires %lu bytes", ser_cluster_conf_size);
@@ -781,7 +823,6 @@ int main(int argc, char *argv[])
                     verbose(VEARD_INIT,"Creating log file");
                     create_log(my_cluster_conf.install.dir_temp, "eard", fd_my_log);
                 }
-                set_verbose_variables();
 
                 verbose(VEARD_INIT,"Creating frequency list in shared memory");
                 /** Shared memory is used between EARD and EARL **/
@@ -839,29 +880,23 @@ int main(int argc, char *argv[])
                 /* After potential recoveries, we set the info in the shared memory */
                 configure_default_values(&my_cluster_conf,my_node_conf);
 
-                // Check
-                if (argc == 2) {
-                    if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) Usage(argv[0]);
-                    verb_level = atoi(argv[1]);
-
-
-                    if ((verb_level < 0) || (verb_level > 4)) {
-                        Usage(argv[0]);
-                    }
-
-                }
-                set_ear_verbose(verb_level);
-                VERB_SET_LV(verb_level);
                 verbose(VEARD_INIT,"Catching signals");
                 // We catch signals
                 signal_catcher();
 
                 state_assert(s, monitor_init(), _exit(0));
 
-                if (eard_max_pstate < 0) Usage(argv[0]);
-                if (eard_max_pstate >= frequency_get_num_pstates()) Usage(argv[0]);
+                if (eard_min_pstate < 0) {
+                    eard_error("Minimum P-State (%u) must be greater or equal to 0.", eard_min_pstate);
+                } else {
+                    uint api_pstate_count = frequency_get_num_pstates();
+                    if (eard_min_pstate >= api_pstate_count)
+                    {
+                        eard_error("The minimum P-State (%d) must be less than the number of available P-States (%u)", eard_min_pstate, api_pstate_count);
+                    }
+                }
 
-                ear_node_freq = frequency_pstate_to_freq(eard_max_pstate);
+                ear_node_freq = frequency_pstate_to_freq(eard_min_pstate);
                 eard_max_freq = ear_node_freq;
                 verbose(VCONF, "Default max frequency defined to %lu", eard_max_freq);
                 // IMC frequency
@@ -869,8 +904,8 @@ int main(int argc, char *argv[])
                 imcfreq_load(&node_desc, NO_EARD);
                 state_assert(s, imcfreq_init(no_ctx), _exit(0));
 
-                // Services
-                services_init(&node_desc, my_node_conf);
+    // Services
+    //services_init(&node_desc, my_node_conf);
 
 #if EARD_LOCK
                 eard_lock(ear_tmp);
@@ -906,7 +941,6 @@ int main(int argc, char *argv[])
                     report_create_id(&rid, 0, 0, 0);
                 }
                 report_init(&rid, &my_cluster_conf);
-
                 report_eard_init_error();
 
                 uint thread_setup_count = 1 + POWERMON_THREAD + EXTERNAL_COMMANDS_THREAD; // eard + power mon + dyn conf
@@ -915,35 +949,26 @@ int main(int argc, char *argv[])
                 verbose(VEARD_INIT,"Creating EARD threads");
                 verbose(VEARD_INIT,"Creating power  monitor thread");
 #if POWERMON_THREAD
-
                 if ((ret=pthread_create(&power_mon_th, NULL, eard_power_monitoring, NULL))){
                     errno=ret;
                     error("error creating power_monitoring thread %s\n",strerror(errno));
                     log_report_eard_init_error(&rid,PM_CREATION_ERROR,ret);
                 }
 #endif
-
                 verbose(VEARD_INIT,"Creating the remote connections server");
-
 #if EXTERNAL_COMMANDS_THREAD
-
                 if ((ret=pthread_create(&dyn_conf_th, NULL, eard_dynamic_configuration, (void *)ear_tmp))){
                     error("error creating dynamic_configuration thread \n");
                     log_report_eard_init_error(&rid,DYN_CREATION_ERROR,ret);
                 }
 #endif
-
                 verbose(VEARD_INIT,"Creating APP-API thread");
-
 #if APP_API_THREAD
-
                 if ((ret=pthread_create(&app_eard_api_th,NULL,eard_non_earl_api_service,NULL))){
                     error("error creating server thread for non-earl api\n");
                     log_report_eard_init_error(&rid,APP_API_CREATION_ERROR,ret);
                 }
 #endif
-
-
                 verbose(VEARD_INIT,"EARD initialized succesfully");
                 /* This function never ends, EARD exits with SIGTERM o SIGINT */
                 eard_local_api();

@@ -1,24 +1,18 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
 #include <unistd.h>
 #include <common/includes.h>
+#include <common/output/debug.h>
 #include <common/system/symplug.h>
 
 state_t plug_join(void *handle, void *calls[], const char *names[], uint n)
@@ -51,9 +45,11 @@ static state_t static_open(char *path, void *calls[], const char *names[], uint 
     void *handle;
     debug("trying to access to '%s'", path);
     if (access(path, X_OK) != 0) {
+				debug("plugin %s cannot be loaded error=%s", path, strerror(errno));
         return_msg(EAR_ERROR, strerror(errno));
     }
     if ((handle = dlopen(path, flags)) == NULL) {
+				debug("plugin %s cannot be loaded by symplug error=%s", path, dlerror());
         return_msg(EAR_ERROR, dlerror());
     }
     debug("dlopen ok");
@@ -69,6 +65,7 @@ state_t plug_open(char *path, void *calls[], const char *names[], uint n, int fl
 {
     return static_open(path, calls, names, n, flags);
 }
+
 
 state_t plug_test(void *calls[], uint n)
 {

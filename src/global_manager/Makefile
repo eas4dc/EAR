@@ -1,4 +1,4 @@
-CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -pthread $(DB_FLAGS)
+CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) -pthread $(DB_CFLAGS)
 LDFLAGS = $(DB_LDFLAGS) -lpthread -lm -ldl
 
 ######## INSTALLATION
@@ -11,20 +11,27 @@ eargmd_PERM = 0770
 comm_BINS = \
     $(SRCDIR)/daemon/remote_api/eard_rapi.o \
     $(SRCDIR)/daemon/remote_api/eard_rapi_internals.o \
-    $(SRCDIR)/common/libcommon.a
+    $(SRCDIR)/common/libdb.a \
+	$(SRCDIR)/report/report.o \
+    $(SRCDIR)/common/libcommon.a 
+	
+
 
 eargmd_OBJS = \
     eargm_rapi.o
 
-ifdef DB_BASE
+
 eargmd_OBJS += \
     cluster_powercap.o \
     cluster_energycap.o \
     meta_eargm.o \
     eargm_ext_rm.o
 
+ifdef DB_BASE
+ifeq ($(FEAT_WF_SUPPORT), 1)
 eargmd_BINS = \
     eargmd
+endif
 endif
 
 ######## RULES

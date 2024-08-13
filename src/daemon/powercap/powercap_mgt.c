@@ -1,18 +1,12 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * EAR is an open source software, and it is licensed under both the BSD-3 license
- * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD * and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #define _GNU_SOURCE
 #include <errno.h>
@@ -37,8 +31,8 @@
 #include <common/hardware/hardware_info.h>
 #include <common/types/configuration/cluster_conf.h>
 
-#include <daemon/shared_configuration.h>
 #include <daemon/power_monitor.h>
+#include <daemon/shared_configuration.h>
 #include <daemon/powercap/powercap_mgt.h>
 #include <daemon/powercap/powercap_status.h>
 #if USE_GPUS
@@ -89,6 +83,7 @@ static domain_status_t cdomain_status[NUM_DOMAINS];
 static domain_settings_t cdomain_settings[NUM_DOMAINS];
 static ulong *current_util[NUM_DOMAINS],*prev_util[NUM_DOMAINS];
 static ulong  dom_util[NUM_DOMAINS],last_dom_util[NUM_DOMAINS],dom_changed[NUM_DOMAINS];
+static uint use_min_cpufreq_in_idle = EARD_POWERCAP_IDLE_MINFREQ;
 #if USE_GPUS || SHOW_DEBUGS
 static ulong  dom_util_limit[NUM_DOMAINS];
 #endif
@@ -103,11 +98,11 @@ static ulong  dom_util_limit[NUM_DOMAINS];
 /* pdomains_min defines the minimum power balance that a certain domain can reach when rebalancing 
  * the node due to excessive power consumption. */
 /* pdomains_min_dummy is used when GPUs are enabled but the domain loads the dummy plugin*/
-static float pdomains[NUM_DOMAINS]={0.6,0.45,0,GPU_PERC_UTIL};
-static float pdomains_idle[NUM_DOMAINS]={0.6,0.45,0,GPU_PERC_UTIL};
-static float pdomains_def[NUM_DOMAINS]={0.6,0.5,0,GPU_PERC_UTIL};
+static float pdomains[NUM_DOMAINS]={1.0,0.45,0,GPU_PERC_UTIL};
+static float pdomains_idle[NUM_DOMAINS]={1.0,0.45,0,GPU_PERC_UTIL};
+static float pdomains_def[NUM_DOMAINS]={1.0,0.5,0,GPU_PERC_UTIL};
 static float pdomains_def_dummy[NUM_DOMAINS]={1.0,0.9,0,0};
-static float pdomains_min[NUM_DOMAINS]={0.6,0.4,0,GPU_PERC_UTIL};
+static float pdomains_min[NUM_DOMAINS]={1.0,0.4,0,GPU_PERC_UTIL};
 static float pdomains_min_dummy[NUM_DOMAINS]={1.0,0.75,0,0};
 #else
 static float pdomains[NUM_DOMAINS]={1.0, 0.9, 0, 0};
@@ -146,6 +141,9 @@ const char     *pcsyms_names[] ={
     "plugin_set_relax",
     "plugin_get_settings",
 };
+
+
+static uint pmgt_powercap_status_per_domain(uint action);
 
 #ifndef SYN_TEST
 #define UTIL_BURST_PERIOD 1000
@@ -192,17 +190,19 @@ static topology_t pc_topology_info;
 /* These functions identies and monitors load changes */
 
 
-static uint rapl_pck_tdps[MAX_PACKAGES];
-static uint rapl_dram_tdps[MAX_PACKAGES];
-#define TDP_CPU 150
-#define TDP_DRAM 30
+static uint  pck_tdps[MAX_PACKAGES];
+static uint  dram_tdps[MAX_PACKAGES];
+static ulong gpu_tdps[MAX_GPUS_SUPPORTED];
+static ulong gpu_tdps_min[MAX_GPUS_SUPPORTED];
 #define TDP_GPU 250
 
 void init_tdps()
 {
     mgt_cpupow_load(&pc_topology_info, NO_EARD);
-    mgt_cpupow_tdp_get(CPUPOW_SOCKET, rapl_pck_tdps);
-    mgt_cpupow_tdp_get(CPUPOW_DRAM, rapl_dram_tdps);
+    mgt_cpupow_tdp_get(CPUPOW_SOCKET, pck_tdps);
+    mgt_cpupow_tdp_get(CPUPOW_DRAM, dram_tdps);
+    mgt_gpu_load(NO_EARD);
+    mgt_gpu_power_cap_get_rank(NULL, gpu_tdps_min, gpu_tdps);
 }
 
 void compute_power_distribution()
@@ -215,19 +215,24 @@ void compute_power_distribution()
     init_tdps();
 
     /* CPU and DRAM are read in eard.c during the initialization */
-    bpd_cpu = rapl_pck_tdps[0];
-    bpd_dram = rapl_dram_tdps[0];
+    /* We assume that ALL CPUs, DRAM and GPUs have the same TDP */
+    bpd_cpu = pck_tdps[0];
+    bpd_dram = dram_tdps[0];
     debug("Using CPU TDP %u DRAM TDP %u", bpd_cpu, bpd_dram);
 #if USE_GPUS
-    if ((domains_loaded[DOMAIN_GPU]) && (gpu_pc_model != API_DUMMY)) bpd_gpu = TDP_GPU;
+    if ((domains_loaded[DOMAIN_GPU]) && (gpu_pc_model != API_DUMMY)) bpd_gpu = gpu_tdps[0];
 #endif
     pd_cpu = bpd_cpu * pc_topology_info.socket_count;
     pd_dram = bpd_dram * pc_topology_info.socket_count;
     pd_gpu = bpd_gpu * gpu_pc_num_gpus;
     pd_pckg = pd_cpu + pd_dram;
     pd_total = pd_pckg + pd_gpu + pd_pckg * node_ratio;        
-    pdomains_def[DOMAIN_NODE] = ((float)pd_pckg +(float)pd_pckg * node_ratio) / (float)pd_total;
-    pdomains_def[DOMAIN_CPU] = (float) pd_pckg / (float)pd_total;
+    /* DOMAIN NODE is the total power
+     * DOMAIN_CPU is (currently) PKG + DRAM
+     * DOMAIN_DRAM is (currently) DRAM
+     * DOMAIN_GPU is all the GPUs*/
+    pdomains_def[DOMAIN_NODE] = (float)pd_total;
+    pdomains_def[DOMAIN_CPU] = (float) (pd_pckg + pd_dram) / (float)pd_total;
     pdomains_def[DOMAIN_DRAM] = (float) pd_dram / (float)pd_total;
     pdomains_def[DOMAIN_GPUS] = 0;
     debug("pd_cpu: %u with %u sockets", pd_cpu, pc_topology_info.socket_count);
@@ -251,7 +256,7 @@ uint pmgt_utilization_changed()
             }
         }
 #if USE_GPUS
-        else if ((i == DOMAIN_GPU )){
+        else if (i == DOMAIN_GPU ){
             uint g;
             for (g=0;g<gpu_pc_num_gpus;g++){
                 //debug("Comparing utilization for GPU %d : %lu vs %lu",g,current_util[DOMAIN_GPU][g],prev_util[DOMAIN_GPU][g]);
@@ -335,9 +340,7 @@ static state_t util_detect_init(void *p)
     last_dom_util[DOMAIN_CPU] = min;
     last_dom_util[DOMAIN_DRAM] = pc_topology_info.socket_count;
     last_dom_util[DOMAIN_GPU]=0;
-    if (gpu_data_alloc(&gpu_detection_raw_data)!=EAR_SUCCESS){
-        error("Initializing GPU data in powercap");
-    }
+    gpu_data_alloc(&gpu_detection_raw_data);
     return EAR_SUCCESS;
 }
 #endif
@@ -371,9 +374,7 @@ state_t pmgt_init()
     if (gpu_init(no_ctx)!=EAR_SUCCESS){
         error("Initializing GPU in powercap");
     }
-    if (gpu_count_devices(no_ctx, &gpu_pc_num_gpus)!=EAR_SUCCESS){
-        error("Getting num gpus");
-    }
+    gpu_count_devices(no_ctx, &gpu_pc_num_gpus);
     if (gpu_pc_model == API_DUMMY) {
         memcpy(pdomains_def,pdomains_def_dummy,sizeof(pdomains_def));
         memcpy(pdomains,pdomains_def_dummy,sizeof(pdomains_def));
@@ -384,10 +385,14 @@ state_t pmgt_init()
 #endif
     my_policy = get_my_policy_conf(my_node_conf,my_cluster_conf.default_policy);
     pmgt_idle_def_freq = frequency_pstate_to_freq(my_policy->p_state);
+		
+		if (ear_getenv(EARD_USE_MINCPUFREQ_PC) != NULL){
+			use_min_cpufreq_in_idle = atoi(ear_getenv(EARD_USE_MINCPUFREQ_PC));
+		}	
 
     /* DOMAIN_NODE is not cmpatible with CPU+DRAM */
     /* DOMAIN_NODE */
-    char *obj_path = ear_getenv("EAR_POWERCAP_POLICY_NODE");
+    char *obj_path = ear_getenv(EAR_POWERCAP_POLICY_NODE);
     if (obj_path==NULL){
         /* Plugin per domain node defined */
         if (strcmp(DEFAULT_PC_PLUGIN_NAME_NODE,"noplugin")){
@@ -411,7 +416,7 @@ state_t pmgt_init()
     debug("Static NODE utilization set to 100");
     if (!domains_loaded[DOMAIN_NODE]){
         /* DOMAIN_CPU */
-        obj_path = ear_getenv("EAR_POWERCAP_POLICY_CPU"); //environment variable takes priority
+        obj_path = ear_getenv(EAR_POWERCAP_POLICY_CPU); //environment variable takes priority
         if (obj_path == NULL){ //if envar is not defined, we try with the ear.conf var
             obj_path = my_node_conf->powercap_plugin;
             if (obj_path != NULL && strlen(obj_path) > 1) {
@@ -444,7 +449,7 @@ state_t pmgt_init()
         debug("Static CPU utilization set to 100 for %d cpus",pc_topology_info.cpu_count);
 
         /* DOMAIN_DRAM */
-        obj_path = ear_getenv("EAR_POWERCAP_POLICY_DRAM");
+        obj_path = ear_getenv(EAR_POWERCAP_POLICY_DRAM);
         if (obj_path==NULL){
             /* Plugin per domain node defined */
             if (strcmp(DEFAULT_PC_PLUGIN_NAME_DRAM,"noplugin")){
@@ -469,7 +474,7 @@ state_t pmgt_init()
 
 #if USE_GPUS
     /* DOMAIN_GPU */
-    obj_path = ear_getenv("EAR_POWERCAP_POLICY_GPU");
+    obj_path = ear_getenv(EAR_POWERCAP_POLICY_GPU);
     if (gpu_pc_model != API_DUMMY) {
         if (obj_path==NULL){
             obj_path = my_node_conf->powercap_gpu_plugin;
@@ -519,7 +524,9 @@ state_t pmgt_init()
     else ret=EAR_ERROR;
 #endif
     debug("Initializing Util monitoring");
-    util_monitoring_init();
+    if (!domains_loaded[DOMAIN_NODE]) {
+        util_monitoring_init();
+    }
     memset(cdomain_status,0,NUM_DOMAINS*sizeof(domain_status_t));
     memset(&cdomain_settings, 0, sizeof(domain_settings_t)*NUM_DOMAINS);
     for (i = 0; i<NUM_DOMAINS; i++) {
@@ -797,14 +804,13 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
         }
 
     }
-#define USE_IDLE_PC_MINFREQ 1
     if (domain == DOMAIN_CPU){
         for (i=0; i < MAX_CPUS_SUPPORTED; i++){
-#if USE_IDLE_PC_MINFREQ
-            if (!f[i]) f[i] = frequency_pstate_to_freq(frequency_get_num_pstates() -1 );
-#else
+				if (use_min_cpufreq_in_idle){
+            if (!f[i]) f[i] = frequency_pstate_to_freq(frequency_get_num_pstates() - 1);
+				}else{
             if (!f[i]) f[i] = pmgt_idle_def_freq;
-#endif
+				}
         }
     }
 }
@@ -897,6 +903,7 @@ void pmgt_run_to_idle(pwr_mgt_t *phandler)
     pmgt_set_status(phandler,PC_STATUS_IDLE);
 }
 
+
 void pmgt_get_status(pmgt_status_t *status)
 {
     int i;
@@ -930,7 +937,7 @@ void pmgt_get_status(pmgt_status_t *status)
             status->status = PC_STATUS_GREEDY;
             status->requested += cdomain_status[DOMAIN_CPU].requested; 
             status->requested += cdomain_status[DOMAIN_GPU].requested;
-            status->requested = ear_min(status->requested, 256); // a total maximum step of 256 since it is the max value we can pass up
+            status->requested = ear_min(status->requested, 255); // a total maximum step of 256 since it is the max value we can pass up
             status->stress = ear_max(cdomain_status[DOMAIN_CPU].stress, cdomain_status[DOMAIN_GPU].stress);
             debug("pmgt_get_status: GREEDY + OK/GREEDY Node requested power %u",status->requested);
         }
@@ -943,20 +950,22 @@ void pmgt_get_status(pmgt_status_t *status)
 
 }
 
-uint pmgt_powercap_status_per_domain(uint action)
+/* This is only used when USE_GPUs is defined. It computes
+ */
+static uint pmgt_powercap_status_per_domain(uint action)
 {
 #if USE_GPUS
     int i;
     char is_release = 0;
     int totalok, totalrel, totalask;
     totalok = totalrel = totalask = 0;
-    uint ret,from = 0,to = 0;
+    uint ret = 0, from = 0,to = 0;
     memset(cdomain_status,0,sizeof(domain_status_t)*NUM_DOMAINS);
     if (pmgt_limit == POWER_CAP_UNLIMITED) return 0;
     /* We ask each domain its curent status to distribute power accross domains */
     for (i=0; i< NUM_DOMAINS;i++){
         if (pcsyms_fun[i].get_powercap_status != NULL){
-            ret=pcsyms_fun[i].get_powercap_status(&cdomain_status[i]);
+            pcsyms_fun[i].get_powercap_status(&cdomain_status[i]);
             /* status = 0 when it's ok and 1 when it can release power */
             totalok += (cdomain_status[i].ok == PC_STATUS_OK);
             totalrel += (cdomain_status[i].ok == PC_STATUS_RELEASE);

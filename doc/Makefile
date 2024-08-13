@@ -1,4 +1,4 @@
 ######## OPTIONS
 
 install:
-	cp -r man $(DESTDIR)/
+	cp -r man $(DOCDIR)/

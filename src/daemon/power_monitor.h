@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 /**
  * \file power_monitoring.h
@@ -24,6 +17,8 @@
 #ifndef _POWER_MONITORING_H_
 #define _POWER_MONITORING_H_
 
+#define MAX_NESTED_LEVELS 16384
+#if 0
 #include <linux/version.h>
 #include <common/types/application.h>
 #include <common/messaging/msg_conf.h>
@@ -33,7 +28,6 @@
 #include <daemon/node_metrics.h>
 #include <daemon/shared_configuration.h>
 
-#define MAX_NESTED_LEVELS 16384
 
 #define APP_DEFAULT  0
 #define APP_FINISHED 1
@@ -65,7 +59,11 @@ typedef struct powermon_app {
     accum_power_sig_t accum_ps; //
     uint             *prio_idx_list; // List of CPU priorities before job beginning.
     pthread_mutex_t   powermon_app_mutex;
+    int								fd_shared_areas[PER_JOB_SHARED_REGIONS]; 
 } powermon_app_t;
+
+#endif
+#include <daemon/power_monitor_app.h>
 
 
 typedef struct job_context {
@@ -219,4 +217,9 @@ void powermon_report_event(uint event_type, llong value);
 
 /** \todo Add a description. */
 uint is_job_in_node(job_id id, job_context_t **jc);
+
+
+/** Checks all the job in eard internal data structures and cleans not valid data 
+ */
+ void powermon_purge_old_jobs();
 #endif

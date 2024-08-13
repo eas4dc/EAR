@@ -1,22 +1,18 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-// #define SHOW_DEBUGS 1
+
 #define _GNU_SOURCE
+
+
+
 #include <sched.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -32,9 +28,9 @@
 
 #include <common/config.h>
 #include <common/states.h>
+#include <common/system/folder.h>
 #include <common/hardware/hardware_info.h>
 #include <common/output/verbose.h>
-#include <common/types/projection.h>
 #include <common/types/configuration/cluster_conf.h>
 
 #include <metrics/flops/flops.h>
@@ -47,6 +43,7 @@
 #include <library/common/global_comm.h>
 #include <common/environment.h>
 
+#define WF_SUPPORT_VERB 2
 
 #define ear_msync(a,b,c) msync(a,b,c)
 //#define ear_msync(a,b,c) 0
@@ -54,6 +51,7 @@
 /* Node mgr variables */
 extern ear_njob_t *node_mgr_data;
 extern uint node_mgr_index;
+extern uint node_mgr_earl_index;
 extern node_mgr_sh_data_t *node_mgr_job_info;
 extern char lib_shared_region_path_jobs[GENERIC_NAME];
 extern char sig_shared_region_path_jobs[GENERIC_NAME];
@@ -62,17 +60,24 @@ extern uint exclusive;
 extern uint fake_force_shared_node;
 
 extern sem_t *lib_shared_lock_sem;
+extern uint   AID;
 
-int  get_lib_shared_data_path(char *tmp, uint ID, char *path)
+void eid_folder(char *dst, int size, char *tmp, int jid, int sid, uint aid)
+{
+  snprintf(dst, size,"%s/%u/%u", tmp, create_ID(jid,sid), aid);
+}
+
+
+int  get_lib_shared_data_path(char *tmp, uint ID, uint AID, char *path)
 {
 	if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
-	sprintf(path,"%s/%u/.ear_lib_shared_data",tmp, ID);
+	sprintf(path,"%s/%u/%u.app/.ear_lib_shared_data",tmp, ID, AID);
 	return EAR_SUCCESS;	
 }
-int  get_shared_signatures_path(char *tmp, uint ID, char *path)
+int  get_shared_signatures_path(char *tmp, uint ID, uint AID, char *path)
 {
 	if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
-	sprintf(path,"%s/%u/.ear_shared_signatures",tmp, ID);
+	sprintf(path,"%s/%u/%u.app/.ear_shared_signatures",tmp, ID, AID);
 	return EAR_SUCCESS;	
 }
 
@@ -82,22 +87,26 @@ int  get_shared_signatures_path(char *tmp, uint ID, char *path)
 /***** SPECIFIC FUNCTIONS *******************/
 
 
-
 lib_shared_data_t * create_lib_shared_data_area(char * path)  
-{      	
+{
 	lib_shared_data_t sh_data,*my_area;
-	my_area=(lib_shared_data_t *)create_shared_area(path,(char *)&sh_data,sizeof(lib_shared_data_t),&fd_conf,1);
+	mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
+	my_area = (lib_shared_data_t *) create_shared_area(path, perms, (char *) &sh_data, sizeof(lib_shared_data_t) ,&fd_conf, 1);
 	return my_area;
 }
+
 
 lib_shared_data_t * attach_lib_shared_data_area(char * path, int *fd)
 {
     return (lib_shared_data_t *)attach_shared_area(path,sizeof(lib_shared_data_t),O_RDWR,fd,NULL);
-}                                
+}
+
+
 void dettach_lib_shared_data_area(int fd)
 {
 	dettach_shared_area(fd);
 }
+
 
 void lib_shared_data_area_dispose(char * path)
 {
@@ -107,8 +116,7 @@ void lib_shared_data_area_dispose(char * path)
 
 void print_lib_shared_data(lib_shared_data_t *sh_data)
 {
-	fprintf(stderr,"sh_data num_processes %d signatures %d cas_counters %llu\n",sh_data->num_processes,sh_data->num_signatures,sh_data->cas_counters);
-
+	fprintf(stderr, "sh_data num_processes %d signatures %d cas_counters %llu\n",sh_data->num_processes,sh_data->num_signatures,sh_data->cas_counters);
 }
 
 /// SIGNATURES
@@ -118,8 +126,9 @@ shsignature_t * create_shared_signatures_area(char * path, int np)
 {      	
 	shsignature_t *my_sig,*p2;
 
-	my_sig=(shsignature_t*)malloc(sizeof(shsignature_t)*np);
-	p2=create_shared_area(path,(char *)my_sig,sizeof(shsignature_t)*np,&fd_signatures,1);
+	my_sig = (shsignature_t*) malloc(sizeof(shsignature_t) * np);
+	mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
+	p2=create_shared_area(path, perms, (char *) my_sig, sizeof(shsignature_t) * np, &fd_signatures, 1);
 	free(my_sig);
 	return p2;
 }
@@ -159,8 +168,9 @@ int all_signatures_initialized(lib_shared_data_t *data,shsignature_t *sig)
 void aggregate_all_the_cpumasks(lib_shared_data_t *data,shsignature_t *sig, cpu_set_t *m)
 {
 	CPU_ZERO(m);
-	for (uint p = 0; p < data->num_processes; p++){
-		aggregate_cpus_to_mask(m, &sig[p].cpu_mask);
+	for (uint p = 0; p < data->num_processes; p++)
+	{
+		cpumask_aggregate(m, &sig[p].cpu_mask);
 	}
 }
 
@@ -574,15 +584,10 @@ state_t compute_job_node_io_mbs(const shsignature_t *sig, int n_procs, double *i
 }
 
 
-void compute_job_cpus(lib_shared_data_t *data,shsignature_t *sig,uint *cpus)
+void compute_job_cpus(lib_shared_data_t *data, uint *cpus)
 {
-    int i;
-    *cpus = 0;
-    for (i = 0; i < data->num_processes; i++) {
-        uint lcpus = num_cpus_in_mask(&sig[i].cpu_mask);
-        *cpus += lcpus;
-    }
-    verbose_master(2,"Job %u has %u cpus ",node_mgr_index,*cpus);
+	*cpus = cpumask_count(&data->node_mask);
+	verbose_master(2, "Job: %u. CPUs: %u.", node_mgr_index, *cpus);
 }
 
 uint compute_max_vpi_idx(const shsignature_t *sig, int n_procs, double *max_vpi)
@@ -643,20 +648,18 @@ void compute_per_node_avg_sig_info(lib_shared_data_t *data, shsignature_t *sig, 
 
 void load_app_mgr_env()
 {
-	char *cshow_sig=ear_getenv(FLAG_SHOW_SIGNATURES);
 	char *csh_sig_per_process=ear_getenv(FLAG_SHARE_INFO_PPROC);
 	char *csh_sig_per_node=ear_getenv(FLAG_SHARE_INFO_PNODE);
 	char *creport_node_sig=ear_getenv(FLAG_REPORT_NODE_SIGNATURES);
 	char *creport_all_sig=ear_getenv(FLAG_REPORT_ALL_SIGNATURES);
 
-	if (cshow_sig != NULL) show_signatures = atoi(cshow_sig);
 	if (csh_sig_per_process != NULL) sh_sig_per_proces = atoi(csh_sig_per_process);
 	if (csh_sig_per_node != NULL) sh_sig_per_node = atoi(csh_sig_per_node);
 	if (creport_node_sig != NULL) report_node_sig = atoi(creport_node_sig);	
 	if (creport_all_sig != NULL) report_all_sig = atoi(creport_all_sig);
 
-	verbose_master(2,"Show_signatures %u share_sig_per_process %u share_sig_per_node %u report_node_sig %u report_all_sig %u",
-	show_signatures,sh_sig_per_proces,sh_sig_per_node,report_node_sig,report_all_sig);
+	verbose_master(2, "share_sig_per_process %u share_sig_per_node %u report_node_sig %u report_all_sig %u",
+								 sh_sig_per_proces, sh_sig_per_node, report_node_sig, report_all_sig);
 }
 
 void* mpi_info_get_perc_mpi(void* mpi_inf){
@@ -681,117 +684,448 @@ void compute_total_node_avx_and_avx_fops(lib_shared_data_t *data,shsignature_t *
 }
 
 /* Node mgr support functions */
+
+static uint total_num_earl_apps = 0;
 void  init_earl_node_mgr_info()
 {
-  for (uint j = 0;j < MAX_CPUS_SUPPORTED; j++){
+#if WF_SUPPORT
+	verbose(WF_SUPPORT_VERB+1, "%sPID[%d] init_earl_node_mgr_info..................%s", COL_RED, getpid(), COL_CLR);
+  if (total_num_earl_apps)
+	{
+    //verbose(WF_SUPPORT_VERB,"New process?: Releasing node_mgr_data info ");
+    release_earl_node_mgr_info();
+  }
+
+  if (node_mgr_info_lock() == EAR_SUCCESS)
+	{
+    for (uint j = 0;j < MAX_CPUS_SUPPORTED; j++)
+		{
+      if (node_mgr_data[j].jid != -1) total_num_earl_apps += ear_max(node_mgr_data[j].num_earl_apps, 1);
+    }
+  } else
+	{
+    verbose(WF_SUPPORT_VERB,"ERROR: EARL cannot get node_mgr_info_lock");
+    node_mgr_job_info = NULL;
+    return;
+  }
+
+  verbose(WF_SUPPORT_VERB+1," EARL[%d]: allocation %d apps", getpid(), total_num_earl_apps);
+
+  node_mgr_job_info = calloc(total_num_earl_apps, sizeof(node_mgr_sh_data_t));
+
+  uint curr_app = 0;
+
+  /* Each job could have more than 1 app */
+
+  for (uint j = 0;j < MAX_CPUS_SUPPORTED; j++)
+	{
     uint ID;
-    job_id id,sid;
+    job_id jid,sid,lid;
+    char *appid_folder, *appid_folder_full;
+    folder_t SID_folder;
+    char SID_folder_name[MAX_PATH_SIZE];
+    uint apps;
 
 		char *tmp = get_ear_tmp();
+    time_t ct, mt;
+
+    jid  = node_mgr_data[j].jid;
+    sid = node_mgr_data[j].sid;
+    ct  = node_mgr_data[j].creation_time;
+    mt  = node_mgr_data[j].modification_time;
+    apps = node_mgr_data[j].num_earl_apps;
+
+    if (jid == -1) continue;
+
+    ID = create_ID(jid, sid);
+    snprintf(SID_folder_name, sizeof(SID_folder_name), "%s/%u", tmp, ID); 
+    if (state_fail(folder_open(&SID_folder,SID_folder_name))){
+      verbose_master(WF_SUPPORT_VERB,"Failed folder open %s", SID_folder_name);
+      continue;
+    }
+    
+    verbose_master(WF_SUPPORT_VERB,"looking for apps in %lu.%lu job folder (%s)", jid, sid, SID_folder_name);
+
+		int abort_init = 0;
+    while (!abort_init && ( appid_folder_full = folder_getnext_type(&SID_folder,NULL, ".app", DT_DIR))){
+        /* Filtering . and .. folders */
+
+        appid_folder = strtok(appid_folder_full,".app");
+        lid = (job_id)atoi(appid_folder);
+        verbose_master(WF_SUPPORT_VERB,"New APP[%d] detected for %lu/%lu/%lu", curr_app,jid, sid, lid);
+        if (curr_app == total_num_earl_apps)
+				{
+          verbose_warning_master("Initialzing node_mgr_earl info. Current total apps: %d Count based on folders %d. Reallocating memory old address %p", total_num_earl_apps, curr_app, node_mgr_job_info);
+					node_mgr_job_info = realloc(node_mgr_job_info, sizeof(node_mgr_sh_data_t)*(total_num_earl_apps+1));
+					if (node_mgr_job_info == NULL){
+						verbose_master(WF_SUPPORT_VERB,"EARL error!!, memory cannot be reallocated");
+						abort_init = 1;
+						continue;
+					}	
+					total_num_earl_apps++;
+					verbose_master(WF_SUPPORT_VERB, "New Area space %p, total apps %d", node_mgr_job_info, total_num_earl_apps);
+        }
+
+        node_mgr_job_info[curr_app].jid               = jid;
+        node_mgr_job_info[curr_app].sid               = sid;
+        node_mgr_job_info[curr_app].lid               = lid;
+        node_mgr_job_info[curr_app].creation_time     = ct;
+        node_mgr_job_info[curr_app].modification_time = mt;
+        node_mgr_job_info[curr_app].fd_lib          = -1;
+        node_mgr_job_info[curr_app].fd_sig          = -1;
+				node_mgr_job_info[curr_app].libsh           = NULL;
+				node_mgr_job_info[curr_app].shsig           = NULL;
+
+				if (lid == AID){
+					verbose_master(2,"[%d] Self detected in pos %d", getpid(), curr_app);
+					node_mgr_earl_index = curr_app;
+				}
+
+        if (apps){
+          /* Mapping lib_shared_region */ 
+          verbose_master(2,"[%d] Job %lu.%lu.%lu is sharing the node", getpid(), jid,sid,lid);
+          if (get_lib_shared_data_path(tmp,ID,lid,lib_shared_region_path_jobs) == EAR_SUCCESS){
+            node_mgr_job_info[curr_app].libsh = attach_lib_shared_data_area(lib_shared_region_path_jobs, &node_mgr_job_info[curr_app].fd_lib);
+						if (node_mgr_job_info[curr_app].libsh == NULL) continue;
+          }else{
+						continue;
+					}
+					verbose_master(2,"[%d] lib_shared_data mapped for %lu.%lu.%lu", getpid(), jid,sid,lid);
+          /* Mapping shared signatures */
+				  if (get_shared_signatures_path(tmp,ID,lid,sig_shared_region_path_jobs) == EAR_SUCCESS){
+					  node_mgr_job_info[curr_app].shsig = attach_shared_signatures_area(sig_shared_region_path_jobs, node_mgr_job_info[curr_app].libsh->num_processes, &node_mgr_job_info[curr_app].fd_sig);
+						if (node_mgr_job_info[curr_app].shsig == NULL){ 
+							dettach_lib_shared_data_area(node_mgr_job_info[curr_app].fd_lib);
+							node_mgr_job_info[curr_app].libsh = NULL;
+							continue;
+						}else{
+							verbose_master(2,"[%d] shared_signatures mapped for %lu.%lu.%lu", getpid(), jid,sid,lid);
+						}
+				  }else{
+						dettach_lib_shared_data_area(node_mgr_job_info[curr_app].fd_lib);
+						node_mgr_job_info[curr_app].libsh = NULL;
+						continue;
+					}
+        }
+        curr_app++;
+    }
+  }
+  node_mgr_info_unlock();
+  verbose_master(WF_SUPPORT_VERB,"init_earl_node_mgr_info done: Total apps computed %d , based on folders %d", total_num_earl_apps, curr_app);
+#else
+	node_mgr_earl_index = node_mgr_index;
+	node_mgr_job_info = calloc(MAX_CPUS_SUPPORTED, sizeof(node_mgr_sh_data_t));
+
+  char *tmp = get_ear_tmp();
+
+	for (uint j = 0;j < MAX_CPUS_SUPPORTED; j++)
+	{
+    uint ID;
+    job_id id, sid;
+
     id = node_mgr_data[j].jid;
     sid = node_mgr_data[j].sid;
-    if ((id != -1) && (sid != -1)){
+
+    if ((id != -1) && (sid != -1))
+		{
       /* Double validation */
-      if (node_mgr_info_lock() == EAR_SUCCESS){
+      if (node_mgr_info_lock() == EAR_SUCCESS)
+			{
         id = node_mgr_data[j].jid;
         sid = node_mgr_data[j].sid;
+
         node_mgr_job_info[j].creation_time = node_mgr_data[j].creation_time;
+
         node_mgr_info_unlock();
       }
-      if ((id != -1) && (sid != -1) && (j != node_mgr_index) ){
-        verbose_master(2,"Job %lu.%lu is sharing the node", id,sid);
+
+      if ((id != -1) && (sid != -1) && (j != node_mgr_index))
+			{
+        verbose_info_master("Job %lu.%lu is sharing the node.", id, sid);
+
         ID = create_ID(id, sid);
-        if (get_lib_shared_data_path(tmp,ID,lib_shared_region_path_jobs) == EAR_SUCCESS){
-          node_mgr_job_info[j].libsh = attach_lib_shared_data_area(lib_shared_region_path_jobs, &node_mgr_job_info[j].fd_lib);
-        }else{
+				
+				state_t ret_st = get_lib_shared_data_path(tmp, ID, 0, lib_shared_region_path_jobs);
+        if (state_ok(ret_st))
+				{
+          node_mgr_job_info[j].libsh = attach_lib_shared_data_area(lib_shared_region_path_jobs,
+																																	 &node_mgr_job_info[j].fd_lib);
+					if (node_mgr_job_info[j].libsh == NULL)
+					{
+						node_mgr_job_info[j].creation_time = 0;
+						verbose_warning_master("Library shared data is NULL: ingoring job %lu.%lu.", id, sid);
+						continue;
+					}
+        } else
+				{
           node_mgr_job_info[j].creation_time = 0;
+					continue;
         }
-				if (get_shared_signatures_path(tmp,ID,sig_shared_region_path_jobs) == EAR_SUCCESS){
-					node_mgr_job_info[j].shsig = attach_shared_signatures_area(sig_shared_region_path_jobs, node_mgr_job_info[j].libsh->num_processes, &node_mgr_job_info[j].fd_sig);
+
+				ret_st = get_shared_signatures_path(tmp,ID,0, sig_shared_region_path_jobs);
+        if (state_ok(ret_st))
+				{
+          node_mgr_job_info[j].shsig = attach_shared_signatures_area(sig_shared_region_path_jobs,
+																																		 node_mgr_job_info[j].libsh->num_processes,
+																																		 &node_mgr_job_info[j].fd_sig);
+					if (node_mgr_job_info[j].shsig == NULL)
+					{
+						node_mgr_job_info[j].libsh = NULL;
+						node_mgr_job_info[j].creation_time = 0;
+						verbose_warning_master("Shared signatures data is NULL: ingoring job %lu.%lu.", id, sid);
+						continue;
+					}
+					total_num_earl_apps++;
+        } else
+				{
+          node_mgr_job_info[j].creation_time = 0;
 				}
-      }else if (j == node_mgr_index){
+      } else if (j == node_mgr_index)
+			{
         node_mgr_job_info[j].libsh =  lib_shared_region;
-				node_mgr_job_info[j].shsig =  sig_shared_region;
+        node_mgr_job_info[j].shsig =  sig_shared_region;
+				node_mgr_job_info[j].creation_time = node_mgr_data[j].creation_time;
+				total_num_earl_apps++;
       }
     }
   }
+  #endif
 }
+
+#if WF_SUPPORT
+void release_earl_node_mgr_info()
+{
+  verbose_master(WF_SUPPORT_VERB,"Releasing Node MGR info total apps %u", total_num_earl_apps);
+  if (node_mgr_job_info == NULL) return;
+  while (node_mgr_info_lock() != EAR_SUCCESS);
+  for (uint curr_app = 0; curr_app < total_num_earl_apps; curr_app++){
+    if (node_mgr_job_info[curr_app].fd_lib != -1) dettach_lib_shared_data_area(node_mgr_job_info[curr_app].fd_lib);
+    if (node_mgr_job_info[curr_app].fd_sig != -1) dettach_shared_signatures_area(node_mgr_job_info[curr_app].fd_sig);
+    node_mgr_job_info[curr_app].libsh = NULL;
+    node_mgr_job_info[curr_app].shsig = NULL;
+  }
+  free(node_mgr_job_info);
+  total_num_earl_apps = 0;
+  node_mgr_info_unlock();
+}
+#endif
+
+#if WF_SUPPORT
+uint node_manager_job_changed(job_id jid, job_id sid, time_t mt)
+{
+  while (node_mgr_info_lock() != EAR_SUCCESS);
+  for (uint j = 0; j < MAX_CPUS_SUPPORTED; j++){
+    if ((node_mgr_data[j].jid == jid) && (node_mgr_data[j].sid == sid) && (node_mgr_data[j].modification_time != mt)){
+      node_mgr_info_unlock();
+      return 1;
+    }
+  }
+  node_mgr_info_unlock();
+  return 0;
+}
+#endif
+
+uint node_mgr_earl_apps()
+{
+  return total_num_earl_apps;
+}
+
 
 void update_earl_node_mgr_info()
 {
-    char *tmp = get_ear_tmp();
 
-    for (uint j = 0; j < MAX_CPUS_SUPPORTED; j++) {
-        job_id jid = node_mgr_data[j].jid;
-        job_id sid = node_mgr_data[j].sid;
+	verbose_info2_master("Updating EARL node manager info...");
 
-        time_t ct = node_mgr_data[j].creation_time;
+	uint current_jobs_in_node = 0;
 
-        if (ct != node_mgr_job_info[j].creation_time) {
-            while (node_mgr_info_lock() != EAR_SUCCESS);
+#if WF_SUPPORT
+	uint release = 0;
 
-            jid = node_mgr_data[j].jid;
-            sid = node_mgr_data[j].sid;
-            ct  = node_mgr_data[j].creation_time;
 
-            node_mgr_info_unlock();
+	uint expected_apps = 0;
+	uint earl_apps_in_sh_data = 0;
+	/* We check the modification date */
+	for (uint j = 0; j < total_num_earl_apps; j++)
+	{
+		job_id jid = node_mgr_job_info[j].jid;
+		job_id sid = node_mgr_job_info[j].sid;
 
-            /* Double validation after getting the lock */
-            if (ct != node_mgr_job_info[j].creation_time) {
-                if (ct == 0) {
-                    dettach_lib_shared_data_area(node_mgr_job_info[j].fd_lib);
-                    dettach_shared_signatures_area(node_mgr_job_info[j].fd_sig);
-                    node_mgr_job_info[j].creation_time = 0;
-                } else {
+		time_t mt = node_mgr_job_info[j].modification_time;
+		earl_apps_in_sh_data += ((node_mgr_job_info[j].libsh != NULL) && (node_mgr_job_info[j].shsig != NULL));
 
-                    uint ID = create_ID(jid, sid);
+		/* For each app we compare the data */
+		if (node_manager_job_changed(jid, sid, mt))
+		{
+			// verbose(WF_SUPPORT_VERB,"Job %lu/%lu has changed", jid, sid);
+			release = 1;
+			break;
+		}
+	}
 
-                    get_lib_shared_data_path(tmp, ID, lib_shared_region_path_jobs);
-                    node_mgr_job_info[j].libsh = attach_lib_shared_data_area(lib_shared_region_path_jobs,
-                            &node_mgr_job_info[j].fd_lib);
+	if (!release){
+		/* We check the total number of earl apps detected and expected */
+		for (uint j = 0; j < MAX_CPUS_SUPPORTED; j++){
+			expected_apps += node_mgr_data[j].num_earl_apps;
+		}
+	
+		if (expected_apps != earl_apps_in_sh_data) release = 1;
+		verbose_master(WF_SUPPORT_VERB,"EARL[%d] Num EARL apps have changed expected %u current %u", getpid(), expected_apps, earl_apps_in_sh_data);
+	}
 
-                    get_shared_signatures_path(tmp, ID, sig_shared_region_path_jobs);
-                    node_mgr_job_info[j].shsig = attach_shared_signatures_area(sig_shared_region_path_jobs,
-                            node_mgr_job_info[j].libsh->num_processes,
-                            &node_mgr_job_info[j].fd_sig);
 
-                    node_mgr_job_info[j].creation_time = ct;
-                }
-            }
-        }
-    }
+	/* if something has changed, we re-map */
+	if (release)
+	{
+		release_earl_node_mgr_info();
+		init_earl_node_mgr_info();
+	}
 
-    uint current_jobs_in_node = 0;
-    nodemgr_get_num_jobs_attached(&current_jobs_in_node);
-    exclusive = exclusive && (current_jobs_in_node == 1);
-    if (fake_force_shared_node) exclusive = 0;
+	// TODO: I'm not sure about the correctness of this method. But I don't know how to manage with
+	// Workflows version.
+	nodemgr_get_num_jobs_attached(&current_jobs_in_node);
+#else
+	char *tmp = get_ear_tmp();
+
+	for (uint j = 0; j < MAX_CPUS_SUPPORTED; j++)
+	{
+		time_t ct = node_mgr_data[j].creation_time;
+
+		// Detect whether j-th job is myself
+		if (j == node_mgr_index)
+		{
+			node_mgr_job_info[j].libsh =  lib_shared_region;
+			node_mgr_job_info[j].shsig =  sig_shared_region;
+			node_mgr_job_info[j].creation_time = ct;
+
+			current_jobs_in_node++;
+
+			continue;
+		}
+
+		job_id jid = node_mgr_data[j].jid;
+		job_id sid = node_mgr_data[j].sid;
+
+		if (ct != node_mgr_job_info[j].creation_time)
+		{
+			while (node_mgr_info_lock() != EAR_SUCCESS);
+
+			jid = node_mgr_data[j].jid;
+			sid = node_mgr_data[j].sid;
+			ct  = node_mgr_data[j].creation_time;
+
+			node_mgr_info_unlock();
+
+			/* Double validation after getting the lock */
+			if (ct != node_mgr_job_info[j].creation_time)
+			{
+				if (ct == 0)
+				{
+					dettach_lib_shared_data_area(node_mgr_job_info[j].fd_lib);
+					dettach_shared_signatures_area(node_mgr_job_info[j].fd_sig);
+
+					node_mgr_job_info[j].creation_time = 0;
+					node_mgr_job_info[j].libsh = NULL;
+					node_mgr_job_info[j].shsig = NULL;
+				} else {
+					uint ID = create_ID(jid, sid);
+
+					// Get the Library shared data path
+					state_t ret_st = get_lib_shared_data_path(tmp, ID, 0, lib_shared_region_path_jobs);
+					if (state_fail(ret_st))
+					{
+						// Library shared area path got with error.
+						node_mgr_job_info[j].creation_time = 0;
+						verbose_error_master("Getting library shared data path.");
+						continue;
+					}
+
+					// Library shared data path got without error.
+					// Attach to the shared data.
+					node_mgr_job_info[j].libsh = attach_lib_shared_data_area(lib_shared_region_path_jobs, &node_mgr_job_info[j].fd_lib);
+
+					// Attach error
+					if (node_mgr_job_info[j].libsh == NULL)
+					{
+						node_mgr_job_info[j].creation_time = 0;
+						verbose_warning_master("Library shared data is NULL: ingoring job %lu.%lu.", jid, sid);
+						continue;
+					}
+
+					// Get the shared signatures path
+					ret_st = get_shared_signatures_path(tmp, ID, 0, sig_shared_region_path_jobs);
+
+					if (state_fail(ret_st))
+					{
+						// Shared signatures path got with error.
+						verbose_error_master("Getting shared signatures path.");
+
+						node_mgr_job_info[j].creation_time = 0;
+						node_mgr_job_info[j].libsh = NULL;
+
+						continue;
+					}
+
+					// Shared signatures path got without error.
+					// Attach to the shared data.
+					node_mgr_job_info[j].shsig = attach_shared_signatures_area(sig_shared_region_path_jobs, node_mgr_job_info[j].libsh->num_processes, &node_mgr_job_info[j].fd_sig);
+
+					node_mgr_job_info[j].creation_time = ct;
+
+					// Attach error
+					if (node_mgr_job_info[j].shsig == NULL)
+					{
+						node_mgr_job_info[j].libsh = NULL;
+						node_mgr_job_info[j].creation_time = 0;
+
+						verbose_warning_master("Shared signatures data is NULL: ingoring job %lu.%lu.", jid, sid);
+						continue;
+					}
+				}
+			}
+		}
+		// If creation time is not zero, it is a valid job.
+		if (node_mgr_job_info[j].creation_time) current_jobs_in_node++;
+	}
+	total_num_earl_apps = current_jobs_in_node;
+#endif
+	exclusive = exclusive && (current_jobs_in_node == 1);
+	if (fake_force_shared_node) exclusive = 0;
 }
 
 void verbose_jobs_in_node(int vl, ear_njob_t *nmgr_eard, node_mgr_sh_data_t *nmgr_earl)
 {
-    if (VERB_GET_LV() >= vl) {
-        if ((nmgr_eard == NULL) || (nmgr_earl == NULL)) return;
+	while (node_mgr_info_lock() != EAR_SUCCESS);
+	if (VERB_GET_LV() >= vl) {
+		if ((nmgr_eard == NULL) || (nmgr_earl == NULL)){
+			node_mgr_info_unlock();
+			return;
+        }
         verbose_master(vl, "%s--- Jobs in node list ---", COL_BLU);
         char sig_buff[1024];
-        for (uint i = 0; i < MAX_CPUS_SUPPORTED; i++) {
-            if (nmgr_eard[i].creation_time && nmgr_earl[i].creation_time
-                    && (nmgr_earl[i].libsh != NULL) && (nmgr_earl[i].shsig != NULL)) {
+        for (uint i = 0; i < total_num_earl_apps; i++) {
+            if ((nmgr_earl[i].libsh != NULL) && (nmgr_earl[i].shsig != NULL)) {
 
-				signature_to_str(&nmgr_earl[i].libsh->job_signature, sig_buff, sizeof(sig_buff));
+				      signature_to_str(&nmgr_earl[i].libsh->job_signature, sig_buff, sizeof(sig_buff));
+              #if WF_SUPPORT
+                verbose_master(vl,"Job[%u] %lu.%lu.%lu %s\nNode [%.2lf GB/s %.2lf W]",
+                        i, nmgr_earl[i].jid, nmgr_earl[i].sid, nmgr_earl[i].lid, sig_buff,
+              #else
                 verbose_master(vl,"Job[%u] %lu.%lu %s\nNode [%.2lf GB/s %.2lf W]",
-                        i, nmgr_eard[i].jid, nmgr_eard[i].sid, sig_buff,
+                        i, nmgr_earl[i].jid, nmgr_earl[i].sid, sig_buff,
+              #endif
                         nmgr_earl[i].libsh->node_signature.GBS,
                         nmgr_earl[i].libsh->node_signature.DC_power);
 
-                /*
-				signature_to_str(&nmgr_earl[i].libsh->node_signature, sig_buff, sizeof(sig_buff));
+              #if 0
+				      signature_to_str(&nmgr_earl[i].libsh->node_signature, sig_buff, sizeof(sig_buff));
                 verbose_master(vl,"JOB[%u]=%lu.%lu \nNode: %s",i , nmgr_eard[i].jid, nmgr_eard[i].sid, sig_buff);
-                */
+              #endif
 
             }
         }
         verbose_master(vl,"%s",COL_CLR);
     }
+    node_mgr_info_unlock();
 }
 
 void accum_estimations(lib_shared_data_t *data, shsignature_t *sig)
@@ -821,6 +1155,7 @@ void accum_estimations(lib_shared_data_t *data, shsignature_t *sig)
 
 void estimate_power_and_gbs(lib_shared_data_t *data, shsignature_t *sig, node_mgr_sh_data_t *nmgr)
 {
+		verbose_master(2, "EARL[%d] cpu_power_model_project", getpid());
     cpu_power_model_project(data, sig, nmgr);
 #if SHOW_DEBUGS
     for (uint p = 0; p < data->num_processes; p++) {
@@ -843,7 +1178,7 @@ state_t update_job_affinity_mask(lib_shared_data_t *data, shsignature_t *sig)
         cpu_set_t node_mask_backup = data->node_mask;
         uint node_mask_num_cpus_backup = data->num_cpus;
 
-        verbose_master(1, "Current job mask: %u CPUs ", node_mask_num_cpus_backup);
+        verbose_master(2, "Current job mask: %u CPUs ", node_mask_num_cpus_backup);
         verbose_affinity_mask(3, (const cpu_set_t *) &node_mask_backup, MAX_CPUS_SUPPORTED);
 
         cpu_set_t *cpu_masks_backup = malloc(sizeof(cpu_set_t) * data->num_processes);
@@ -865,7 +1200,14 @@ state_t update_job_affinity_mask(lib_shared_data_t *data, shsignature_t *sig)
                         COL_YLW, COL_CLR, errno);
             }
 
+#if 1
+						// This function build the cpuset mask of the process taking into account its threads
+						// may not share the same cpuset, so the global process mask is retrieved as we
+						// work with processes and not threads.
+						int ret_val = !(state_ok(cpumask_get_processmask(&sig[i].cpu_mask, sig[i].pid)));
+#else
             int ret_val = sched_getaffinity(sig[i].pid, sizeof(cpu_set_t), &sig[i].cpu_mask);
+#endif
 
             if (!sem_ret_val)
             {
@@ -879,7 +1221,8 @@ state_t update_job_affinity_mask(lib_shared_data_t *data, shsignature_t *sig)
             if (!ret_val)
             {
                 // Update the number of CPUs of the process' mask
-                sig[i].num_cpus = CPU_COUNT(&sig[i].cpu_mask);
+                // sig[i].num_cpus = CPU_COUNT(&sig[i].cpu_mask);
+                sig[i].num_cpus = cpumask_count(&sig[i].cpu_mask);
 
                 // Update node(job)_mask
                 CPU_OR(&data->node_mask, &data->node_mask, &sig[i].cpu_mask);
@@ -921,7 +1264,7 @@ state_t update_job_affinity_mask(lib_shared_data_t *data, shsignature_t *sig)
         // Update all remaining mask related fields
         data->num_cpus = CPU_COUNT(&data->node_mask);
 
-        verbose_master(1, "New job mask: %u CPUs ", data->num_cpus);
+        verbose_master(2, "New job mask: %u CPUs ", data->num_cpus);
         verbose_affinity_mask(3, (const cpu_set_t *) &data->node_mask, MAX_CPUS_SUPPORTED);
 
         if (data->num_cpus != node_mask_num_cpus_backup)

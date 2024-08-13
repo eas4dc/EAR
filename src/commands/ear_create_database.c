@@ -1,19 +1,12 @@
-/*
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * EAR is an open source software, and it is licensed under both the BSD-3 license
- * and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
- * and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <stdio.h>
 #include <string.h>
@@ -101,6 +94,8 @@ void create_users(void *connection, char *db_name, char *db_user, char *db_user_
 
 #if DB_MYSQL
     sprintf(query, "CREATE USER '%s'@'%%'", db_user);
+    run_query(connection, query);
+    sprintf(query, "CREATE USER '%s'@'localhost'", db_user);
 #elif DB_PSQL
     sprintf(query, "CREATE USER %s", db_user);
 #endif
@@ -109,6 +104,8 @@ void create_users(void *connection, char *db_name, char *db_user, char *db_user_
     {
 #if DB_MYSQL
         sprintf(query, "SET PASSWORD FOR '%s'@'%%' = PASSWORD('%s')", db_user, db_user_pass);
+        run_query(connection, query);
+        sprintf(query, "SET PASSWORD FOR '%s'@'localhost' = PASSWORD('%s')", db_user, db_user_pass);
 #elif DB_PSQL
         sprintf(query, "ALTER USER %s WITH ENCRYPTED PASSWORD '%s'", db_user, db_user_pass);
 #endif
@@ -117,6 +114,8 @@ void create_users(void *connection, char *db_name, char *db_user, char *db_user_
 
 #if DB_MYSQL
     sprintf(query, "GRANT SELECT, INSERT ON %s.* TO '%s'@'%%'", db_name, db_user);
+    run_query(connection, query);
+    sprintf(query, "GRANT SELECT, INSERT ON %s.* TO '%s'@'localhost'", db_name, db_user);
 #elif DB_PSQL
     sprintf(query, "GRANT SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO %s", db_user);
     run_query(connection, query);
@@ -128,6 +127,8 @@ void create_users(void *connection, char *db_name, char *db_user, char *db_user_
     {
 #if DB_MYSQL
         sprintf(query, "CREATE USER '%s'@'%%'", commands_user);
+        run_query(connection, query);
+        sprintf(query, "CREATE USER '%s'@'localhost'", commands_user);
 #elif DB_PSQL
         sprintf(query, "CREATE USER %s", commands_user);
 #endif
@@ -137,6 +138,8 @@ void create_users(void *connection, char *db_name, char *db_user, char *db_user_
         {
 #if DB_MYSQL
             sprintf(query, "SET PASSWORD FOR '%s'@'%%' = PASSWORD('%s')", commands_user, commands_pass);
+			run_query(connection, query);
+            sprintf(query, "SET PASSWORD FOR '%s'@'localhost' = PASSWORD('%s')", commands_user, commands_pass);
 #elif DB_PSQL
             sprintf(query, "ALTER USER %s WITH ENCRYPTED PASSWORD '%s'", commands_user, commands_pass);
 #endif
@@ -145,6 +148,8 @@ void create_users(void *connection, char *db_name, char *db_user, char *db_user_
 
 #if DB_MYSQL
         sprintf(query, "GRANT SELECT ON %s.* TO '%s'@'%%'", db_name, commands_user);
+        run_query(connection, query);
+        sprintf(query, "GRANT SELECT ON %s.* TO '%s'@'localhost'", db_name, commands_user);
 #elif DB_PSQL
         sprintf(query, "GRANT SELECT ON ALL TABLES IN SCHEMA public TO %s", commands_user);
 #endif
@@ -152,6 +157,8 @@ void create_users(void *connection, char *db_name, char *db_user, char *db_user_
 
 #if DB_MYSQL
         sprintf(query, "ALTER USER '%s'@'%%' WITH MAX_USER_CONNECTIONS %d", commands_user, my_cluster.database.max_connections);
+        run_query(connection, query);
+        sprintf(query, "ALTER USER '%s'@'localhost' WITH MAX_USER_CONNECTIONS %d", commands_user, my_cluster.database.max_connections);
 #elif DB_PSQL
         sprintf(query, "ALTER USER %s WITH CONNECTION LIMIT %d", commands_user, my_cluster.database.max_connections);
 #endif
@@ -212,10 +219,11 @@ void create_tables(void *connection)
     sprintf(query, "CREATE TABLE IF NOT EXISTS Applications ("
             "job_id INT unsigned NOT NULL, "
             "step_id INT unsigned NOT NULL, "
+            "local_id INT unsigned NOT NULL, "
             "node_id VARCHAR(64), "
             "signature_id BIGINT unsigned, "
             "power_signature_id INT unsigned, "
-            "PRIMARY KEY(job_id, step_id, node_id))");
+            "PRIMARY KEY(job_id, step_id, local_id, node_id))");
     run_query(connection, query);
 
     sprintf(query, "CREATE TABLE IF NOT EXISTS Loops ("
@@ -224,14 +232,16 @@ void create_tables(void *connection)
             "level INT unsigned NOT NULL, "
             "job_id INT unsigned NOT NULL, "
             "step_id INT unsigned NOT NULL, "
+            "local_id INT unsigned NOT NULL, "
             "node_id VARCHAR(64), "
             "total_iterations INT unsigned, "
             "signature_id BIGINT unsigned)");
     run_query(connection, query);
 
     sprintf(query, "CREATE TABLE IF NOT EXISTS Jobs ("
-            "id INT unsigned NOT NULL, "
+            "job_id INT unsigned NOT NULL, "
             "step_id INT unsigned NOT NULL, "
+            "local_id INT unsigned NOT NULL, "
             "user_id VARCHAR(128), "
             "app_id VARCHAR(128), "
             "start_time INT NOT NULL, "
@@ -246,7 +256,7 @@ void create_tables(void *connection)
             "user_acc VARCHAR(256), "
             "user_group VARCHAR(256), "
             "e_tag VARCHAR(256), "
-            "PRIMARY KEY(id, step_id))");
+            "PRIMARY KEY(job_id, step_id, local_id))");
     run_query(connection, query);
 
     if (signature_detail)
@@ -395,15 +405,17 @@ void create_tables(void *connection)
     sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_applications ("
             "job_id INT unsigned NOT NULL, "
             "step_id INT unsigned NOT NULL, "
+            "local_id INT unsigned NOT NULL, "
             "node_id VARCHAR(64), "
             "signature_id BIGINT unsigned, "
             "power_signature_id INT unsigned, "
-            "PRIMARY KEY(job_id, step_id, node_id))");
+            "PRIMARY KEY(job_id, step_id, local_id, node_id))");
     run_query(connection, query);
 
     sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_jobs ("
-            "id INT unsigned NOT NULL, "
+            "job_id INT unsigned NOT NULL, "
             "step_id INT unsigned NOT NULL, "
+            "local_id INT unsigned NOT NULL, "
             "user_id VARCHAR(256), "
             "app_id VARCHAR(256), "
             "start_time INT NOT NULL, "
@@ -418,7 +430,7 @@ void create_tables(void *connection)
             "user_acc VARCHAR(256) NOT NULL, "
             "user_group VARCHAR(256), "
             "e_tag VARCHAR(256), "
-            "PRIMARY KEY(id, step_id))");
+            "PRIMARY KEY(job_id, step_id, local_id))");
     run_query(connection, query);
 
     if (signature_detail)
@@ -503,10 +515,11 @@ void create_tables(void *connection)
     sprintf(query, "CREATE TABLE IF NOT EXISTS Applications ("
             "job_id INT  NOT NULL, "
             "step_id INT  NOT NULL, "
+            "local_id INT  NOT NULL, "
             "node_id VARCHAR(64), "
             "signature_id BIGINT , "
             "power_signature_id INT , "
-            "PRIMARY KEY(job_id, step_id, node_id))");
+            "PRIMARY KEY(job_id, step_id, local_id, node_id))");
     run_query(connection, query);
 
     sprintf(query, "CREATE TABLE IF NOT EXISTS Loops ("
@@ -515,14 +528,16 @@ void create_tables(void *connection)
             "level INT  NOT NULL, "
             "job_id INT  NOT NULL, "
             "step_id INT  NOT NULL, "
+            "local_id INT  NOT NULL, "
             "node_id VARCHAR(64), "
             "total_iterations INT , "
             "signature_id BIGINT )");
     run_query(connection, query);
 
     sprintf(query, "CREATE TABLE IF NOT EXISTS Jobs ("
-            "id INT  NOT NULL, "
+            "job_id INT  NOT NULL, "
             "step_id INT  NOT NULL, "
+            "local_id INT  NOT NULL, "
             "user_id VARCHAR(128), "
             "app_id VARCHAR(128), "
             "start_time INT NOT NULL, "
@@ -537,7 +552,7 @@ void create_tables(void *connection)
             "user_acc VARCHAR(256), "
             "user_group VARCHAR(256), "
             "e_tag VARCHAR(256), "
-            "PRIMARY KEY(id, step_id))");
+            "PRIMARY KEY(job_id, step_id, local_id))");
     run_query(connection, query);
 
     if (signature_detail)
@@ -686,15 +701,17 @@ void create_tables(void *connection)
     sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_applications ("
             "job_id INT  NOT NULL, "
             "step_id INT  NOT NULL, "
+            "local_id INT  NOT NULL, "
             "node_id VARCHAR(64), "
             "signature_id BIGINT , "
             "power_signature_id INT , "
-            "PRIMARY KEY(job_id, step_id, node_id))");
+            "PRIMARY KEY(job_id, step_id, local_id, node_id))");
     run_query(connection, query);
 
     sprintf(query, "CREATE TABLE IF NOT EXISTS Learning_jobs ("
-            "id INT  NOT NULL, "
+            "job_id INT  NOT NULL, "
             "step_id INT  NOT NULL, "
+            "local_id INT  NOT NULL, "
             "user_id VARCHAR(256), "
             "app_id VARCHAR(256), "
             "start_time INT NOT NULL, "
@@ -709,7 +726,7 @@ void create_tables(void *connection)
             "user_acc VARCHAR(256) NOT NULL, "
             "user_group VARCHAR(256), "
             "e_tag VARCHAR(256), "
-            "PRIMARY KEY(id, step_id))");
+            "PRIMARY KEY(job_id, step_id, local_id))");
     run_query(connection, query);
 
     if (signature_detail)
@@ -952,8 +969,6 @@ int main(int argc,char *argv[])
     if (!print_out && PQstatus(connection) != CONNECTION_OK)
     {
         fprintf(stderr, "ERROR connecting to the database after its creation: %s\n", PQerrorMessage(connection));
-        free(keys);
-        free(values);
         PQfinish(connection);
         free_cluster_conf(&my_cluster);
         exit(1);

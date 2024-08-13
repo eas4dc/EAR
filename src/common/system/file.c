@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 // #define SHOW_DEBUGS 1
 
@@ -24,6 +17,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <sys/resource.h>
+
 #include <common/system/file.h>
 #include <common/output/verbose.h>
 #include <common/output/debug.h>
@@ -57,10 +52,16 @@ int file_lock_create(char *lock_file_name)
 	return fd;
 }
 
+int file_lock_master_perm(char *lock_file_name, int flag, mode_t mode)
+{
+	int fd=open(lock_file_name,flag|O_CREAT|O_EXCL,mode);
+	return fd;
+}
+
+
 int file_lock_master(char *lock_file_name)
 {
-	int fd=open(lock_file_name,O_WRONLY|O_CREAT|O_EXCL,S_IWUSR);
-	return fd;
+	return file_lock_master_perm(lock_file_name, O_WRONLY, S_IWUSR);
 }
 
 void file_lock_clean(int fd,char *lock_file_name)
@@ -120,7 +121,7 @@ ssize_t ear_file_size(char *path)
 state_t ear_file_read(const char *path, char *buffer, size_t size)
 {
 	int fd = open(path, O_RDONLY);
-	ssize_t r;
+	ssize_t r = 0;
 	ssize_t totalr = 0;
 
 	if (fd < 0) {
@@ -144,7 +145,7 @@ state_t ear_file_read(const char *path, char *buffer, size_t size)
 state_t ear_file_write(const char *path, const char *buffer, size_t size)
 {
 	int fd = open(path, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-	ssize_t w;
+	ssize_t w = 0;
 	ssize_t totalw = 0;
 
 	if (fd < 0) {
@@ -171,4 +172,45 @@ state_t ear_file_clean(const char *path)
 		state_return_msg(EAR_ERROR, errno, strerror(errno));
 	}
 	state_return(EAR_SUCCESS);
+}
+
+
+void set_no_files_limit(ulong new_limit)
+{
+	/** Change the open file limit */
+	struct rlimit rl;
+	getrlimit(RLIMIT_NOFILE, &rl);
+	debug("current limit %lu max %lu", rl.rlim_cur, rl.rlim_max);
+	rl.rlim_cur = ear_min(rl.rlim_max, new_limit);
+	debug("NEW NO file limit %lu", rl.rlim_cur);
+	setrlimit(RLIMIT_NOFILE, &rl);
+}
+
+
+ulong get_no_files_limit()
+{
+	struct rlimit rl;
+	getrlimit(RLIMIT_NOFILE, &rl);
+	return rl.rlim_cur;
+}
+
+
+void set_stack_size_limit(ulong new_limit)
+{
+
+	/** Change the open file limit */
+	struct rlimit rl;
+	getrlimit(RLIMIT_STACK, &rl);
+	debug("current limit %lu max %lu", rl.rlim_cur, rl.rlim_max);
+	rl.rlim_cur = ear_min(rl.rlim_max, new_limit);
+	debug("NEW STACK limit %lu", rl.rlim_cur);
+	setrlimit(RLIMIT_STACK, &rl);
+}
+
+
+ulong get_stack_size_limit()
+{
+	struct rlimit rl;
+	getrlimit(RLIMIT_STACK, &rl);
+	return rl.rlim_cur;
 }

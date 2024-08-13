@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #include <sys/wait.h>
 #include <slurm_plugin/slurm_plugin.h>
@@ -379,11 +372,10 @@ int main(int argc, char *argv[])
 	}
 
     // Error pipeline
-	if (_error)
-	{
-		if (_error == 1) {
+	if (_error) {
+		if (_error == 1) { // Environment variable missing
 			if ((sd.erun.is_master = lock_master(path_tmp, sd.erun.job_id))) {
-				plug_verbose(_sp, 0, "missing environment vars, is the EAR module loaded?");
+				plug_verbose(_sp, 0, "missing environment vars, is the EAR module loaded? (only master prints this message)");
 				//
 				sleep(2);
 				//
@@ -391,9 +383,9 @@ int main(int argc, char *argv[])
 			}
 			return 0;	
 		}
-		if (_error == 2) {
+		if (_error == 2) { // Going inactive because detected SRUN
 			if ((sd.erun.is_master = lock_master(path_tmp, sd.erun.job_id))) {
-				plug_verbose(_sp, 0, "detected SRUN, going inactive");	
+				plug_verbose(_sp, 0, "detected SRUN, going inactive (only master prints this message)");	
 			}
 			//	
 			execute(_argc, _argv);
@@ -403,26 +395,31 @@ int main(int argc, char *argv[])
 			}
 			return 0;	
 		}
-	}
+	} // _error
 
-	// Simulating the single pipeline, take the lock.master
-	if ((sd.erun.is_master = lock_master(path_tmp, sd.erun.job_id))) {
-		plug_verbose(_sp, 2, "subject '%d' is erun master? '%d' (got the lock file)",
-            getpid(), sd.erun.is_master);
-		// Read old step id in master.step.id
-		sd.erun.step_id = master_getstep(sd.erun.job_id, sd.erun.step_id);
-	} else {
-		plug_verbose(_sp, 3, "subject '%d' is erun master? '%d' (missed the lock file and then spinlock)",
-            getpid(), sd.erun.is_master);
-		// Spinlock over lock.slave
-		spinlock_slave(sd.erun.job_id);
-        // Get slave.step.id
-		sd.erun.step_id = slave_getstep(sd.erun.job_id, sd.erun.step_id);
-	}
+    // Is master?
+    switch ((sd.erun.is_master = lock_master(path_tmp, sd.erun.job_id))) {
+        case 1: // Case master
+            plug_verbose(_sp, 2, "subject '%d' is erun master? '%d' (got the lock file)",
+                         getpid(), sd.erun.is_master);
+            // Read old step id in master.step.id
+            sd.erun.step_id = master_getstep(sd.erun.job_id, sd.erun.step_id);
+            break;
+        case 0: // Case not master
+            plug_verbose(_sp, 3, "subject '%d' is erun master? '%d' (missed the lock file and then spinlock)",
+                         getpid(), sd.erun.is_master);
+            // Spinlock over lock.slave
+            spinlock_slave(sd.erun.job_id);
+            // Get slave.step.id
+            sd.erun.step_id = slave_getstep(sd.erun.job_id, sd.erun.step_id);
+            break;
+        case -1: // Case some error with lock files
+            execute(_argc, _argv);
+            return 0;
+    }
 
 	// Creating step
 	step(_argc, _argv);
-
 	// Local context initialization
 	pipeline(_argc, _argv, Context.srun, Action.init);
 	// Remote context initialization

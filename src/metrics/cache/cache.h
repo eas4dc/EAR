@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #ifndef METRICS_CACHE_H
 #define METRICS_CACHE_H
@@ -53,10 +46,10 @@ typedef struct coche_ops_s {
 	state_t (*dispose)         ();
 	state_t (*read)            (cache_t *ca);
     void    (*data_diff)       (cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs);
-    void    (*details_tostr)      (char *buffer, int length);
+    void    (*internals_tostr)   (char *buffer, int length);
 } cache_ops_t;
 
-void cache_load(topology_t *tp, int eard);
+void cache_load(topology_t *tp, int force_api);
 
 void cache_get_info(apinfo_t *info);
 
@@ -78,8 +71,8 @@ void cache_data_print(cache_t *caD, double gbs, int fd);
 
 void cache_data_tostr(cache_t *caD, double gbs, char *buffer, size_t length);
 
-void cache_details_print(int fd);
+void cache_internals_print(int fd);
 
-void cache_details_tostr(char *buffer, int length);
+void cache_internals_tostr(char *buffer, int length);
 
 #endif //METRICS_CACHE_H

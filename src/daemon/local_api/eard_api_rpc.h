@@ -1,29 +1,29 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-#ifndef DAEMON_LOCAL_RPC_H
-#define DAEMON_LOCAL_RPC_H
+#ifndef EARD_LOCAL_API_RPCS_H
+#define EARD_LOCAL_API_RPCS_H
 
 #include <common/types.h>
 #include <common/sizes.h>
 #include <common/states.h>
-#include <daemon/local_api/eard_api.h>
 #include <daemon/local_api/eard_api_conf.h>
 
+// This class is intended to manage RPCs requests and EARD responses. If you
+// want easy-to-read functions to ask for EARD request, look at eard_api.h class.
+
+#define RPC_GET_STATE                      2001
+#define RPC_WRITE_APPLICATION              2002
+#define RPC_WRITE_WF_APPLICATION           2003
+#define RPC_WRITE_LOOP                     2004
+#define RPC_WRITE_EVENT                    2006
 #define RPC_MGT_CPUFREQ_GET_API            1001
 #define RPC_MGT_CPUFREQ_GET_AVAILABLE      1002
 #define RPC_MGT_CPUFREQ_GET_CURRENT        1003
@@ -98,5 +98,4 @@ state_t eard_rpc_read_pending(int fd, char *recv_data, size_t read_size, size_t 
 
 state_t eard_rpc_clean(int fd, size_t size);
 
-#endif //DAEMON_LOCAL_RPC_H
-
+#endif //EARD_LOCAL_API_RPCS_H

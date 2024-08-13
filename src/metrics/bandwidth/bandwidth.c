@@ -1,21 +1,14 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -42,13 +35,16 @@ static uint            is_loaded;
 static apinfo_t        api;
 static uint            oid;
 
-void bwidth_load(topology_t *tp, int eard)
+void bwidth_load(topology_t *tp, int force_api)
 {
     while (pthread_mutex_trylock(&lock));
     if (is_loaded) {
         goto leave;
     }
-    bwidth_eard_load    (tp, &ops, eard);
+    if (API_IS(force_api, API_DUMMY)) {
+        goto dummy;
+    }
+    bwidth_eard_load    (tp, &ops, API_IS(force_api, API_EARD));
     bwidth_amd19_load   (tp, &ops);
     bwidth_amd17_load   (tp, &ops);
     bwidth_amd17df_load (tp, &ops);
@@ -56,6 +52,7 @@ void bwidth_load(topology_t *tp, int eard)
     bwidth_intel106_load(tp, &ops);
     bwidth_intel143_load(tp, &ops);
     bwidth_likwid_load  (tp, &ops);
+dummy:
     bwidth_dummy_load   (tp, &ops);
     // Bandiwdth wants to know more about the loaded API. This is safe because at 
     // this point all API's have their devices counter.
@@ -70,8 +67,14 @@ leave:
 
 void bwidth_get_info(apinfo_t *info)
 {
-    info->layer = "BANDWIDTH";
-    return ops.get_info(info);
+    info->layer       = "BANDWIDTH";
+    info->api         = API_NONE;
+    info->devs_count  = 0;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_IMC;
+    if (ops.get_info != NULL) {
+        ops.get_info(info);
+    }
 }
 
 void bwidth_get_api(uint *api_in)

@@ -1,20 +1,14 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
+#define SHOW_DEBUG 1
 #include <math.h>
 #include <errno.h>
 #include <stdio.h>
@@ -76,6 +70,25 @@ void print_cpu_model_coefficients(intel_skl_t *coeff, char *csv_output)
               coeff->ipc, coeff->gbs, coeff->vpi, coeff->f, coeff->inter);
 
   fclose(fd);
+}
+
+
+void print_gpu_coefficients(coefficient_gpu_t *avg, int n_pstates)
+{
+	int i;
+  coefficient_gpu_t *coeff;
+
+  verbose(2, "FROM\tTO\tA0\tA1\tA2\tA3\tB0\tB1\tB2\tB3");
+	for (i=0; i<n_pstates; i++){
+    coeff = &avg[i];
+    if(coeff->available){
+      verbose(2,"%lu\t\t%lu\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf",
+                 coeff->pstate_ref, coeff->pstate, 
+                 coeff->A0, coeff->A1, coeff->A2, coeff->A3, 
+                 coeff->B0, coeff->B1, coeff->B2, coeff->B3);
+
+    }
+	}
 }
 
 int main(int argc, char *argv[])
@@ -166,7 +179,32 @@ int main(int argc, char *argv[])
     strcat(csv_name_full, tag);
     strcat(csv_name_full, ext);
     print_basic_coefficients(coeffs, n_pstates, csv_name_full); 
+  } 
+  else if (size % sizeof(coefficient_gpu_t) == 0) {
+    // GPU model coeffs
+    n_pstates = size / sizeof(coefficient_gpu_t);
+    printf("GPU Model coefficients\n");
+    printf("coefficients file size: %d\n", size);
+    printf("number of P_STATES: %d\n", n_pstates);
+    
+    coefficient_gpu_t *coeffs;
+    coeffs = (coefficient_gpu_t*) calloc(size, 1);
+
+    if (coeffs == NULL) {
+    error("not enough memory");
+    exit(1);
+    }
+
+    state = ear_file_read(argv[1], (char *) coeffs, size);
+
+    if (state_fail(state)) {
+      error("state id: %d (%s)", state, state_msg);
+      exit(1);
+    }
+
+    print_gpu_coefficients(coeffs, n_pstates); 
   }
+
   else {
     // More models: change the test by the size comparaison (cf. models-jla branch)
     error("Bad input file");

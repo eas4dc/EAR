@@ -1,19 +1,13 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
+
 
 #define _GNU_SOURCE
 #include <dlfcn.h>
@@ -83,7 +77,7 @@ int module_constructor(char *path_lib_so,char *libhack)
 {
 	static char path_so[4096];
 
-	verbose(3, "LOADER: loading module default (constructor)");
+	verbose(2, "LOADER: loading module default (constructor) for process %d", getpid());
 
 	if (!module_constructor_dlsym(path_lib_so,libhack,path_so, sizeof(path_so))) {
 		return 0;
@@ -91,6 +85,7 @@ int module_constructor(char *path_lib_so,char *libhack)
 	if (atexit(module_destructor) != 0) {
 		verbose(0, "LOADER: cannot set exit function");
 	}
+	verbose(2, "LOADER: loading atexit defined for process %d", getpid());
 	if (func_con != NULL) {
 		func_con();
 	}
@@ -100,7 +95,7 @@ int module_constructor(char *path_lib_so,char *libhack)
 
 void module_destructor()
 {
-	verbose(3, "LOADER: loading module default (destructor)");
+	verbose(1, "LOADER: loading module default (destructor) for process %d", getpid());
 
 	if (func_des != NULL) {
 		func_des();

@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 //#define SHOW_DEBUGS 1
 
@@ -28,7 +21,7 @@ void cache_dummy_load(topology_t *tp, cache_ops_t *ops)
     apis_put(ops->dispose,       cache_dummy_dispose);
     apis_put(ops->read,          cache_dummy_read);
     apis_put(ops->data_diff,     cache_dummy_data_diff);
-    apis_put(ops->details_tostr, cache_dummy_details_tostr);
+    apis_put(ops->internals_tostr, cache_dummy_internals_tostr);
     debug("Loaded DUMMY");
 }
 
@@ -38,6 +31,7 @@ void cache_dummy_get_info(apinfo_t *info)
     info->scope       = SCOPE_PROCESS;
     info->granularity = GRANULARITY_PROCESS;
     info->devs_count  = 1;
+    info->bits        = 0;
 }
 
 state_t cache_dummy_init(ctx_t *c)
@@ -65,7 +59,7 @@ void cache_dummy_data_diff(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs
     }
 }
 
-void cache_dummy_details_tostr(char *buffer, int length)
+void cache_dummy_internals_tostr(char *buffer, int length)
 {
-    sprintf(buffer, "L1 DUMMY: loaded\n");
+    sprintf(buffer, "CACHE LX  : loaded event DUMMY\n");
 }

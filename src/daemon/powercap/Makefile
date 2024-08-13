@@ -3,31 +3,25 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC $(CONSTANTS) -Wall
 ######## FILES
 
 powercap_OBJS = \
-				powercap_status.o \
-				powercap_mgt.o \
-				powercap.o 
+    powercap_status.o \
+    powercap_mgt.o \
+    powercap.o
 
 powercap_BINS = \
-				inm.so \
-				dvfs.so 
-
-ifdef CUDA_BASE
-powercap_BINS += \
-				 gpu_dummy.so \
-				 gpu.so \
-				 gpu_dvfs.so
-endif
+    inm.so \
+    dvfs.so \
+    cpu_generic.so \
+    gpu_dummy.so \
+    gpu.so \
+    gpu_dvfs.so
 
 powercap_PATH = $(DESTDIR)/lib/plugins/powercap
 powercap_PERM = 0775
-
-gpu_DEPS = 
-
-gpu_dvfs_DEPS = 
-
-dvfs_DEPS = $(SRCDIR)/metrics/libmetrics.a
-
-inm_DEPS = $(SRCDIR)/common/libcommon.a
+gpu_DEPS      =
+gpu_dvfs_DEPS =
+dvfs_DEPS     = $(SRCDIR)/metrics/libmetrics.a
+generic_DEPS  = $(SRCDIR)/management/libmgt.a $(SRCDIR)/metrics/libmetrics.a $(SRCDIR)/common/libcommon.a
+inm_DEPS      = $(SRCDIR)/common/libcommon.a
 
 ######## RULES
 
@@ -40,7 +34,10 @@ all:$(powercap_OBJS)  $(powercap_BINS)
 	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ 
 
 dvfs.so:dvfs.o $(dvfs_DEPS)
-	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ $(dvfs_DEPS)
+	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ $(generic_DEPS)
+
+cpu_generic.so:cpu_generic.o $(generic_DEPS)
+	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ $(generic_DEPS)
 
 gpu.so:gpu.o $(gpu_DEPS)
 	$(CC) $(CC_FLAGS) $(CFLAGS) -shared $< -o $@ $(gpu_DEPS)

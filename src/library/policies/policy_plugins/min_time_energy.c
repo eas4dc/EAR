@@ -1,21 +1,13 @@
-/*
+/*********************************************************************
+ * Copyright (c) 2024 Energy Aware Solutions, S.L
  *
- * This program is part of the EAR software.
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
  *
- * EAR provides a dynamic, transparent and ligth-weigth solution for
- * Energy management. It has been developed in the context of the
- * Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
- *
- * Copyright © 2017-present BSC-Lenovo
- * BSC Contact   mailto:ear-support@bsc.es
- * Lenovo contact  mailto:hpchelp@lenovo.com
- *
- * This file is licensed under both the BSD-3 license for individual/non-commercial
- * use and EPL-1.0 license for commercial use. Full text of both licenses can be
- * found in COPYING.BSD and COPYING.EPL files.
- */
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
 
-//#define SHOW_DEBUGS 1
 
 #include <errno.h>
 #include <fcntl.h>
@@ -35,7 +27,6 @@
 // #include <library/metrics/signature_ext.h>
 #include <management/cpufreq/frequency.h>
 #include <management/imcfreq/imcfreq.h>
-#include <common/types/projection.h>
 #include <daemon/local_api/eard_api.h>
 #include <daemon/powercap/powercap_status.h>
 #include <library/policies/policy_api.h>
@@ -45,6 +36,7 @@
 #include <library/policies/common/mpi_stats_support.h>
 #include <library/policies/common/imc_policy_support.h>
 #include <library/policies/common/generic.h>
+#include <library/loader/module_mpi.h>
 // #include <library/metrics/gpu.h>
 
 #ifdef EARL_RESEARCH
@@ -78,6 +70,7 @@ static node_freqs_t min_time_def_freqs, last_nodefreq_sel;
 
 static uint num_processes;
 static ulong nominal_node;
+static node_freq_domain_t mte_freq_dom;
 
 /* Load balance management */
 extern int my_globalrank;
@@ -134,108 +127,141 @@ extern uint policy_cpu_bound;
 extern uint policy_mem_bound;
 
 
+static state_t create_policy_domain(polctx_t *c, node_freq_domain_t *domain);
+
+
+static energy_model_t cpu_energy_model;
+
+
 state_t policy_init(polctx_t *c)
 {
-    if (c)
-    {
+	if (c)
+	{
 
-        char *cnetwork_use_imc = ear_getenv(FLAG_NTWRK_IMC);
-        char *cimc_set_by_hw   = ear_getenv(FLAG_LET_HW_IMC);
+		create_policy_domain(c, &mte_freq_dom);
 
-        int i, sid = 0;
+		char *cnetwork_use_imc = ear_getenv(FLAG_NTWRK_IMC);
+		char *cimc_set_by_hw   = ear_getenv(FLAG_LET_HW_IMC);
 
-        if (is_mpi_enabled())
-        {
-            mpi_app_init(c);
+		if (use_energy_models)
+		{
+			cpu_energy_model = energy_model_load_cpu_model(c->app->user_type, &c->app->installation, &arch_desc);
+			if (!cpu_energy_model)
+			{
+				error_lib("Loading energy model");
+				use_energy_models = 0;
+			} else
+			{
+				if (!energy_model_any_projection_available(cpu_energy_model))
+				{
+					use_energy_models = 0;
+				}
+			}
+		} else
+		{
+			cpu_energy_model = NULL;
+		}
+    verbose_master(2, "%sMIN TIME ENERGY%s Using energy models: %u", COL_BLU, COL_CLR, use_energy_models);
 
-            uint block_type;
-            is_blocking_busy_waiting(&block_type);
+		int i, sid = 0;
 
-            verbose_master(2,"Busy_waiting MPI set to %u", block_type == BUSY_WAITING_BLOCK);
-        }
+		if (module_mpi_is_enabled())
+		{
+			mpi_app_init(c);
 
-        /*  Config from env variables */
-        if (cimc_set_by_hw != NULL) imc_set_by_hw = atoi(cimc_set_by_hw);
-        verbose_master(2, "Dyn UNC Freq mgt set to %d. "
-                       "Using HW selection as ref set to %d. "
-                       "Using an extra IMC penalty of %.2lf",
-                       dyn_unc, imc_set_by_hw, imc_extra_th);
+			uint block_type;
+			is_blocking_busy_waiting(&block_type);
 
-        if(cnetwork_use_imc != NULL) network_use_imc = atoi(cnetwork_use_imc);
-        verbose_master(2, "Network uses IMC set to %u", network_use_imc);
+			verbose_master(2,"Busy_waiting MPI set to %u", block_type == BUSY_WAITING_BLOCK);
+		}
 
-        nominal_node = frequency_get_nominal_freq();
-        verbose_master(2, "Nominal is %lu", nominal_node);
+		/*  Config from env variables */
+		if (cimc_set_by_hw != NULL) imc_set_by_hw = atoi(cimc_set_by_hw);
+		verbose_master(2, "Dyn UNC Freq mgt set to %d. "
+				"Using HW selection as ref set to %d. "
+				"Using an extra IMC penalty of %.2lf",
+				dyn_unc, imc_set_by_hw, imc_extra_th);
 
-        my_app = calloc(1, sizeof(signature_t));
-        my_app->sig_ext = (void *) calloc(1, sizeof(sig_ext_t));
+		if(cnetwork_use_imc != NULL) network_use_imc = atoi(cnetwork_use_imc);
+		verbose_master(2, "Network uses IMC set to %u", network_use_imc);
 
-        if (!use_energy_models)
-        {
-            sig_list  = (signature_t *) calloc(c->num_pstates, sizeof(signature_t));
-            sig_ready = (uint *) calloc(c->num_pstates, sizeof(uint));
-            if ((sig_list==NULL) || (sig_ready==NULL)) return EAR_ERROR;
-        }
+		nominal_node = frequency_get_nominal_freq();
+		verbose_master(2, "Nominal is %lu", nominal_node);
 
-        imc_data = calloc(c->num_pstates*NUM_UNC_FREQ,sizeof(imc_data_t));
+		my_app = calloc(1, sizeof(signature_t));
+		my_app->sig_ext = (void *) calloc(1, sizeof(sig_ext_t));
 
-        num_processes = lib_shared_region->num_processes;
+		if (!use_energy_models)
+		{
+			sig_list  = (signature_t *) calloc(c->num_pstates, sizeof(signature_t));
+			sig_ready = (uint *) calloc(c->num_pstates, sizeof(uint));
+			if ((sig_list==NULL) || (sig_ready==NULL)) return EAR_ERROR;
+		}
 
-        percs_mpi = calloc(num_processes, sizeof(double));
-        last_percs_mpi = calloc(num_processes, sizeof(double));
+		imc_data = calloc(c->num_pstates*NUM_UNC_FREQ,sizeof(imc_data_t));
 
-        critical_path = calloc(num_processes, sizeof(uint));
-        last_critical_path = calloc(num_processes, sizeof(uint));
+		num_processes = lib_shared_region->num_processes;
 
-        node_freqs_alloc(&min_time_def_freqs);
-        node_freqs_alloc(&last_nodefreq_sel);
+		percs_mpi = calloc(num_processes, sizeof(double));
+		last_percs_mpi = calloc(num_processes, sizeof(double));
 
-        last_mpi_stats_perc_mpi_sd = last_mpi_stats_perc_mpi_mean =
-            last_mpi_stats_perc_mpi_mag = last_mpi_stats_perc_mpi_median = 0;
+		critical_path = calloc(num_processes, sizeof(uint));
+		last_critical_path = calloc(num_processes, sizeof(uint));
 
-        /* Configuring default freqs */
-        for (i = 0; i < num_processes; i++) {
-            min_time_def_freqs.cpu_freq[i] = *(c->ear_frequency);
-        }
+		node_freqs_alloc(&min_time_def_freqs);
+		node_freqs_alloc(&last_nodefreq_sel);
 
-        for (sid=0; sid < imc_devices; sid++){
-            min_time_def_freqs.imc_freq[sid*IMC_VAL+IMC_MAX] = imc_min_pstate[sid];
-            min_time_def_freqs.imc_freq[sid*IMC_VAL+IMC_MIN] = imc_max_pstate[sid];
-        }
+		last_mpi_stats_perc_mpi_sd = last_mpi_stats_perc_mpi_mean =
+			last_mpi_stats_perc_mpi_mag = last_mpi_stats_perc_mpi_median = 0;
+
+		/* Configuring default freqs */
+		for (i = 0; i < num_processes; i++) {
+			min_time_def_freqs.cpu_freq[i] = *(c->ear_frequency);
+		}
+
+		for (sid=0; sid < imc_devices; sid++){
+			min_time_def_freqs.imc_freq[sid*IMC_VAL+IMC_MAX] = imc_min_pstate[sid];
+			min_time_def_freqs.imc_freq[sid*IMC_VAL+IMC_MIN] = imc_max_pstate[sid];
+		}
 
 #if USE_GPUS
-        memset(&gpu_plugin, 0, sizeof(gpu_plugin));
+		memset(&gpu_plugin, 0, sizeof(gpu_plugin));
 
-        if (c->num_gpus){
-            if (state_fail(policy_gpu_load(c->app, &gpu_plugin))) {
-                verbose_master(2, "%sError%s Loading GPU policy.", COL_RED, COL_CLR);
-            }
-            verbose_master(2, "%sMIN TIME ENERGY%s Initializing GPU policy...", COL_BLU, COL_CLR);
+		if (c->num_gpus){
+			if (state_fail(policy_gpu_load(c->app, &gpu_plugin))) {
+				verbose_master(2, "%sError%s Loading GPU policy.", COL_RED, COL_CLR);
+			}
+			verbose_master(2, "%sMIN TIME ENERGY%s Initializing GPU policy...", COL_BLU, COL_CLR);
 
-            if (gpu_plugin.init != NULL) {
-                gpu_plugin.init(c);
-            }
+			if (gpu_plugin.init != NULL) {
+				gpu_plugin.init(c);
+			}
 
-            gpuf_pol_list       = (const ulong **) metrics_gpus_get(MGT_GPU)->avail_list;
-            gpuf_pol_list_items = (const uint *)   metrics_gpus_get(MGT_GPU)->avail_count;
+			gpuf_pol_list       = (const ulong **) metrics_gpus_get(MGT_GPU)->avail_list;
+			gpuf_pol_list_items = (const uint *)   metrics_gpus_get(MGT_GPU)->avail_count;
 
-            /* Replace by default_setting in gpu policy */
-            for (i = 0; i<c->num_gpus; i++){
-                min_time_def_freqs.gpu_freq[i] = gpuf_pol_list[i][0];
-            }
-        }
-        verbose_node_freqs(2, &min_time_def_freqs);
+			/* Replace by default_setting in gpu policy */
+			for (i = 0; i<c->num_gpus; i++){
+				min_time_def_freqs.gpu_freq[i] = gpuf_pol_list[i][0];
+			}
+		}
+		verbose_node_freqs(2, &min_time_def_freqs);
 #endif
-        node_freqs_copy(&last_nodefreq_sel, &min_time_def_freqs);
-        return EAR_SUCCESS;
-    } else
-    {
-        return EAR_ERROR;
-    }
+		node_freqs_copy(&last_nodefreq_sel, &min_time_def_freqs);
+		return EAR_SUCCESS;
+	} else
+	{
+		return EAR_ERROR;
+	}
 }
 
 state_t policy_end(polctx_t *c)
 {
+    if (use_energy_models)
+    {
+      energy_model_dispose(cpu_energy_model);
+    }
+
     if (c != NULL) return  mpi_app_end(c);
     else return EAR_ERROR;
 }
@@ -243,7 +269,7 @@ state_t policy_end(polctx_t *c)
 state_t policy_loop_init(polctx_t *c,loop_id_t *loop_id)
 {
     if (c != NULL){
-        projection_reset(c->num_pstates);
+        // projection_reset(c->num_pstates);
         if (!use_energy_models){
             memset(sig_ready,0,sizeof(uint)*c->num_pstates);
         }
@@ -253,16 +279,16 @@ state_t policy_loop_init(polctx_t *c,loop_id_t *loop_id)
     }
 }
 
+#if 0
 state_t policy_loop_end(polctx_t *c,loop_id_t *loop_id)
 {
-#if 0
     if ((c!=NULL) && (c->reset_freq_opt))
     {
         *(c->ear_frequency) = eards_change_freq(FREQ_DEF(c->app->def_freq));
     }
-#endif
     return EAR_SUCCESS;
 }
+#endif
 
 
 // This is the main function in this file, it implements power policy
@@ -466,11 +492,10 @@ state_t policy_apply(polctx_t *c,signature_t *sig,node_freqs_t *freqs,int *ready
             }
             if (use_energy_models){
                 // verbose_master(2, "Local efficiency gain for process %d: %lf", i, local_eff_gain);
-                compute_reference(c, my_app, &curr_freq, &def_freq, &best_freq, &time_ref, &power_ref);
+                compute_reference(my_app, cpu_energy_model, &curr_freq, &def_freq, &best_freq, &time_ref, &power_ref);
                 best_pstate = frequency_closest_pstate(best_freq);
                 verbose_master(2, "Time ref %lf Power ref %lf Freq ref %lu min_pstate %d max_freq %lu", time_ref, power_ref, best_freq, min_pstate, c->app->max_freq);
-                compute_cpu_freq_min_time(my_app, min_pstate, time_ref, local_eff_gain, curr_pstate,
-                        best_pstate, best_freq, def_freq, &new_freq[i]);
+                compute_cpu_freq_min_time(my_app, cpu_energy_model, min_pstate, time_ref, local_eff_gain, curr_pstate, best_pstate, best_freq, def_freq, &new_freq[i]);
 								verbose_master(2," Frequency selected for process %d %lu", i, new_freq[i]);
                 if (use_turbo_for_cp){
                     debug("Try to boost: freq per core ? %u already using turbo ? %u min_mpi ? %u",
@@ -488,7 +513,7 @@ state_t policy_apply(polctx_t *c,signature_t *sig,node_freqs_t *freqs,int *ready
 								#endif
 								/* We have selected the default CPU freq */
 								if (new_freq[i] == min_time_def_freqs.cpu_freq[0]){
-									compute_cpu_freq_min_energy(c,my_app,curr_freq, time_ref,power_ref,
+									compute_cpu_freq_min_energy(my_app, cpu_energy_model, curr_freq, time_ref,power_ref,
                 	0.05, curr_pstate, curr_pstate, c->num_pstates, &new_freq[i]);
 									verbose_master(1, "Applying min_energy: CPU freq selected %lu", new_freq[i]);
 								}
@@ -776,6 +801,13 @@ state_t policy_apply(polctx_t *c,signature_t *sig,node_freqs_t *freqs,int *ready
         memcpy(last_nodefreq_sel.imc_freq, freqs->imc_freq, imc_devices * IMC_VAL * sizeof(ulong));
     }
     verbose_master(2,"Next min_time state %u next policy state %u",min_time_state,*ready);
+
+    if (cpu_ready && use_energy_models)
+    {
+	    compute_policy_savings(cpu_energy_model, sig, freqs, &mte_freq_dom);
+    }
+
+
     return EAR_SUCCESS;
 }
 
@@ -790,7 +822,7 @@ static state_t int_policy_ok(signature_t *curr_sig,signature_t *last_sig,int *ok
     my_node_mpi_types_calls   = se->mpi_types;
 
     /*  Check for load balance data */
-    if (is_mpi_enabled() && enable_load_balance && use_energy_models){
+    if (module_mpi_is_enabled() && enable_load_balance && use_energy_models){
 
         verbose_mpi_calls_types(3, my_node_mpi_types_calls);
 
@@ -877,7 +909,19 @@ static state_t int_policy_ok(signature_t *curr_sig,signature_t *last_sig,int *ok
     if (*ok == 0){
         first_time = 1;
         first_imc_try = 1;
-    }
+    } else
+		{
+        compute_energy_savings(curr_sig, last_sig);
+
+#if USE_ENERGY_SAVING
+				if (curr_sig->sig_ext->saving < 0)
+				{
+          *ok = 0;
+
+          verbose(2, "%sMIN ENERGY POLICY OK%s We are not saving energy.", COL_RED, COL_CLR);
+        }
+#endif
+		}
     return EAR_SUCCESS;
 }
 
@@ -1127,4 +1171,29 @@ static int policy_no_models_is_better_min_time(signature_t * curr_sig, signature
     if (perf_gain>=freq_gain) return 1;
     return 0;
 #endif
+}
+
+
+static state_t create_policy_domain(polctx_t *c, node_freq_domain_t *domain)
+{
+	if (c && domain)
+	{
+		domain->cpu                  = POL_GRAIN_CORE;
+		if (dyn_unc) domain->mem     = POL_GRAIN_NODE;
+		else         domain->mem     = POL_NOT_SUPPORTED;
+
+#if USE_GPUS
+		if (c->num_gpus) domain->gpu = POL_GRAIN_CORE;
+		else             domain->gpu = POL_NOT_SUPPORTED;
+#else
+		domain->gpu                  = POL_NOT_SUPPORTED;
+#endif
+
+		domain->gpumem = POL_NOT_SUPPORTED;
+
+		return EAR_SUCCESS;
+	} else
+	{
+		return_msg(EAR_ERROR, Generr.input_null);
+	}
 }

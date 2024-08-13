@@ -1,21 +1,14 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <common/system/time.h>
 #include <common/output/debug.h>
@@ -46,41 +39,38 @@ typedef struct cmeta_s {
     cchar  *desc;
 } cmeta_t;
 
-static topology_t *tp;
 static cmeta_t     meta[5];
-static uint        counter;
-static uint        started;
-static uint        first; // First perf which worked
-static uint        cache_last_level;
+static uint        meta_count;
+static uint        enabled_count;
 static double      line_size;
+static uint        started;
 
 void set_cache(ullong event, uint type, uint offset, uint used_in_bw, cchar *desc)
 {
-    if (state_fail(perf_open(&meta[counter].perf, &meta[first].perf, 0, type, event))) {
-        debug("perf_open for level %d returned: %s", offset, state_msg);
-        return;
+    meta[meta_count].used_in_bw = used_in_bw;
+    meta[meta_count].offset     = offset;
+    meta[meta_count].enabled    = 1;
+    meta[meta_count].desc       = desc;
+    // Trying to open an event ongrpouped
+    if (state_fail(perf_open(&meta[meta_count].perf, NULL, 0, type, event))) {
+        debug("perf_open for event %s returned: %s", desc, state_msg);
+        meta[meta_count].enabled = 0;
+    } else {
+        debug("perf_open for event %s: OK", desc);
+        enabled_count++;
     }
-    meta[counter].used_in_bw = used_in_bw;
-    meta[counter].offset     = offset;
-    meta[counter].enabled    = 1;
-    meta[counter].desc       = desc;
-    debug("loaded event %s", desc);
-    counter++;
+    meta_count++;
 }
 
 int OFFSET(int level)
 {
     #define LBW INT_MAX-0
-    #define LL  INT_MAX-1
-    #define LX  INT_MAX-2
     // Based on cache_t structure:
     if (level == LBW) return  0;
     if (level ==   1) return  1;
     if (level ==   2) return  2;
     if (level ==   3) return  3;
     if (level ==   4) return -1;
-    if (level ==  LL) return  4;
-    if (level ==  LX) return OFFSET(cache_last_level);
     return -1;
 }
 
@@ -95,15 +85,20 @@ char *OFFSTR(int offset)
 
 void cache_perf_load(topology_t *tp, cache_ops_t *ops)
 {
-    // Saving the last cache level (our LX)
-    cache_last_level = tp->cache_last_level;
+    // Saving the last cache level
     line_size = (double) tp->cache_line_size;
     //
-    if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_HASWELL_X) {
+    if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_SAPPHIRE_RAPIDS) {
         set_cache(L1D_LD  , PERF_TYPE_HW_CACHE, OFFSET(001), 0, "PERF_L1D_MISS_LD");
         set_cache(0x3f24  , PERF_TYPE_RAW     , OFFSET(002), 0, "L2_RQSTS.MISS"   );
-        set_cache(0x40f0  , PERF_TYPE_RAW     , OFFSET(LBW), 0, "L2_TRANS.L2_WB"  );
-        set_cache(0x1ff1  , PERF_TYPE_RAW     , OFFSET(LBW), 0, "L2_LINES_IN.ALL" );
+        set_cache(0x1f25  , PERF_TYPE_RAW     , OFFSET(LBW), 0, "L2_LINES_IN.ALL" );
+        set_cache(0x0226  , PERF_TYPE_RAW     , OFFSET(LBW), 0, "L2_LINES_OUT.NON_SILENT");
+        set_cache(0x0126  , PERF_TYPE_RAW     , OFFSET(LBW), 0, "L2_LINES_OUT.SILENT");
+    } else if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_HASWELL_X) {
+        set_cache(L1D_LD  , PERF_TYPE_HW_CACHE, OFFSET(001), 0, "PERF_L1D_MISS_LD");
+        set_cache(0x3f24  , PERF_TYPE_RAW     , OFFSET(002), 0, "L2_RQSTS.MISS"   ); // Icelake, Skylake, Broadwell, Haswell
+        set_cache(0x40f0  , PERF_TYPE_RAW     , OFFSET(LBW), 0, "L2_TRANS.L2_WB"  ); // Icelake, Skylake, Broadwell, Haswell
+        set_cache(0x1ff1  , PERF_TYPE_RAW     , OFFSET(LBW), 0, "L2_LINES_IN.ALL" ); // Icelake, Skylake, Broadwell, Haswell
     } else if (tp->vendor == VENDOR_AMD && tp->family >= FAMILY_ZEN) {
         set_cache(L1D_LD  , PERF_TYPE_HW_CACHE, OFFSET(001), 0, "PERF_L1D_MISS_LD");
         set_cache(0x430864, PERF_TYPE_RAW     , OFFSET(002), 1, "L2_MISS_FROM_DC" );
@@ -114,7 +109,7 @@ void cache_perf_load(topology_t *tp, cache_ops_t *ops)
         set_cache(0x17    , PERF_TYPE_RAW     , OFFSET(002), 1, "L2D_CACHE_REFILL");
         set_cache(0x18    , PERF_TYPE_RAW     , OFFSET(LBW), 0, "L2D_CACHE_WB"    );
     }
-    if (!counter) {
+    if (!enabled_count) {
         return;
     }
     apis_put(ops->get_info,     cache_perf_get_info);
@@ -122,7 +117,7 @@ void cache_perf_load(topology_t *tp, cache_ops_t *ops)
     apis_put(ops->dispose,      cache_perf_dispose);
     apis_put(ops->read,         cache_perf_read);
     apis_put(ops->data_diff,    cache_perf_data_diff);
-    apis_put(ops->details_tostr,cache_perf_details_tostr);
+    apis_put(ops->internals_tostr,cache_perf_internals_tostr);
     debug("Loaded PERF")
 }
 
@@ -136,15 +131,30 @@ void cache_perf_get_info(apinfo_t *info)
 
 state_t cache_perf_init()
 {
-	if (!started) {
-		perf_start(&meta[first].perf);
-		++started;
-	}
+    int i;
+	if (started) {
+        return EAR_SUCCESS;
+    }
+    for (i = 0; i < meta_count; ++i) {
+        if (meta[i].enabled) {
+            perf_start(&meta[i].perf);
+        }
+    }
+    ++started;
 	return EAR_SUCCESS;
 }
 
 state_t cache_perf_dispose()
 {
+  if (started){
+    for (int i = 0; i < meta_count; ++i) {
+        if (meta[i].enabled) {
+            perf_close(&meta[i].perf);
+        }
+    }
+  }
+  started = 0;
+	meta_count = 0;
 	return EAR_SUCCESS;
 }
 
@@ -156,13 +166,19 @@ state_t cache_perf_read(cache_t *ca)
     // Cleaning
     memset(ca, 0, sizeof(cache_t));
     // Reading
-	if (state_fail(s = perf_read(&meta[first].perf, (llong *) p))) {
-		return s;
-	}
-	timestamp_get(&ca->time);
-	for (i = 0; i < counter; ++i) {
+    timestamp_get(&ca->time);
+    for (i = 0; i < meta_count; ++i) {
+        if (meta[i].enabled) {
+            if (state_fail(s = perf_read(&meta[i].perf, (llong *) &p[i]))) {
+                return s;
+            }
+        }
+    }
+    #if SHOW_DEBUGS
+	for (i = 0; i < meta_count; ++i) {
         debug("values[%d]: %llu", i, p[i]);
     }
+    #endif
     return EAR_SUCCESS;
 }
 
@@ -185,7 +201,7 @@ void cache_perf_data_diff(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs)
     secs = (double) time;
     secs = secs / 1000.0;
     //
-    for (i = 0; i < counter; ++i) {
+    for (i = 0; i < meta_count; ++i) {
         if (!meta[i].enabled) {
             continue;
         }
@@ -209,12 +225,12 @@ void cache_perf_data_diff(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs)
     *gbs = cas;
 }
 
-void cache_perf_details_tostr(char *buffer, int length)
+void cache_perf_internals_tostr(char *buffer, int length)
 {
     cchar *state[] = { "failed", "loaded" };
     cchar *bwtoo[] = { "", "(also in LBW)" };
     int i, c;
-    for (i = c = 0; i < counter; ++i) {
+    for (i = c = 0; i < meta_count; ++i) {
         c += sprintf(&buffer[c], "%s: %s (event %s) %s\n", OFFSTR(meta[i].offset),
              state[meta[i].enabled], meta[i].desc, bwtoo[meta[i].used_in_bw]);
     }

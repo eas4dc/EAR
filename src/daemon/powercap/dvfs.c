@@ -1,19 +1,12 @@
-/*
-*
-* This program is part of the EAR software.
-*
-* EAR provides a dynamic, transparent and ligth-weigth solution for
-* Energy management. It has been developed in the context of the
-* Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-*
-* Copyright © 2017-present BSC-Lenovo
-* BSC Contact   mailto:ear-support@bsc.es
-* Lenovo contact  mailto:hpchelp@lenovo.com
-*
-* EAR is an open source software, and it is licensed under both the BSD-3 license
-* and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
-* and COPYING.EPL files.
-*/
+/***************************************************************************
+ * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **************************************************************************/
 
 #define _GNU_SOURCE
 //#define SHOW_DEBUGS 1
@@ -98,9 +91,11 @@ static void frequency_nfreq_to_npstate(ulong *f,uint *p,uint cpus)
     int i;
     for (i=0;i<cpus;i++) {
         if (f[i]) p[i] = frequency_freq_to_pstate(f[i]);
-        else p[i] = num_pstates - 1;
+        //else p[i] = num_pstates - 1;
+        else p[i] = 0; //modified to be more conservative towards user performance
     }
 }
+
 static void frequency_npstate_to_nfreq(uint *p,ulong *f,uint cpus)
 {
     int i;
@@ -242,9 +237,11 @@ state_t dvfs_pc_thread_init(void *p)
         pthread_exit(NULL);
     }
 
-    //set the governor to userspace
-    frequency_set_userspace_governor_all_cpus();
+    // set the governor to userspace just when needed
+
     verbose(VEARD_PC, "Setting governor to userspace for DVFS powercap control");
+		state_t ret_st = frequency_set_userspace_governor_all_cpus();
+    check_usrspace_gov_set(ret_st, VEARD_PC);
 
 	// read initial values
 	energy_cpu_read(NULL, values_rapl_init);
@@ -256,13 +253,13 @@ state_t dvfs_pc_thread_init(void *p)
 state_t dvfs_pc_thread_main(void *p)
 {
     //debug("entering dvfs_pc_thread_main, current_dvfs_pc %u and c_status %u", current_dvfs_pc, c_status);
-    unsigned long long acum_energy;
     uint extra, tmp_pstate[MAX_CPUS_SUPPORTED];
     timestamp_t curr_time;
     ulong elapsed;
     debug("--------------------------------------")
     debug("new_dvfs");
     debug("--------------------------------------")
+
 
     /* Get elapsed time since last call */
     timestamp_get(&curr_time);
@@ -275,7 +272,10 @@ state_t dvfs_pc_thread_main(void *p)
     memset(c_req_f, 0, sizeof(ulong)*MAX_CPUS_SUPPORTED);
     pmgt_get_app_req_freq(DOMAIN_CPU, c_req_f, node_size);
 
-		//verbose_frequencies(node_size, c_req_f);
+    if (current_dvfs_pc == POWER_CAP_UNLIMITED || current_dvfs_pc == 0){
+        debug("powercap unlimited or disabled");
+        return EAR_SUCCESS;
+    }   
 
     dvfs_pc_secs=(dvfs_pc_secs+1)%DEBUG_PERIOD;
 	energy_cpu_read(NULL, values_rapl_end);
@@ -285,32 +285,28 @@ state_t dvfs_pc_thread_main(void *p)
     /* Copy init=end */
 	energy_cpu_data_copy(NULL, values_rapl_init, values_rapl_end);
 
-    //if ((current_dvfs_pc <= POWER_CAP_UNLIMITED) || (c_status != PC_STATUS_RUN)){
-    if (current_dvfs_pc <= POWER_CAP_UNLIMITED){
-        debug("powercap unlimited");
-        return EAR_SUCCESS;
-    }   
+    /* Changed from acum_rapl to use the new (and proper) energy_cpu API */
+    power_rapl = 0;
+    for (int32_t i = 0; i < node_desc.socket_count; i++) {
+        //DRAM power
+        power_rapl += energy_cpu_compute_power(values_diff[i], elapsed/1000.0);
+        //CPU power
+        power_rapl += energy_cpu_compute_power(values_diff[node_desc.socket_count + i], elapsed/1000.0);
+    }
 
-    acum_energy=acum_rapl_energy(values_diff);
-    power_rapl=(float)acum_energy/(((float)elapsed/1000.0)*RAPL_MSR_UNITS);
-    my_limit=(float)current_dvfs_pc;
-
-    //vector_print_pstates(prev_pstate, node_size);
+    my_limit = (float)current_dvfs_pc;
     debug("Current power %f current limit %f (%u cpus)", power_rapl, my_limit,node_size);
 
-    if (power_rapl < 0.5) return EAR_ERROR;
+    if (power_rapl < 0.5) return EAR_SUCCESS;
 
     /* Apply limits */
     frequency_get_cpufreq_list(node_size,c_freq);
     frequency_nfreq_to_npstate(c_freq,c_pstate,node_size);
     frequency_nfreq_to_npstate(c_req_f,t_pstate,node_size);
 
+    verbose_frequencies(node_size, c_freq);
 
     if (power_rapl > my_limit){ /* We are above the PC , reduce freq*/
-        //print_frequencies(node_size,c_freq);
-        //vector_print_pstates(c_pstate, node_size);
-        //print_frequencies(node_size,c_req_f);
-        //vector_print_pstates(t_pstate, node_size);
         verbose(VEARD_PC+1,"%sCurrent freq freq0 %lu freqn %lu%s", COL_RED, c_freq[0], c_freq[node_size-1],COL_CLR);
         if (current_dvfs_pc < default_dvfs_pc) {
             dvfs_ask_def = 1;
@@ -340,11 +336,6 @@ state_t dvfs_pc_thread_main(void *p)
         verbose(VEARD_PC+1,"%spower above limit. Curr %.2f Limit %.2f, setting freq0 %lu freqm %lu%s", COL_RED, power_rapl, my_limit, c_freq[0], c_freq[node_size-1], COL_CLR);
 
     }else{ /* We are below the PC */
-        if (is_null_f(c_req_f)) {
-            //debug("current requested frequency is not set");
-            return EAR_SUCCESS;
-        }
-
         frequency_nfreq_to_npstate(c_req_f,t_pstate,node_size);
         if (higher_pstate(c_pstate,t_pstate)){
 
@@ -409,8 +400,11 @@ state_t enable(suscription_t *sus)
 
     debug("DVFS:Initializing frequency in dvfs_pc %u cpus",node_size);
     frequency_init(0);
-	frequency_set_userspace_governor_all_cpus();
+    state_t ret_st = frequency_set_userspace_governor_all_cpus();
+	check_usrspace_gov_set(ret_st, VEARD_PC);
     num_pstates = frequency_get_num_pstates();
+
+    debug("DVFS: found %lu pstates", num_pstates);
 
     /* node_size or MAX_CPUS_SUPPORTED */
     c_freq = calloc(MAX_CPUS_SUPPORTED,sizeof(ulong));
@@ -421,6 +415,11 @@ state_t enable(suscription_t *sus)
     prev_counter = 0;
     int i;
     for (i = 0; i < MAX_CPUS_SUPPORTED; i++) prev_pstate[i] = UINT_MAX;
+
+#if SHOW_DEBUGS
+    ulong *freqlist = frequency_get_freq_rank_list();
+    verbose_frequencies(node_size, freqlist);
+#endif
 
     sus->suscribe(sus);
     return EAR_SUCCESS;
