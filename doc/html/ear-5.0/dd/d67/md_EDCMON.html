@@ -56,7 +56,7 @@ $(document).ready(function(){initNavTree('dd/d67/md_EDCMON.html','../../'); init
 <div class="contents">
 <div class="textblock"><p>The Energy Data Center Monitor is a new EAR service for Data Center monitoring. In particular, it targets elements different than computational nodes which are already monitored by the EARD running in compute nodes. However, whereas the EARDs monitor (among others) DC node power, the EDCMON service targets (eventhough it's not limited to) AC power. Because of that reason, the EDCMON main goal is to include all the power consumer components in a Data Center (Compute nodes, Network, Storage, Management).</p>
 <p>EDCMON is 100% configurable and extensible since it uses an EAR framework named Plugin Manager which allows to load as many plugins as needed, which specific frequencies , dependencies among them and to share data between them. These plugins can communicate with each other through a <b>tag</b> (naming) system. The tag is a free text specified in the plugin code and is used as reference to specify dependencies, data sharing etc.</p>
-<h1><a class="anchor" id="autotoc_md144"></a>
+<h1><a class="anchor" id="autotoc_md147"></a>
 The EDCMON executable</h1>
 <p>EDCMON parameters are:</p>
 <div class="fragment"><div class="line">Usage: ./edcmon [OPTIONS]</div>
@@ -90,7 +90,7 @@ The EDCMON executable</h1>
 <div class="line">./edcmon --plugins=metrics.so:2000+periodic_metrics.so:config_message1:config_message2 --paths=path/to/plugins1:path/to/plugins2</div>
 </div><!-- fragment --><p>Plugins also have <b>dependencies</b>. It means that a plugin may depend on the actions or data shared by other plugins. A dependency is written in a string in the compiled binary itself, so you don't have to load it manually. It will be loaded automatically and its calling time could be the dependent plugin time (if specified in the binary). But if you want to set a specific calling time you have to load it manually and set the time you want. If a dependency is hard (which is specified in the string), a failure in the required plugin will disable the dependent plugin.</p>
 <p>Plugins also have <b>priorities</b>. If a plugin A is a dependency of plugin B, the plugin A will be called before. If a Plugin B was written before plugin A in the <code>--plugins</code> parameter, A will be called before, because these cases are contemplated in the dependency system algorithmics.</p>
-<h1><a class="anchor" id="autotoc_md145"></a>
+<h1><a class="anchor" id="autotoc_md148"></a>
 EDCMON plugins</h1>
 <p>Even though in the plugins folder there are other plugins available (listed at the end of this page), these are the plugins specifics for Data center monitoring.</p>
 <table class="markdownTable">
@@ -103,7 +103,7 @@ EDCMON plugins</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone">nodesensors_alter   </td><td class="markdownTableBodyNone">Checks limits and executes actions based on nodesensors   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md146"></a>
+<h1><a class="anchor" id="autotoc_md149"></a>
 Creating new plugins</h1>
 <p>As previously said, the plugin periodic functions have to have concrete name. These functions names and arguments are the following:</p>
 <div class="fragment"><div class="line">void  up_get_tag         (cchar **tag, cchar **tags_deps)</div>
@@ -188,7 +188,7 @@ Creating new plugins</h1>
 <div class="line">11) After 8 seconds, A up_action_periodic will be called with &#39;A&#39; tag.</div>
 <div class="line">12) And so on... </div>
 </div><!-- fragment --><p>Finally, <code>up_post_data()</code> allows to receive external data to the plugins. In example, if Plugin Manager is being used by the EARD, when a job starts you could send a message to the framework containing the job and step IDs. By now you can distinguish the messages by <code>is_msg</code> macro. Maybe in the near future we implement the suffix system too.</p>
-<h2><a class="anchor" id="autotoc_md147"></a>
+<h2><a class="anchor" id="autotoc_md150"></a>
 Helper macros</h2>
 <p>The following helper macros to define the functions and maintain your plugins updated in case of a change in some function. They can be found in plugin_manager.h:</p>
 <div class="fragment"><div class="line">#define declr_up_get_tag()               void   up_get_tag                 (cchar **tag, cchar **tags_deps)</div>
@@ -210,7 +210,7 @@ Helper macros</h2>
 <div class="line">    }</div>
 <div class="line">    return NULL;</div>
 <div class="line">}</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md148"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md151"></a>
 Plugin Manager functions</h1>
 <p>By now these are the functions of the framework:</p>
 <div class="fragment"><div class="line">// Init as main binary function</div>
@@ -231,7 +231,7 @@ Plugin Manager functions</h1>
 <div class="line">// Passing data to plugins. Intended to be called outside PM.</div>
 <div class="line">void plugin_mananger_post(cchar *msg, void *data);</div>
 </div><!-- fragment --><p>The <code>plugin_manager_main()</code> receives the program arguments (argc and argv), in which is included <code>--plugins</code>. You can also call <code>plugin_manager_init()</code> if you prefer the list of plugins and search paths separately (but in the same format). <code>plugin_manager_action()</code> calls the PA function of the plugin whose tag is referenced, it can be useful in some contexts when a plugin prefers to call a required plugin manually. Finally <code>plugin_manager_wait()</code> waits until the Plugin Manager main thread is closed.</p>
-<h2><a class="anchor" id="autotoc_md149"></a>
+<h2><a class="anchor" id="autotoc_md152"></a>
 Other plugins already available</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -263,7 +263,7 @@ Other plugins already available</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone">test_gpu   </td><td class="markdownTableBodyNone">Initializes and read the GPU API.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md150"></a>
+<h1><a class="anchor" id="autotoc_md153"></a>
 FAQ</h1>
 <ul>
 <li><b>Can I load the same plugin twice?</b> No.</li>

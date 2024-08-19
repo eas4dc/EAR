@@ -56,22 +56,22 @@ $(document).ready(function(){initNavTree('d8/d71/md_Admin_guide.html','../../');
 <div class="contents">
 <div class="toc"><h3>Table of Contents</h3>
 <ul><li class="level1"><a href="#ear-components">EAR Components</a></li>
-<li class="level1"><a href="#quick-installation-guide">Quick Installation Guide</a><ul><li class="level2"><a href="#autotoc_md41">EAR Requirements</a></li>
-<li class="level2"><a href="#autotoc_md42">Compiling and installing EAR</a></li>
-<li class="level2"><a href="#autotoc_md43">Deployment and validation</a><ul><li class="level3"><a href="#autotoc_md44">Monitoring: Compute node and DB</a></li>
-<li class="level3"><a href="#autotoc_md45">Monitoring: EAR plugin</a></li>
+<li class="level1"><a href="#quick-installation-guide">Quick Installation Guide</a><ul><li class="level2"><a href="#autotoc_md42">EAR Requirements</a></li>
+<li class="level2"><a href="#autotoc_md43">Compiling and installing EAR</a></li>
+<li class="level2"><a href="#autotoc_md44">Deployment and validation</a><ul><li class="level3"><a href="#autotoc_md45">Monitoring: Compute node and DB</a></li>
+<li class="level3"><a href="#autotoc_md46">Monitoring: EAR plugin</a></li>
 </ul>
 </li>
-<li class="level2"><a href="#autotoc_md46">EAR Library versions: MPI vs. Non-MPI</a></li>
+<li class="level2"><a href="#autotoc_md47">EAR Library versions: MPI vs. Non-MPI</a></li>
 </ul>
 </li>
 <li class="level1"><a href="#installing-from-rpm">Installing from RPM</a><ul><li class="level2"><a href="#installation-content">Installation content</a></li>
 <li class="level2"><a href="#rpm-requirements">RPM requirements</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#autotoc_md47">Starting Services</a></li>
-<li class="level1"><a href="#autotoc_md48">Updating EAR with a new installation</a></li>
-<li class="level1"><a href="#autotoc_md49">Next steps</a></li>
+<li class="level1"><a href="#autotoc_md48">Starting Services</a></li>
+<li class="level1"><a href="#autotoc_md49">Updating EAR with a new installation</a></li>
+<li class="level1"><a href="#autotoc_md50">Next steps</a></li>
 </ul>
 </div>
 <div class="textblock"><h1><a class="anchor" id="ear-components"></a>
@@ -93,7 +93,7 @@ EAR components diagram</div></div>
 <h1><a class="anchor" id="quick-installation-guide"></a>
 Quick Installation Guide</h1>
 <p>This section provides a, summed up, step by step installation and execution guide for EAR. For a more in depth explanation of the necessary steps see the <a class="el" href="../../dc/d3a/md_Installation_from_source.html">Installation from source</a> page or the <a class="el" href="../../d8/d71/md_Admin_guide.html#installing-from-rpm">Installing from RPM</a> section, following the <a class="el" href="../../d2/d00/md_Configuration.html">Configuration</a> guide, or contact us at <a href="#" onclick="location.href='mai'+'lto:'+'ear'+'-s'+'upp'+'or'+'t@b'+'sc'+'.es'; return false;">ear-s<span class="obfuscator">.nosp@m.</span>uppo<span class="obfuscator">.nosp@m.</span>rt@bs<span class="obfuscator">.nosp@m.</span>c.es</a></p>
-<h2><a class="anchor" id="autotoc_md41"></a>
+<h2><a class="anchor" id="autotoc_md42"></a>
 EAR Requirements</h2>
 <p>Requirements to compile EAR are:</p><ul>
 <li>C compiler.</li>
@@ -112,7 +112,7 @@ EAR Requirements</h2>
 <li>Hardware counters must be accessible for normal users. Set */proc/sys/kernel/perf_event_paranoid* to 2 (or less). Type <code>sudo sh -c "echo 2 &gt; /proc/sys/kernel/perf_event_paranoid"</code> in compute nodes.</li>
 </ul>
 <p>Run <code>./configure --help</code> to see all the flags and options.</p>
-<h2><a class="anchor" id="autotoc_md42"></a>
+<h2><a class="anchor" id="autotoc_md43"></a>
 Compiling and installing EAR</h2>
 <p>Once downloaded the code from repository, execute:</p><ul>
 <li><code>autoreconf -i</code>.</li>
@@ -139,9 +139,9 @@ Compiling and installing EAR</h2>
 <div class="line">make -f Makefile.impi doc.install</div>
 <div class="line">make -f Makefile.impi etc.install</div>
 </div><!-- fragment --><p>At this point the EAR binaries will be installed including one version of the EAR library for MPI (default), EAR documentation, EAR service files for EAR daemons and templates for <code>ear.conf</code> files and SLURM plugin. The configure tool tries to automatically detect paths to mysql and/or postgress, scheduler sources, etc. It is mandatory to detect the scheduler path, by default SLURM is assumed. After the configure, check in the Makefile all the options have been detected. After the make install, you should have the following folders in the ear-install-path: bin, sbin, etc, lib, include, man. The bin directory includes commands and tools, the sbin includes EAR services, the lib includes all the libraries and plugins, and etc includes templates and examples for EAR service files, ear.conf file, the EAR module, etc.</p>
-<h2><a class="anchor" id="autotoc_md43"></a>
+<h2><a class="anchor" id="autotoc_md44"></a>
 Deployment and validation</h2>
-<h3><a class="anchor" id="autotoc_md44"></a>
+<h3><a class="anchor" id="autotoc_md45"></a>
 Monitoring: Compute node and DB</h3>
 <p><b>Prepare the configuration</b></p>
 <p>Either installing from sources or rpm, EAR installs a template for <code>ear.conf</code> file in <code>$EAR_ETC/ear/ear.conf.template</code> and <code>$EAR_ETC/ear/ear.conf.full.template</code>. The full version includes all fields. Copy only one as <code>$EAR_ETC/ear/ear.conf</code> and update with the desired configuration. Go to the <a class="el" href="../../d2/d00/md_Configuration.html">configuration</a> section to see how to do it. The <code>ear.conf</code> is used by all the services. It is recommended to have in a shared folder to simplify the changes in the configuration.</p>
@@ -166,7 +166,7 @@ Monitoring: Compute node and DB</h3>
 <p><b>Quick validation</b></p>
 <p>Check that EARDs are up and running correctly with <code>econtrol --status</code> (note that daemons will take around a minute to correctly report energy and not show up as an error in econtrol). EARDs create a per-node text file with values reported to the EARDBD (local to compute nodes). In case there are problems when running econtrol, you can also find this file at <code>$EAR_TMP/nodename.pm_periodic_data.txt</code>.</p>
 <p>Check that EARDs are reporting metrics to database with ereport. <code>ereport -n all</code> should report the total energy sent by each daemon since the setup.</p>
-<h3><a class="anchor" id="autotoc_md45"></a>
+<h3><a class="anchor" id="autotoc_md46"></a>
 Monitoring: EAR plugin</h3>
 <ul>
 <li>Set up EAR's SLURM plugin (see the <a class="el" href="../../d2/d00/md_Configuration.html">configuration</a> section for more information). <blockquote class="doxtable">
@@ -236,7 +236,7 @@ file in the <code>/etc/slurm/plugstack.conf.d</code> directory to simplify the E
 <blockquote class="doxtable">
 <p>&zwj;<b>Important</b> Reloading daemons will NOT make them load coefficients, restarting the service is the only way. </p>
 </blockquote>
-<h2><a class="anchor" id="autotoc_md46"></a>
+<h2><a class="anchor" id="autotoc_md47"></a>
 EAR Library versions: MPI vs. Non-MPI</h2>
 <p>As commented in the overview, the EAR Library is loaded next to the user MPI application by the EAR Loader. The Library uses MPI symbols, so it is compiled by using the includes provided by your MPI distribution. The selection of the library version is automatic at runtime, but it is not required during the compilation and installation steps. Each compiled library version has its own file name that has to be defined by the <code>MPI_VERSION</code> variable during the <code>./configure</code> or by editing the root Makefile.</p>
 <p>The name list per distribution is exposed in the following table:</p>
@@ -366,7 +366,7 @@ RPM requirements</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone">Open IPMI   </td><td class="markdownTableBodyNone">kernel/drivers/char/ipmi/*.ko   </td><td class="markdownTableBodyNone">3.10   </td><td class="markdownTableBodyNone"><a href="https://docs.oracle.com/en/database/oracle/oracle-database/12.2/cwlin/configuring-the-open-ipmi-driver.html">Information</a>   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md47"></a>
+<h1><a class="anchor" id="autotoc_md48"></a>
 Starting Services</h1>
 <p>The best way to execute all EAR daemon components (EARD, EARDBD, EARGM) is by the unit services method.</p>
 <blockquote class="doxtable">
@@ -375,7 +375,7 @@ Starting Services</h1>
 <p>The way to launch the EAR daemons is via unit services. The generated unit services for the EAR Daemon, EAR Global Manager Daemon and EAR Database Daemon are generated and installed in <code>$(EAR_ETC)/systemd</code>. You have to copy those unit service files to your <code>systemd</code> operating system folder and then use the <code>systemctl</code> command to run the daemons. Check the <a class="el" href="../../df/dde/md_Architecture.html#ear-node-manager">EARD</a>, <a class="el" href="../../df/dde/md_Architecture.html#ear-database-manager">EARDBD</a>, <a class="el" href="../../df/dde/md_Architecture.html#ear-global-manager">EARGMD</a> pages to find the precise execution commands.</p>
 <p>When using <code>systemctl</code> commands, you can check messages reported to <code>stderr</code> using <code>journalctl</code>. For instance: <code>journalctl -u eard -f</code>. Note that if <code>NodeUseLog</code> is set to 1 in <code>ear.conf</code>, the messages will not be printed to <code>stderr</code> but to <code>$EAR_TMP/eard.log</code> instead. <code>DBDaemonUseLog</code> and <code>GlobalmanagerUseLog</code> options in <code>ear.conf</code> specifies the output for EARDBD and EARGM, respectivelly.</p>
 <p>Additionally, services can be started, stopped or reloaded on parallel using parallel commands such as <code>pdsh</code>. As an example: <code>sudo pdsh -w nodelist systemctl start eard</code>.</p>
-<h1><a class="anchor" id="autotoc_md48"></a>
+<h1><a class="anchor" id="autotoc_md49"></a>
 Updating EAR with a new installation</h1>
 <p>In some cases, it might be a good idea to create a new install instead of updating your current one, like trying new configurations or when a big update is released.</p>
 <p>The steps to do so are:</p><ul>
@@ -386,7 +386,7 @@ Updating EAR with a new installation</h1>
 <li>Create a new EAR module with the updated paths.</li>
 </ul>
 <p>Once all that is done, one should have two complete EAR installs that can be switched by changing the binaries that are executed by the services and changing the path in <code>plugstag.conf</code>.</p>
-<h1><a class="anchor" id="autotoc_md49"></a>
+<h1><a class="anchor" id="autotoc_md50"></a>
 Next steps</h1>
 <p>For a better overview of the installation process, return to the <a class="el" href="../../d8/d71/md_Admin_guide.html#quick-installation-guide">installation guide</a>. To continue the installation, visit the <a class="el" href="../../d2/d00/md_Configuration.html">configuration page</a> to set up properly the EAR configuration file and the EAR SLURM plugin stack file. </p>
 </div></div><!-- contents -->

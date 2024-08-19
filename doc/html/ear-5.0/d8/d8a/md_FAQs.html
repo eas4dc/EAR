@@ -55,14 +55,14 @@ $(document).ready(function(){initNavTree('d8/d8a/md_FAQs.html','../../'); initRe
 </div><!--header-->
 <div class="contents">
 <div class="toc"><h3>Table of Contents</h3>
-<ul><li class="level1"><a href="#autotoc_md163">EAR general questions</a></li>
-<li class="level1"><a href="#autotoc_md164">Using EAR flags with SLURM plug-in</a></li>
-<li class="level1"><a href="#autotoc_md165">Using additional MPI profiling libraries/tools</a></li>
-<li class="level1"><a href="#autotoc_md166">Jobs executed without the EAR Library: Basic Job accounting</a></li>
-<li class="level1"><a href="#autotoc_md167">Troubleshooting</a></li>
+<ul><li class="level1"><a href="#autotoc_md166">EAR general questions</a></li>
+<li class="level1"><a href="#autotoc_md167">Using EAR flags with SLURM plug-in</a></li>
+<li class="level1"><a href="#autotoc_md168">Using additional MPI profiling libraries/tools</a></li>
+<li class="level1"><a href="#autotoc_md169">Jobs executed without the EAR Library: Basic Job accounting</a></li>
+<li class="level1"><a href="#autotoc_md170">Troubleshooting</a></li>
 </ul>
 </div>
-<div class="textblock"><h1><a class="anchor" id="autotoc_md163"></a>
+<div class="textblock"><h1><a class="anchor" id="autotoc_md166"></a>
 EAR general questions</h1>
 <p><b>Q: What is EAR?</b></p>
 <p><b>A:</b> EAR is a system software for energy and power optimization, accounting and management. EAR components interact with each other to perform system monitoring, job accounting and energy optimisation on HPC systems.</p>
@@ -80,7 +80,7 @@ EAR general questions</h1>
 <p><b>Q: OK, so will I get per-thread metrics on Hybrid MPI+OpenMP apps?</b></p>
 <p><b>A:</b> Unfortunately no, you won't.</p>
 <p>EAR does not provide metrics at thread level at this moment. For hybrid applications, EAR will provide metrics for each MPI process. You can run OpenMP apps with EARL, but you'll get process metrics too.</p>
-<h1><a class="anchor" id="autotoc_md164"></a>
+<h1><a class="anchor" id="autotoc_md167"></a>
 Using EAR flags with SLURM plug-in</h1>
 <p><b>Q: How to see EAR configuration and metrics at runtime?</b></p>
 <p><b>A:</b> Use <code>--ear-verbose=1</code> flag in your submission command (e.g., srun, mpirun) to enable verbosity.</p>
@@ -137,10 +137,10 @@ Using EAR flags with SLURM plug-in</h1>
 <p><b>A:</b> Use the environment variables to enable the trace collection and to specify the path.</p>
 <div class="fragment"><div class="line">SLURM_EAR_TRACE_PLUGIN$EAR_INSTALL_PATH/lib/plugins/tracer/tracer_paraver.so</div>
 <div class="line">SLURM_EAR_TRACE_PATH=TRACES_PARAVER/</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md165"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md168"></a>
 Using additional MPI profiling libraries/tools</h1>
 <p>EAR uses the <code>LD_PRELOAD</code> mechanism to be loaded and the PMPI API for a transparent loading. In order to be compatible with other profiling libraries EAR is not replacing the MPI symbols, it just calls the next symbol in the list. So it is compatible with other tools or profiling libraries. In case of conflict, the EARL can be disabled by setting <code>--ear=off</code> flag at submission time.</p>
-<h1><a class="anchor" id="autotoc_md166"></a>
+<h1><a class="anchor" id="autotoc_md169"></a>
 Jobs executed without the EAR Library: Basic Job accounting</h1>
 <p>For applications not executed with the EARL loaded (e.g., <code>srun</code> is not used or programming models or applications not loaded by default with EARL), EAR provides a default monitoring. In this case a subset of metrics will be reported to the Databse:</p>
 <table class="markdownTable">
@@ -169,7 +169,7 @@ Jobs executed without the EAR Library: Basic Job accounting</h1>
 <li>The unit showed by <code>eacct</code> output is GHz.</li>
 </ul>
 <p>DC node energy includes the CPU and GPU energy if there are. These metrics are reported per node, Job and Step IDs, so they can be seen per job and job and step when using <code>eacct</code> command.</p>
-<h1><a class="anchor" id="autotoc_md167"></a>
+<h1><a class="anchor" id="autotoc_md170"></a>
 Troubleshooting</h1>
 <p><b>User asks for application metrics with <code>eacct</code> command and no information appears in some of the columns in the output.</b></p>
 <p>This means EARL was not loaded with the application or the application fails before the MPI_Finalize call, nor reporting application data.</p>

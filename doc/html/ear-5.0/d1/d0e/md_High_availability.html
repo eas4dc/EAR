@@ -55,11 +55,11 @@ $(document).ready(function(){initNavTree('d1/d0e/md_High_availability.html','../
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><p>EAR is designed to provide support for those systems where High Availability (HA) of services/data is a must. Currently, just the <a class="el" href="../../df/dde/md_Architecture.html#ear-database-manager">EAR Database Manager</a> and the <a class="el" href="../../d1/d47/md_EAR_Database.html">EAR Database</a> components offer HA support. The latter can be replaced by industry software like <a href="https://galeracluster.com/">Galera Cluster</a>.</p>
-<h1><a class="anchor" id="autotoc_md78"></a>
+<h1><a class="anchor" id="autotoc_md81"></a>
 EAR Database Manager HA</h1>
 <p>Database daemons can be configured and deployed in pairs following a <em>server</em>/*mirror* schema. Buffering before reporting to the Database is the main duty of this Daemon, so having a mirror ensures no data lose in the case the service stops or the node where it is being running fails unexpectedly. Both services buffer data, but just the server inserts it to the Database. If it fails, the mirror starts insertion process.</p>
 <p>You can read how to configure two EAR Database Managers on the Configuration Guide's <a class="el" href="../../d2/d00/md_Configuration.html#island-description">Island description</a> section.</p>
-<h1><a class="anchor" id="autotoc_md79"></a>
+<h1><a class="anchor" id="autotoc_md82"></a>
 EAR Database HA</h1>
 <p>If the EAR Database is not deplyed on a HA system, you can manually configure EAR to report data on two databases. Just three actions must be performed:</p><ul>
 <li>Create two databases on two different servers. You have two ways:<ol type="1">

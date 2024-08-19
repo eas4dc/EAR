@@ -54,7 +54,7 @@ $(document).ready(function(){initNavTree('dc/d3a/md_Installation_from_source.htm
   <div class="headertitle"><div class="title">Installation from source </div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><h1><a class="anchor" id="autotoc_md51"></a>
+<div class="textblock"><h1><a class="anchor" id="autotoc_md52"></a>
 Requirements</h1>
 <p>EAR requires some third party libraries and headers to compile and run, in addition to the basic requirements such as the compiler and Autoconf. This is a list of these <b>libraries</b>, minimum <b>tested</b> versions and its references:</p>
 <table class="markdownTable">
@@ -115,7 +115,7 @@ Requirements</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone">Intel C Compiler (ICC)   </td><td class="markdownTableBodyNone">For the library and daemon   </td><td class="markdownTableBodyNone">17.0.1   </td><td class="markdownTableBodyNone"><a href="https://software.intel.com/en-us/c-compilers">Website</a>   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md52"></a>
+<h1><a class="anchor" id="autotoc_md53"></a>
 Compilation and installation guide summary</h1>
 <ol type="1">
 <li>Before the installation, make sure the installation path is accessible by all the computing nodes. Do the same in the folder where you want to set the configuration files (it will be called <code>$(EAR_ETC)</code> in this guide for simplicity).</li>
@@ -124,7 +124,7 @@ Compilation and installation guide summary</h1>
 <li>Compile EAR components by typing <code>./configure ...</code>, <code>make</code> and <code>make install</code> in the root directory.</li>
 <li>Type <code>make etc.install</code> to install the content of <code>$(EAR_ETC)</code>. It is the configuration content, but that configuration will be expanded in the next section. You have a link at the bottom of this page.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md53"></a>
+<h1><a class="anchor" id="autotoc_md54"></a>
 Configure options</h1>
 <p><code>configure</code> is based on shell variables which initial value could be given by setting variables in the command line, or in the environment. Take a look to the table with the most popular variables:</p>
 <table class="markdownTable">
@@ -218,11 +218,11 @@ Configure options</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone">&ndash;disable-mpi   </td><td class="markdownTableBodyNone">Compiles the non-mpi version of the library.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md54"></a>
+<h1><a class="anchor" id="autotoc_md55"></a>
 Pre-installation fast tweaks</h1>
 <p>Some EAR characteristics can be modified by changing the value of the constants defined in <code>src/common/config/config_def.h</code>. You can open it with an editor and modify those pre-procesor variables to alter the EAR behaviour.</p>
 <p>Also, you can quickly switch the user/group of your installation files by modifying the <code>CHOWN_USR/CHOWN_GRP</code> variables in the root Makefile.</p>
-<h1><a class="anchor" id="autotoc_md55"></a>
+<h1><a class="anchor" id="autotoc_md56"></a>
 Library distributions/versions</h1>
 <p>As commented in the overview, the EAR library is loaded next to the user MPI application by the [EAR Loader](EAR Loader). The library uses MPI symbols, so it is compiled by using the includes provided by your MPI distribution. The selection of the library version is automatic in runtime, but in the compiling and installation process is not required. Each compiled library has its own file name that has to be defined by the <code>MPI_VERSION</code> variable during <code>./configure</code> or by editing the root Makefile. The name list per distribution is exposed in the following table:</p>
 <table class="markdownTable">
@@ -238,10 +238,10 @@ Library distributions/versions</h1>
 <p>If different MPI distributions shares the same library name, it means that its symbols are compatible between them, so compiling and installing the library one time will be enough. However, if you provide different MPI distributions to the users, you will have to compile and install the library multiple times.</p>
 <p>Before compiling new libraries you have to install by typing <code>make install</code>. Then you can run the <code>./configure</code> again, changing the <code>MPICC</code>, <code>MPICC_FLAGS</code> and <code>MPI_VERSION</code> variables, or just opening the root <code>Makefile</code> and edit the same variables and <code>MPI_BASE</code>, which just sets the MPI installation root path. Now type <code>make full</code> to perform a clean compilation and <code>make earl.install</code>, to install only the new version of the library.</p>
 <p>If your MPI version is not fully compatible, please contact <a href="#" onclick="location.href='mai'+'lto:'+'ear'+'-s'+'upp'+'or'+'t@b'+'sc'+'.es'; return false;">ear-s<span class="obfuscator">.nosp@m.</span>uppo<span class="obfuscator">.nosp@m.</span>rt@bs<span class="obfuscator">.nosp@m.</span>c.es</a>. We will add compatibility to EAR and give you a solution in the meantime.</p>
-<h1><a class="anchor" id="autotoc_md56"></a>
+<h1><a class="anchor" id="autotoc_md57"></a>
 Other useful flags</h1>
 <p>You can install individual components by doing: <code>make eard.install</code> to install EAR Daemon, <code>make earl.install</code> to install EAR Library, <code>make eardbd.install</code> EAR Database Manager, <code>make eargmd.install</code> EAR Global Manager and <code>make commands.install</code> the EAR command binaries.</p>
-<h1><a class="anchor" id="autotoc_md57"></a>
+<h1><a class="anchor" id="autotoc_md58"></a>
 Installation content</h1>
 <p>This is the list of the inner installation folders and their content:</p>
 <table class="markdownTable">
@@ -270,10 +270,10 @@ Installation content</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone">&lt;<em>EAR_ETC</em>&gt;   </td><td class="markdownTableBodyNone">/systemd   </td><td class="markdownTableBodyNone">EAR service files.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md58"></a>
+<h1><a class="anchor" id="autotoc_md59"></a>
 Fine grain tuning of EAR options</h1>
 <p>Some options such as the maximum number of CPUs or GPUs supported are defined in src/common/config files. It is not recommended to modify these files but some options and default values can be set by modifying them.</p>
-<h1><a class="anchor" id="autotoc_md59"></a>
+<h1><a class="anchor" id="autotoc_md60"></a>
 Next step</h1>
 <p>For a better overview of the installation process, return to our <a class="el" href="../../d8/d71/md_Admin_guide.html#quick-installation-guide">Quick installation guide</a>. To continue the installation, visit the <a class="el" href="../../d2/d00/md_Configuration.html">configuration page</a> to set up properly the EAR configuration file and the SLURMs plugin stack file. </p>
 </div></div><!-- contents -->

@@ -55,52 +55,56 @@ $(document).ready(function(){initNavTree('d7/d5f/md_EAR_environment_variables.ht
 </div><!--header-->
 <div class="contents">
 <div class="toc"><h3>Table of Contents</h3>
-<ul><li class="level1"><a href="#autotoc_md25">Loading EAR Library</a><ul><li class="level2"><a href="#ear_loader_application">EAR_LOADER_APPLICATION</a></li>
+<ul><li class="level1"><a href="#autotoc_md25">Introduction</a></li>
+<li class="level1"><a href="#autotoc_md26">Loading EAR Library</a><ul><li class="level2"><a href="#ear_loader_application">EAR_LOADER_APPLICATION</a></li>
 <li class="level2"><a href="#ear_load_mpi_version">EAR_LOAD_MPI_VERSION</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#autotoc_md26">Report plug-ins</a><ul><li class="level2"><a href="#ear-report-add">EAR_REPORT_ADD</a></li>
+<li class="level1"><a href="#autotoc_md27">Report plug-ins</a><ul><li class="level2"><a href="#ear-report-add">EAR_REPORT_ADD</a></li>
 </ul>
 </li>
 <li class="level1"><a href="#verbosity">Verbosity</a><ul><li class="level2"><a href="#earl_verbose_path">EARL_VERBOSE_PATH</a></li>
 </ul>
 </li>
-<li class="level1"><a href="#autotoc_md27">Frequency management</a><ul><li class="level2"><a href="#autotoc_md28">EAR_GPU_DEF_FREQ</a></li>
-<li class="level2"><a href="#autotoc_md29">EAR_JOB_EXCLUSIVE_MODE</a></li>
+<li class="level1"><a href="#autotoc_md28">Frequency management</a><ul><li class="level2"><a href="#autotoc_md29">EAR_GPU_DEF_FREQ</a></li>
+<li class="level2"><a href="#autotoc_md30">EAR_JOB_EXCLUSIVE_MODE</a></li>
 <li class="level2"><a href="#controlling-uncore-infinity-fabric-frequency">Controlling Uncore/Infinity Fabric frequency</a><ul><li class="level3"><a href="#ear_set_imcfreq">EAR_SET_IMCFREQ</a></li>
 <li class="level3"><a href="#ear_max_imcfreq-and-ear_min_imcfreq">EAR_MAX_IMCFREQ and EAR_MIN_IMCFREQ</a></li>
 </ul>
 </li>
-<li class="level2"><a href="#load-balancing">Load Balancing</a><ul><li class="level3"><a href="#autotoc_md30">EAR_LOAD_BALANCE</a></li>
+<li class="level2"><a href="#load-balancing">Load Balancing</a><ul><li class="level3"><a href="#autotoc_md31">EAR_LOAD_BALANCE</a></li>
 </ul>
 </li>
 <li class="level2"><a href="#support-for-intel-r-speed-select-technology">Support for Intel(R) Speed Select Technology</a><ul><li class="level3"><a href="#ear_prio_tasks">EAR_PRIO_TASKS</a></li>
 <li class="level3"><a href="#ear_prio_cpus">EAR_PRIO_CPUS</a></li>
 </ul>
 </li>
-<li class="level2"><a href="#autotoc_md31">EAR_MIN_CPUFREQ</a></li>
-<li class="level2"><a href="#autotoc_md32">Disabling EAR&#39;s affinity masks usage</a></li>
-<li class="level2"><a href="#autotoc_md33">Workflow support</a><ul><li class="level3"><a href="#autotoc_md34">EAR_DISABLE_NODE_METRICS</a></li>
-<li class="level3"><a href="#autotoc_md35">EAR_NTASK_WORK_SHARING</a></li>
+<li class="level2"><a href="#autotoc_md32">EAR_MIN_CPUFREQ</a></li>
+<li class="level2"><a href="#autotoc_md33">Disabling EAR&#39;s affinity masks usage</a></li>
 </ul>
 </li>
-<li class="level2"><a href="#autotoc_md36">Data gathering/reporting</a></li>
-<li class="level2"><a href="#autotoc_md37">EARL_REPORT_LOOPS</a></li>
+<li class="level1"><a href="#autotoc_md34">Workflow support</a><ul><li class="level2"><a href="#autotoc_md35">EAR_DISABLE_NODE_METRICS</a></li>
+<li class="level2"><a href="#autotoc_md36">EAR_NTASK_WORK_SHARING</a></li>
+</ul>
+</li>
+<li class="level1"><a href="#autotoc_md37">Data gathering/reporting</a><ul><li class="level2"><a href="#autotoc_md38">EARL_REPORT_LOOPS</a></li>
 <li class="level2"><a href="#ear_get_mpi_stats">EAR_GET_MPI_STATS</a></li>
 <li class="level2"><a href="#ear_trace_plugin">EAR_TRACE_PLUGIN</a></li>
-<li class="level2"><a href="#autotoc_md38">EAR_TRACE_PATH</a></li>
-<li class="level2"><a href="#report_earl_events">REPORT_EARL_EVENTS</a><ul><li class="level3"><a href="#autotoc_md39">Event types</a></li>
+<li class="level2"><a href="#autotoc_md39">EAR_TRACE_PATH</a></li>
+<li class="level2"><a href="#report_earl_events">REPORT_EARL_EVENTS</a><ul><li class="level3"><a href="#autotoc_md40">Event types</a></li>
 </ul>
 </li>
 </ul>
 </li>
 </ul>
 </div>
-<div class="textblock"><p>EAR offers some environment variables in order to provide users the opportunity to tune or request some of EAR features. They must be exported before the job submission, e.g., in the batch script.</p>
+<div class="textblock"><h1><a class="anchor" id="autotoc_md25"></a>
+Introduction</h1>
+<p>EAR offers some environment variables in order to provide users the opportunity to tune or request some of EAR features. They must be exported before the job submission, e.g., in the batch script.</p>
 <p>The current EAR version has support for <a href="https://slurm.schedmd.com/">SLURM</a>, <a href="https://www.altair.com/pbs-professional/">PBS</a> and <a href="https://oar.imag.fr/start">OAR</a> batch schedulers. In SLURM systems the scheduler may filter environment variables not prefixed with <em>SLURM_</em> character set (this happens when the batch script is submitted purging all environment variables to work in a clean environment). For that reason, the first design of EAR environment variables was to have variable names with the form <em>SLURM_</em>&lt;variable_name&gt;.</p>
 <p>Now that EAR has support for other batch schedulers, and in order to maintain the coherency of environment variables names, below environment variables need the prefix of the scheduler used on the system the job is submitted on, plus an underscore. For example, in SLURM systems, the environment variable presented as <code>EAR_LOADER_APPLICATION</code> must be exported as <code>SLURM_EAR_LOADER_APPLICATION</code> in the submission batch script. In an OAR installed system, this variable would be exported as <code>OAR_EAR_LOADER_APPLICATION</code>. This design may only have a real effect on SLURM systems, but it makes it easier for the development team to provide support for multiple batch schedulers.</p>
 <p>All examples showing the usage of below environment variables assume a system using SLURM.</p>
-<h1><a class="anchor" id="autotoc_md25"></a>
+<h1><a class="anchor" id="autotoc_md26"></a>
 Loading EAR Library</h1>
 <h2><a class="anchor" id="ear_loader_application"></a>
 EAR_LOADER_APPLICATION</h2>
@@ -131,7 +135,7 @@ EAR_LOAD_MPI_VERSION</h2>
 <div class="line">    python benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py \</div>
 <div class="line">    ... more application options</div>
 </div><!-- fragment --><p>See the <a class="el" href="../../d6/d86/md_User_guide.html#use-cases">Use cases</a> section to read more information about how to run jobs with EAR.</p>
-<h1><a class="anchor" id="autotoc_md26"></a>
+<h1><a class="anchor" id="autotoc_md27"></a>
 Report plug-ins</h1>
 <h2><a class="anchor" id="ear-report-add"></a>
 EAR_REPORT_ADD</h2>
@@ -159,9 +163,9 @@ EARL_VERBOSE_PATH</h2>
 <div class="line"> </div>
 <div class="line">mpirun -np 96 -ppn 48 my_app</div>
 </div><!-- fragment --><p>After the above job example completion, in the same directory where the application was submitted, there will be a directory called <em>ear_logs_dir_name</em> with two files, i.e., one for each node, called <em>earl_logs.0.0.&lt;job_step&gt;.&lt;job_id&gt;</em> and <em>earl_logs.1.0.&lt;job_step&gt;.&lt;job_id&gt;</em>, respectively.</p>
-<h1><a class="anchor" id="autotoc_md27"></a>
+<h1><a class="anchor" id="autotoc_md28"></a>
 Frequency management</h1>
-<h2><a class="anchor" id="autotoc_md28"></a>
+<h2><a class="anchor" id="autotoc_md29"></a>
 EAR_GPU_DEF_FREQ</h2>
 <p>Set a GPU frequency (in kHz) to be fixed while your job is running. The same frequency is set for all GPUs used by the job.</p>
 <div class="fragment"><div class="line">#!/bin/bash</div>
@@ -180,7 +184,7 @@ EAR_GPU_DEF_FREQ</h2>
 <div class="line"> </div>
 <div class="line">srun --cpu-bind=core --ear-policy=min_energy gmx_mpi mdrun \</div>
 <div class="line">    -s $GROMACS_INPUT -noconfout -ntomp 1</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md29"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md30"></a>
 EAR_JOB_EXCLUSIVE_MODE</h2>
 <p>Indicate whether the job will run in a node exclusively (non-zero value). EAR will reduce the CPU frequency of those cores not used by the job. This feature explodes a very easy vector of power saving.</p>
 <div class="fragment"><div class="line">#!/bin/bash</div>
@@ -227,7 +231,7 @@ Load Balancing</h2>
 <blockquote class="doxtable">
 <p>&zwj;A correct CPU binding it's required to get the most benefit of this feature. Check the documentation of you application programming model/vendor/flavour or yur system batch scheduler. </p>
 </blockquote>
-<h3><a class="anchor" id="autotoc_md30"></a>
+<h3><a class="anchor" id="autotoc_md31"></a>
 EAR_LOAD_BALANCE</h3>
 <p>Enables/Disables EAR's Load Balance strategy in energy policies. Type <code>ear-info</code> to see whether this feature is enabled by default.</p>
 <p>Load unbalance detection algorithm is based on <a href="https://pop-coe.eu/node/69">POP-CoE</a>'s Load Balance Efficiency metric, which is computed as the ratio between average useful computation time (across all processes) and maximum useful computation time (also across all processes). By default (if <code>EAR_LOAD_BALANCE</code> is enabled), a node load balance efficiency below <b>0.8</b> will trigger EAR's Load Balancing algorithm. This threshold value can be modified by setting <code>EAR_LOAD_BALANCE_TH</code> environment variable. For example, if you want to be more permissive with the application load balance and prevent per-process CPU frequency selection, you can increase the load balance threshold:</p>
@@ -301,24 +305,24 @@ EAR_PRIO_TASKS</h3>
 EAR_PRIO_CPUS</h3>
 <p>A list of priorities that should have the same length as the number of CPUs your job is using. This configuration lets to set up CPUs CLOS in a more low level way: <b>the <em>n-th</em> priority value of the list will set the priority of the <em>n-th</em> CPU your job is using.</b></p>
 <p>This way of configuring priorities rules the user to know exactly the affinity of its job's tasks before launching the application, so it becomes harder to use if your goal is the same as the one you can get by setting the <a class="el" href="../../d7/d5f/md_EAR_environment_variables.html#ear_prio_tasks">above environment variable</a>: task-focused CLOS setting. But it becomes more flexible when the user has more control over the affinity set to its application, because you can discriminate between different CPUs assigned to the same task. Moreover, this is the only way to set different priorities over different threads in no-MPI applications.</p>
-<h2><a class="anchor" id="autotoc_md31"></a>
+<h2><a class="anchor" id="autotoc_md32"></a>
 EAR_MIN_CPUFREQ</h2>
 <p>This variable can only be set by <b>authorized users</b>, and modifies the minimum CPU frequency the EAR Library can set. The <a class="el" href="../../d2/d00/md_Configuration.html">EAR configuration</a> file has a field called <code>cpu_max_pstate</code> which sets this limits on the tag it is configured. Authorized users can modify this limit at submission time by using this environment to test, for example, the best value for the <code>ear.conf</code> field.</p>
-<h2><a class="anchor" id="autotoc_md32"></a>
+<h2><a class="anchor" id="autotoc_md33"></a>
 Disabling EAR's affinity masks usage</h2>
 <p>For both [Load Balancing](load-balancing) and <a class="el" href="../../d7/d5f/md_EAR_environment_variables.html#support-for-intel-r-speed-select-technology">Intel(R) SST</a> support, EAR uses processes' affinity mask read at the beginning of the job. If you are working on an application that changes (or may change) the affinty mask of tasks dynamically, this can lead some miss configuration not detected by EAR. To avoid any unexpected problem, <b>we highly recommend you</b> to export <code>EARL_NO_AFFINITY_MASK</code> environment variable <b>even you are not planning to work with some of the mentioned features</b>.</p>
 <p>Note: Since EAR version 5.0, EAR updates the process mask periodically (aprox 1 sec.) and always before applying the optimization policy.</p>
-<h2><a class="anchor" id="autotoc_md33"></a>
-Workflow support</h2>
-<h3><a class="anchor" id="autotoc_md34"></a>
-EAR_DISABLE_NODE_METRICS</h3>
+<h1><a class="anchor" id="autotoc_md34"></a>
+Workflow support</h1>
+<h2><a class="anchor" id="autotoc_md35"></a>
+EAR_DISABLE_NODE_METRICS</h2>
 <p>By defining this environment variable, the user or workflow manager indicates EAR the current process must not be considered as power consumer, not affecting the CPU power models used to estimate the amount of power corresponding to each application sharing a node. This env variable target master-worker scenarios (or map-reduce) when one process is not doing computational work, just working as master creating and waiting for processes. By specifying this var, the EARL ignores the affinity mas for this process and assumes its activity is not relevant for the whole power consumption. The value is not relevant, it only has to be defined. In a fork-join program (or similar, it has to be unset before the creation of the workers.</p>
-<h3><a class="anchor" id="autotoc_md35"></a>
-EAR_NTASK_WORK_SHARING</h3>
-<p>By defining this environment variable, the user indicates the library the set of processes sharing the node are in fact a single application (not MPI). This enables a synchronization at the beginning and all the processes with same jobid and stepid (or similar for other schedulers different than SLURM) works together. Only one of the will be selected as the master and will apply the energy policy. For GPU applications it's mandatory the process can access all the GPUs. Otherwise, it is not recommended and each process will apply its own optimization. The value is not relevant, it only has to be defined. <b>This feature is only supported on systems using SLURM</b>.</p>
 <h2><a class="anchor" id="autotoc_md36"></a>
-Data gathering/reporting</h2>
-<h2><a class="anchor" id="autotoc_md37"></a>
+EAR_NTASK_WORK_SHARING</h2>
+<p>By defining this environment variable, the user indicates the library the set of processes sharing the node are in fact a single application (not MPI). This enables a synchronization at the beginning and all the processes with same jobid and stepid (or similar for other schedulers different than SLURM) works together. Only one of the will be selected as the master and will apply the energy policy. For GPU applications it's mandatory the process can access all the GPUs. Otherwise, it is not recommended and each process will apply its own optimization. The value is not relevant, it only has to be defined. <b>This feature is only supported on systems using SLURM</b>.</p>
+<h1><a class="anchor" id="autotoc_md37"></a>
+Data gathering/reporting</h1>
+<h2><a class="anchor" id="autotoc_md38"></a>
 EARL_REPORT_LOOPS</h2>
 <p>Since <b>version 4.3</b>, EAR can be configured to not report application loop signatures by default. This configuration satisfy a constraint for many HPC data centers where hundreds of jobs are launched daily, leading to too many loops reported and a quick EAR database size increase.</p>
 <p>For those users which still want to get application loop data, this variable can be set to one (i.e., <code>export EARL_REPORT_LOOPS=1</code>) to force EAR report their application loop signatures. Therefore, users can get their loop data by calling <a class="el" href="../../dc/d09/md_EAR_commands.html#eacct">`eacct -j &lt;job_id&gt; -r`</a>.</p>
@@ -434,7 +438,7 @@ EAR_GET_MPI_STATS</h2>
 EAR_TRACE_PLUGIN</h2>
 <p>EAR offers the chance to generate Paraver traces to visualize runtime metrics with the <a href="https://tools.bsc.es/paraver">Paraver tool</a>. Paraver is a visualization tool developed by CEPBA-Tools team and currently maintained by the Barcelona Supercomputing Center’s tools team.</p>
 <p>The EAR trace generation mechanism was designed to support different trace generation plug-ins although the Paraver trace plug-in is the only supported by now. You must set the value of this variable to <code>tracer_paraver.so</code> to load the tracer. This shared object comes with the official EAR distribution and it is located at <code>$EAR_INSTALL_PATH/lib/plugins/tracer</code>. Then you need to set the <code>EAR_TRACE_PATH</code> variable (see below) to specify the destination path of the generated Paraver traces.</p>
-<h2><a class="anchor" id="autotoc_md38"></a>
+<h2><a class="anchor" id="autotoc_md39"></a>
 EAR_TRACE_PATH</h2>
 <p>Specify the path where you want to store the trace files generated by the EAR Library. The path must be fully created. Otherwise, the Paraver tracer plug-in won’t be loaded.</p>
 <p>Here is an example of the usage of the above explained environment variables:</p>
@@ -465,7 +469,7 @@ REPORT_EARL_EVENTS</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone">node_id   </td><td class="markdownTableBodyNone">The node from where the event was reported.   </td></tr>
 </table>
-<h3><a class="anchor" id="autotoc_md39"></a>
+<h3><a class="anchor" id="autotoc_md40"></a>
 Event types</h3>
 <p>Below are listed all kind of event types you can get when requesting job events. For categorical event values, the (value, category) mapping is explained.</p>
 <ul>
