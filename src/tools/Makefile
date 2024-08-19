@@ -10,11 +10,8 @@ tool_BINS = \
     coeffs_null \
     cluster_ping \
     ear_conf \
-    insert_test \
     enode_info \
-    node_manager_info \
-    list_folders \
-	powercap_test
+    node_manager_info
 
 #enode_control
 

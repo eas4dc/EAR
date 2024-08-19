@@ -6,10 +6,15 @@
 *.a
 *.so
 *.swp
+*.rej
 */bin/
 */lib/
 src/tests
 etc/rpms/rpmbuild.sh
+src/tests
+src/tools/list_folders
+etc/rpms/rpmbuild.sh~
+etc/rpms/specs/ear.spec
 /*.sh
 
 # Autotools
@@ -20,6 +25,9 @@ etc/rpms/rpmbuild.sh
 *cpu_property.out
 *defines.log
 /configure
+/configure~
+src/common/config/config.h.in~
+src/common/config/config.h
 
 # IDE
 cmake*
@@ -27,6 +35,9 @@ CMake*
 *_trash
 *.idea
 build/
+tags
+compile_commands.json
+.cache/
 
 # Julita's
 DB/
@@ -55,6 +66,8 @@ Makefile.gpu.*
 # Build files
 etc/module/ear
 etc/module/ear-lite
+etc/module/ear-sing
+etc/module/ear-debug
 etc/conf/ear.conf
 etc/conf/ear.conf.template
 etc/conf/ear.conf.full.template
@@ -62,7 +75,9 @@ etc/slurm/ear.plugstack.conf
 etc/systemd/eard.service
 etc/systemd/eardbd.service
 etc/systemd/eargmd.service
+etc/systemd/edcmon.service
 src/common/config/config_install.h
+src/common/config/config.h.in
 
 # Build Libraries
 *libear.so
@@ -111,6 +126,7 @@ src/common/config/config_install.h
 *edb_clean_pm
 *edb_clean_apps
 *edb_create
+*edcmon
 *ereport
 *get_active_nodes
 *get_app_list
@@ -123,7 +139,9 @@ src/common/config/config_install.h
 *traces_to_paraver
 *erun
 *metrics_show
+*enode_info
 
+src/tools/type_sizes
 src/daemon/commands/ear_check_node_test
 src/database_cache/tmpi
 src/management/test
@@ -145,6 +163,7 @@ src/tools/external_attach
 src/tools/enode_control
 src/tools/get_projections
 src/tools/insert_test
+src/tools/powercap_test
 src/tools/learn_deleter
 src/tools/learn_validator
 src/tools/learning_delete
@@ -162,3 +181,6 @@ src/tools/ear_conf
 src/tools/metrics_show
 src/commands/ear-info
 deployment.sh
+src/tools/node_manager_info
+tmp.txt
+*.plist
