@@ -2057,7 +2057,7 @@ static state_t policy_set_cpus_governor(uint exclusive)
               "Converting governor from str to int.");
 
         // Setting the governor
-#if VERSION_MAJOR >= 4 && VERSION_MINOR >= 3
+#if VERSION_MAJOR > 4 || (VERSION_MAJOR == 4 && VERSION_MINOR >= 3)
 // #warning mgt_cpufreq_governor_set_mask compiled
         check(mgt_cpufreq_governor_set_mask(no_ctx, governor_int, cpus_to_be_set),
               "Setting governor.");

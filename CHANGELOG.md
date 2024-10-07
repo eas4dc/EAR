@@ -1,3 +1,9 @@
+### EAR 5.0.3
+- EARD local API creates an application directory if a third-party program connects with it.
+- Fixed a typo in ereport queries.
+- Prevent closing fd 0 on NTASK\_WORKSHARING use cases.
+- Prevent closing fd 0 when initiating earl\_node\_mgr\_info.
+
 ### EAR 5.0
 - Workflows support. Automatic detection of applications executed with same jobid/stepid.
 - Fixed Intel PSTATE driver to avoid loading if there is a driver already loaded.

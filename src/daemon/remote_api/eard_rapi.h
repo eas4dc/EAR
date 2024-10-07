@@ -33,13 +33,22 @@
  * Otherwise, the node will be send to the nodes in **nodes. If there is only 1 node
  * calling the function is equivalent to calling remote_connect, the specific function and 
  * remote_disconnect. */
+/* Gets powercap status. Returns the number of status allocated on success (should be 1), or 0 on error */
 int ear_get_powercap_status(cluster_conf_t *conf, powercap_status_t **pc_status, int release_power, char **nodes, int num_nodes);
+/* Gets hardware status. Returns the number of status allocated on success, or 0 on error */
 int ear_get_status(cluster_conf_t *conf, status_t **status, char **nodes, int num_nodes);
+/* Gets accumulated power. Returns 1 on success, 0 on error. */
 int ear_get_power(cluster_conf_t *my_cluster_conf, power_check_t *power, char **nodes, int num_nodes);
+
+
+/* Sets the powercap options. Returns EAR_SUCCESS on success, or EAR_ERROR on errors. */
 int ear_set_powercap_opt(cluster_conf_t *my_cluster_conf, powercap_opt_t *pc_opt, char **nodes, int num_nodes);
+/* Gets application status (only from master nodes). Returns the number of status allocated on success, or 0 on error */
 int ear_get_app_master_status(cluster_conf_t *conf, app_status_t **app_status, char **nodes, int num_nodes);
+/* Gets application status (from every node that has an application running). Returns the number of status allocated on success, or 0 on error */
 int ear_get_app_node_status(cluster_conf_t *conf, app_status_t **app_status, char **nodes, int num_nodes);
 
+/* Sets the powercap limit.*/
 void ear_set_powerlimit(cluster_conf_t *my_cluster_conf, unsigned long limit, char **nodes, int num_nodes);
 
 #endif

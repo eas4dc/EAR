@@ -142,7 +142,7 @@ int dispose=0;
 
 #include <common/system/file.h>
 static char master_lock_filename[MAX_PATH_SIZE];
-static int fd_master_lock;
+static int fd_master_lock = -1;
 
 // Process information
 static int my_id = 1;

@@ -32,6 +32,7 @@
 #include <common/output/verbose.h>
 #include <common/types/application.h>
 #include <common/utils/serial_buffer.h>
+#include <common/system/folder.h>
 #include <daemon/local_api/eard_api.h>
 #include <metrics/gpu/gpu.h>
 #include <metrics/common/apis.h>

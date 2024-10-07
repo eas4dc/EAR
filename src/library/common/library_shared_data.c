@@ -712,6 +712,20 @@ void  init_earl_node_mgr_info()
   verbose(WF_SUPPORT_VERB+1," EARL[%d]: allocation %d apps", getpid(), total_num_earl_apps);
 
   node_mgr_job_info = calloc(total_num_earl_apps, sizeof(node_mgr_sh_data_t));
+	if (!node_mgr_job_info) {
+		total_num_earl_apps = 0;
+		node_mgr_info_unlock();
+		verbose_error("Allocating node manager info.");
+		return;
+	}
+
+	/* Initialize data */
+	for (int i = 0; i < total_num_earl_apps; i++) {
+		node_mgr_job_info[i].fd_lib          = -1;
+		node_mgr_job_info[i].fd_sig          = -1;
+		node_mgr_job_info[i].libsh           = NULL;
+		node_mgr_job_info[i].shsig           = NULL;
+	}
 
   uint curr_app = 0;
 
@@ -940,10 +954,9 @@ void update_earl_node_mgr_info()
 
 #if WF_SUPPORT
 	uint release = 0;
-
-
 	uint expected_apps = 0;
 	uint earl_apps_in_sh_data = 0;
+
 	/* We check the modification date */
 	for (uint j = 0; j < total_num_earl_apps; j++)
 	{

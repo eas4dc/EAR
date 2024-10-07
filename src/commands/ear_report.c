@@ -87,7 +87,7 @@
 /* COMMON QUERIES */
 #define ALL_USERS   "SELECT TRUNCATE(SUM(DC_power*time), 0) as energy, Jobs.user_id FROM " \
                     "Power_signatures INNER JOIN Applications On id=Applications.power_signature_id " \
-                    "INNER JOIN Jobs ON Applciations.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id " \
+                    "INNER JOIN Jobs ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id " \
                     "WHERE start_time >= %d AND end_time <= %d AND DC_power < %d GROUP BY Jobs.user_id ORDER BY energy"
 
 #if USE_GPUS
