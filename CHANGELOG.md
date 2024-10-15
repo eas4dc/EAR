@@ -1,3 +1,6 @@
+### EAR 5.0.4
+- Bug fixed: Missing earplug.so installation from rpm.
+
 ### EAR 5.0.3
 - EARD local API creates an application directory if a third-party program connects with it.
 - Fixed a typo in ereport queries.
