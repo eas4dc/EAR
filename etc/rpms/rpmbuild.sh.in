@@ -1,17 +1,34 @@
 #!/bin/bash
 
-export EAR_INSTALL_PATH="@prefix@"
-export EAR_SOURCE_PATH="@abs_top_builddir@"
-export EAR_ETC="@sysconfdir@"
-export EAR_TMP="@localstatedir@"
+EAR_INSTALL_PATH=@prefix@
 
-#
+PREFIX_DIR=$(dirname $EAR_INSTALL_PATH)
+PREFIX_BAS=$(basename $EAR_INSTALL_PATH)
+
+echo "Install path: $PREFIX_DIR."
+echo "Install base name: $PREFIX_BAS."
+
+RPMBUILD_DIR="$HOME/rpmbuild/SOURCES"
+echo "Creating rpmbuild base directory $RPMBUILD_DIR..."
+mkdir -p $RPMBUILD_DIR
+
+SAVEPATH=$PWD
+echo "Moving to $PREFIX_DIR..."
+cd $PREFIX_DIR
+
+COMP_DIR="$RPMBUILD_DIR/$PREFIX_BAS.tar.gz"
+echo "Compressing $PREFIX_BAS into $COMP_DIR..."
+tar czf $COMP_DIR $PREFIX_BAS
+
+echo "Returning back to $SAVEPATH..."
+cd $SAVEPATH
+
 ln -s specs/ear.spec ear.spec
-#ln -s specs/ear.intel.openmpi.spec ear.spec
-#ln -s specs/ear.openmpi.spec ear.spec
 
-#
+echo "Creating rpm..."
 rpmbuild -bb ear.spec
 
 #
 rm ear.spec
+
+echo "Finished!"
