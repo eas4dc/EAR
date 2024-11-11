@@ -10,6 +10,7 @@
 
 //#define SHOW_DEBUGS 1
 
+#define _GNU_SOURCE
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/resource.h>
@@ -112,7 +113,7 @@ int                     forced = 0;
 char                   *str_who[2] = { "server", "mirror" };
 int                     verbosity = 0;
 static float            total_alloc;
-sigset_t                sigset;
+sigset_t                ear_sigset;
 
 // Reporting
 report_id_t 						rid;
@@ -389,15 +390,15 @@ static void init_signals()
 	struct sigaction action;
 
 	// Blocking all signals except USR1, USR2, PIPE, TERM, CHLD, INT and HUP
-	sigfillset(&sigset);
-	sigdelset(&sigset, SIGUSR1);
-	sigdelset(&sigset, SIGUSR2);
-	sigdelset(&sigset, SIGTERM);
-	sigdelset(&sigset, SIGCHLD);
-	sigdelset(&sigset, SIGINT);
-	sigdelset(&sigset, SIGHUP);
+	sigfillset(&ear_sigset);
+	sigdelset(&ear_sigset, SIGUSR1);
+	sigdelset(&ear_sigset, SIGUSR2);
+	sigdelset(&ear_sigset, SIGTERM);
+	sigdelset(&ear_sigset, SIGCHLD);
+	sigdelset(&ear_sigset, SIGINT);
+	sigdelset(&ear_sigset, SIGHUP);
 
-	sigprocmask(SIG_SETMASK, &sigset, NULL);
+	sigprocmask(SIG_SETMASK, &ear_sigset, NULL);
 
 	// Editing signals individually
 	sigfillset(&action.sa_mask);

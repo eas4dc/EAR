@@ -26,6 +26,7 @@
 #include <library/metrics/metrics.h>
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
+#include <library/policies/common/gpu_support.h>
 
 // extern uint cpu_ready, gpu_ready;
 
@@ -69,16 +70,31 @@ state_t policy_init(polctx_t *c)
 		}
     }
 
+		/*
+		 * GPU master optimizer is a new concept introduced because on Workflows
+		 * multiple processes can be masters (from the point of view of EARL) and
+		 * we need to avoid all of them changing all GPU freqs.
+		 * This concept differs from the global variable gpu_optimize, which was
+		 * introduced when doing few tests with GPU optimization policies and it
+		 * is still pending to decide how GPU opt. policies will be loaded.
+		 */
+		int gpu_master_optimizer = policy_gpu_opt_enabled();
+
     mgt_gpu_data_alloc(&gfreqs);
 
     for (int i = 0; i < gpu_count; i++)
 		{
 			if (g_freq) gfreqs[i] = g_freq;
 			else        gfreqs[i] = gpuf_list[i][0];
-			verbose_master(2, "Setting GPUfreq[%d] = %.2f", i, (float) gfreqs[i] / 1000000.0);
+
+				if (gpu_master_optimizer) {
+					verbose_master(2, "Setting GPU%d freq.: %.2f",i,(float)gfreqs[i]/1000000.0);
+				}
     }
 
-    mgt_gpu_freq_limit_set(no_ctx, gfreqs);
+		if (gpu_master_optimizer) {
+			mgt_gpu_freq_limit_set(no_ctx, gfreqs);
+		}
 
     verbose_gpumon_info("Plug-in loaded.");
     return EAR_SUCCESS;

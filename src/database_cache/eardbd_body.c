@@ -87,7 +87,7 @@ extern int veteran;
 extern int forked;
 
 // Extras
-extern sigset_t sigset;
+extern sigset_t ear_sigset;
 
 // Verbosity
 extern char *str_who[2];
@@ -272,7 +272,7 @@ void body()
 void dream()
 {
 	while (dreaming) {
-		sigsuspend(&sigset);
+		sigsuspend(&ear_sigset);
 	}
 }
 

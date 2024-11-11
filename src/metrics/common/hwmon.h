@@ -32,8 +32,9 @@ Hwmon __attribute__((weak)) =
 state_t hwmon_find_drivers(const char *name, uint **ids, uint *n);
 
 /* Finds a set of files by driver id, also allocates memory for its fds.
- * Remember to close/free them. Unopened file descriptors value is '-1'. */
-state_t hwmon_open_files(uint id, hwmon_t files, int **fds, uint *n);
+ * Remember to close/free them. Unopened file descriptors value is '-1'.
+ * Files follow a pattern name_$, where $ is a number starting at i_start. */
+state_t hwmon_open_files(uint id, hwmon_t files, int **fds, uint *n, int i_start);
 
 /* */
 state_t hwmon_close_files(int *fds, uint n);

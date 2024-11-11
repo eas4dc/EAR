@@ -26,6 +26,11 @@ state_t folder_open(folder_t *folder, char *path)
 	return EAR_SUCCESS;
 }
 
+state_t folder_exists(char *path)
+{
+	return ((opendir(path) != NULL ) ? EAR_SUCCESS: EAR_ERROR);
+}
+
 state_t folder_close(folder_t *folder)
 {
   if (folder->dir == NULL) return EAR_SUCCESS;

@@ -255,7 +255,7 @@ void update_eargm_configuration(cluster_conf_t *conf)
         str_cut_list(nnodes, &nodes, &num_eargm_nodes, ",");
     }
     /* Remove unnecessary islands from ear_conf */
-    remove_extra_islands(conf, e_def);
+    remove_islands_by_eargm(conf, e_def);
     print_cluster_conf(conf);
 
     if (verbose_arg  >= 0) verb_level=verbose_arg;

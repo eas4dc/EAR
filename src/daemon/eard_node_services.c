@@ -11,6 +11,7 @@
 //#define SHOW_DEBUGS 1
 #define VEARD_LAPI_DEBUG 2
 
+#define _GNU_SOURCE
 #include <string.h>
 #include <signal.h>
 #include <pthread.h>
@@ -31,12 +32,13 @@
 #include <management/management.h>
 #include <metrics/common/msr.h>
 #include <metrics/gpu/gpu.h>
+#include <metrics/cpufreq/cpufreq.h>
+#include <metrics/imcfreq/imcfreq.h>
 #include <metrics/energy/cpu.h>
 #include <metrics/energy/energy_node.h>
 #include <metrics/bandwidth/bandwidth.h>
 #include <metrics/energy_cpu/energy_cpu.h>
-#include <metrics/cpufreq/cpufreq.h>
-#include <metrics/imcfreq/imcfreq.h>
+#include <metrics/temperature/temperature.h>
 #include <report/report.h>
 #include <daemon/eard_node_services.h>
 #include <daemon/local_api/eard_api.h>
@@ -105,10 +107,12 @@ static char             big_chunk2[16384];
 static wide_buffer_t    wb;
        manages_info_t   man;
        metrics_info_t   met;
-static metrics_t        uc;
-static metrics_t        ui;
-static metrics_t        ub;
-static metrics_t        ug;
+static metrics_read_t   met_read;
+static metrics_t        uc; // Obsolete, use metrics_info_t and metrics_read_t
+static metrics_t        ui; // Obsolete, use metrics_info_t and metrics_read_t
+static metrics_t        ub; // Obsolete, use metrics_info_t and metrics_read_t
+static metrics_t        ug; // Obsolete, use metrics_info_t and metrics_read_t
+
 #if USE_GPUS
 static gpu_t           *eard_read_gpu;
 #endif
@@ -129,31 +133,39 @@ void services_init(topology_t *tp)
     cpufreq_load(tp, NO_EARD);
     imcfreq_load(tp, NO_EARD);
      bwidth_load(tp, NO_EARD);
+       temp_load(tp, NO_EARD);
 	#if USE_GPUS
         gpu_load(NO_EARD);
     #endif
+
+       temp_get_info(&met.tmp);
+
     cpufreq_get_api((uint *) &uc.api);
     imcfreq_get_api((uint *) &ui.api);
      bwidth_get_api((uint *) &ub.api);
     #if USE_GPUS
         gpu_get_api((uint *) &ug.api);
     #endif
+
     sf(    cpufreq_init(no_ctx));
     sf(    imcfreq_init(no_ctx));
     sf(     bwidth_init(no_ctx));
-
+    sf(       temp_init(      ));
     #if USE_GPUS
-    sf(    gpu_init(no_ctx));
+    sf(        gpu_init(no_ctx));
     #endif
+
     sf(cpufreq_count_devices(no_ctx, &uc.devs_count));
     sf(imcfreq_count_devices(no_ctx, &ui.devs_count));
         bwidth_count_devices(no_ctx, &ub.devs_count);
     #if USE_GPUS
     gpu_get_devices((gpu_devs_t **) &ug.avail_list, &ug.devs_count);
     #endif
+
     sf(cpufreq_data_alloc((cpufreq_t **) &uc.current_list, empty));
     sf(imcfreq_data_alloc((imcfreq_t **) &ui.current_list, empty));
-        bwidth_data_alloc((bwidth_t  **) &ub.current_list);
+        bwidth_data_alloc((bwidth_t  **) &ub.current_list        );
+          temp_data_alloc(&met_read.tmp);
     #if USE_GPUS
 	       gpu_data_alloc(&eard_read_gpu);
     #endif
@@ -740,6 +752,38 @@ int services_met_bwidth(eard_head_t *head, int req_fd, int ack_fd)
         return 0;
     }
 
+    // Always answering (if s != SUCCESS the error message is sent)
+    if (state_fail(eard_rpc_answer(ack_fd, call, s, data, size, state_msg))) {
+        serror("RPC answer failed");
+        return 0;
+    }
+    return 1;
+}
+
+int services_met_temp(eard_head_t *head, int req_fd, int ack_fd)
+{
+    uint call = head->req_service;
+    state_t s = EAR_SUCCESS;
+    char *data = NULL;
+    size_t size = 0;
+
+    verbose(VEARD_LAPI_DEBUG,"EARD met bandwith");
+    switch (call) {
+        case RPC_MET_TEMP_GET_INFO:
+            data = (char *) &met.tmp;
+            size = sizeof(apinfo_t);
+            break;
+        case RPC_MET_TEMP_READ:
+            if (state_fail(s = temp_read(met_read.tmp, NULL))) {
+                serror("Could not get mem frequency");
+            }
+            debug("#### met_read %lld\n", met_read.tmp[0]);
+            data = (char *) met_read.tmp;
+            size = sizeof(llong) * met.tmp.devs_count;
+            break;
+        default:
+            return 0;
+    }
     // Always answering (if s != SUCCESS the error message is sent)
     if (state_fail(eard_rpc_answer(ack_fd, call, s, data, size, state_msg))) {
         serror("RPC answer failed");
@@ -1390,6 +1434,9 @@ void service_select(int req_fd, int ack_fd)
         return;
     }
     if (services_met_bwidth(local_req, req_fd, ack_fd)) {
+        return;
+    }
+    if (services_met_temp(local_req, req_fd, ack_fd)) {
         return;
     }
     // Old services

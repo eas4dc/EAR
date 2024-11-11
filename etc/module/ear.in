@@ -13,4 +13,4 @@ setenv		EAR_ETC			@sysconfdir@
 setenv		EAR_TMP			@localstatedir@
 setenv		EAR_DEFAULT		"on"
 prepend-path	PATH			"@prefix@/bin"
-prepend-path	MANPATH			"@prefix@/man"
+prepend-path	MANPATH			"@docdir@"

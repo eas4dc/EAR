@@ -41,7 +41,7 @@ rapi_OBJS = \
 
 ######## RULES
 
-all: $(com1_BINS) $(com2_BINS)
+all: $(com1_BINS) $(com2_BINS) 
 
 eacct: ear_acct.c $(db_OBJS) $(comm_OBJS)
 	$(CCC) $(SLURM_CFLAGS) $(DB_CFLAGS) -o $@ $< $(db_OBJS) $(comm_OBJS) $(DB_LDFLAGS) $(LDFLAGS)

@@ -9,6 +9,7 @@
  **************************************************************************/
 
 // #define SHOW_DEBUGS 1
+#define _GNU_SOURCE
 #include <common/system/poll.h>
 #include <common/output/debug.h>
 
@@ -69,7 +70,7 @@ int afd_set(int fd, afd_set_t *set, int flags)
 
 int afd_ishup(int fd, afd_set_t *set)
 {
-    return (set->fds[fd].revents & (POLLHUP | POLLERR | POLLNVAL));
+    return (set->fds[fd].revents & (POLLHUP | POLLERR | POLLNVAL | POLLRDHUP));
 }
 
 int afd_isset(int fd, afd_set_t *set, int flag)
@@ -190,3 +191,52 @@ int aselectv(afd_set_t *set, struct timeval *_timeout)
     }
     return r;
 }
+
+int32_t afd_check_socket_state(int32_t socket)
+{
+
+	struct pollfd stfd = { 0 };
+	stfd.fd = socket;
+	stfd.events = POLLRDHUP;
+	int32_t ret = 0;
+	if ((ret = poll(&stfd, 1, 1000)) == 1) {
+		if (stfd.revents & POLLRDHUP)	{
+			debug("poll returns revent POLLRDHUP, the remote has been closed");
+			return -1; //POLLHUP, connection has been closed by the remote
+		} else if (stfd.revents & POLLHUP) {
+			debug("poll returns revent POLLHUP, the remote has been closed");
+			return -1; //POLLHUP, connection has been closed by the remote
+		}
+		debug("poll revents is %d", stfd.revents);
+	} else if (ret == 0) {
+		debug("poll timed out");
+	} else {
+		return -2;
+		debug("Poll fails for check_socket state (%s)", strerror(errno));
+	}
+	return 0;
+}
+
+void afd_check_sockets(afd_set_t *fdlist)
+{
+	int i;
+    for (i = fdlist->fd_min; i <= fdlist->fd_max; i++) {
+		if (AFD_ISSET(i,fdlist)){
+			debug("Validating socket %d",i);
+			if (!AFD_STAT(i, NULL)){
+				AFD_CLR(i, fdlist);
+				close(i);
+				debug("CLOSING SOCKETS due to AFD_STAT!");
+			} else if (afd_check_socket_state(i) < 0) {
+				AFD_CLR(i, fdlist);
+				close(i);
+				debug("CLOSING SOCKETS due to check_socket_state!");
+			}
+		}
+	}
+}
+
+
+
+
+

@@ -17,118 +17,72 @@
 #include <metrics/common/hwmon.h>
 #include <metrics/temperature/archs/amd17.h>
 
-static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static uint socket_count;
+static uint  socket_count;
+static uint  id_count;
+static uint *fd_count;
+static int **fds;
 
-typedef struct hwfds_s {
-	uint  id_count;
-	uint *fd_count;
-	int **fds;
-} hwfds_t;
-
-state_t temp_amd17_status(topology_t *topo)
+TEMP_F_LOAD(amd17)
 {
-	state_t s = EAR_SUCCESS;
-	debug("asking for status");
-	if (topo->vendor != VENDOR_AMD || topo->family < FAMILY_ZEN) {
-		return EAR_ERROR;
+	if (tp->vendor != VENDOR_AMD || tp->family < FAMILY_ZEN) {
+		return;
 	}
-	while (pthread_mutex_trylock(&lock));
-	if (socket_count == 0) {
-		if (state_ok(s = hwmon_find_drivers("k10temp", NULL, NULL))) {
-			socket_count = topo->socket_count;
-		}
-	}
-	pthread_mutex_unlock(&lock);
-	return s;
+    if (state_fail(hwmon_find_drivers("k10temp", NULL, NULL))) {
+        return;
+    }
+    socket_count = tp->socket_count;
+    apis_set(ops->get_info, temp_amd17_get_info);
+    apis_set(ops->init,     temp_amd17_init);
+    apis_set(ops->dispose,  temp_amd17_dispose);
+    apis_set(ops->read,     temp_amd17_read);
 }
 
-state_t temp_amd17_init(ctx_t *c)
+TEMP_F_GET_INFO(amd17)
 {
-	uint id_count;
+    info->api         = API_AMD17;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_SOCKET;
+    info->devs_count  = socket_count;
+}
+
+TEMP_F_INIT(amd17)
+{
 	uint *ids;
 	state_t s;
 	int i;
 
-	debug("asking for init");
-	if (c == NULL) {
-		return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
-	}
 	// Looking for ids
-	if (xtate_fail(s, hwmon_find_drivers("k10temp", &ids, &id_count))) {
+	if (state_fail(s = hwmon_find_drivers("k10temp", &ids, &id_count))) {
 		return s;
 	}
-	// Allocating context
-	if ((c->context = calloc(1, sizeof(hwfds_t))) == NULL) {
-		return_msg(s, strerror(errno));
-	}
-	// Allocating file descriptors)
-	hwfds_t *h = (hwfds_t *) c->context;
-	
-	if ((h->fds = calloc(id_count, sizeof(int *))) == NULL) {
-		return_msg(s, strerror(errno));
-	}
-	if ((h->fd_count = calloc(id_count, sizeof(uint))) == NULL) {
-		return_msg(s, strerror(errno));
-	}
-	h->id_count = id_count;
+    fds = calloc(id_count, sizeof(int *));
+    fd_count = calloc(id_count, sizeof(uint));
 	//
-	for (i = 0; i < h->id_count; ++i) {
-		if (xtate_fail(s, hwmon_open_files(ids[i], Hwmon.temp_input, &h->fds[i], &h->fd_count[i]))) {
+	for (i = 0; i < id_count; ++i) {
+		// Starting at id=3 because 1 is Tctl, 2 is Tdie (if available), used for cooling control.
+		if (state_fail(s = hwmon_open_files(ids[i], Hwmon.temp_input, &fds[i], &fd_count[i], 3))) {
 			return s;
 		}
 	}
-	// Freeing ids space
 	free(ids);
-	debug("init succeded");
 	return EAR_SUCCESS;
 }
 
-static state_t get_context(ctx_t *c, hwfds_t **h)
+TEMP_F_DISPOSE(amd17)
 {
-	if (c == NULL || c->context == NULL) {
-		return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
-	}
-	*h = (hwfds_t *) c->context;
-	return EAR_SUCCESS;
+    int i;
+	if (fds != NULL) {
+		for (i = 0; i < id_count; ++i) {
+            hwmon_close_files(fds[i], fd_count[i]);
+        }
+        free(fd_count);
+        free(fds);
+        // Pointing to NULL to show is not allocated
+        fd_count = NULL;
+        fds = NULL;
+    }
 }
 
-state_t temp_amd17_dispose(ctx_t *c)
-{
-	int i;
-	hwfds_t *h;
-	state_t s;
-
-	if (xtate_fail(s, get_context(c, &h))) {
-		return s;
-	}
-	for (i = 0; i < h->id_count; ++i) {
-		hwmon_close_files(h->fds[i], h->fd_count[i]);
-	}
-	c->context = NULL;
-	free(h->fd_count);
-	free(h->fds);
-
-	return EAR_SUCCESS;
-}
-
-// Data
-state_t temp_amd17_count_devices(ctx_t *c, uint *count)
-{
-	hwfds_t *h;
-	state_t s;
-
-	if (xtate_fail(s, get_context(c, &h))) {
-		return s;
-	}
-	if (count != NULL) {
-		*count = socket_count;
-	}
-
-	return EAR_SUCCESS;
-}
-
-// Getters
 static llong parse(char *buffer, int n)
 {
 	char aux[SZ_NAME_SHORT];
@@ -148,37 +102,41 @@ static llong parse(char *buffer, int n)
 	return atoll(aux);
 }
 
-state_t temp_amd17_read(ctx_t *c, llong *temp, llong *average)
+TEMP_F_READ(amd17)
 {
 	char data[SZ_PATH];
-	llong aux1, aux2;
+    llong aux1 = 0LL;
+    llong aux2 = 0LL;
+	llong aux3 = 0LL;
 	int i, j, k;
-	hwfds_t *h;
 	state_t s;
 
-	if (xtate_fail(s, get_context(c, &h))) {
-		return s;
-	}
-	for (k = 0, aux1 = aux2 = 0; k < socket_count && temp != NULL; ++k) {
+	for (k = 0; k < socket_count && temp != NULL; ++k) {
 		temp[k] = 0;
 	}
-	for (i = 0, k = 0; i < h->id_count && k < socket_count; ++i) {
-		for (j = 0; j < h->fd_count[i] && k < socket_count; ++j, ++k) {
-			if (xtate_fail(s, hwmon_read(h->fds[i][j], data, SZ_PATH))) {
+	for (i = 0, k = 0; i < id_count && k < socket_count; ++i) {
+		for (j = 0; j < fd_count[i]; ++j)
+		{
+			if (state_fail(s = hwmon_read(fds[i][j], data, SZ_PATH))) {
 				return s;
 			}
 			debug("read %s", data);
 			aux1  = parse(data, 2);
 			aux2 += aux1;
-			if (temp != NULL) {
-				temp[k] = aux1;
-			}
 		}
+		aux2 /= (llong)fd_count[i];
+		debug("avg temperature for socket %d: %lld", i, aux2);
+		if (temp != NULL)
+		{
+			temp[k] = aux2;
+			}
+		++k;
+		aux3 += aux2;
 	}
-	//
-	if (average != NULL) {
-		*average = aux2 / (llong) socket_count;
+	if (average != NULL)
+	{
+		*average = aux3 / (llong) socket_count;
+		debug("average temperature of all sockets: %llu", *average);
 	}
-
 	return EAR_SUCCESS;
 }

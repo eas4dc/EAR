@@ -98,3 +98,10 @@ void event_deserialize(serial_buffer_t *b, ear_event_t *event)
     serial_dictionary_pop_auto(b, event->value);
     serial_dictionary_pop_auto(b, event->timestamp);
 }
+
+void event_clean_before_db(ear_event_t *event)
+{
+	if (event->event >= INT_MAX) event->event = INT_MAX;
+	if (event->value >= INT_MAX) event->value = INT_MAX;
+	//Job id, step_id and timestamp are interpreted as LONGLONG so there _should not_ be a problem with it
+}

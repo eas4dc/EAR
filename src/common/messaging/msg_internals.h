@@ -21,6 +21,7 @@
 #define _REMOTE_CLIENT_API_COMMON_INTERNALS_H
 
 #include <netdb.h>
+#include <stdbool.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -48,6 +49,10 @@ int remote_disconnect();
 
 /** Sends the command to the currently connected fd */
 int send_command(request_t *command);
+
+/* Given a socket, checks if it's in CLOSE_WAIT state. If it is, returns false,
+ * otherwise returns true */
+bool is_socket_alive(int32_t sockfd);
 
 /** Sends data of size size through the open fd*/
 int send_data(int fd, size_t size, char *data, int type);

@@ -11,7 +11,7 @@
 #ifndef _EAR_GLOBAL_H
 #define _EAR_GLOBAL_H
 
-#include <linux/limits.h>
+#include <common/sizes.h>
 #include <common/types/loop.h>
 #include <common/system/time.h>
 #include <common/hardware/architecture.h>
@@ -23,14 +23,14 @@
 extern application_t application;
 extern settings_conf_t *system_conf;
 extern resched_t *resched_conf;
-extern char system_conf_path[PATH_MAX];
-extern char resched_conf_path[PATH_MAX];
-extern char node_name[PATH_MAX];
+extern char system_conf_path[SZ_PATH];
+extern char resched_conf_path[SZ_PATH];
+extern char node_name[SZ_NAME_MEDIUM];
 
 
-extern char loop_summary_path[PATH_MAX];
-extern char app_summary_path[PATH_MAX];
-extern char ear_app_name[PATH_MAX];
+extern char loop_summary_path[SZ_PATH];
+extern char app_summary_path[SZ_PATH];
+extern char ear_app_name[SZ_PATH];
 
 // Common variables
 extern unsigned long ear_frequency;

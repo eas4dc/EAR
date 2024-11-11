@@ -78,6 +78,8 @@
 #define RPC_MET_BWIDTH_GET_API             1121
 #define RPC_MET_BWIDTH_COUNT_DEVICES       1122
 #define RPC_MET_BWIDTH_READ                1123
+#define RPC_MET_TEMP_GET_INFO              1141 //
+#define RPC_MET_TEMP_READ                  1142
 
 struct rpcerr_s {
 	char *answer;

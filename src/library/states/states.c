@@ -291,13 +291,7 @@ void states_begin_period(int my_id, ulong event, ulong size, ulong level)
     // comp_N_begin = metrics_time();
     restart_period_time_init(&comp_N_begin);
 
-    #if SINGLE_CONNECTION
-    if (master) {
-        traces_new_period(ear_my_rank, my_id, event);
-    }
-    #else
     traces_new_period(ear_my_rank, my_node_id, event);
-    #endif
 
     loop_with_signature = 0;
 
@@ -468,13 +462,7 @@ void states_new_iteration(int my_id, uint period, uint iterations,
                 comp_N_begin = comp_N_end;
 
                 EAR_STATE = FIRST_ITERATION;
-#if SINGLE_CONNECTION
-                if (master) {
-                    traces_start();
-                }
-#else
                 traces_start();
-#endif // SINGLE_CONNECTION
             }
 
             break;
@@ -912,7 +900,7 @@ void states_new_iteration(int my_id, uint period, uint iterations,
             /* We must evaluate policy decissions */
             signatures_stables++;
 
-            if (signatures_different(&loop_signature, &policy_sel_signature, 0.2)) {
+            if (default_signatures_different(&loop_signature, &policy_sel_signature, 0.2)) {
 
               /* Reset */
               policy_set_default_freq(&loop_signature);

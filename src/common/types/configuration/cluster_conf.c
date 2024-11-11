@@ -8,11 +8,12 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+#define SHOW_DEBUGS 1
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
+#include <stdbool.h>
 #include <netdb.h>
+#include <pwd.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -59,7 +60,7 @@ int get_ip(char *nodename, cluster_conf_t *conf)
     s = getaddrinfo(buff, NULL, &hints, &result);
 
     if (s != 0) {
-        debug("getaddrinfo fails for node %s (%s)", buff, strerror(errno));
+        debug("getaddrinfo fails for node %s (%s)", buff, gai_strerror(s));
         return EAR_ERROR;
     }
 
@@ -495,18 +496,18 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
     /* If node powercap is -1, and there is a global powercap, power is equally distributed */
     /* If node powercap is 1, we check for powercap missconfigurations*/
     /* If node powercap is N where N > 1, we only print the powercap*/
-    verbose(VCCONF, "--------------------------------------");
-    verbose(VCCONF, "Checking powercap in configuration");
-    verbose(VCCONF, "--------------------------------------");
+    verbose(VCCONF+2, "--------------------------------------");
+    verbose(VCCONF+2, "Checking powercap in configuration");
+    verbose(VCCONF+2, "--------------------------------------");
     switch(n->powercap) {
         case POWER_CAP_DISABLED:
-            verbose(VCCONF, "my_node_conf powercap is DISABLED");
+            verbose(VCCONF+2, "my_node_conf powercap is DISABLED");
             break;
         case POWER_CAP_UNLIMITED:
-            verbose(VCCONF, "my_node_conf powercap is UNLIMITED");
+            verbose(VCCONF+2, "my_node_conf powercap is UNLIMITED");
             if (my_conf->eargm.num_eargms > my_conf->islands[island_idx].ranges[range_id].eargm_id) {
                 if (my_conf->eargm.eargms[my_conf->islands[island_idx].ranges[range_id].eargm_id].power == POWER_CAP_AUTO_CONFIG) {
-                    verbose(VCCONF, "warning: EARGM is set to autoconfigure and node powercap is unlimited, this is unsupported");
+                    verbose(VCCONF+2, "warning: EARGM is set to autoconfigure and node powercap is unlimited, this is unsupported");
                 }
             }
             break;
@@ -560,9 +561,9 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
         verbose(VCCONF, "WARNING: max powercap is set to a non-valid value (%ld) while the EARGM mode is set to soft powercap. This configuration is not supported and the cluster powercap will not work.", n->max_powercap);
     }
 
-    verbose(VCCONF, "--------------------------------------");
-    verbose(VCCONF, "Finished checking powercap, final powercap value: %ld", n->powercap);
-    verbose(VCCONF, "--------------------------------------");
+    verbose(VCCONF+2, "--------------------------------------");
+    verbose(VCCONF+2, "Finished checking powercap, final powercap value: %ld", n->powercap);
+    verbose(VCCONF+2, "--------------------------------------");
 
     return n;
 }
@@ -604,7 +605,6 @@ int get_eardbd_conf_path(char *ear_conf_path)
     return EAR_ERROR;
 }
 
-
 /** CHECKING USER TYPE */
 /* returns true if the username, group and/or accounts is presents in the list of authorized users/groups/accounts */
 int is_privileged(cluster_conf_t *my_conf, char *user,char *group, char *acc)
@@ -612,6 +612,76 @@ int is_privileged(cluster_conf_t *my_conf, char *user,char *group, char *acc)
     int i;
     int found=0;
     if (user!=NULL){
+        // Create user structs
+        struct passwd pwd;
+        struct passwd *result;
+        char *buf;
+        long bufsize;
+        int s;
+
+        // Create buffer limit for passwd structure
+        bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+        if (bufsize == -1) {         /* Value was indeterminate */
+            bufsize = 16384;        /* Should be more than enough */
+        }
+        buf = malloc(bufsize);
+        
+        if (buf == NULL) {
+            return_msg(EAR_ERROR, "Buffer malloc for user info failed");
+        }
+
+        // Get passwd structure and check for error
+        s = getpwnam_r(user, &pwd, buf, bufsize, &result);
+        if (result == NULL) {
+           if (s == 0) {
+                verbose(0, "User not found\n");
+           }
+           else {
+                verbose(0, "getpwdnam_r failed with exit code %d\n", s);
+                return_msg(EAR_ERROR, "getpwnam_r failed");
+           }
+        }
+
+        // Get user's groups id's
+        int ngroups = 50;
+        gid_t *groups = malloc(ngroups * sizeof(gid_t));
+        if (groups == NULL) {
+            return_msg(EAR_ERROR, "Failed to allocate memory for groups");
+        }
+
+        // Check if user belongs to more than ngroups groups
+        if (getgrouplist(pwd.pw_name, pwd.pw_gid, groups, &ngroups) == -1) {
+            //TODO: Since we now know the number of groups, we can resize the buffer from ngroups variable
+            groups = realloc(groups, ngroups * sizeof(gid_t));
+            if (groups == NULL) { 
+                return_msg(EAR_ERROR, "Failed to reallocate memory for groups");
+            }
+            if (getgrouplist(pwd.pw_name, pwd.pw_gid, groups, &ngroups) == -1){ // Get all the groups which the user belongs
+                return_msg(EAR_ERROR, "getgrouplist failed");
+            }
+        }
+
+
+        // Transform group id's to group names and compare them to the privileged groups list
+        i = 0;
+        while ((i < ngroups) && (!found)) {
+            struct group *gr = getgrgid(groups[i]);
+            if (gr != NULL) {
+                char *gr_name = gr->gr_name;
+                int j = 0;
+                while ((j < my_conf->num_priv_groups) && (!found)) {
+                    char *grpriv_name = my_conf->priv_groups[j];
+                    if ((strcmp(gr_name, grpriv_name) == 0) || (strcmp(grpriv_name, "all") == 0)) {
+                        found = 1;
+                    }
+                    else ++j;
+                }
+            }
+            ++i;
+        }
+        free(groups);
+        free(buf);
+        
         i=0;
         while((i<my_conf->num_priv_users) && (!found)){
             if (strcmp(user,my_conf->priv_users[i])==0) found=1;
@@ -619,19 +689,21 @@ int is_privileged(cluster_conf_t *my_conf, char *user,char *group, char *acc)
             else i++;
         }
     }
-    if (found)	return found;
+    if (found) return found;
     if (group!=NULL){
         i=0;
         while((i<my_conf->num_priv_groups) && (!found)){
             if (strcmp(group,my_conf->priv_groups[i])==0) found=1;
+            else if (strcmp(my_conf->priv_groups[i], "all")==0) found=1;
             else i++;
         }
     }
-    if (found)	return found;
+    if (found) return found;
     if (acc!=NULL){
         i=0;
         while((i<my_conf->num_acc) && (!found)){
             if (strcmp(acc,my_conf->priv_acc[i])==0) found=1;
+            else if (strcmp(my_conf->priv_acc[i], "all")==0) found=1;
             else i++;
         }
     }
@@ -1129,245 +1201,352 @@ uint tags_are_unlimited(cluster_conf_t *conf)
     return 1;
 }
 
-void remove_extra_islands(cluster_conf_t *conf, eargm_def_t *e_def)
+static void _free_island_contents(node_island_t *is)
 {
-    if (conf == NULL || e_def == NULL) return;
-    debug("Removing node with earmg different than %d", e_def->id);
+	int32_t i = 0;
+	for (i = 0; i < is->num_ips; i++)
+		free(is->db_ips[i]);
+	for (i = 0; i < is->num_backups; i++)
+		free(is->backup_ips[i]);
 
-    int i, j;
+	for (i = 0; i < is->num_tags; i++)
+		free(is->tags[i]);
+
+	if (is->num_tags > 0) free(is->tags);
+	is->num_tags = 0;
+	for (i = 0; i < is->num_specific_tags; i++)
+		free(is->specific_tags[i]);
+	if (is->num_specific_tags > 0) free(is->specific_tags);
+	is->num_specific_tags = 0;
+
+
+	for (i = 0; i < is->num_ranges; i++)
+	{
+		if (is->ranges[i].specific_tags != NULL && is->ranges[i].num_tags > 0)
+		{
+			free(is->ranges[i].specific_tags);
+			is->ranges[i].specific_tags = NULL;
+		}
+	} 
+	free(is->ranges);
+	free(is->db_ips);
+	free(is->backup_ips);
+}
+
+void remove_islands_by_tag(cluster_conf_t conf[static 1], const char *tag)
+{
+    if (conf == NULL || tag == NULL) return;
+    // debug("Removing node with earmg different than %d", e_def->id);
+
+    int i, j, k;
     for (i = 0; i < conf->num_islands; i++)
     {
         for (j = 0; j < conf->islands[i].num_ranges; j++)
         {
-            if (conf->islands[i].ranges[j].eargm_id != e_def->id) //remove all islands that are not of that eargm
-            {
-                debug("Swapping range index %d with %d. target id %d current id %d ", j, conf->islands[i].num_ranges-1, conf->islands[i].ranges[j].eargm_id, e_def->id);
-                conf->islands[i].num_ranges--;
-                if (conf->islands[i].ranges[j].num_tags > 0)
-                    free(conf->islands[i].ranges[j].specific_tags);
-                memcpy((void *)&conf->islands[i].ranges[j], (void *)&conf->islands[i].ranges[conf->islands[i].num_ranges], sizeof(node_range_t));
-                // pointer_swap((void *)&conf->islands[i].ranges[j], (void *)&conf->islands[i].ranges[conf->islands[i].num_ranges]);
-                conf->islands[i].ranges = realloc(conf->islands[i].ranges, sizeof(node_range_t)*conf->islands[i].num_ranges);
-                j--; //we reset the counter here (since the new first island might be in the list)
-            }
-        }
+			bool tag_found = false;
 
-    }
+			node_range_t *r = &conf->islands[i].ranges[j];
+			for (k = 0; k < r->num_tags; k++) {
+				if (!strcmp(conf->islands[i].specific_tags[r->specific_tags[k]], tag)) {
+					tag_found = true;
+					break;
+				}
+			}
+
+			if (!tag_found && r->num_tags == 0) {
+    			int32_t def_tag_id = get_default_tag_id(conf);
+				if (def_tag_id >= 0 && def_tag_id < conf->num_tags) {
+					if (!strcmp(tag, conf->tags[def_tag_id].id)) {
+						tag_found = true;
+					}
+				}
+			}
+
+			if (!tag_found) {
+				if (r->num_tags > 0) free(r->specific_tags);
+				if (j + 1 < conf->islands[i].num_ranges) {
+					memmove(&conf->islands[i].ranges[j], &conf->islands[i].ranges[j+1], 
+							sizeof(node_range_t) * (conf->islands[i].num_ranges - (j + 1)));
+				}
+				conf->islands[i].num_ranges--;
+				conf->islands[i].ranges = realloc(conf->islands[i].ranges, sizeof(node_range_t)*conf->islands[i].num_ranges);
+				j--;
+			}
+		}
+
+		//this is not strictly necessary, but an island without ranges does not make sense (in the current
+		//implementation, at least) so it's cleaner to delete it
+		if (conf->islands[i].num_ranges == 0) {
+			_free_island_contents(&conf->islands[i]);
+			if (i+1 < conf->num_islands)
+				memmove(&conf->islands[i], &conf->islands[i+1], sizeof(node_island_t)*(conf->num_islands - (i + 1)));
+			conf->num_islands--;
+			conf->islands = realloc(conf->islands, sizeof(node_island_t)*(conf->num_islands));
+			i--;
+		}
+
+	}
+}
+
+void remove_islands_by_eargm(cluster_conf_t conf[static 1], eargm_def_t *e_def)
+{
+	if (conf == NULL || e_def == NULL) return;
+	debug("Removing node with earmg different than %d", e_def->id);
+
+	int i, j;
+	for (i = 0; i < conf->num_islands; i++)
+	{
+		for (j = 0; j < conf->islands[i].num_ranges; j++)
+		{
+			if (conf->islands[i].ranges[j].eargm_id != e_def->id) //remove all islands that are not of that eargm
+			{
+				debug("Swapping range index %d with %d. target id %d current id %d ", j, conf->islands[i].num_ranges-1, conf->islands[i].ranges[j].eargm_id, e_def->id);
+				conf->islands[i].num_ranges--;
+				if (conf->islands[i].ranges[j].num_tags > 0)
+					free(conf->islands[i].ranges[j].specific_tags);
+				memcpy((void *)&conf->islands[i].ranges[j], (void *)&conf->islands[i].ranges[conf->islands[i].num_ranges], sizeof(node_range_t));
+				// pointer_swap((void *)&conf->islands[i].ranges[j], (void *)&conf->islands[i].ranges[conf->islands[i].num_ranges]);
+				conf->islands[i].ranges = realloc(conf->islands[i].ranges, sizeof(node_range_t)*conf->islands[i].num_ranges);
+				j--; //we reset the counter here (since the new first island might be in the list)
+			}
+		}
+
+	}
+}
+
+
+void remove_islands_by_island_id(cluster_conf_t conf[static 1], int32_t id)
+{
+	if (conf == NULL) return;
+	debug("Removing nodes with island id different than %d", id);
+
+	int i;
+	for (i = 0; i < conf->num_islands; i++)
+	{
+		if (conf->islands[i].id != id) {
+			_free_island_contents(&conf->islands[i]);
+			if (i+1 < conf->num_islands)
+				memmove(&conf->islands[i], &conf->islands[i+1], sizeof(node_island_t)*(conf->num_islands - (i + 1)));
+			conf->num_islands--;
+			conf->islands = realloc(conf->islands, sizeof(node_island_t)*(conf->num_islands));
+			i--;
+		}
+	}
 }
 
 /* It serializes conf and stores in ear_conf_buf. Memory is internally allocated */
 state_t serialize_cluster_conf(cluster_conf_t *conf, char **ear_conf_buf, size_t *conf_size)
 {
-    state_t s = EAR_SUCCESS;
-    wide_buffer_t ear_conf_serial;
-    serial_alloc(&ear_conf_serial,40000);
-    serial_clean(&ear_conf_serial);
+	state_t s = EAR_SUCCESS;
+	wide_buffer_t ear_conf_serial;
+	serial_alloc(&ear_conf_serial,40000);
+	serial_clean(&ear_conf_serial);
 
-    debug("serial alloc + clean");
-    serial_add_elem(&ear_conf_serial, conf->DB_pathname, sizeof(conf->DB_pathname));
-    serial_add_elem(&ear_conf_serial, conf->net_ext, sizeof(conf->net_ext));
-    serial_add_elem(&ear_conf_serial, (char *)&conf->verbose, sizeof(conf->verbose));
-    serial_add_elem(&ear_conf_serial, (char *)&conf->cluster_num_nodes, sizeof(conf->cluster_num_nodes));
+	debug("serial alloc + clean");
+	serial_add_elem(&ear_conf_serial, conf->DB_pathname, sizeof(conf->DB_pathname));
+	serial_add_elem(&ear_conf_serial, conf->net_ext, sizeof(conf->net_ext));
+	serial_add_elem(&ear_conf_serial, (char *)&conf->verbose, sizeof(conf->verbose));
+	serial_add_elem(&ear_conf_serial, (char *)&conf->cluster_num_nodes, sizeof(conf->cluster_num_nodes));
 
-    /* EARD */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->eard, sizeof(eard_conf_t));
-    debug("serial + eard");
+	/* EARD */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->eard, sizeof(eard_conf_t));
+	debug("serial + eard");
 
-    /* EARGM */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->eargm, sizeof(eargm_conf_t));
-    serial_add_elem(&ear_conf_serial, (char *)&conf->eargm.num_eargms, sizeof(conf->eargm.num_eargms));
-    if (conf->eargm.num_eargms) serial_add_elem(&ear_conf_serial, (char *)conf->eargm.eargms, sizeof(eargm_def_t)*conf->eargm.num_eargms);
-    debug("serial + eargm");
+	/* EARGM */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->eargm, sizeof(eargm_conf_t));
+	serial_add_elem(&ear_conf_serial, (char *)&conf->eargm.num_eargms, sizeof(conf->eargm.num_eargms));
+	if (conf->eargm.num_eargms) serial_add_elem(&ear_conf_serial, (char *)conf->eargm.eargms, sizeof(eargm_def_t)*conf->eargm.num_eargms);
+	debug("serial + eargm");
 
-    /* POLICIES */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->num_policies, sizeof(conf->num_policies));
-    serial_add_elem(&ear_conf_serial, (char *)conf->power_policies, sizeof(policy_conf_t)* conf->num_policies);
-    if (conf->power_policies) serial_add_elem(&ear_conf_serial, (char *)&conf->default_policy, sizeof(conf->default_policy));
-    debug("serial + policies: %u policies", conf->num_policies);
+	/* POLICIES */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->num_policies, sizeof(conf->num_policies));
+	serial_add_elem(&ear_conf_serial, (char *)conf->power_policies, sizeof(policy_conf_t)* conf->num_policies);
+	if (conf->power_policies) serial_add_elem(&ear_conf_serial, (char *)&conf->default_policy, sizeof(conf->default_policy));
+	debug("serial + policies: %u policies", conf->num_policies);
 
-    /* Priv users */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->num_priv_users, sizeof(conf->num_priv_users));
-    for (uint auth = 0; auth < conf->num_priv_users; auth ++){
-        uint size_auth = strlen(conf->priv_users[auth]);
-        serial_add_elem(&ear_conf_serial, (char *)&size_auth, sizeof(size_auth));
-        serial_add_elem(&ear_conf_serial, (char *)&conf->priv_users[auth], strlen(conf->priv_users[auth]));
-    }
-    /* Priv groups */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->num_priv_groups, sizeof(conf->num_priv_groups));
-    for (uint auth = 0; auth < conf->num_priv_groups; auth ++){
-        uint size_auth = strlen(conf->priv_groups[auth]);
-        serial_add_elem(&ear_conf_serial, (char *)&size_auth, sizeof(size_auth));
-        serial_add_elem(&ear_conf_serial, (char *)&conf->priv_groups[auth], strlen(conf->priv_groups[auth]));
-    }
+	/* Priv users */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->num_priv_users, sizeof(conf->num_priv_users));
+	for (uint auth = 0; auth < conf->num_priv_users; auth ++){
+		uint size_auth = strlen(conf->priv_users[auth]);
+		serial_add_elem(&ear_conf_serial, (char *)&size_auth, sizeof(size_auth));
+		serial_add_elem(&ear_conf_serial, (char *)&conf->priv_users[auth], strlen(conf->priv_users[auth]));
+	}
+	/* Priv groups */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->num_priv_groups, sizeof(conf->num_priv_groups));
+	for (uint auth = 0; auth < conf->num_priv_groups; auth ++){
+		uint size_auth = strlen(conf->priv_groups[auth]);
+		serial_add_elem(&ear_conf_serial, (char *)&size_auth, sizeof(size_auth));
+		serial_add_elem(&ear_conf_serial, (char *)&conf->priv_groups[auth], strlen(conf->priv_groups[auth]));
+	}
 
-    /* Priv accounts */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->num_acc, sizeof(conf->num_acc));
-    for (uint auth = 0; auth < conf->num_acc; auth ++){
-        uint size_auth = strlen(conf->priv_acc[auth]);
-        serial_add_elem(&ear_conf_serial, (char *)&size_auth, sizeof(size_auth));
-        serial_add_elem(&ear_conf_serial, (char *)&conf->priv_acc[auth], strlen(conf->priv_acc[auth]));
-    }
-    debug("serial + authorized: users %u groups %u accounts %u", conf->num_priv_users,conf->num_priv_groups,conf->num_acc);
+	/* Priv accounts */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->num_acc, sizeof(conf->num_acc));
+	for (uint auth = 0; auth < conf->num_acc; auth ++){
+		uint size_auth = strlen(conf->priv_acc[auth]);
+		serial_add_elem(&ear_conf_serial, (char *)&size_auth, sizeof(size_auth));
+		serial_add_elem(&ear_conf_serial, (char *)&conf->priv_acc[auth], strlen(conf->priv_acc[auth]));
+	}
+	debug("serial + authorized: users %u groups %u accounts %u", conf->num_priv_users,conf->num_priv_groups,conf->num_acc);
 
-    /* Global data */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->min_time_perf_acc, sizeof(conf->min_time_perf_acc));
-    /* Nodes */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->num_nodes, sizeof(conf->num_nodes));
-    if (conf->num_nodes) serial_add_elem(&ear_conf_serial, (char *)conf->nodes, sizeof(node_conf_t)*conf->num_nodes);
-    /* For each type of node is pending, not needed for now */
+	/* Global data */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->min_time_perf_acc, sizeof(conf->min_time_perf_acc));
+	/* Nodes */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->num_nodes, sizeof(conf->num_nodes));
+	if (conf->num_nodes) serial_add_elem(&ear_conf_serial, (char *)conf->nodes, sizeof(node_conf_t)*conf->num_nodes);
+	/* For each type of node is pending, not needed for now */
 
-    /* Database */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->database, sizeof(db_conf_t));
-    serial_add_elem(&ear_conf_serial, (char *)&conf->db_manager, sizeof(eardb_conf_t));
+	/* Database */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->database, sizeof(db_conf_t));
+	serial_add_elem(&ear_conf_serial, (char *)&conf->db_manager, sizeof(eardb_conf_t));
 
-    debug("serial + DB");
+	debug("serial + DB");
 
-    /* Tags */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->num_tags, sizeof(conf->num_tags));
-    if (conf->num_tags) serial_add_elem(&ear_conf_serial, (char *)conf->tags, sizeof(tag_t)*conf->num_tags);
+	/* Tags */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->num_tags, sizeof(conf->num_tags));
+	if (conf->num_tags) serial_add_elem(&ear_conf_serial, (char *)conf->tags, sizeof(tag_t)*conf->num_tags);
 
-    /* Etags */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->num_etags, sizeof(conf->num_etags));
-    if (conf->num_etags) serial_add_elem(&ear_conf_serial, (char *)conf->e_tags, sizeof(energy_tag_t)*conf->num_etags);
-    /* For each etag is pending, not needed for now */
-    debug("serial + tags: %u tags and %u etags",conf->num_tags, conf->num_etags);	
+	/* Etags */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->num_etags, sizeof(conf->num_etags));
+	if (conf->num_etags) serial_add_elem(&ear_conf_serial, (char *)conf->e_tags, sizeof(energy_tag_t)*conf->num_etags);
+	/* For each etag is pending, not needed for now */
+	debug("serial + tags: %u tags and %u etags",conf->num_tags, conf->num_etags);	
 
-    /* Islands */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->num_islands, sizeof(conf->num_islands));
-    if (conf->num_islands) serial_add_elem(&ear_conf_serial, (char *)conf->islands, sizeof(node_island_t)*conf->num_islands);
-    /* For each island is pending, not needed for now */
+	/* Islands */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->num_islands, sizeof(conf->num_islands));
+	if (conf->num_islands) serial_add_elem(&ear_conf_serial, (char *)conf->islands, sizeof(node_island_t)*conf->num_islands);
+	/* For each island is pending, not needed for now */
 
-    /* earlib */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->earlib, sizeof(earlib_conf_t));
-    debug("serial + earlib");
+	/* earlib */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->earlib, sizeof(earlib_conf_t));
+	debug("serial + earlib");
 
-    /* Installation */
-    serial_add_elem(&ear_conf_serial, (char *)&conf->install, sizeof(conf_install_t));
+	/* Installation */
+	serial_add_elem(&ear_conf_serial, (char *)&conf->install, sizeof(conf_install_t));
 
-    debug("serial done");
+	debug("serial done");
 
-    /* Copying the data */
-    *conf_size = serial_size(&ear_conf_serial);
-    debug("Serialize size %lu", *conf_size);
-    *ear_conf_buf = calloc(*conf_size,1);
-    memcpy(*ear_conf_buf, serial_data(&ear_conf_serial), *conf_size);
-    serial_free(&ear_conf_serial);
-    return s;
+	/* Copying the data */
+	*conf_size = serial_size(&ear_conf_serial);
+	debug("Serialize size %lu", *conf_size);
+	*ear_conf_buf = calloc(*conf_size,1);
+	memcpy(*ear_conf_buf, serial_data(&ear_conf_serial), *conf_size);
+	serial_free(&ear_conf_serial);
+	return s;
 }
 
 
 /* ear_conf_buf points to a serialized region. conf is the output. Memory is not internally allocated for it */
 state_t deserialize_cluster_conf(cluster_conf_t *conf, char *ear_conf_buf, size_t conf_size)
 {
-    state_t s = EAR_SUCCESS;
-    wide_buffer_t ear_conf_serial;
+	state_t s = EAR_SUCCESS;
+	wide_buffer_t ear_conf_serial;
 
-    /* Copy the serialized data locally */
-    serial_alloc(&ear_conf_serial, conf_size);
-    memcpy(ear_conf_serial.data, ear_conf_buf, conf_size);
-    serial_rewind(&ear_conf_serial);
+	/* Copy the serialized data locally */
+	serial_alloc(&ear_conf_serial, conf_size);
+	memcpy(ear_conf_serial.data, ear_conf_buf, conf_size);
+	serial_rewind(&ear_conf_serial);
 
-    serial_copy_elem(&ear_conf_serial, conf->DB_pathname, NULL);
-    serial_copy_elem(&ear_conf_serial, conf->net_ext, NULL);
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->verbose, NULL);
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->cluster_num_nodes, NULL);
+	serial_copy_elem(&ear_conf_serial, conf->DB_pathname, NULL);
+	serial_copy_elem(&ear_conf_serial, conf->net_ext, NULL);
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->verbose, NULL);
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->cluster_num_nodes, NULL);
 
-    /* EARD */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->eard, NULL);
+	/* EARD */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->eard, NULL);
 
-    /* EARGM */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->eargm, NULL);
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->eargm.num_eargms, NULL);
-    if (conf->eargm.num_eargms){
-        conf->eargm.eargms = calloc(sizeof(eargm_def_t), conf->eargm.num_eargms);
-        serial_copy_elem(&ear_conf_serial, (char *)conf->eargm.eargms, NULL);
-    }
+	/* EARGM */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->eargm, NULL);
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->eargm.num_eargms, NULL);
+	if (conf->eargm.num_eargms){
+		conf->eargm.eargms = calloc(sizeof(eargm_def_t), conf->eargm.num_eargms);
+		serial_copy_elem(&ear_conf_serial, (char *)conf->eargm.eargms, NULL);
+	}
 
-    /* POLICIES */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->num_policies, NULL);
-    if (conf->num_policies){
-        conf->power_policies = calloc(sizeof(policy_conf_t), conf->num_policies);
-        serial_copy_elem(&ear_conf_serial, (char *)conf->power_policies, NULL);
-    }
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->default_policy, NULL);
+	/* POLICIES */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->num_policies, NULL);
+	if (conf->num_policies){
+		conf->power_policies = calloc(sizeof(policy_conf_t), conf->num_policies);
+		serial_copy_elem(&ear_conf_serial, (char *)conf->power_policies, NULL);
+	}
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->default_policy, NULL);
 
-    /* Priv users */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->num_priv_users, NULL);
-    if (conf->num_priv_users){
-        conf->priv_users = calloc(sizeof(char *), conf->num_priv_users);
-        for (uint auth = 0; auth < conf->num_priv_users; auth ++){
-            uint size_auth;
-            serial_copy_elem(&ear_conf_serial, (char *)&size_auth, NULL);
-            conf->priv_users[auth] = calloc(1,size_auth+1);	
-            serial_copy_elem(&ear_conf_serial, (char *)&conf->priv_users[auth],NULL);
-        }
-    }
-    /* Priv groups */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->num_priv_groups, NULL);
-    if (conf->num_priv_groups){
-        conf->priv_groups = calloc(sizeof(char *), conf->num_priv_groups);
-        for (uint auth = 0; auth < conf->num_priv_groups; auth ++){
-            uint size_auth;
-            serial_copy_elem(&ear_conf_serial, (char *)&size_auth, NULL);
-            conf->priv_groups[auth] = calloc(1,size_auth+1);
-            serial_copy_elem(&ear_conf_serial, (char *)&conf->priv_groups[auth], NULL);
-        }
-    }
+	/* Priv users */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->num_priv_users, NULL);
+	if (conf->num_priv_users){
+		conf->priv_users = calloc(sizeof(char *), conf->num_priv_users);
+		for (uint auth = 0; auth < conf->num_priv_users; auth ++){
+			uint size_auth;
+			serial_copy_elem(&ear_conf_serial, (char *)&size_auth, NULL);
+			conf->priv_users[auth] = calloc(1,size_auth+1);	
+			serial_copy_elem(&ear_conf_serial, (char *)&conf->priv_users[auth],NULL);
+		}
+	}
+	/* Priv groups */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->num_priv_groups, NULL);
+	if (conf->num_priv_groups){
+		conf->priv_groups = calloc(sizeof(char *), conf->num_priv_groups);
+		for (uint auth = 0; auth < conf->num_priv_groups; auth ++){
+			uint size_auth;
+			serial_copy_elem(&ear_conf_serial, (char *)&size_auth, NULL);
+			conf->priv_groups[auth] = calloc(1,size_auth+1);
+			serial_copy_elem(&ear_conf_serial, (char *)&conf->priv_groups[auth], NULL);
+		}
+	}
 
-    /* Priv accounts */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->num_acc, NULL);
-    if (conf->num_acc){
-        conf->priv_acc = calloc(sizeof(char *), conf->num_acc);
-        for (uint auth = 0; auth < conf->num_acc; auth ++){
-            uint size_auth;
-            serial_copy_elem(&ear_conf_serial, (char *)&size_auth, NULL);
-            conf->priv_acc[auth] = calloc(1, size_auth+1);
-            serial_copy_elem(&ear_conf_serial, (char *)&conf->priv_acc[auth], NULL);
-        }
-    }
+	/* Priv accounts */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->num_acc, NULL);
+	if (conf->num_acc){
+		conf->priv_acc = calloc(sizeof(char *), conf->num_acc);
+		for (uint auth = 0; auth < conf->num_acc; auth ++){
+			uint size_auth;
+			serial_copy_elem(&ear_conf_serial, (char *)&size_auth, NULL);
+			conf->priv_acc[auth] = calloc(1, size_auth+1);
+			serial_copy_elem(&ear_conf_serial, (char *)&conf->priv_acc[auth], NULL);
+		}
+	}
 
-    /* Global data */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->min_time_perf_acc, NULL);
-    /* Nodes */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->num_nodes, NULL);
-    if (conf->num_nodes){
-        conf->nodes = calloc(sizeof(node_conf_t), conf->num_nodes);
-        serial_copy_elem(&ear_conf_serial, (char *)conf->nodes, NULL);
-        /* For each type of node is pending, not needed for now */
-    }
+	/* Global data */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->min_time_perf_acc, NULL);
+	/* Nodes */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->num_nodes, NULL);
+	if (conf->num_nodes){
+		conf->nodes = calloc(sizeof(node_conf_t), conf->num_nodes);
+		serial_copy_elem(&ear_conf_serial, (char *)conf->nodes, NULL);
+		/* For each type of node is pending, not needed for now */
+	}
 
-    /* Database */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->database, NULL);
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->db_manager, NULL);
+	/* Database */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->database, NULL);
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->db_manager, NULL);
 
-    /* Tags */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->num_tags, NULL);
-    if (conf->num_tags){
-        conf->tags = calloc(sizeof(tag_t),conf->num_tags);
-        serial_copy_elem(&ear_conf_serial, (char *)conf->tags, NULL);
-    }
-    /* Etags */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->num_etags, NULL);
-    if (conf->num_etags){
-        conf->e_tags = calloc(sizeof(energy_tag_t), conf->num_etags);
-        serial_copy_elem(&ear_conf_serial, (char *)conf->e_tags, NULL);
-        /* For each etag is pending, not needed for now */
-    }
+	/* Tags */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->num_tags, NULL);
+	if (conf->num_tags){
+		conf->tags = calloc(sizeof(tag_t),conf->num_tags);
+		serial_copy_elem(&ear_conf_serial, (char *)conf->tags, NULL);
+	}
+	/* Etags */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->num_etags, NULL);
+	if (conf->num_etags){
+		conf->e_tags = calloc(sizeof(energy_tag_t), conf->num_etags);
+		serial_copy_elem(&ear_conf_serial, (char *)conf->e_tags, NULL);
+		/* For each etag is pending, not needed for now */
+	}
 
-    /* Islands */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->num_islands, NULL);
-    if (conf->num_islands){
-        conf->islands = calloc(sizeof(node_island_t), conf->num_islands);
-        serial_copy_elem(&ear_conf_serial, (char *)conf->islands, NULL);
-        /* For each island is pending, not needed for now */
-    }
+	/* Islands */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->num_islands, NULL);
+	if (conf->num_islands){
+		conf->islands = calloc(sizeof(node_island_t), conf->num_islands);
+		serial_copy_elem(&ear_conf_serial, (char *)conf->islands, NULL);
+		/* For each island is pending, not needed for now */
+	}
 
-    /* earlib */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->earlib, NULL);
+	/* earlib */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->earlib, NULL);
 
-    /* Installation */
-    serial_copy_elem(&ear_conf_serial, (char *)&conf->install, NULL);
+	/* Installation */
+	serial_copy_elem(&ear_conf_serial, (char *)&conf->install, NULL);
 
-    serial_free(&ear_conf_serial);
-    return s;
+	serial_free(&ear_conf_serial);
+	return s;
 }

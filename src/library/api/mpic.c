@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+//#define SHOW_DEBUGS 1
+
 #include <common/plugins.h>
 #include <common/output/debug.h>
 #include <library/api/mpic.h>
@@ -112,10 +114,9 @@ static mpic_t next_mpic = {
 
 void ear_mpic_setnext(mpic_t * _next_mpic)
 {
-	debug(">> C setnext...............");
-	if (module_mpi_is_detected())
-		memcpy(&next_mpic, _next_mpic, sizeof(mpic_t));
-	debug("<< C setnext...............");
+    debug(">> C setnext...............");
+    memcpy(&next_mpic, _next_mpic, sizeof(mpic_t));
+    debug("<< C setnext...............");
 }
 
 int ear_mpic_Allgather(MPI3_CONST void *sendbuf, int sendcount,

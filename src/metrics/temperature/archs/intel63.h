@@ -13,16 +13,6 @@
 
 #include <metrics/temperature/temperature.h>
 
-state_t temp_intel63_status(topology_t *tp);
-
-state_t temp_intel63_init(ctx_t *s);
-
-state_t temp_intel63_dispose(ctx_t *s);
-
-// Data
-state_t temp_intel63_count_devices(ctx_t *c, uint *count);
-
-// Getters
-state_t temp_intel63_read(ctx_t *s, llong *temp, llong *average);
+TEMP_DEFINES(intel63);
 
 #endif //METRICS_TEMPERATURE_ARCHS_INTEL63

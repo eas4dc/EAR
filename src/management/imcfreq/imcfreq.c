@@ -29,7 +29,7 @@ state_t mgt_imcfreq_load(topology_t *tp, int eard, my_node_conf_t *conf)
 {
 	state_t s;
 	while (pthread_mutex_trylock(&lock));
-	debug("loading");
+	debug("loading... current api: %d", api);
 	if (api != API_NONE) {
 		debug("API already loaded");
 		pthread_mutex_unlock(&lock);

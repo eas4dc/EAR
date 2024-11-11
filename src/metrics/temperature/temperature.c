@@ -8,140 +8,100 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#include <assert.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include <common/output/debug.h>
 #include <metrics/common/apis.h>
 #include <metrics/temperature/temperature.h>
+#include <metrics/temperature/archs/eard.h>
 #include <metrics/temperature/archs/amd17.h>
 #include <metrics/temperature/archs/intel63.h>
 #include <metrics/temperature/archs/dummy.h>
 
-static struct temp_ops
-{
-	state_t (*init)          (ctx_t *c);
-	state_t (*dispose)       (ctx_t *c);
-	state_t (*count_devices) (ctx_t *c, uint *count);
-	state_t (*read)          (ctx_t *c, llong *temp, llong *average);
-} ops;
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static uint            is_loaded;
+static apinfo_t        info;
+static temp_ops_t      ops;
 
-static uint api = API_NONE;
-static uint devs_count;
-
-state_t temp_load(topology_t *tp)
+void temp_load(topology_t *tp, uint force_api)
 {
-	if (ops.init != NULL) {
-		return EAR_SUCCESS;
-	}
-	if (state_ok(temp_intel63_status(tp))) {
-		ops.init          = temp_intel63_init;
-		ops.dispose       = temp_intel63_dispose;
-		ops.read          = temp_intel63_read;
-		ops.count_devices = temp_intel63_count_devices;
-		debug("selected intel63 temperature");
-        api = API_INTEL63;
-	} else if (state_ok(temp_amd17_status(tp))) {
-		ops.init          = temp_amd17_init;
-		ops.dispose       = temp_amd17_dispose;
-		ops.read          = temp_amd17_read;
-		ops.count_devices = temp_amd17_count_devices;
-		debug("selected amd17 temperature");
-        api = API_AMD17;
-	} else if (state_ok(temp_dummy_status(tp))) {
-		ops.init          = temp_dummy_init;
-		ops.dispose       = temp_dummy_dispose;
-		ops.read          = temp_dummy_read;
-		ops.count_devices = temp_dummy_count_devices;
-		debug("selected dummy temperature");
-        api = API_DUMMY;
-	}
-	if (ops.init == NULL) {
-		return_msg(EAR_ERROR, Generr.api_incompatible);
-	}
-	return EAR_SUCCESS;
+    while (pthread_mutex_trylock(&lock));
+    if (is_loaded) { goto leave; }
+    if (API_IS(force_api, API_DUMMY)) { goto dummy; }
+#if WF_SUPPORT
+    temp_eard_load   (tp, &ops, force_api);
+#endif
+    temp_intel63_load(tp, &ops, force_api);
+    temp_amd17_load  (tp, &ops, force_api);
+dummy:
+    temp_dummy_load  (tp, &ops, force_api);
+    temp_get_info(&info);
+    is_loaded = 1;
+leave:
+    pthread_mutex_unlock(&lock);
 }
 
-void temp_get_api(uint *api_in)
+void temp_get_info(apinfo_t *info)
 {
-    *api_in = api;
+    memset(info, 0, sizeof(apinfo_t));
+    ops.get_info(info);
 }
 
-state_t temp_init(ctx_t *c)
+state_t temp_init()
 {
-    state_t s = EAR_SUCCESS;
-    if (state_fail(s = ops.init(c))) {
-        return s;
-    }
-	if (state_fail(s = temp_count_devices(c, &devs_count))) {
-		return s;
-	}
-    return s;
+    return ops.init();
 }
 
-state_t temp_dispose(ctx_t *c)
+void temp_dispose()
 {
-	preturn(ops.dispose, c);
-}
-
-state_t temp_count_devices(ctx_t *c, uint *count)
-{
-	preturn(ops.count_devices, c, count);
+    ops.dispose();
 }
 
 // Getters
-state_t temp_read(ctx_t *c, llong *temp, llong *average)
+state_t temp_read(llong *temp, llong *average)
 {
-	preturn(ops.read, c, temp, average);
+    return ops.read(temp, average);
 }
 
-state_t temp_read_copy(ctx_t *c, llong *t2, llong *t1, llong *tD, llong *average)
+state_t temp_read_copy(llong *t2, llong *t1, llong *tD, llong *average)
 {
-    state_t s = temp_read(c, t2, average);
+    state_t s = temp_read(t2, average);
     temp_data_copy(tD, t2);
     return s;
 }
 
 // Data
-state_t temp_data_alloc(llong **temp)
+void temp_data_alloc(llong **temp)
 {
-	if ((*temp = (llong *) calloc(devs_count, sizeof(llong))) == NULL) {
-		return_msg(EAR_ERROR, strerror(errno));
-	}
-	return EAR_SUCCESS;
+	*temp = (llong *) calloc(info.devs_count, sizeof(llong));
+    assert(*temp != NULL);
 }
 
-state_t temp_data_copy(llong *tempD, llong *tempS)
+void temp_data_copy(llong *tempD, llong *tempS)
 {
-	if (memcpy((void *) tempD, (const void *) tempS, sizeof(llong)*devs_count) != tempD) {
-		return_msg(EAR_ERROR, strerror(errno));
-	}
-	return EAR_SUCCESS;
+	memcpy((void *) tempD, (const void *) tempS, sizeof(llong)*info.devs_count);
 }
 
 void temp_data_diff(llong *temp2, llong *temp1, llong *tempD, llong *average)
 {
     int i;
     temp_data_copy(tempD, temp2);
-    if (average) {
+    if (average != NULL) {
         *average = 0;
-        for (i = 0; i < devs_count; ++i) {
+        for (i = 0; i < info.devs_count; ++i) {
             *average += temp2[i];
         }
-        *average /= (llong) devs_count;
+        *average /= (llong) info.devs_count;
     }
 }
 
-state_t temp_data_free(llong **temp)
+void temp_data_free(llong **temp)
 {
-	free(*temp);
-	*temp = NULL;
-	return EAR_SUCCESS;
-}
-
-void temp_data_print(llong *list, llong avrg, int fd)
-{
-    char buffer[1024];
-    temp_data_tostr(list, avrg, buffer, 1024);
-    dprintf(fd, "%s", buffer); 
+    if (*temp != NULL) {
+        free(*temp);
+        *temp = NULL;
+    }
 }
 
 char *temp_data_tostr(llong *list, llong avrg, char *buffer, int length)
@@ -149,9 +109,16 @@ char *temp_data_tostr(llong *list, llong avrg, char *buffer, int length)
     ullong a = 0;
     int i;
 
-    for (i = 0; i < devs_count; ++i) {
+    for (i = 0; i < info.devs_count; ++i) {
         a += sprintf(&buffer[a], "%lld ", list[i]);
     }
     sprintf(&buffer[a], "!%lld\n", avrg);
     return buffer;
+}
+
+void temp_data_print(llong *list, llong avrg, int fd)
+{
+    char buffer[1024];
+    temp_data_tostr(list, avrg, buffer, 1024);
+    dprintf(fd, "%s", buffer); 
 }

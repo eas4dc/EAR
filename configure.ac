@@ -21,7 +21,7 @@ m4_include([m4/ac_countdown.m4])
 
 # INIT
 AC_PREREQ([2.69])
-AC_INIT([EAR], [5.0], [ear-support@bsc.es], [ear-5.0], [https://gitlab.bsc.es/ear_team/ear])
+AC_INIT([EAR], [5.1], [ear-support@bsc.es], [ear-5.1], [https://gitlab.bsc.es/ear_team/ear])
 AC_COPYRIGHT([Copyright © 2017-present BSC])
 AC_LANG(C)
 
@@ -121,7 +121,10 @@ AC_CONFIG_FILES([Makefile
                  etc/systemd/edcmon.service
                  etc/conf/ear.conf.full.template
                  etc/conf/ear.conf.template
-                 etc/rpms/specs/ear.spec])
+                 etc/rpms/specs/ear.spec
+				 etc/rpms/specs/ear_ln.spec
+				 etc/rpms/specs/ear_cn.spec
+				 etc/rpms/specs/ear_sn.spec])
 AC_CONFIG_FILES([etc/rpms/rpmbuild.sh], [chmod +x etc/rpms/rpmbuild.sh])
 AC_OUTPUT
 AX_AFTER_OUTPUT

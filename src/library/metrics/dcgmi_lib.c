@@ -57,7 +57,7 @@ typedef state_t (*dcgmi_lib_init_fn) (uint api, uint all_events, dcgmi_lib_t *dc
 
 typedef state_t (*dcgmi_lib_fp_coeffs) (int **coeffs, size_t coeffs_length);
 
-static uint dcgmi_lib_enabled = (USE_GPUS && DCGMI) ? DCGMI_DEFAULT : 0;
+static uint dcgmi_lib_enabled = (USE_GPUS && DCGMI) ? DCGM_DEFAULT : 0;
 
 static dcgmi_lib_t dcgmi_data;
 
@@ -373,15 +373,19 @@ state_t dcgmi_lib_get_global_metrics(dcgmi_sig_t *dcgmi_sig)
 	dcgmi_monitor_stop = 1;
 
 	// As we are multiplexing profile metrics reading, the elapsed time must be averaged.
-	double elapsed = elapsed_time / dcgmi_data.dcgmi_set_count;
+	// double elapsed = elapsed_time / dcgmi_data.dcgmi_set_count;
 
 	for (uint set = 0; set < dcgmi_data.dcgmi_set_count; set++)
 	{
+		gpuprof_t *agg = dcgmi_data.gpuprof_agg[set];
+
+		// Elapsed time for the set is stored at dev 0
+		double elapsed = agg->time_s;
 		for (uint gpu_idx = 0; gpu_idx < gpuprof_api.devs_count; gpu_idx++)
 		{
 			for (uint event_idx = 0; event_idx < dcgmi_data.dcgmi_set_sizes[set]; event_idx++)
 			{
-				dcgmi_sig->event_metrics_sets[set][gpu_idx].values[event_idx] = dcgmi_data.gpuprof_agg[set][gpu_idx].values[event_idx] / elapsed;
+				dcgmi_sig->event_metrics_sets[set][gpu_idx].values[event_idx] = agg[gpu_idx].values[event_idx] / elapsed;
 			}
 		}
 
@@ -507,7 +511,7 @@ static state_t static_init()
 		return_msg(EAR_ERROR, "Getting device model.");
 	}
 
-	uint all_events = 0;
+	uint all_events = DCGM_ALL_EVENTS_DEFAULT;
 	char *all_events_c = ear_getenv(FLAG_DCGM_ALL_EVENTS);
 	if (all_events_c)
 	{

@@ -99,7 +99,7 @@
 /**@}*/
 
 /** Forces EARD and EARGM to be executed as root. */
-#define RUN_AS_ROOT 1
+#define RUN_AS_ROOT 0
 
 /** Allows normal users to change the CPU frequency without having to be authorized users. */
 #define CPUFREQ_SET_ALL_USERS 1
@@ -265,7 +265,9 @@
 #define  EAR_USE_TURBO_CP 1
 
 /** Enable DCGMI monitoring. */
-#define DCGMI_DEFAULT     0
+#define DCGM_DEFAULT            1
+/** Enable DCGMI monitoring for all events */
+#define DCGM_ALL_EVENTS_DEFAULT 0
 
 /** Enable EARL loop reporting. */
 #define EARL_REPORT_LOOPS 1

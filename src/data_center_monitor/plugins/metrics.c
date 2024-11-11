@@ -38,7 +38,7 @@ declr_up_action_init(_conf)
 declr_up_action_init(_metrics)
 {
     *data_alloc = &m;
-    metrics_init(&m.mi, &conf->tp, np_path, atoull(getenv("MFLAGS")));
+    metrics_load(&m.mi, &conf->tp, np_path, atoull(getenv("MFLAGS")));
     metrics_data_alloc(&m.mr, NULL, NULL);
     return rsprintf("Metrics plugin initialized correctly %s", (!np_path) ? "(missing np library)": "");
 }

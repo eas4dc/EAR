@@ -14,7 +14,9 @@
 
 #include <library/models/energy_model.h>
 #include <library/common/verbose_lib.h>
+#include <library/common/utils.h>
 #include <common/system/symplug.h>
+#include <common/sizes.h>
 
 
 #define freturn(call, ...) \
@@ -62,21 +64,21 @@ static const char *energy_model_sym_names[] = {
 static const int model_sym_cnt = 5;
 
 
-static energy_model_t energy_model_load(uint user_type, conf_install_t *data, architecture_t *arch_desc, em_t em_type);
+static energy_model_t energy_model_load(settings_conf_t *sconf, architecture_t *arch_desc, em_t em_type);
 
 
-static state_t build_energy_model_path(char *energy_model_path, size_t energy_model_path_size, char *base_plugin_path, char *base_energy_model_obj, uint user_type, em_t em_type);
+static state_t build_energy_model_path(char *energy_model_path, size_t energy_model_path_size, em_t em_type, settings_conf_t *sconf);
 
 
-energy_model_t energy_model_load_cpu_model(uint user_type, conf_install_t *data, architecture_t *arch_desc)
+energy_model_t energy_model_load_cpu_model(settings_conf_t *sconf, architecture_t *arch_desc)
 {
-	return energy_model_load(user_type, data, arch_desc, CPU);
+	return energy_model_load(sconf, arch_desc, CPU);
 }
 
 
-energy_model_t energy_model_load_gpu_model(uint user_type, conf_install_t *data, architecture_t *arch_desc)
+energy_model_t energy_model_load_gpu_model(settings_conf_t *sconf, architecture_t *arch_desc)
 {
-	return energy_model_load(user_type, data, arch_desc, GPU);
+	return energy_model_load(sconf, arch_desc, GPU);
 }
 
 
@@ -129,124 +131,63 @@ uint energy_model_any_projection_available(energy_model_t energy_model)
 }
 
 
-static state_t build_energy_model_path(char *energy_model_path, size_t energy_model_path_size, char *base_plugin_path, char *base_energy_model_obj, uint user_type, em_t em_type)
+static state_t build_energy_model_path(char *energy_model_path, size_t energy_model_path_size, em_t em_type, settings_conf_t *sconf)
 {
-	if (!energy_model_path || !base_plugin_path || !base_energy_model_obj)
+	if (!energy_model_path || !sconf)
 	{
-		error_lib("Input arguments are NULL: energy_model_path (%p) base_plugin_path (%p) base_energy_model_obj (%p)",
-							energy_model_path, base_plugin_path, base_energy_model_obj);
+		error_lib("energy_model_path %p settings_conf %p", energy_model_path, sconf);
 		return EAR_ERROR;
 	}
 
-	// Build the energy model plugins' base path
-	int ret = snprintf(energy_model_path, energy_model_path_size, "%s/models/", base_plugin_path);
-	if (ret <= 0 || ret >= energy_model_path_size)
-	{
-		// An error occurred on the above snprintf. You can escape below code for reading.
-		if (ret >= energy_model_path_size)
-		{
-			error_lib("%s must be at most %d bytes long.", base_plugin_path, SZ_PATH_INCOMPLETE - 9);
-		} else
-		{
-			// ret <= 0
-			error_lib("An internal error occurred: %d", errno);
-		}
-		return EAR_ERROR;
-	}
+	int read_env = (sconf->user_type == AUTHORIZED || USER_TEST);
+	char *hack_so	= NULL;
 
-	// No error occurred on snprintf
-
-	char *energy_model_obj = base_energy_model_obj;
-
-	// Hacks can be read if the user is authorized or if USER_TEST is enabled at config time
-	uint auth_user = (user_type == AUTHORIZED || USER_TEST);
-
-	uint hacking_err = 0; // Util variable to check later for errors in the below conditional block.
-
-	if (auth_user)
-	{
-		char *hack_energy_model_obj = NULL;
-
+	if (read_env) {
 		switch(em_type)
 		{
 			case CPU:
-				hack_energy_model_obj = ear_getenv(HACK_POWER_MODEL);
+				hack_so = ear_getenv(HACK_POWER_MODEL);
 				break;
 			case GPU:
-				hack_energy_model_obj = ear_getenv(HACK_GPU_ENERGY_MODEL);
+				hack_so = ear_getenv(HACK_GPU_ENERGY_MODEL);
 				break;
 			default:
 				verbose_warning_master("Energy model type (%d) not recognized.", em_type);
 		}
+	}
 
-		if (hack_energy_model_obj)
-		{
-			energy_model_obj = hack_energy_model_obj; // Energy model hacked
-		}
-
-		char *hack_earl_path = ear_getenv(HACK_EARL_INSTALL_PATH);
-		if (hack_earl_path)
-		{
-			// Base path hacked
-			ret = snprintf(energy_model_path, energy_model_path_size, "%s/plugins/models/", hack_earl_path);
-
-			// An error occurred. You can escape below code for reading.
-			if (ret >= energy_model_path_size)
-			{
-				error_lib("%s must be at most %d bytes long.", base_plugin_path, SZ_PATH_INCOMPLETE - 17);
-				hacking_err = 1;
-			} else if (ret < 0)
-			{
-				error_lib("An internal error occurred: %d", errno);
-				hacking_err = 1;
-			}
+	if (hack_so) {
+		if (state_ok(utils_build_valid_plugin_path(energy_model_path, energy_model_path_size,
+				"models", hack_so, sconf))) {
+			verbose_info2_master("Energy model hacked: %s", energy_model_path);
+			return EAR_SUCCESS;
 		}
 	}
 
-	if (!hacking_err)
-	{
-		size_t max_permitted_bytes = energy_model_path_size - strlen(energy_model_path) - 1;
+	char plug_name[SZ_PATH_SHORT];
 
-		uint cpu_model = (em_type == CPU);
-		uint gpu_model = (em_type == GPU);
-
-		uint def_model = !strncmp(energy_model_obj, "default", strlen("default"));
-
-		// We use the default CPU power model if "default" was set or when no object model specified
-		if (cpu_model && (def_model || !energy_model_obj))
-		{
-			strncat(energy_model_path, "avx512_model.so", max_permitted_bytes);
-		} else if (cpu_model || (gpu_model && energy_model_obj))
-		{
-			strncat(energy_model_path, energy_model_obj, max_permitted_bytes);
-		} else
-		{
-			if (gpu_model)
-			{
-				error_lib("GPU model requested without any energy plugin specified.");
-			} else
-			{
-				error_lib("Unknown energy model type requested: %d", em_type);
-			}
-
-			return EAR_ERROR;
+	if (em_type == CPU) {
+		/* If the configured energy model is 'default', we'll load avx512_model.so. */
+		if (strncmp(sconf->installation.obj_power_model, "default", strlen("default")) == 0) {
+			snprintf(plug_name, sizeof(plug_name) - 1, "avx512_model.so");
+		} else {
+			strncpy(plug_name, sconf->installation.obj_power_model, sizeof(plug_name));
 		}
-
-		debug("Energy model path to be loaded: %s", energy_model_path);
-
-	} else // An error occurred inside hacking code block.
-	{
+	} else {
+		/* By now GPU energy plug-in can only be requested through HACK_GPU_ENERGY_MODEL.
+		 * If you reach this code an error is returned. This may be changed in a future. */
+		verbose_error_master("GPU energy model can only be requested through hacking.");
 		return EAR_ERROR;
 	}
 
-	return EAR_SUCCESS;
+	return utils_build_valid_plugin_path(energy_model_path, energy_model_path_size, "models", plug_name, sconf);
 }
 
-static energy_model_t energy_model_load(uint user_type, conf_install_t *data, architecture_t *arch_desc, em_t em_type)
+static energy_model_t energy_model_load(settings_conf_t *sconf, architecture_t *arch_desc, em_t em_type)
 {
-	if (!data || !arch_desc)
+	if (!sconf || !arch_desc)
 	{
-		error_lib("Input arguments are NULL: data (%p) arch_desc (%p)", data, arch_desc);
+		error_lib("Input arguments are NULL: sconf (%p) arch_desc (%p)", sconf, arch_desc);
 		return NULL;
 	}
 
@@ -259,14 +200,14 @@ static energy_model_t energy_model_load(uint user_type, conf_install_t *data, ar
 	}
 
 	// Build the energy model plugins' base path
-	char energy_model_base_path[SZ_PATH_INCOMPLETE];
+	char energy_model_base_path[SZ_PATH];
 
-	state_t ret = build_energy_model_path(energy_model_base_path, sizeof(energy_model_base_path),
-																				data->dir_plug, data->obj_power_model, user_type, em_type);
+	state_t ret = build_energy_model_path(energy_model_base_path, sizeof(energy_model_base_path), em_type, sconf);
 
 	if (state_fail(ret))
 	{
 		// An error occurred building the energy model plug-in path.
+		verbose_error_master("Building the %s energy model path.", (em_type == CPU) ? "CPU" : "GPU");
 		free_and_null(energy_model);
 		return energy_model;
 	}
@@ -287,7 +228,7 @@ static energy_model_t energy_model_load(uint user_type, conf_install_t *data, ar
 	// Init the energy model plug-in
 	if (energy_model->model_init)
 	{
-		ret = energy_model->model_init(data->dir_conf, data->dir_temp, arch_desc);
+		ret = energy_model->model_init(sconf->installation.dir_conf, sconf->installation.dir_temp, arch_desc);
 		if (state_fail(ret))
 		{
 			error_lib("On %s: energy_model_init", energy_model_base_path);

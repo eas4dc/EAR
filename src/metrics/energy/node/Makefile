@@ -1,4 +1,4 @@
-CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
+CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC -D_GNU_SOURCE
 
 
 ######## FILES

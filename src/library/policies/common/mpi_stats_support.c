@@ -1500,11 +1500,7 @@ state_t peak_power_mpi_opt_end_optimize(node_freqs_t *freqs, int *process_id)
         if (!in_barrier) return EAR_SUCCESS;
         verbose(2, "EAR-PP: END MPI");
 
-#if SINGLE_CONNECTION
-          if ((MASTER_ID >= 0) && traces_are_on()) {
-#else
           if (traces_are_on()) {
-#endif // SINGLE_CONNECTION
             traces_generic_event(ear_my_rank, my_node_id , TRA_BARRIER, 0);
           }
 

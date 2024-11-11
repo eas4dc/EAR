@@ -29,6 +29,8 @@ FEAT_EXAMON        = 0
 FEAT_DB_CASSANDRA  = 0
 FEAT_WF_SUPPORT    = 1
 FEAT_DLB           = @FEAT_DLB@
+FEAT_EARL_LITE     = 1
+DCGMI              = 1
 
 # Compilers
 CC                 = @CC@

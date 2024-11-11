@@ -37,6 +37,9 @@
 #include <library/common/verbose_lib.h>
 #include <daemon/local_api/eard_api.h>
 
+#define GPU_SIG_VRB_LVL 2
+#define SIG_VRB_LVL 1
+
 extern masters_info_t masters_info;
 extern float ratio_PPN;
 extern unsigned long long int total_mpi;
@@ -64,6 +67,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
 		char gflops_str[128];
 #if WF_SUPPORT
 		float GPU_GFlops = 0;
+		ulong GPU_temp   = 0;
 #endif
 
     if (VERB_GET_LV() == 0) return;
@@ -76,7 +80,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
     elapsed=timestamp_diff(&end, &ear_application_time_init, TIME_SECS);
 
     float imcf, sel_mem_f;
-    char gpu_buff[256];
+    char gpu_buff[1024];
 
     /* master_rank == 0: The master node rank (is who verboses if verb_level >= 1).
      * using_verb_files: FLAG_EARL_VERBOSE_PATH
@@ -205,18 +209,19 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
             // By now, the below verboses are not showed with using_verb_files set to 1
 
             char gpu_sig_hdr[] = "----------- GPU signature -----------\nGPU Id. Power (W) Util (%) Freq (GHz)\0";
-            verbose_master(3, "%s", gpu_sig_hdr);
+            verbose_master(GPU_SIG_VRB_LVL, "%s", gpu_sig_hdr);
 
             for(int i = 0; i < gpu_cnt; i++)
 						{ 
 #if WF_SUPPORT
-                verbose_master(3, "%7d %-9.2f %-8lu %-10lu %-9.2f)", i,
+                verbose_master(GPU_SIG_VRB_LVL, "%7d %-9.2f %-8lu %-10lu %-9.2f %lu)", i,
                         sig->signature.gpu_sig.gpu_data[i].GPU_power,
                         sig->signature.gpu_sig.gpu_data[i].GPU_util,
                         sig->signature.gpu_sig.gpu_data[i].GPU_freq,
-												sig->signature.gpu_sig.gpu_data[i].GPU_GFlops);
+												sig->signature.gpu_sig.gpu_data[i].GPU_GFlops,
+												sig->signature.gpu_sig.gpu_data[i].GPU_temp);
 #else
-                verbose_master(3, "%7d %-9.2f %-8lu %-10lu)", i,
+                verbose_master(GPU_SIG_VRB_LVL, "%7d %-9.2f %-8lu %-10lu)", i,
                         sig->signature.gpu_sig.gpu_data[i].GPU_power,
                         sig->signature.gpu_sig.gpu_data[i].GPU_util,
                         sig->signature.gpu_sig.gpu_data[i].GPU_freq);
@@ -234,16 +239,20 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
                     GPU_mem_util     += sig->signature.gpu_sig.gpu_data[i].GPU_mem_util; 
 #if WF_SUPPORT
                     GPU_GFlops       += sig->signature.gpu_sig.gpu_data[i].GPU_GFlops; 
+										GPU_temp         += sig->signature.gpu_sig.gpu_data[i].GPU_temp;
 #endif
                 }
             } 
-            verbose_master(3, "-------------------------------------");
+            verbose_master(GPU_SIG_VRB_LVL, "-------------------------------------");
 
             if (gpu_used_cnt) {
                 GPU_POWER /= (float) gpu_used_cnt;
                 AVGGPUF = (float) GPU_FREQ / (float) (gpu_used_cnt * 1000000.0); 
                 GPU_UTIL = GPU_UTIL / gpu_used_cnt; 
                 GPU_mem_util = GPU_mem_util / gpu_used_cnt; 
+#if WF_SUPPORT
+								GPU_temp     = GPU_temp / gpu_used_cnt;
+#endif
             }
 
             gpu_freq_sum /= gpu_cnt;
@@ -257,35 +266,46 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
                 mode, AID, aname, PFREQ, nname, sig->id.event, sig->id.size, sig->id.level, iterations); 
 
         debug("%swriting nname at elapsed%s", COL_YLW, COL_CLR)
-        verbosen(1, "EAR%s[%u](%s) at %.2f/%.2f in %s MR[%d] elapsed %lu sec.: ",
+        verbosen(SIG_VRB_LVL, "EAR%s[%u](%s) at %.2f/%.2f in %s MR[%d] elapsed %lu sec.: ",
                 mode, AID, aname, PFREQ, sel_mem_f,nname, master_rank, elapsed); 
-        verbosen(1, "%s", COL_GRE);
+        verbosen(SIG_VRB_LVL, "%s", COL_GRE);
 
 				snprintf(gflops_str, sizeof(gflops_str), "%.2lf", FLOPS);
 
 #if USE_GPUS
+				char gpu_temp_str[128] = "";
         if (gpu_cnt > 0 ){ 
 #if WF_SUPPORT
 					char gpu_glops[64];
 					snprintf(gpu_glops, sizeof(gpu_glops), "/%.2f", GPU_GFlops);
 					strcat(gflops_str, gpu_glops);
+					sprintf(gpu_temp_str,"GPU temp %lu (avg)", GPU_temp);
 #endif
-					verbosen(2,"%s", gpu_buff);
+					verbosen(SIG_VRB_LVL, "%s", gpu_buff);
 				}
 #endif
 
         strcpy(gpu_buff," ");
         if (GPU_UTIL) {
             snprintf(gpu_buff, sizeof(gpu_buff), "\n\t(Used GPUS %lu GPU_power %.2lfW (avg) "
-                    "GPU_freq %.2fGHz (avg) GPU_util %lu (avg) GPU_mem_util %lu (avg))", gpu_used_cnt, GPU_POWER, AVGGPUF, GPU_UTIL, GPU_mem_util);
+                    "GPU_freq %.2fGHz (avg) GPU_util %lu (avg) GPU_mem_util %lu (avg) %s)",
+										gpu_used_cnt, GPU_POWER, AVGGPUF, GPU_UTIL, GPU_mem_util, gpu_temp_str);
         }
 
         debug("%swriting CPI GBS power...%s", COL_YLW, COL_CLR);
-        verbosen(1,"(CPI=%.3lf GBS=%.2lf Power=%s%.1lfW%s Time=%.3lfs\n\tAvgCPUF=%.2fGHz/AvgIMCF=%.2fGHz GFlop/s=%s IO=%.2fMB/s %s) %s", CPI, GBS, COL_MGT,POWER, COL_GRE, TIME,  AVGF, imcf, gflops_str, IO_MBS, pmpi_txt, gpu_buff);
 
-        if (new_freq > 0){ verbosen(1,"\n\t Next Frequency %.2f",NFREQ);}
+        verbose(SIG_VRB_LVL, "Loop time: %.3lfs DC Power: %s%.1lfW%s DRAM power: %.2lfW PCK power: %.2lfW",
+						TIME, COL_MGT, POWER, COL_GRE, sig->signature.DRAM_power, sig->signature.PCK_power);
 
-        verbosen(2,"\n\t DRAM power %.2lf PCK power %.2lf",sig->signature.DRAM_power,sig->signature.PCK_power);
+				verbosen(SIG_VRB_LVL, "\tavg. CPUFreq: %.2fGHz avg. IMCFreq: %.2fGHz", AVGF, imcf);
+        if (new_freq > 0) {
+					verbose(SIG_VRB_LVL, " Next Frequency %.2f", NFREQ);
+				} else {
+					verbose(SIG_VRB_LVL, "");
+				}
+
+				verbose(SIG_VRB_LVL, "\tCPI: %.3lf VPI: %.2f, Mem. bwidth: %.2lfGB/s GFLOPS: %s I/O: %.2fMB/s %s %s",
+						CPI, VPI, GBS, gflops_str, IO_MBS, pmpi_txt, gpu_buff);
 
         ullong l1_miss = (per_proc_verb_file) ? sig_shared_region[my_node_id].sig.L1_misses : sig->signature.L1_misses;
         ullong l2_miss = (per_proc_verb_file) ? sig_shared_region[my_node_id].sig.L2_misses : sig->signature.L2_misses;
@@ -295,44 +315,38 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
         l2_sec = l2_miss/(TIME * 1024*1024*1024);
         l3_sec = l3_miss/(TIME * 1024*1024*1024);
 
-        verbosen(2,"\n\t L1GB/sec %.2f L2GB/sec %.2f L3GB/sec %.2f TPI %.2lf ",l1_sec,l2_sec,l3_sec, sig->signature.TPI);
+        verbose(SIG_VRB_LVL, "\tTPI %.2lf Cache miss rates: L1 %.2fGB/s L2 %.2fGB/s L3 %.2fGB/s",
+						sig->signature.TPI, l1_sec, l2_sec, l3_sec);
 
         ullong n_mpi_calls = (per_proc_verb_file) ? sig_shared_region[my_node_id].mpi_info.total_mpi_calls : total_mpi;
 
-        verbosen(2," VPI %.2f Total MPI calls %llu",VPI, n_mpi_calls);
-        verbosen(2,"\n\t IO DATA: %s ",io_info);
-				verbosen(2,"\n\t Proc OS DATA: %s", proc_data_str);
+        verbose(SIG_VRB_LVL, "\tTotal MPI calls %llu", n_mpi_calls);
+        verbose(SIG_VRB_LVL, "\tIO DATA: %s", io_info);
+				verbosen(SIG_VRB_LVL, "\tProcess OS info: %s", proc_data_str);
 
-        verbose(1,"%s",COL_CLR);
-    }
+#if WF_SUPPORT
+				verbosen(SIG_VRB_LVL, "\n\tCPU temperature (celsius):");
+				for (uint s = 0; s < sig->signature.cpu_sig.devs_count; s++) {
+					verbosen(SIG_VRB_LVL, " socket %u: %lld", s, sig->signature.cpu_sig.temp[s]);
+				}
+#endif
+				verbose(SIG_VRB_LVL, "%s", COL_CLR);
+		}
 }
 
 void state_report_traces(int master_rank, int my_rank,int lid, loop_t *lsig,ulong freq,ulong status)
 {
-    #if SINGLE_CONNECTION
-    if (master_rank >= 0 && traces_are_on()) {
-        traces_new_signature(my_rank, lid, &lsig->signature);
-        //if (freq > 0 ) traces_frequency(my_rank, lid, freq); 
-        traces_policy_state(my_rank, lid, status);
-    }
-    #else
     if (traces_are_on()){
         traces_new_signature(my_rank, lid, &lsig->signature);
         //if (freq > 0 ) traces_frequency(my_rank, lid, freq); 
         traces_policy_state(my_rank, lid, status);
       
     }
-    #endif
 }
 
 void state_report_traces_state(int master_rank, int my_rank, int lid, ulong status)
 {
-    #if SINGLE_CONNECTION
-    if (master_rank >= 0 && traces_are_on()) traces_policy_state(my_rank, lid, status);
-    #else
-    if (traces_are_on()) traces_policy_state(my_rank, lid, status);
-    #endif
-
+	if (traces_are_on()) traces_policy_state(my_rank, lid, status);
 }
 
 /* Auxiliary functions */

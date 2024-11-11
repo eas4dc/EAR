@@ -9,6 +9,8 @@
  **************************************************************************/
 
 //#define SHOW_DEBUGS 1
+
+#define _GNU_SOURCE
 #include <common/output/verbose.h>
 
 #include <math.h>
@@ -569,6 +571,7 @@ int set_socket_block(int sfd, char blocking)
     return EAR_ERROR;
 }
 
+
 // based on getaddrinfo  man page
 int remote_connect(char *nodename,uint port)
 {
@@ -673,7 +676,11 @@ int remote_connect(char *nodename,uint port)
 
     timeout.tv_sec = 1;
 
+	int32_t keep_alive = 1;
+
     setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, (void *)(&timeout), sizeof(timeout));
+    setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, (void *)(&keep_alive), sizeof(keep_alive));
+    //setsockopt(sfd, SOL_TCP, TCP_KEEPIDLE, (void *)(&keep_alive), sizeof(keep_alive));
     
     if (read(sfd, &conection_ok, sizeof(char)) > 0)
     {

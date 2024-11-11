@@ -12,7 +12,7 @@
 #ifndef _EARL_EXTERNS_ALLOC_H
 #define _EARL_EXTERNS_ALLOC_H
 
-#include <linux/limits.h>
+#include <common/sizes.h>
 #include <common/types/application.h>
 #include <common/types/loop.h>
 #include <common/states.h>
@@ -24,13 +24,13 @@
 application_t application;
 settings_conf_t *system_conf=NULL;
 resched_t *resched_conf=NULL;
-char system_conf_path[PATH_MAX];
-char resched_conf_path[PATH_MAX];
-char node_name[PATH_MAX];
+char system_conf_path[SZ_PATH];
+char resched_conf_path[SZ_PATH];
+char node_name[SZ_NAME_MEDIUM];
 
-char loop_summary_path[PATH_MAX];
-char app_summary_path[PATH_MAX];
-char ear_app_name[PATH_MAX]; // TODO: use application.app_id
+char loop_summary_path[SZ_PATH];
+char app_summary_path[SZ_PATH];
+char ear_app_name[SZ_PATH]; // TODO: use application.app_id
 
 // Common variables
 ulong ear_frequency; 

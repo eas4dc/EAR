@@ -70,7 +70,9 @@ void gpu_nvml_get_info(apinfo_t *info)
     info->api         = API_NVML;
     info->devs_count  = devs_count;
 
-    if (nvml.GetArchitecture(devs[0], &info->dev_model) != NVML_SUCCESS) {
+		nvmlReturn_t ret;
+    if ((ret = nvml.GetArchitecture(devs[0], &info->dev_model)) != NVML_SUCCESS) {
+			debug("nvml GetArchitecture returned: %d", ret);
         info->dev_model = NVML_DEVICE_ARCH_UNKNOWN;
     }
 }

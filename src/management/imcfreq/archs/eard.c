@@ -36,13 +36,16 @@ state_t mgt_imcfreq_eard_load(topology_t *tp, mgt_imcfreq_ops_t *ops, int eard)
 	state_t s;
 
 	if (!eard) {
+		debug("Error: EARD (daemon) not required");
 		return_msg(EAR_ERROR, "EARD (daemon) not required");
 	}
 	if (!eards_connected()) {
+		debug("Error: EARD (daemon) not connected");
 		return_msg(EAR_ERROR, "EARD (daemon) not connected");
 	}
     serial_alloc(&w, SIZE_2KB);
 	if (state_fail(s = eard_rpc(RPC_GET_API, NULL, 0, (char *) &eard_api, sizeof(uint)))) {
+		debug("Error: Sending RPC_GET_API");
 		return s;
 	}
 	debug("Received API %u", eard_api);

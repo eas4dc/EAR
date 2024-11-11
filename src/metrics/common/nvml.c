@@ -9,7 +9,7 @@
  **************************************************************************/
 
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -140,6 +140,7 @@ static state_t static_init()
         debug("nvml.Count %u",devs_count);
         return static_free(EAR_ERROR, (char *) nvml.ErrorString(r));
     }
+    debug("nvml.Count %u",devs_count);
     if (((int) devs_count) <= 0) {
         return static_free(EAR_ERROR, Generr.gpus_not);
     }
@@ -158,6 +159,7 @@ static state_t static_init()
         }
         if ((r = nvml.GetSerial(devices[d], buffer, 32)) == NVML_SUCCESS) {
             serials[d] = (ullong) atoll(buffer);
+						debug("Dev %d serial %llu", d, serials[d]);
         }
     }
     return EAR_SUCCESS;
@@ -167,6 +169,7 @@ state_t nvml_open(nvml_t *nvml_in)
 {
     state_t s = EAR_SUCCESS;
     #ifndef CUDA_BASE
+		debug("No CUDA_BASE path provided");
     return EAR_ERROR;
     #endif
     while (pthread_mutex_trylock(&lock));
@@ -230,3 +233,12 @@ int nvml_is_privileged()
     // Provisional
     return (getuid() == 0);
 }
+
+#if TEST
+int main(int argc, char **argv)
+{
+	nvml_t nvml;
+	nvml_open(&nvml);
+	return 0;
+}
+#endif

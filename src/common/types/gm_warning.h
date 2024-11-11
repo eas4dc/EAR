@@ -39,5 +39,6 @@ void copy_gm_warning(gm_warning_t *destiny, gm_warning_t *source);
 /** Initializes all values of the periodic_metric to 0 , sets the nodename */
 void init_gm_warning(gm_warning_t *pm);
 
+void gm_warning_clean_before_db(gm_warning_t *gmw);
 
 #endif

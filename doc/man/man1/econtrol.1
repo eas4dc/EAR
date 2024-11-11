@@ -27,6 +27,8 @@ econtrol is the EAR administration tools for cluster management. This app requir
  --conf-path     [path_name]             ->specifies the ear.conf path. [default: $EAR_ETC/ear/ear.conf]
  --active-only                           ->supresses inactive nodes from the output in hardware status.
  --health-check                          ->checks all EARDs and EARDBDs for errors and prints all that are unresponsive.
+ --domain [domain:target]                ->sends the requested command to the requested targets, effectively filtering
+                                                which nodes receive the message. Available domains are: tag, node, subcluster/eargmid, island.
  --mail [address]                        ->sends the output of the program to address.
  --ping                                  ->pings all nodes to check whether the nodes are up or not. Additionally,
                                                 --ping=node_name pings that node individually.

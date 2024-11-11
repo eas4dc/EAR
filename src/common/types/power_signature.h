@@ -64,4 +64,6 @@ void power_signature_serialize(serial_buffer_t *b, power_signature_t *power_sig)
 
 void power_signature_deserialize(serial_buffer_t *b, power_signature_t *power_sig);
 
+void power_signature_clean_before_db(power_signature_t *sig, double pwr_limit);
+
 #endif

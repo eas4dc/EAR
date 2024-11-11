@@ -15,11 +15,13 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <dlfcn.h>
 // #define SHOW_DEBUGS 1
 #include <common/output/debug.h>
 #include <common/utils/string.h>
 #include <common/string_enhanced.h>
 #include <common/config/config_env.h>
+#include <common/system/execute.h>
 #include <library/loader/loader.h>
 #include <library/loader/module_mpi.h>
 #include <library/loader/module_cuda.h>
@@ -27,6 +29,20 @@
 #include <library/loader/module_openmp.h>
 #include <library/loader/module_oneapi.h>
 #include <library/loader/module_default.h>
+
+/* This code is commented to save an example on
+ * how to intercept a libc call.
+
+static int (*original_close)(int);
+
+int close(int fd) {
+	if (fd == 0) {
+		dprintf(2, "WARNING fd is 0!\n");
+		print_stack(2);
+	}
+	return (*original_close)(fd);
+}
+*/
 
 static int _loaded;
 
@@ -36,6 +52,8 @@ static int init()
     char *task;
     pid_t pid1 = 1;
     pid_t pid2 = 0;
+
+	// original_close = dlsym(RTLD_NEXT, "close");
 
     // Activating verbose
     if ((verb = ear_getenv(FLAG_LOADER_VERBOSE)) != NULL) {
@@ -73,7 +91,7 @@ int must_load()
 int load_no_official()
 {
     char  *envar = ear_getenv(FLAG_LOADER_APPLICATION);
-    char **list;
+    char  **list;
     uint   list_count;
     int    l;
 
@@ -108,9 +126,10 @@ int load_no_official()
 
 int load_no_parallel()
 {
-    if (strstr(program_invocation_name, "python") != NULL) return 1;
+    // This cant be since we have developed a new Loader that works with python
+    if (strstr(program_invocation_name, "python" ) != NULL) return 1;
     if (strstr(program_invocation_name, "python3") != NULL) return 1;
-    if (strstr(program_invocation_name, "julia") != NULL) return 1;
+    if (strstr(program_invocation_name, "julia"  ) != NULL) return 1;
     return 0;
 }
 

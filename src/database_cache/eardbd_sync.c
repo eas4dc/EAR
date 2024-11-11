@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#define _GNU_SOURCE
 #include <database_cache/eardbd.h>
 #include <database_cache/eardbd_body.h>
 #include <database_cache/eardbd_sync.h>

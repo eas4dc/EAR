@@ -13,6 +13,7 @@
 // #define SHOW_DEBUGS 1
 #include <common/states.h>
 #include <library/common/externs.h>
+#include <library/common/verbose_lib.h>
 #include <common/output/debug.h>
 #include <common/output/verbose.h>
 #include <common/types/signature.h>
@@ -40,6 +41,7 @@ state_t energy_model_init(char *ear_etc_path, char *ear_tmp_path, architecture_t
 {
   char *hack_file = ear_getenv(HACK_EARL_COEFF_FILE);
   int i, ref;
+	uint total_coeffs = 0;
 
 	debug("Using spr_imc_perc_model\n");
 	num_pstates = (uint)arch_desc->pstates;
@@ -73,12 +75,12 @@ state_t energy_model_init(char *ear_etc_path, char *ear_tmp_path, architecture_t
  		xsnprintf(coeffs_path, sizeof(coeffs_path), "%s/ear/coeffs/island%d/coeffs.imc_perc.%s",\
  	  ear_etc_path, system_conf->island, system_conf->tag);
  		
-		debug("spr_imc_perc_model coeffs path %s", coeffs_path);
 
   }else{
     strcpy(coeffs_path,hack_file);
 	}
   debug("Using hck coefficients path %s", coeffs_path);
+	verbose_master(2, "EAR[%d] SPR energymodel coefficients %s", getpid(),coeffs_path);
   cfile_size = coeff_file_size(coeffs_path);
   if (cfile_size == 0) num_coeffs = 0;
   else{
@@ -98,10 +100,12 @@ state_t energy_model_init(char *ear_etc_path, char *ear_tmp_path, architecture_t
       i = frequency_closest_pstate(coefficients_sm[ccoeff].pstate);
       if (frequency_is_valid_pstate(ref) && frequency_is_valid_pstate(i)){
 				memcpy(&coefficients[ref][i],&coefficients_sm[ccoeff],sizeof(coefficient_t));
-        debug("initializing coeffs for ref: %d i: %d\n", ref, i);
+        debug( "initializing coeffs for ref: %d i: %d\n", ref, i);
+				total_coeffs++;
       }
     }
   }
+	verbose_master(2, "EAR[%d] SPR energymodel number of available coefficients %u", getpid(),total_coeffs);
 	spr_imc_perc_model_init=1;	
 #if SHOW_DEBUGS
     for (ref = 0; ref < num_pstates; ref++)
@@ -157,13 +161,14 @@ state_t energy_model_project_power(signature_t *sign, ulong from,ulong to,double
 	return st;
 }
 
-state_t energy_model_projection_available(ulong from,ulong to)
+
+uint energy_model_projection_available(ulong from,ulong to)
 {
-	if (valid_range(from, to) && coefficients[from][to].available) return EAR_SUCCESS;
-	else return EAR_ERROR;
+	if (valid_range(from, to) && coefficients[from][to].available) return 1;
+	else return 0;
 }
 
-state_t energy_model_projections_available()
+uint energy_model_any_projection_available()
 {
   uint ready = 0;
   for (uint ps = 0; ps < num_pstates && !ready; ps++){
@@ -171,7 +176,7 @@ state_t energy_model_projections_available()
       if ((ps != pt) && (energy_model_projection_available(ps, pt) == EAR_SUCCESS)) ready = 1;
     }
   }
-  if (ready) return EAR_SUCCESS;
-  return EAR_ERROR;
+  if (ready) return 1;
+  return 0;
 }
 

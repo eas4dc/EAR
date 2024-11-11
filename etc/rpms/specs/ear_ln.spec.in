@@ -1,0 +1,40 @@
+%define _prefix @prefix@
+%define _sysconfdir @sysconfdir@
+%define _libdir @libdir@
+
+Name:           ear
+Version:        @PACKAGE_VERSION@
+Release:        1%{?dist}
+Summary:        Energy Aware Runtime - %{version} ready to be deployed on a login node.
+
+License: EPL-2.0 license
+URL: https://gitlab.bsc.es/ear_team/ear_private
+Source0: %{name}-%{version}.tar.gz
+
+%description
+This package includes EAR commands, tools, the SLURM plug-in and configuration files needed in a log-in node.
+
+%prep
+%setup -q
+
+%install
+rm -rf $RPM_BUILD_ROOT
+
+mkdir -p %{buildroot}%{_bindir}
+cp -r bin/* %{buildroot}%{_bindir} 
+mkdir -p %{buildroot}%{_includedir}
+cp -r include/* %{buildroot}%{_includedir}
+mkdir -p %{buildroot}%{_sysconfdir}
+cp -r etc/* %{buildroot}%{_sysconfdir}
+mkdir -p %{buildroot}%{_libdir}
+cp lib/earplug.so %{buildroot}%{_libdir}
+
+%files
+%{_bindir}
+%{_includedir}
+%{_sysconfdir}
+%{_libdir}
+
+%changelog
+* Mon Nov 4 2024 Oriol Vidal <oriol.vidal@bsc.es> - 5.1-1
+- RPM SPEC file for log-in nodes.

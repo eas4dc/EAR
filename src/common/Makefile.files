@@ -34,6 +34,8 @@ core_OBJS = \
     $(SRCDIR)/common/types/loop.o \
     $(SRCDIR)/common/types/log.o \
     $(SRCDIR)/common/types/event_type.o \
+    $(SRCDIR)/common/types/medoids.o \
+    $(SRCDIR)/common/types/roofline.o \
     $(SRCDIR)/common/types/periodic_metric.o \
     $(SRCDIR)/common/types/application.o \
     $(SRCDIR)/common/types/projection.o \
@@ -63,6 +65,7 @@ core_OBJS = \
     $(SRCDIR)/common/types/pc_app_info.o \
     $(SRCDIR)/common/utils/args.o \
     $(SRCDIR)/common/utils/data_register.o \
+    $(SRCDIR)/common/utils/dtools.o \
     $(SRCDIR)/common/utils/keeper.o \
     $(SRCDIR)/common/utils/overhead.o \
     $(SRCDIR)/common/utils/serial_buffer.o \
@@ -73,9 +76,7 @@ core_OBJS = \
     $(SRCDIR)/common/utils/stress.o \
     $(SRCDIR)/common/utils/sched_support.o 
 
-
 #    $(SRCDIR)/common/external/ear_external.o
-
 
 full_OBJS = $(core_OBJS)
 

@@ -96,10 +96,10 @@ state_t hwmon_find_drivers(const char *name, uint **ids, uint *n)
 	return EAR_SUCCESS;
 }
 
-state_t hwmon_open_files(uint id, hwmon_t files, int **fds, uint *n)
+state_t hwmon_open_files(uint id, hwmon_t files, int **fds, uint *n, int i_start)
 {
 	char data[SZ_PATH];
-	int i = 1; // index
+	int i = i_start; // index
 	int c = 0; // count
 	int m = 0; // mode
 	int fd;
@@ -136,7 +136,7 @@ state_t hwmon_open_files(uint id, hwmon_t files, int **fds, uint *n)
 		*fds = (int *) memset(*fds, -1, c*sizeof(int));
 		*n   = c;
 		// 
-		i = 1;
+		i = i_start;
 		m = 1;
 		c = 0;
 	}

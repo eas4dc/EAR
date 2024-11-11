@@ -15,16 +15,19 @@
 #include <netdb.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include <signal.h>
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <netinet/tcp.h>
 #include <linux/limits.h>
 #include <common/config.h>
 #include <common/states.h>
 #include <common/system/poll.h>
+#include <common/system/file.h>
 #include <common/output/verbose.h>
 
 extern int eard_must_exit;
@@ -48,7 +51,7 @@ state_t init_active_connections_list()
 /*********** This function notify a new remote connetion ***************/
 state_t notify_new_connection(int fd)
 {
-	if (write(pipe_for_new_conn[1],&fd,sizeof(int)) < 0){
+	if (ear_fd_write(pipe_for_new_conn[1],&fd,sizeof(int)) != EAR_SUCCESS){
 		error("Error sending new fd for remote command %s",strerror(errno));
 		return EAR_ERROR;
 	}
@@ -59,7 +62,7 @@ state_t add_new_connection()
 {
 	int new_fd;
 	/* New fd will be read from the pipe */
-	if (read(pipe_for_new_conn[0],&new_fd,sizeof(int)) < 0){
+	if (ear_fd_read(pipe_for_new_conn[0],&new_fd,sizeof(int)) != EAR_SUCCESS){
 		error("Error sending new fd for remote command %s",strerror(errno));
 		return EAR_ERROR;
 	}
@@ -81,13 +84,30 @@ state_t remove_remote_connection(int fd)
     return EAR_SUCCESS;
 }
 
-void check_sockets(afd_set_t *fdlist)
+bool is_socket_alive(int32_t socketfd)
 {
-	int i;
-    for (i = rfds_basic.fd_min; i <= rfds_basic.fd_max; i++) {
-		if (AFD_ISSET(i,fdlist)){
-			debug("Validating socket %d",i);
-			if (!AFD_STAT(i, NULL)){
+	debug("Entering is_socket_alive with fd %d\n", socketfd);
+	struct tcp_info info = { 0 };
+    socklen_t  optlen = sizeof(info);
+
+	int32_t ret = getsockopt(socketfd, IPPROTO_TCP, TCP_INFO, &info, &optlen);
+	if (ret < 0) {
+		debug("Error getting sockopt %d (%s)\n", errno, strerror(errno));
+		return false;
+	} else if (info.tcpi_state == TCP_CLOSE_WAIT) {
+		debug("Socket opt with TCP_CLOSE_WAIT!\n");
+		return false;
+	}
+	debug("Socket opt got with state %d!\n", info.tcpi_state);
+	return true;
+}
+
+static void check_all_fds(afd_set_t *fdset)
+{
+	for (int32_t i = fdset->fd_min+1; i <= fdset->fd_max; i++) {
+		if (fdset->fds[i].fd != -1) {
+			if (i == pipe_for_new_conn[0]) continue;
+			if (!is_socket_alive(i)) {
 				remove_remote_connection(i);
 			}
 		}
@@ -99,43 +119,51 @@ extern state_t process_remote_requests(int clientfd);
 
 void *process_remote_req_th(void * arg)
 {
-    int numfds_ready;
-    state_t ret;
-    int i;
+	int numfds_ready;
+	state_t ret;
+	int i;
 
-    debug("Thread to process remote requests created ");
-    while ((numfds_ready = aselectv(&rfds_basic, NULL)) && (eard_must_exit == 0))
-    {
-        verbose(VRAPI, "RemoteAPI thread new info received (new_conn/new_data)");
-        if (numfds_ready > 0) {
-            /* This is the normal use case */
-            for (i = rfds_basic.fd_min; i <= rfds_basic.fd_max; i++) {
-                if (AFD_ISSET(i, &rfds_basic)) {
-                    debug("Channel %d ready for reading", i);
-                    if (i == pipe_for_new_conn[0]) {
-                        verbose(VRAPI, "New connection received in RemoteAPI thread");
-                        add_new_connection();
-                    } else {
-                        verbose(VRAPI, "New request received in RemoteAPI thread");
-                        ret = process_remote_requests(i);
-                        if (ret != EAR_SUCCESS) remove_remote_connection(i);
-                    }
-                }
-            }
-        } else if (numfds_ready == 0) {
-            /* This shouldn't happen since we are not using timeouts*/
-            debug("numfds_ready is zero in remote connections activity");
-        } else {
-            /* This should be an error */
-            if (errno == EINTR) {
-                debug("Signal received in remote commads");
-            } else if (errno == EBADF) {
-                debug("EBADF error detected, validating fds");
-                check_sockets(&rfds_basic);
-            } else {
-                error("Unexpected error in processing remote connections %s ", strerror(errno));
-            }
-        }
-    }
-    pthread_exit(0);
+	debug("Thread to process remote requests created ");
+	while ((numfds_ready = aselectv(&rfds_basic, NULL)) && (eard_must_exit == 0))
+	{
+		verbose(VRAPI, "RemoteAPI thread new info received (new_conn/new_data)");
+		if (numfds_ready > 0) {
+			/* This is the normal use case */
+			for (i = rfds_basic.fd_min; i <= rfds_basic.fd_max; i++) {
+				#if 0
+				if ((i != pipe_for_new_conn[0]) && AFD_ISHUP(i, &rfds_basic)) {
+					verbose(VRAPI, "ERROR: socket remote client has disconnected, closing the socket");
+					remove_remote_connection(i);
+				}
+				else 
+				#endif
+				if (AFD_ISSET(i, &rfds_basic)) {
+					debug("Channel %d ready for reading", i);
+					if (i == pipe_for_new_conn[0]) {
+						verbose(VRAPI, "New connection received in RemoteAPI thread");
+						add_new_connection();
+					} else {
+						verbose(VRAPI, "New request received in RemoteAPI thread");
+						ret = process_remote_requests(i);
+						if (ret != EAR_SUCCESS) remove_remote_connection(i);
+					}
+				}
+			}
+		} else if (numfds_ready == 0) {
+			/* This shouldn't happen since we are not using timeouts*/
+			debug("numfds_ready is zero in remote connections activity");
+		} else {
+			/* This should be an error */
+			if (errno == EINTR) {
+				debug("Signal received in remote commads");
+			} else if (errno == EBADF) {
+				debug("EBADF error detected, validating fds");
+				afd_check_sockets(&rfds_basic);
+			} else {
+				error("Unexpected error in processing remote connections %s ", strerror(errno));
+			}
+		}
+		check_all_fds(&rfds_basic);
+	}
+	pthread_exit(0);
 }

@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <grp.h>
 #include <common/sizes.h>
 #include <common/config.h>
 #include <common/states.h>
@@ -233,7 +234,13 @@ int get_default_policies(cluster_conf_t *conf, policy_conf_t **policies, int tag
 eargm_def_t *get_eargm_conf(cluster_conf_t *conf, char *host);
 
 /** Given a EARGM definition, removes all islands that do not have said EARGM id */
-void remove_extra_islands(cluster_conf_t *conf, eargm_def_t *e_def);
+void remove_islands_by_eargm(cluster_conf_t conf[static 1], eargm_def_t *e_def);
+
+/** Given an island id, removes all islands that do not have said id */
+void remove_islands_by_island_id(cluster_conf_t conf[static 1], int32_t id);
+
+/** Given a tag, removes all islands that do not have said tag*/
+void remove_islands_by_tag(cluster_conf_t conf[static 1], const char *tag);
 
 /** Given a cluster_conf, checks if all node tags have their powercap set to 1 (unlimited) */
 uint tags_are_unlimited(cluster_conf_t *conf);

@@ -6,12 +6,12 @@ LDFLAGS = -shared -ldl -lm -lpthread -rdynamic -pthread
 ifeq ($(FEAT_MPI_LIBRARY), 0)
 LIBCC       = $(CC)
 LIBCC_FLAGS = $(CC_FLAGS)
-LIB_CFLAGS  = -DMPI=0 -DNODE_LB=1 -DSINGLE_CONNECTION=0
+LIB_CFLAGS  = -DMPI=0 -DNODE_LB=1
 MPI_VERSION = gen
 else
 LIBCC       = $(MPICC)
 LIBCC_FLAGS = $(MPICC_FLAGS)
-LIB_CFLAGS  = $(MPI_CFLAGS) -DMPI=1 -DNODE_LB=1 -DSINGLE_CONNECTION=0
+LIB_CFLAGS  = $(MPI_CFLAGS) -DMPI=1 -DNODE_LB=1
 CFLAGS     += -DEAR_DEF_TIME_GUIDED=0 -DMPI_SAMPLING=1 -DMPI_STATS=1
 
 ## MPI_SAMPLING can be used to do an MPI statistic sampling
@@ -25,7 +25,6 @@ endif
 ifeq ($(FEAT_EAR_OFF), 1)
 CFLAGS += -DEAR_OFF=1
 endif
-
 
 ifeq ($(FEAT_EARL_LIGHT), 1) 
 CFLAGS += -DEARL_LIGHT=1
@@ -112,7 +111,6 @@ ifeq ($(FEAT_DLB), 1)
 core_OBJS += metrics/dlb_talp_lib.o
 endif
 
-
 ifeq ($(FEAT_MPI_LIBRARY), 1)
 mpix_OBJS = \
     api/ear_mpi.o \
@@ -139,7 +137,6 @@ clean: clean.components rclean;
 post:
 	@ $(MAKE) -C 'metrics' $@ || exit
 	@ $(MAKE) -C 'policies' $@ || exit
-
 
 ######## SUBFOLDERS
 

@@ -1,7 +1,13 @@
 # General
+
+# Ignore any file in the top source directory called Makefile
+# with suffixes except Makefile.in and Makefile.exports
 /Makefile*
 !/Makefile.in
 !/Makefile.exports
+
+/*.sh
+
 *.o
 *.a
 *.so
@@ -9,13 +15,25 @@
 *.rej
 */bin/
 */lib/
+
+# etc generated files
+etc/rpms/rpmbuild.sh*
+!etc/rpms/rpmbuild.sh.in
+
+etc/rpms/specs/ear.spec*
+!etc/rpms/specs/ear.spec.in
+
+etc/rpms/specs/ear_ln.spec*
+!etc/rpms/specs/ear_ln.spec.in
+
+etc/rpms/specs/ear_cn.spec*
+!etc/rpms/specs/ear_cn.spec.in
+
+etc/rpms/specs/ear_sn.spec*
+!etc/rpms/specs/ear_sn.spec.in
+
 src/tests
-etc/rpms/rpmbuild.sh
 src/tests
-src/tools/list_folders
-etc/rpms/rpmbuild.sh~
-etc/rpms/specs/ear.spec
-/*.sh
 
 # Autotools
 *aclocal.m4
@@ -24,8 +42,7 @@ etc/rpms/specs/ear.spec
 *config.status
 *cpu_property.out
 *defines.log
-/configure
-/configure~
+/configure*
 src/common/config/config.h.in~
 src/common/config/config.h
 
@@ -54,14 +71,6 @@ coefficients_list.csv
 *accepted_intel_ptu_license
 *.csv
 *TOOLADMIN_NOTES.txt
-Makefile.nocpu.icc.impi
-Makefile.gcc*
-Makefile.icc*
-Makefile.ompi*
-deploy*.sh
-install*.sh
-Makefile.cpu.*
-Makefile.gpu.*
 
 # Build files
 etc/module/ear
@@ -79,9 +88,6 @@ etc/systemd/edcmon.service
 src/common/config/config_install.h
 src/common/config/config.h.in
 
-# Build Libraries
-*libear.so
-*libeart.so
 *eard
 
 # Build programs
@@ -179,8 +185,12 @@ src/tools/learning_validate*
 src/tools/ear_events*
 src/tools/ear_conf
 src/tools/metrics_show
+src/tools/list_folders
+src/tools/groups_test
 src/commands/ear-info
 deployment.sh
 src/tools/node_manager_info
 tmp.txt
 *.plist
+etc/examples/prolog_epilog/ejob
+etc/examples/prolog_epilog/list

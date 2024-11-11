@@ -28,4 +28,12 @@ void init_gm_warning(gm_warning_t *gmw)
     memset(gmw, 0, sizeof(gm_warning_t));
 }
 
-
+void gm_warning_clean_before_db(gm_warning_t *gmw)
+{
+	if (gmw->level > INT_MAX) gmw->level = INT_MAX;
+	if (gmw->new_p_state > INT_MAX) gmw->new_p_state = INT_MAX;
+	if (gmw->energy_t1 > INT_MAX) gmw->energy_t1 = INT_MAX;
+	if (gmw->energy_t2 > INT_MAX) gmw->energy_t2 = INT_MAX;
+	if (gmw->energy_p1 > INT_MAX) gmw->energy_p1 = INT_MAX;
+	if (gmw->energy_p2 > INT_MAX) gmw->energy_p2 = INT_MAX;
+}

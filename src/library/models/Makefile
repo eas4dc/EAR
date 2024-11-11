@@ -4,10 +4,11 @@ modl_BINS = \
 						energy_models/basic_model.so \
 						energy_models/avx512_model.so \
 						energy_models/imc_linear_model.so \
+						energy_models/cpu_dummy_model.so \
 						energy_models/spr_imc_perc_model.so \
 						cpu_power_model_default.so \
 						cpu_power_model_gflops.so \
-						cpu_power_model_dummy.so 
+						cpu_power_model_dummy.so
 
 
 modl_OBJS = cpu_power_model.o energy_model.o 

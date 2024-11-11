@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 	}
 	*/
 
-	char aux[8];
+	// char aux[8];
 	// printf("Waiting before event set...\n");
 	// scanf("%s", aux);
 

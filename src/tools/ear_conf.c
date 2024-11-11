@@ -45,7 +45,7 @@ int main(int argc,char *argv[])
         edf = get_eargm_conf(&my_cluster, nodename);
         if (edf != NULL) {
             printf("Found EARGM conf for node %s\n", nodename);
-            remove_extra_islands(&my_cluster, edf);
+            remove_islands_by_eargm(&my_cluster, edf);
             printf("******************************* EARGM CONFIGURATION **********+\n");
             print_eargm_def(edf, 0);
             printf("*********************** EARGM-CLUSTER CONFIGURATION **********+\n");

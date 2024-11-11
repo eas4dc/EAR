@@ -14,12 +14,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#define DEBUG_ENABLED     1
+#define DEBUG_ENABLED     0
 int  debug_channel	       __attribute__((weak)) = 2;
 int adebug_enabled         __attribute__((weak)) = 0;
-
-#define ENABLE_DEBUG     0
-#define DEBUG_SET_FD(fd) debug_channel = fd;
 
 // Set
 #define  DEBUG_SET_FD(fd)  debug_channel = fd;

@@ -99,11 +99,7 @@ static void row_file_create(char *pathname, char *hostname, int n_nodes)
                 O_WRONLY | O_CREAT | O_TRUNC,
                 S_IRUSR  | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
         if (file_row<0) return;
-        #if SINGLE_CONNECTION
-        sprintf(buffer1,"LEVEL TASK SIZE %d\n",n_nodes);
-        #else
         sprintf(buffer1,"LEVEL TASK SIZE %d\n",my_num_ranks);
-        #endif
         write_unused(file_row, buffer1, strlen(buffer1));
     }else{
         file_row=open(buffer1,
@@ -277,19 +273,11 @@ static void trace_file_init(int n_nodes)
         //
         // nodes(1,1,1,1,1,1):1:nodes(1:1,1:1,1:1,1:1,1:1,1:1)
 
-        #if SINGLE_CONNECTION
-        sprintf(buffer, "#Paraver (%s):%020llu:%d(%d):1:%d:(", s, (unsigned long long) 0, 1,n_nodes,n_nodes);
-        #else
         sprintf(buffer, "#Paraver (%s):%020llu:%d(%d):1:%d:(", s, (unsigned long long) 0, 1,my_num_ranks,my_num_ranks);
-        #endif
 
         edit_time_header = 31;
 
-        #if SINGLE_CONNECTION
-        for (uint i = 0; i < n_nodes - 1; i++) {
-        #else
         for (uint i = 0; i < my_num_ranks - 1; i++) {
-        #endif
             sprintf(short_b, "1:1,");
             strcat(buffer, short_b);
         }

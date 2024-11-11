@@ -83,3 +83,23 @@ void power_signature_deserialize(serial_buffer_t *b, power_signature_t *power_si
     serial_dictionary_pop_auto(b, power_sig->avg_f);
     serial_dictionary_pop_auto(b, power_sig->def_f);
 }
+
+#define MAX_CPU_FREQ 10000000
+
+void power_signature_clean_before_db(power_signature_t *sig, double pwr_limit)
+{
+    if (!isnormal(sig->time))          sig->time         = 0;
+    if (!isnormal(sig->EDP))           sig->EDP          = 0;
+    if (!isnormal(sig->DC_power)) 	   sig->DC_power     = 0;
+    if (!isnormal(sig->DRAM_power))    sig->DRAM_power   = 0;
+    if (!isnormal(sig->PCK_power))     sig->PCK_power    = 0;
+    if (!isnormal(sig->max_DC_power))  sig->max_DC_power = 0;
+    if (!isnormal(sig->min_DC_power))  sig->min_DC_power = 0;
+
+    if (sig->DC_power   > pwr_limit) sig->DC_power   = pwr_limit;
+    if (sig->DRAM_power > pwr_limit) sig->DRAM_power = 0;
+    if (sig->PCK_power  > pwr_limit) sig->PCK_power  = 0;
+
+    if (sig->avg_f > MAX_CPU_FREQ) sig->avg_f = MAX_CPU_FREQ;
+    if (sig->def_f > MAX_CPU_FREQ) sig->def_f = MAX_CPU_FREQ;
+}

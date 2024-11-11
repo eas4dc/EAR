@@ -11,6 +11,7 @@
 #ifndef COMMON_SYSTEM_POLL
 #define COMMON_SYSTEM_POLL
 
+#define _GNU_SOURCE
 #include <poll.h>
 #include <sys/stat.h>
 #include <common/states.h>
@@ -49,22 +50,24 @@ int afd_stat(int fd, struct stat *st);
 
 void afd_debug(int fd, afd_set_t *set, const char *prefix);
 
+/* POLLRDHUP is included to be able to detect when the peer has closed the connection
+ * but POLLHUP has not been triggered or ignored. */
 #if AFD_DEBUG
 #define AFD_SETT(fd, set, ...) \
-    if (afd_set(fd, set, POLLIN)) { \
+    if (afd_set(fd, set, POLLIN | POLLRDHUP)) { \
         snprintf((set)->tags[fd], AFD_TAG, __VA_ARGS__); \
         afd_debug(fd, set, "AFD_SET"); \
     }
 #else
 #define AFD_SETT(fd, set, ...) \
-    afd_set(fd, set, POLLIN)
+    afd_set(fd, set, POLLIN | POLLRDHUP)
 #endif
 
 #define AFD_SET(fd, set) \
-    afd_set(fd, set, POLLIN)
+    afd_set(fd, set, POLLIN | POLLRDHUP)
 
 #define AFD_SETW(fd, set) \
-    afd_set(fd, set, POLLOUT)
+    afd_set(fd, set, POLLOUT | POLLRDHUP)
 
 #define AFD_ISSET(fd, set) \
     afd_isset(fd, set, POLLIN | POLLOUT)
@@ -84,10 +87,15 @@ void afd_debug(int fd, afd_set_t *set, const char *prefix);
 #define AFD_ZERO(set) \
     afd_init(set)
 
+
 /* New select based in poll. Time values are in milliseconds. */
 int aselect(afd_set_t *set, ullong timeout, ullong *time_left);
 
 /* Version using timevals to ease the compatibility. The lefting time is saved in timeout like select(). */
 int aselectv(afd_set_t *set, struct timeval *timeout);
+
+/* Checks all opened sockets in fdlist and closes any that are fail fstat check AND poll checks
+ * to see if the FD is valid AND the peer is still connected. */
+void afd_check_sockets(afd_set_t *fdlist);
 
 #endif //COMMON_SYSTEM_POLL

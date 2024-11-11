@@ -13,16 +13,6 @@
 
 #include <metrics/temperature/temperature.h>
 
-state_t temp_amd17_status(topology_t *topo);
-
-state_t temp_amd17_init(ctx_t *c);
-
-state_t temp_amd17_dispose(ctx_t *c);
-
-// Data
-state_t temp_amd17_count_devices(ctx_t *c, uint *count);
-
-// Getters
-state_t temp_amd17_read(ctx_t *c, llong *temp, llong *average);
+TEMP_DEFINES(amd17);
 
 #endif //METRICS_TEMPERATURE_ARCHS_AMD17

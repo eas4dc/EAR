@@ -60,10 +60,20 @@ char **strtoa(const char *string, char separator, char ***rows, uint *rows_count
     char **prows;
     uint   i;
 
+    debug("parsing string %s", string);
+    if (rows_count != NULL) {
+        *rows_count = 0;
+    }
     if (string == NULL) {
+        debug("string is NULL");
         return NULL;
     }
-    if ((str_length = strlen(string)) <= 1) {
+    if ((str_length = strlen(string)) < 1) {
+        debug("string is too short");
+        return NULL;
+    }
+    if (strlen(string) == 1 && string[0] == separator) {
+        debug("string is just a separator");
         return NULL;
     }
     // Allocating space for the new separated string (and copying)
@@ -108,6 +118,7 @@ char **strtoa(const char *string, char separator, char ***rows, uint *rows_count
         *rows = prows;
     }
     if (rows_count != NULL) {
+        debug("Returning rows %u", prows_count);
         *rows_count = prows_count;
     }
     return prows;

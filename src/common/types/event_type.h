@@ -159,4 +159,5 @@ void event_serialize(serial_buffer_t *b, ear_event_t *event);
 
 void event_deserialize(serial_buffer_t *b, ear_event_t *event);
 
+void event_clean_before_db(ear_event_t *event);
 #endif

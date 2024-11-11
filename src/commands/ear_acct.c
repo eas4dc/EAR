@@ -1251,9 +1251,9 @@ void read_jobs_from_loops(query_adds_t *q_a)
 	const char *header_names[NUM_HEADER_NAMES] = { 
 		"JOBID",
 		"STEPID",
-		"LOCALID",
+		"AID",
 		"USERID",
-		"APPID",
+		"APPLICATION",
 		"START_TIME",
 		"END_TIME",
 		"START_MPI_TIME",
@@ -1349,8 +1349,8 @@ void read_loops(char *user, query_adds_t *q_a)
 
 	if (num_loops < 1)
 	{
-		printf("No loops retrieved\n");
-		return;
+		fprintf(stderr, "No loops retrieved\n");
+		exit(1);
 	}
 
 	if (verbose) printf("retrieved %d loops\n", num_loops);
@@ -1463,10 +1463,9 @@ void read_from_database(char *user, query_adds_t *q_a)
 
 	if (num_apps < 1)
 	{
-		printf("No jobs found.\n");
-		return;
+		fprintf(stderr, "No jobs found.\n");
+		exit(1);
 	}
-
 
 	if (q_a->limit == 20 && strlen(csv_path) < 1)
 		printf("\nBy default only the first 20 jobs are retrieved.\n\n");

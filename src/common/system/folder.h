@@ -22,6 +22,7 @@ typedef struct folder {
 } folder_t;
 
 state_t folder_open(folder_t *folder, char *path);
+state_t folder_exists(char *path);
 
 state_t folder_close(folder_t *folder);
 

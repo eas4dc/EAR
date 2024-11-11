@@ -89,7 +89,7 @@ static metrics_diff_t mrD;
 static state_t metrics_apis_init(void *whatever)
 {
     topology_init(&tp);
-    metrics_init(&m, &tp, "/home/void/ear_install/lib/plugins/energy/energy_cpu_gpu.so", 0);
+    metrics_load(&m, &tp, "/home/void/ear_install/lib/plugins/energy/energy_cpu_gpu.so", 0);
     //metrics_init_screen(&m, &tp);
     metrics_data_alloc(&mr1, &mr2, &mrD);
     metrics_read(&mr1);

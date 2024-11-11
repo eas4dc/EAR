@@ -165,7 +165,7 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
 #if USE_GPUS
 #if WF_SUPPORT
 		char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"\
-														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS";
+														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS;GPU%d_TEMP;GPU%d_MEMTEMP";
 #else
 		char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"\
 														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
@@ -185,7 +185,22 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
     num_gpus = MAX_GPUS_SUPPORTED * USE_GPUS; // USE_GPUS can set a zero on num_gpus
 		debug("Creating header with %d GPUS", num_gpus);
 
-		size_t header_len = strlen(HEADER_JOB) + strlen(HEADER_BASE) + num_gpus * USE_GPUS * strlen(HEADER_GPU_SIG) + strlen(ext_header) + 1;
+#if WF_SUPPORT
+		uint num_sockets = MAX_SOCKETS_SUPPORTED;
+		debug("Creating header for CPU signature with %u sockets", num_sockets);
+		char cpu_sig_hdr[256] = "";
+		for (uint s = 0 ; s < num_sockets ; s++){
+			char temp_hdr[16];
+			snprintf(temp_hdr, sizeof(temp_hdr), ";TEMP%u", s);
+			strcat(cpu_sig_hdr, temp_hdr);
+		}
+	
+#else
+	char *cpu_sig_hdr = "";
+	
+#endif
+
+		size_t header_len = strlen(HEADER_JOB) + strlen(HEADER_BASE) + num_gpus * USE_GPUS * strlen(HEADER_GPU_SIG) + strlen(ext_header) + 1 + strlen(cpu_sig_hdr);
 		if (header)
 		{
 			header_len += strlen(header);
@@ -205,14 +220,15 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
 		{
 			strncat(HEADER, ext_header, header_len - strlen(HEADER) - 1);
     }
+		strncat(HEADER, cpu_sig_hdr, header_len - strlen(HEADER) - 1);
 
 #if USE_GPUS
 	if (single_column) num_gpus = ear_min(num_gpus, 1);
 	for (int i = 0; i < num_gpus; i++)
 	{
-        char gpu_hdr[128];
+        char gpu_hdr[256];
 #if WF_SUPPORT
-        snprintf(gpu_hdr, sizeof(gpu_hdr), HEADER_GPU_SIG, i, i, i, i, i, i);
+        snprintf(gpu_hdr, sizeof(gpu_hdr), HEADER_GPU_SIG, i, i, i, i, i, i, i, i);
 #else
         snprintf(gpu_hdr, sizeof(gpu_hdr), HEADER_GPU_SIG, i, i, i, i, i);
 #endif
@@ -331,7 +347,11 @@ void verbose_gpu_app(uint vl,application_t *myapp)
     uint gpui;
     for (gpui=0;gpui<app->gpu_sig.num_gpus;gpui++){
         mys=&app->gpu_sig.gpu_data[gpui];
+#if WF_SUPPORT
+        verbose(vl,"GPU%u [Power %.2lf freq %lu flops %.2f mem_freq %lu util %lu mem_util %lu temp %lu]\n",gpui,mys->GPU_power,mys->GPU_freq,mys->GPU_GFlops, mys->GPU_mem_freq,mys->GPU_util,mys->GPU_mem_util, mys->GPU_temp);
+#else
         verbose(vl,"GPU%u [Power %.2lf freq %lu mem_freq %lu util %lu mem_util %lu]\n",gpui,mys->GPU_power,mys->GPU_freq,mys->GPU_mem_freq,mys->GPU_util,mys->GPU_mem_util);
+#endif
     }
 #endif
 }
@@ -463,9 +483,16 @@ void verbose_application_data(uint vl, application_t *app)
             mys = &app_sig->gpu_sig.gpu_data[gpui];
 
             char gpu_i_sig_buff[256];
+#if WF_SUPPORT
+            snprintf(gpu_i_sig_buff, sizeof(gpu_i_sig_buff),
+                    "GPU%u [Power %.2lf freq %lu flops %.2f mem_freq %lu util %lu mem_util %lu temp %lu]\n",
+                    gpui, mys->GPU_power, mys->GPU_freq, mys->GPU_GFlops, mys->GPU_mem_freq, mys->GPU_util, mys->GPU_mem_util, mys->GPU_temp);
+#else
+
             snprintf(gpu_i_sig_buff, sizeof(gpu_i_sig_buff),
                     "GPU%u [Power %.2lf freq %lu mem_freq %lu util %lu mem_util %lu]\n",
                     gpui, mys->GPU_power, mys->GPU_freq, mys->GPU_mem_freq, mys->GPU_util, mys->GPU_mem_util);
+#endif
 
             remain_gpusig_buff_len -= (strlen(gpu_i_sig_buff) - 1);
 

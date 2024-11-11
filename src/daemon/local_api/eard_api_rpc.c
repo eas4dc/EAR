@@ -32,7 +32,8 @@ extern int       ear_fd_ack;
 
 // ???
 extern afd_set_t eard_api_client_fd;
-extern uint ack_ready_negative , ack_ready_positive;
+extern uint ack_ready_negative;
+extern uint ack_ready_positive;
 
 ulong create_sec_tag();
 

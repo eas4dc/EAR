@@ -13,16 +13,17 @@
 
 #include <linux/limits.h>
 
-#define SZ_FILENAME			NAME_MAX + 1
-#define SZ_PATH_KERNEL		64
-#define SZ_PATH				PATH_MAX
-#define SZ_PATH_SHORT		1024
+#define SZ_FILENAME					NAME_MAX + 1
+#define SZ_PATH_KERNEL			64
+#define SZ_PATH							PATH_MAX
+#define SZ_PATH_SHORT				1024
 #define SZ_PATH_INCOMPLETE	SZ_PATH - (SZ_PATH_SHORT * 2)
+
 // Buffer and name are abstract concepts, use it with caution
-#define SZ_BUFFER           PATH_MAX
-#define SZ_BUFFER_EXTRA     PATH_MAX * 2
+#define SZ_BUFFER				PATH_MAX
+#define SZ_BUFFER_EXTRA	PATH_MAX * 2
 #define SZ_NAME_SHORT		128
-#define SZ_NAME_MEDIUM		SZ_FILENAME
+#define SZ_NAME_MEDIUM	SZ_FILENAME
 #define SZ_NAME_LARGE		512
 
-#endif //EAR_SIZES_H
+#endif				//EAR_SIZES_H

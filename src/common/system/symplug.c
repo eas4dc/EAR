@@ -10,21 +10,22 @@
 
 //#define SHOW_DEBUGS 1
 
+#include <common/system/symplug.h>
+
 #include <unistd.h>
+#include <dlfcn.h>
+
 #include <common/includes.h>
 #include <common/output/debug.h>
-#include <common/system/symplug.h>
 
 state_t plug_join(void *handle, void *calls[], const char *names[], uint n)
 {
     uint i, counter;
     char *error;
 
-    for (counter = i = 0; i < n; ++i)
-    {
+    for (counter = i = 0; i < n; ++i) {
         calls[i] = dlsym(handle, names[i]);
         error    = dlerror();
-
         if ((calls[i] != NULL) && (error == NULL)) {
             debug("symbol %s found (%p)", names[i], calls[i]);
             counter++;
@@ -36,7 +37,6 @@ state_t plug_join(void *handle, void *calls[], const char *names[], uint n)
     if (counter == 0) {
         return_msg(EAR_ERROR, "No symbols loaded");
     }
-
     return EAR_SUCCESS;
 }
 
@@ -65,7 +65,6 @@ state_t plug_open(char *path, void *calls[], const char *names[], uint n, int fl
 {
     return static_open(path, calls, names, n, flags);
 }
-
 
 state_t plug_test(void *calls[], uint n)
 {

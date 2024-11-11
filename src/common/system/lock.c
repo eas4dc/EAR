@@ -16,6 +16,7 @@ state_t ear_trylock(pthread_mutex_t *lock)
     int result  = 0;
 
     while((result = pthread_mutex_trylock(lock)) && (counter < MAX_LOCK_INTENTS)) {
+				if (result != EBUSY) counter = MAX_LOCK_INTENTS -1 ;
         counter++;
     }
     if (result && counter == MAX_LOCK_INTENTS) {

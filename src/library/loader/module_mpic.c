@@ -14,6 +14,7 @@
 #include <string.h>
 #include <common/config.h>
 #include <common/colors.h>
+#include <common/utils/dtools.h>
 #include <common/output/verbose.h>
 #include <library/api/mpi.h>
 #include <library/loader/module_mpi.h>
@@ -167,7 +168,6 @@ int MPI_File_write_at_all(MPI_File fh, MPI_Offset offset, MPI3_CONST void *buf, 
 	return ear_mpic.File_write_at_all(fh, offset, buf, count, datatype, status);
 }
 
-
 int MPI_Gather(MPI3_CONST void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm)
 {
 	return ear_mpic.Gather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm);
@@ -193,65 +193,17 @@ int MPI_Finalize(void)
 	return ear_mpic.Finalize();
 }
 
-static int ear_usage_mpi()
-{
-    char msg[1024];
-    snprintf(msg, sizeof(msg),
-            "Error, you are using your mpi4py application with EAR library and the %s env var is not set."
-            "If you want to run your application with EAR set \"export %s = \"intel\"|\"open mpi\". "
-            "Otherwise use \"--ear=off\" to disable the EAR library. \n",
-            FLAG_LOAD_MPI_VERSION, FLAG_LOAD_MPI_VERSION);
-    write(2, msg, strlen(msg));
-    exit(1);
-    return MPI_ERR_INTERN;
-}
-
-static void module_mpi_python()
-{
-    static uint EAR_Init = 0;
-    static char *path_lib_so;
-    static char *libhack;
-
-    // This function can be written in module_mpi.c
-    if (!module_mpi_is_detected() && ear_getenv(FLAG_LOAD_MPI_VERSION) == NULL) {
-        // TODO: This check is for the transition to the new environment variables.
-        // It will be removed when SCHED_LOAD_MPI_VERSION will be removed, on the next release.
-        if (ear_getenv(SCHED_LOAD_MPI_VERSION) != NULL) {
-            verbose(1, "LOADER: %sWARNING%s %s will be removed on the next EAR release. "
-                    "Please, change it by %s in your submission scripts.",
-                    COL_RED, COL_CLR, SCHED_LOAD_MPI_VERSION, FLAG_LOAD_MPI_VERSION);
-        } else {
-            ear_usage_mpi();
-        }
-    }
-    /* At this point we must force the symbol loading */
-    module_mpi_set_forced();
-
-    /* If EAR has not been already enabled we must load it */
-    if (!module_mpi_is_enabled() && !EAR_Init) {
-        module_get_path_libear(&path_lib_so,&libhack);
-        if ((path_lib_so == NULL) && (libhack == NULL)){
-            verbose(1,"LOADER EAR path and EAR debug HACKS are NULL");
-            return;
-        }
-        // Module MPI
-        verbose(2,"Tring MPI module");
-        module_mpi(path_lib_so,libhack);
-        EAR_Init = 1;
-    }
-}
-
 int MPI_Init(int *argc, char ***argv)
 {
-	module_mpi_python();
-
+	char buffer[256];
+	load_mpi_and_ear(dtools_get_backtrace_library(buffer, 1));
 	return ear_mpic.Init(argc, argv);
 }
 
 int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
 {
-	module_mpi_python();
-
+	char buffer[256];
+	load_mpi_and_ear(dtools_get_backtrace_library(buffer, 1));
 	return ear_mpic.Init_thread(argc, argv, required, provided);
 }
 

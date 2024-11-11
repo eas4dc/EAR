@@ -181,11 +181,26 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
 											 "DRAM_POWER_W;PCK_POWER_W;CYCLES;INSTRUCTIONS;GFLOPS;L1_MISSES;"\
 											 "L2_MISSES;L3_MISSES;SPOPS_SINGLE;SPOPS_128;SPOPS_256;"\
 											 "SPOPS_512;DPOPS_SINGLE;DPOPS_128;DPOPS_256;DPOPS_512";
+#if WF_SUPPORT
+		uint num_sockets = MAX_SOCKETS_SUPPORTED;
+		debug("Creating header for CPU signature with %u sockets", num_sockets);
+		char cpu_sig_hdr[256] = "";
+		for (uint s = 0 ; s < num_sockets ; s++){
+			char temp_hdr[16];
+			snprintf(temp_hdr, sizeof(temp_hdr), ";TEMP%u", s);
+			strcat(cpu_sig_hdr, temp_hdr);
+		}
+	
+#else
+	char *cpu_sig_hdr = "";
+#endif
+
 #if USE_GPUS
     char gpu_header[512];
 #if WF_SUPPORT
     char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"\
-														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS";
+														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS;"\
+														"GPU%d_TEMP;GPU%d_MEMTEMP";
 #else
     char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"\
 														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
@@ -206,7 +221,8 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
     }
 
 		// Be careful if some day the number of GPUs has more than two digits :) .
-		size_t header_len = strlen(HEADER_JOB) + strlen(HEADER_NOTS) + strlen(HEADER_GPU_SIG) * num_gpus + strlen(HEADER_LOOP) + strlen(HEADER_TS) + 1;
+		size_t header_len = strlen(HEADER_JOB) + strlen(HEADER_NOTS) + strlen(HEADER_GPU_SIG) * num_gpus \
+			+ strlen(HEADER_LOOP) + strlen(HEADER_TS) + 1 + strlen(cpu_sig_hdr);
 		if (header)
 		{
 			header_len += strlen(header);
@@ -225,11 +241,14 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
     strncat(HEADER, HEADER_JOB, header_len - strlen(HEADER) - 1);
     strncat(HEADER, HEADER_NOTS, header_len - strlen(HEADER) - 1);
 
+		/* Temperature */
+    strncat(HEADER, cpu_sig_hdr, header_len - strlen(HEADER) - 1);
+
 #if USE_GPUS
     if (single_column) num_gpus = ear_min(1, num_gpus);
     for (uint j = 0; j < num_gpus; ++j) {
 #if WF_SUPPORT
-        sprintf(gpu_header,HEADER_GPU_SIG,j,j,j,j,j,j);
+        sprintf(gpu_header,HEADER_GPU_SIG,j,j,j,j,j,j,j,j);
 #else
         sprintf(gpu_header,HEADER_GPU_SIG,j,j,j,j,j);
 #endif

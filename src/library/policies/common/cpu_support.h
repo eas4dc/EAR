@@ -21,11 +21,10 @@
 
 #ifdef EARL_RESEARCH
 extern unsigned long ext_def_freq;
-#define DEF_FREQ(f) (!ext_def_freq?f:ext_def_freq)
+#define DEF_FREQ(f) (!ext_def_freq ? f : ext_def_freq)
 #else
 #define DEF_FREQ(f) f
 #endif
-
 
 /** Compute reference metrics used before applying any policy projection/decision. */
 state_t compute_reference(signature_t *signature, energy_model_t energy_model, ulong *curr_freq, ulong *def_freq, ulong *freq_ref, double *time_ref, double *power_ref);
@@ -39,26 +38,28 @@ state_t compute_cpu_freq_min_energy(signature_t *signature, energy_model_t energ
  * Read wiki for more info about policies. */
 state_t compute_cpu_freq_min_time(signature_t *signature, energy_model_t energy_model, int min_pstate, double time_ref, double min_eff_gain, ulong curr_pstate, ulong best_pstate, ulong best_freq, ulong def_freq, ulong *newf);
 
-/* This function compares signatures with a given margin p. Comparison is done based on CPI and GBS 
+/* This function compares signatures with a given margin p. Comparison is done based on CPI and GBS
  * TODO: This function is also used in states.c, we may put it on a higher level of the library*/
-int signatures_different(signature_t *s1, signature_t *s2,float p);
+int default_signatures_different(signature_t *s1, signature_t *s2, float p);
+/* Implementation of the new criterion of differentiation between signatures */
+int signatures_different(signature_t *s1, signature_t *s2, char *policy, energy_model_t *energy_model, int min_pstate);
 
 /*  This functions checks whether the current process 'nproc' belongs to critical path and  set it turbo freq and returns 1.
  *  Returns 0 otherwise.*/
 uint cpu_supp_try_boost_cpu_freq(int nproc, uint *critical_path, ulong *freqs, int min_pstate);
 
-/* This function compares current freqs with default freqs 
+/* This function compares current freqs with default freqs
  * */
-int are_default_settings(node_freqs_t *freqs,node_freqs_t *def);
+int are_default_settings(node_freqs_t *freqs, node_freqs_t *def);
 
 /* Copy default settings in freqs */
-void set_default_settings(node_freqs_t *freqs, node_freqs_t * def);
+void set_default_settings(node_freqs_t *freqs, node_freqs_t *def);
 
 void verbose_node_freqs(int vl, node_freqs_t *freqs);
 void node_freqs_alloc(node_freqs_t *node_freq);
 void node_freqs_free(node_freqs_t *node_freq);
-void node_freqs_copy(node_freqs_t * dst, node_freqs_t *src);
-uint node_freqs_are_diff(uint flag, node_freqs_t * nf1, node_freqs_t *nf2);
+void node_freqs_copy(node_freqs_t *dst, node_freqs_t *src);
+uint node_freqs_are_diff(uint flag, node_freqs_t *nf1, node_freqs_t *nf2);
 
 /*  Copy current information to use it in the next iteration as last information. */
 state_t copy_cpufreq_sel(ulong *to, ulong *from, size_t size);
@@ -72,4 +73,3 @@ ulong node_freqs_avgcpufreq(ulong *f);
 ulong avg_to_khz(ulong freq_khz);
 
 #endif
-

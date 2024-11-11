@@ -98,6 +98,8 @@
 #define HACK_EARL_VERBOSE            "HACK_EARL_VERBOSE"       // This var forces an EARL verbosity.
 #define HACK_EARL_INSTALL_PATH       "HACK_EARL_INSTALL_PATH"  // This variable HACKS all the library environment, simplifies the utilization of a privatized environment.
 #define HACK_PROCS_VERB_FILES        "HACK_PROCS_VERB_FILES"   // This variable makes all processes having a log verbose file each one.
+#define HACK_ROOFLINE_COEFF_PATH     "HACK_ROOFLINE_COEFF_PATH" // This var forces to load a specific roofline coefficient file
+#define HACK_MEDOIDS_COEFF_PATH      "HACK_MEDOIDS_COEFF_PATH" // This var forces to load a specific medoids coefficient file
 /** @} */
 
 /**
@@ -114,6 +116,7 @@
 
 #define FLAG_LOADER_APPLICATION      "EAR_LOADER_APPLICATION" // This variable forces to load the NON MPI version of the library for a given application (i.e. SLURM_LOADER_LOAD_NO_MPI_LIB=gromacs).
 #define FLAG_LOAD_MPI_VERSION        "EAR_LOAD_MPI_VERSION"   // This variable is used for not detected MPI application (python) to specify which version it is: intel, ompi, etc
+#define FLAG_LOAD_MPI                "EAR_LOAD_MPI"
 #define FLAG_MAX_IMCFREQ             "EAR_MAX_IMCFREQ"        // Sets the maximum IMC/DF frequency at which the application must run.
 #define FLAG_MIN_IMCFREQ             "EAR_MIN_IMCFREQ"        // Sets the minimum IMC/DF frequency at which the application must run.
 #define FLAG_SET_IMCFREQ             "EAR_SET_IMCFREQ"        // This variable specifies the IMC freq must be selected by the EAR policy.
@@ -156,6 +159,7 @@
 
 #define FLAG_PYTHON_MULTIPROC "EARL_PYTHON_MULTIPROC" // Enables features supporting applications which use Python's multiprocessing module. Currently, this variable has the same effect as FLAG_NO_SIGHANDLER
 #define FLAG_NO_SIGHANDLER 				"EARL_NO_SIGHANDLER" 		// Configures EARL to not configure any signal handler. This is useful to avoid conflicts with applications which want to handle signals.
+#define FLAG_GPU_MASTER_OPTIMIZE 	"EARL_GPU_MASTER_OPTIMIZE" // Enforces just the first master process to apply the GPU optimization. This flag is useful in multiprocess applications when you don't know the process-GPU mapping, or when all processes see all GPU devices.
 
 /** @} */
 

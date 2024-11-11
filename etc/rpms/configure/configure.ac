@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([EAR], [3.0])
+AC_INIT([EAR], [5.1])
 
 if test "x$sysconfdir" = "x\${exec_prefix}/etc" || test "x$sysconfdir" = "x\${prefix}/etc"; then
 	sysconfdir=$prefix/etc

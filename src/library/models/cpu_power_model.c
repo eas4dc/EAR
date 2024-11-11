@@ -25,6 +25,7 @@
 #include <common/system/symplug.h>
 #include <common/hardware/architecture.h>
 #include <library/common/externs.h>
+#include <library/common/utils.h>
 #include <library/models/cpu_power_model.h>
 #include <library/common/verbose_lib.h>
 #include <common/types/configuration/cluster_conf.h>
@@ -61,57 +62,46 @@ static settings_conf_t *copy_settings;
 state_t cpu_power_model_load(settings_conf_t *libconf, architecture_t *arch_desc,
                              uint load_dummy)
 {
-    char basic_path[SZ_PATH_INCOMPLETE];
+	pid_t pid = getpid();
 
-    char *obj_path = ear_getenv(HACK_CPU_POWER_MODEL);
-    char *ins_path = ear_getenv(HACK_EARL_INSTALL_PATH);
+	char *default_model = "cpu_power_model_default.so";
+	char *dummy_model   = "cpu_power_model_dummy.so";
 
-    uint already_loaded = cpu_power_model_loaded;
+	char *model = default_model;
+	if (load_dummy) {
+			model = dummy_model;
+	}
 
-    char *default_model = "cpu_power_model_default.so";
-    char *dummy_model   = "cpu_power_model_dummy.so";
+	int read_env = (libconf->user_type == AUTHORIZED || USER_TEST);
+	char *hack_so	= (read_env) ? ear_getenv(HACK_CPU_POWER_MODEL) : NULL;
+	if (hack_so) {
+		model = hack_so; // cpu_power_model hacked
+	}
 
-    char *model = default_model;
-    if (load_dummy) {
-        model = dummy_model;
-    }
+	char cpu_pwr_model_path[SZ_PATH];
+	utils_build_valid_plugin_path(cpu_pwr_model_path, sizeof(cpu_pwr_model_path), "models", model, libconf);
+	verbose_info2_master("[%d] CPU power model path: %s.", pid, model);
 
-    if (libconf->user_type != AUTHORIZED || (obj_path == NULL && ins_path == NULL)) {
+	uint already_loaded = cpu_power_model_loaded;
 
-        xsnprintf(basic_path, sizeof(basic_path), "%s/models/%s",
-                  libconf->installation.dir_plug, model);
+	state_t st = symplug_open(cpu_pwr_model_path, (void **) &cpu_power_models_syms_fun,
+														cpu_power_models_syms_nam, cpu_power_models_funcs_n);
 
-        obj_path = basic_path;
+	if (st == EAR_SUCCESS) {
+			cpu_power_model_loaded = 1;
+	} else {
+		verbose_info2_master("[%d] CPU power model not loaded.", pid);
+	}
 
-    } else {
+	if (!already_loaded) {
+			// memcpy(&copy_conf, &libconf->installation, sizeof(conf_install_t));
+			memcpy(&copy_arch, arch_desc, sizeof(architecture_t));
+	}
 
-        if (obj_path == NULL) {
+	copy_settings = libconf;
+	verbose_info2_master("[%d] CPU power model loaded.", pid);
 
-            snprintf(basic_path, sizeof(basic_path), "%s/plugins/models/%s", ins_path, model);
-
-            obj_path = basic_path;
-        }
-    }
-    verbose_master(2, "EAR[%d]CPU power model path: %s", getpid(), obj_path);
-
-    state_t st = symplug_open(obj_path, (void **) &cpu_power_models_syms_fun,
-                              cpu_power_models_syms_nam, cpu_power_models_funcs_n);
-    if (st == EAR_SUCCESS) {
-        cpu_power_model_loaded = 1;
-    }else{
-			verbose_master(2, "EAR[%d] CPU power model not loaded", getpid());
-		}
-
-    if (!already_loaded) {
-
-        // memcpy(&copy_conf, &libconf->installation, sizeof(conf_install_t));
-        memcpy(&copy_arch, arch_desc, sizeof(architecture_t));
-
-    }
-    copy_settings = libconf;
-		verbose_master(2, "EAR[%d] CPU power model loaded ", getpid());
-
-    return st;
+	return st;
 }
 
 state_t cpu_power_model_init()

@@ -21,8 +21,6 @@
 
 #define NM_CONNECTED	100
 
-static ctx_t temp_ctx;
-
 unsigned long long get_nm_temp(nm_t *id,nm_data_t *nm)
 {
 	int i;
@@ -67,8 +65,8 @@ int init_node_metrics(nm_t *id, topology_t *topo, ulong def_freq)
 	id->def_f=def_freq;
 
 	// CPU Temperature
-	state_assert(s, temp_load(topo), exit(0));
-	state_assert(s, temp_init(&temp_ctx),);
+	temp_load(topo, API_FREE);
+	state_assert(s, temp_init(),);
 
 	//
 	id->con=NM_CONNECTED;
@@ -85,7 +83,7 @@ int init_node_metrics_data(nm_t *id,nm_data_t *nm)
 	}
 
 	// CPU Temperature
-	state_assert(s, temp_data_alloc(&nm->temp),);
+	temp_data_alloc(&nm->temp);
 	
 	// CPU/IMC Frequency
     state_assert(s, cpufreq_count_devices(no_ctx, &nm->freq_cpu_count),);
@@ -125,7 +123,7 @@ int end_compute_node_metrics(nm_t *id,nm_data_t *nm)
 	}
 
 	// CPU Temperature
-	state_assert(s, temp_read(&temp_ctx, nm->temp, &nm->avg_temp),);
+	state_assert(s, temp_read(nm->temp, &nm->avg_temp),);
 
 	// CPU/IMC Frequency
 	state_assert(s, cpufreq_read(no_ctx, nm->freq_cpu),);
@@ -144,7 +142,7 @@ int diff_node_metrics(nm_t *id,nm_data_t *init,nm_data_t *end,nm_data_t *diff_nm
 	}
 
 	// Temperature
-	state_assert(s, temp_data_copy(diff_nm->temp, end->temp),);
+	temp_data_copy(diff_nm->temp, end->temp);
 	diff_nm->avg_temp = end->avg_temp;
 
 	// CPU & IMC Frequency
@@ -164,7 +162,7 @@ int dispose_node_metrics(nm_t *id)
 	}
 
 	// Temperature
-	state_assert(s, temp_dispose(&temp_ctx),);
+	temp_dispose();
 
 	// Alomejor podemos implementar un sistema de contadores aquí para poder
 	// cerrar también el de la CPU?
@@ -183,7 +181,7 @@ int copy_node_metrics(nm_t *id, nm_data_t *dest, nm_data_t *src)
 	}
 
 	// Temperature
-	state_assert(s, temp_data_copy(dest->temp, src->temp),);
+	temp_data_copy(dest->temp, src->temp);
 	dest->avg_temp = src->avg_temp;
 
 	// Frequencies

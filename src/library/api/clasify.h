@@ -13,13 +13,20 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <common/config.h>
 #include <common/hardware/topology.h>
 #include <common/types/signature.h>
+#include <common/types/medoids.h>
+#include <common/types/roofline.h>
 #include <common/types/event_type.h>
 #include <common/types/classification_limits.h>
+#include <daemon/shared_configuration.h>
 
-
+/*DEFINE CLASSIFICATION STRATEGY TYPES*/
+#define ROOFLINE 0
+#define MEDOIDS 1
+#define BASE 2
 
 #define EARL_MAX_PHASES   9
 #define EARL_BASIC_PHASES 6
@@ -61,7 +68,7 @@ typedef struct ear_classify {
 #define PROCESS 1
 
 /* Initializes data based on topology */
-state_t classify_init(topology_t *tp_in);
+state_t classify_init(topology_t *tp_in, settings_conf_t *libconf);
 
 /* Get curren limits */
 void get_classify_limits(ear_classify_t *limits);
@@ -78,8 +85,12 @@ state_t gpu_activity_state(signature_t *sig, gpu_state_t *gpu_state);
 state_t is_process_busy_waiting(ssig_t *sig, uint *busy);
 /* Checks CPI and GBs, per node */
 state_t is_cpu_bound(signature_t *sig,uint num_cpus, uint *cbound);
+/* Default strategy for cpu-bound signatures */
+state_t default_is_cpu_bound(signature_t *sig,uint num_cpus, uint *cbound);
 /* Check CPI and GBS, per node */
 state_t is_mem_bound(signature_t *sig,uint num_cpus, uint *mbound);
+/* Default strategy for mem-bound signatures */
+state_t default_is_mem_bound(signature_t *sig,uint num_cpus, uint *mbound);
 /* Based on signature IO_MBS */
 state_t is_io_bound(signature_t *sig, uint num_cpus, uint *iobound);
 /* Based on perc_MPI */
@@ -89,6 +100,11 @@ state_t low_mem_activity(signature_t *sig,uint num_cpus , uint *lowm);
 /* Returns the text associated with the phase */
 char * phase_to_str(uint phase);
 
+/* Checks Gflops and GBs per node */
+state_t roofline_classify(signature_t *sig, uint num_cpus, uint *cbound, uint *mbound);
+/* Checks CPI, TPI, Gflops and GBs per node */
+state_t kmedoids_classify(signature_t *sig, uint num_cpus, uint *cbound, uint *mbound);
+/* Checks CPI and GBs, per node */
 
 state_t must_switch_to_time_guide(ulong last_sig_elapsed, uint *ear_guided);
 
