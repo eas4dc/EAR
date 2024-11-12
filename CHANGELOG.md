@@ -1,14 +1,15 @@
 ### EAR 5.1
-- CPU temperature read by EARL and reported to csv files.
+- CPU temperature monitoring included in application monitoring and reported to csv files.
 - Prevent workflows where all applications see all GPUs and all of them change GPU frequency.
-- Support for Python applications which use multiprocess module.
-- EARL is compiled by default with LITE mode and DCGM metric collection enabled by default.
+- Support for Python multiprocess module.
+- EARL is compiled by default with LITE mode. EAR Library will run in monitor mode if EARD is not present nor detected.
+- Nvidia DCGM metric collection enabled by default.
 - Fix DCGM application-level metrics computation.
 - Prevent closing fd 0 on NTASK_WORKSHARING use case.
-- Avoid collapsing application's channel 2 when earl has high verbosity.
-- Checking for authorized groups fixed.
+- Avoid collapsing application's stderr channel when EARL has high verbosity.
+- Checking for authorized groups fixed. Support for multiple groups per user included.
 - Added a tool for  creating application-level signatures csv file from loop signatures csv file.
-- EARL Loader can detect Python MPI flavour without an environment variable.
+- EARL Loader extension for detecting Python MPI flavour more automatically.
 - Fixed an error with EARD remote connections not being properly closed.
 - Add --domain option to econtrol.
 
