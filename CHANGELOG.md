@@ -1,4 +1,7 @@
-### EAR 5.1
+### EAR 5.1.1
+- Bug fixed: The application local\_id attribute is now copied to the power monitor context when saving the application signature.
+
+### EAR 5.1.0
 - CPU temperature monitoring included in application monitoring and reported to csv files.
 - Prevent workflows where all applications see all GPUs and all of them change GPU frequency.
 - Support for Python multiprocess module.

@@ -2515,6 +2515,7 @@ void powermon_mpi_signature(application_t *app) {
 
     signature_copy(&pmapp->app.signature, &app->signature);
 
+		pmapp->app.job.local_id = app->job.local_id;
     pmapp->app.job.def_f = app->job.def_f;
     pmapp->app.job.th = app->job.th;
     pmapp->app.job.procs = app->job.procs;
