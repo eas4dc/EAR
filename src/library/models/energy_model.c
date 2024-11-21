@@ -35,6 +35,9 @@
 	ptr = NULL;
 
 
+extern uint gpu_optimize;
+
+
 struct energy_model_s
 {
 	state_t (*model_init)	(char *ear_etc_path, char *ear_tmp_path, void *arch_desc);
@@ -174,13 +177,17 @@ static state_t build_energy_model_path(char *energy_model_path, size_t energy_mo
 			strncpy(plug_name, sconf->installation.obj_power_model, sizeof(plug_name));
 		}
 	} else {
-		/* By now GPU energy plug-in can only be requested through HACK_GPU_ENERGY_MODEL.
-		 * If you reach this code an error is returned. This may be changed in a future. */
-		verbose_error_master("GPU energy model can only be requested through hacking.");
-		return EAR_ERROR;
-	}
+		/* By now GPU energy plug-in can only be requested either through HACK_GPU_ENERGY_MODEL
+     * or by defaut is gpu_nv_model. This may be changed in a future. */
+      char *cgpu_optimize = ear_getenv(FLAG_GPU_ENABLE_OPT);
+      if (cgpu_optimize == NULL) cgpu_optimize = ear_getenv(GPU_ENABLE_OPT);
+      if (cgpu_optimize != NULL) gpu_optimize = atoi(cgpu_optimize);
+			snprintf(plug_name, sizeof(plug_name) - 1, "gpu_%s_model.so",
+          (gpu_optimize) ? "nv" : "dummy" );
+	    verbose_info2_master("Energy model plug_name: %s", plug_name);
+  }
 
-	return utils_build_valid_plugin_path(energy_model_path, energy_model_path_size, "models", plug_name, sconf);
+  return utils_build_valid_plugin_path(energy_model_path, energy_model_path_size, "models", plug_name, sconf);
 }
 
 static energy_model_t energy_model_load(settings_conf_t *sconf, architecture_t *arch_desc, em_t em_type)

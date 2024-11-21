@@ -28,34 +28,35 @@ static void create_filename(char *filename, char *path, char *prefix, char *arch
     strcat(filename, ".data");
 }
 
-void medoids_print(medoids_t *phases, int t)
-{ /* NOTE: rudimentary implementation due to the lack of knowledge on how to generically iterate over all medoids */
+void medoids_print(medoids_t *phases)
+{
     double *medoid = phases->cpu_bound;
-    verbose(t, "cpu-bound medoid: id %u cpi %lf tpi %lf gbs %lf gflops %lf \n",
+
+    debug("K-medoids data: cpu-bound medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf",
            CPU_BOUND, medoid[0], medoid[1], medoid[2], medoid[3]);
 
     medoid = phases->memory_bound;
-    verbose(t, "memory-bound medoid: id %u cpi %lf tpi %lf gbs %lf gflops %lf \n",
+    debug("K-medoids data: memory-bound medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf",
            MEM_BOUND, medoid[0], medoid[1], medoid[2], medoid[3]);
 
     medoid = phases->mix;
-    verbose(t, "mix medoid: id %u cpi %lf tpi %lf gbs %lf gflops %lf \n",
+    debug("K-medoids data: mix medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf",
            MIX, medoid[0], medoid[1], medoid[2], medoid[3]);
 }
 
-void extremes_print(extremes_t *extremes, int t)
+void extremes_print(extremes_t *extremes)
 {
     double *extreme = extremes->cpi_extreme;
-    verbose(t, "cpi extreme: min %lf distance %lf \n", extreme[1], extreme[0]);
+    debug("K-medoids data: cpi mean -> %lf std -> %lf", extreme[1], extreme[0]);
 
     extreme = extremes->tpi_extreme;
-    verbose(t, "tpi extreme: min %lf distance %lf \n", extreme[1], extreme[0]);
+    debug("K-medoids data: tpi mean -> %lf std -> %lf", extreme[1], extreme[0]);
 
     extreme = extremes->gbs_extreme;
-    verbose(t, "gbs extreme: min %lf distance %lf \n", extreme[1], extreme[0]);
+    debug("K-medoids data: gbs mean -> %lf std -> %lf", extreme[1], extreme[0]);
 
     extreme = extremes->gflops_extreme;
-    verbose(t, "gflops extreme: min %lf distance %lf \n", extreme[1], extreme[0]);
+    debug("K-medoids data: gflops mean -> %lf std -> %lf", extreme[1], extreme[0]);
 }
 
 state_t load_medoids(char *path, char *architecture, medoids_t *final_medoids)

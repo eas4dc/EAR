@@ -27,12 +27,9 @@ static void create_filename(char *filename, char *path, char *prefix, char *arch
     strcat(filename, ".data");
 }
 
-void roofline_print(roofline_t *roofline, int t)
+void roofline_print(roofline_t *roofline)
 {
-    /* var "t" is expected to be INFO_CLASSIFY*/
-    /* We indicate it through a parameter since INFO_CLASSIFY is a constant of "clasify.c"*/
-    verbose(t, "roofline data: peak bandwidth %lf peak gflops %lf treshold %lf\n",
-           roofline->peak_bandwidth, roofline->peak_gflops, roofline->threshold);
+    debug("Roofline data: peak bandwidth -> %lf; peak gflops -> %lf; treshold -> %lf", roofline->peak_bandwidth, roofline->peak_gflops, roofline->threshold);
 }
 
 state_t load_roofline(char *path, char *architecture, roofline_t *final_roofline)

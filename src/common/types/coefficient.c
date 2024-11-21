@@ -53,22 +53,24 @@ int coeff_file_read_no_alloc(char *path, coefficient_t *coeffs, int size)
     return (size / sizeof(coefficient_t));
 }
 
-int coeff_gpu_file_read_no_alloc(char *path, coefficient_gpu_t *coeffs, int size)
+int coeff_gpu_file_read_no_alloc(char *path, coefficient_gpu_t *coeffs, int size, size_t offset)
 {
     int ret, fd;
+    size_t fsize = size - offset;
 
     if ((fd = open(path, O_RDONLY)) < 0) {
         return EAR_OPEN_ERROR;
     }
-
-    if ((ret = read(fd, coeffs, size)) != size)
+    // move the seek pointer
+    lseek(fd, offset, SEEK_SET);
+    if ((ret = read(fd, coeffs, fsize)) != fsize)
     {
         close(fd);
         return EAR_READ_ERROR;
     }
     close(fd);
 
-    return (size / sizeof(coefficient_t));
+    return (fsize / sizeof(coefficient_gpu_t));
 }
 
 void coeff_print(coefficient_t *coeff)

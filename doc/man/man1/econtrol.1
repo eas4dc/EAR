@@ -25,7 +25,7 @@ econtrol is the EAR administration tools for cluster management. This app requir
  --restore-conf                          ->restores the configuration for all nodes
  --hosts         [hostlist]              ->sends the command only to the specified hosts. 
  --conf-path     [path_name]             ->specifies the ear.conf path. [default: $EAR_ETC/ear/ear.conf]
- --active-only                           ->supresses inactive nodes from the output in hardware status.
+ --active-only                           ->suppresses inactive nodes from the output in hardware status.
  --health-check                          ->checks all EARDs and EARDBDs for errors and prints all that are unresponsive.
  --domain [domain:target]                ->sends the requested command to the requested targets, effectively filtering
                                                 which nodes receive the message. Available domains are: tag, node, subcluster/eargmid, island.
@@ -41,30 +41,91 @@ econtrol is the EAR administration tools for cluster management. This app requir
 econtrol's status is a useful tool to monitor the nodes in a cluster. The most basic usage is the hardware status
 (default type) which shows basic information of all the nodes. 
 
-[user@login]$ econtrol --status
-hostname      power   temp    freq    job_id  stepid
-   node2        278    66C    2.59      6878       0
-   node3        274    57C    2.59      6878       0
-   node4         52    31C    1.69         0       0
+.EX
+    [user@login]$ econtrol --status
+    hostname      power   temp    freq    job_id  stepid
+       node2        278    66C    2.59      6878       0
+       node3        274    57C    2.59      6878       0
+       node4         52    31C    1.69         0       0
 
-
-INACTIVE NODES
-node1   192.0.0.1
+    INACTIVE NODES
+    node1   192.0.0.1
+.EE
 
 
 The application status type can be used to retrieve all currently running jobs in the cluster. app_master gives 
 a summary of all the running applications while app_node gives detailed information of each node currently 
 running a job.
 
-[user@login]$ econtrol --status --type=app_master
-Job-Step    Nodes   DC power      CPI      GBS   Gflops     Time Avg Freq
-  6878-0        2     280.13     0.37    24.39   137.57    54.00     2.59
+.EX
+    [user@login]$ econtrol --status --type=app_master
+    Job-Step    Nodes   DC power      CPI      GBS   Gflops     Time Avg Freq
+      6878-0        2     280.13     0.37    24.39   137.57    54.00     2.59
 
-[user@login]$ econtrol --status --type=app_node
-Node id     Job-Step   M-Rank   DC power      CPI      GBS   Gflops     Time Avg Freq
-  node2       6878-0        0     280.13     0.37    24.39   137.57    56.00     2.59
-  node3       6878-0        1     245.44     0.37    24.29   136.40    56.00     2.59
+    [user@login]$ econtrol --status --type=app_node
+    Node id     Job-Step   M-Rank   DC power      CPI      GBS   Gflops     Time Avg Freq
+      node2       6878-0        0     280.13     0.37    24.39   137.57    56.00     2.59
+      node3       6878-0        1     245.44     0.37    24.29   136.40    56.00     2.59
 
+.EE
+
+A list of nodes can be specified to only target those for the commands:
+
+.EX
+    [user@login]$ econtrol --status --hosts node2,node3
+     hostname      power   temp    freq    job_id  stepid
+        node2        278    66C    2.59      6878       0
+        node3        274    57C    2.59      6878       0
+
+    [user@login]$ econtrol --status --hosts island[0,1]node[2-3]
+     hostname      power   temp    freq    job_id  stepid
+     island0node2    278    66C    2.59         0       0
+     island0node3    274    57C    2.59         0       0
+     island1node2    273    56C    2.59         0       0
+     island1node3    272    57C    2.59         0       0
+.EE
+
+If only one node is targeted for a status, one may do:
+
+.EX
+    [user@login]$ econtrol --status=island0node2
+     hostname      power   temp    freq    job_id  stepid
+     island0node2    278    66C    2.59         0       0
+.EE
+
+For any other command type (including status):
+
+.EX
+    [user@login]$ econtrol --status --hosts island0node2
+     hostname      power   temp    freq    job_id  stepid
+     island0node2    278    66C    2.59         0       0
+
+    [user@login]$ econtrol --restore-conf --hosts island0node2
+
+    [user@login]$ econtrol --status --domain node:island0node2
+     hostname      power   temp    freq    job_id  stepid
+     island0node2    278    66C    2.59         0       0
+.EE
+
+Furthermore, the domain option may be used to filter out any nodes not belonging to a specified domain.
+
+To only send a command to a single island (as defined in ear.conf):
+.EX
+     [user@login]$ econtrol --restore-conf --domain island:2
+.EE
+
+To send to all the nodes that belong to a tag (as defined in ear.conf), regardless of their island or any other configuration:
+.EX
+     [user@login]$ econtrol --set-powercap 400 --domain tag:cpu_only
+.EE
+
+One can also do use a double filter:
+.EX
+     [user@login]$ econtrol --set-freq 3100000 --domain tag:cpu_only island:3
+
+.EE
+
+Using domain filtering with a hostlist specification is not supported and may cause some errors.
 
 .SH BUGS
 - No currently known bugs.

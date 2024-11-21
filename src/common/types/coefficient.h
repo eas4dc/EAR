@@ -55,7 +55,7 @@ int coeff_file_read(char *path, coefficient_t **coeffs);
 
 int coeff_file_read_no_alloc(char *path, coefficient_t *coeffs, int size);
 
-int coeff_gpu_file_read_no_alloc(char *path, coefficient_gpu_t *coeffs, int size);
+int coeff_gpu_file_read_no_alloc(char *path, coefficient_gpu_t *coeffs, int size, size_t offset);
 
 // Misc
 void coeff_reset(coefficient_t *coeff);

@@ -33,6 +33,6 @@ typedef struct roofline
 
 state_t load_roofline(char *path, char *architecture, roofline_t *final_roofline);
 
-void roofline_print(roofline_t *roofline, int t);
+void roofline_print(roofline_t *roofline);
 
 #endif

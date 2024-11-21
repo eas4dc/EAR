@@ -151,7 +151,7 @@ static ullong min_cpufreq = 0; // CPu freq. selection works with khz
 static ullong min_imcfreq = 0;
 uint max_policy_imcfreq_ps = ps_nothing; // IMC freq. selection works with pstates
 
-uint gpu_optimize = 0;
+uint gpu_optimize = DEFAULT_GPU_OPT;
 
 static pstate_t *cpu_pstate_lst; /*!< The list of available CPU pstates in the current system.*/
 static uint cpu_pstate_cnt;
@@ -571,9 +571,9 @@ static state_t policy_init()
     char *cfake_bw_phase = (system_conf->user_type == AUTHORIZED) ? ear_getenv(FLAG_BW_FAKE_PHASE) : NULL;
     char *cignore_affinity_mask = ear_getenv(FLAG_NO_AFFINITY_MASK);
 
-    char *cgpu_optimize = ear_getenv(GPU_ENABLE_OPT);
-    if (cgpu_optimize != NULL)
-        gpu_optimize = atoi(cgpu_optimize);
+    char *cgpu_optimize = ear_getenv(FLAG_GPU_ENABLE_OPT);
+    if (cgpu_optimize == NULL) cgpu_optimize = ear_getenv(GPU_ENABLE_OPT);
+    if (cgpu_optimize != NULL) gpu_optimize = atoi(cgpu_optimize);
 
     verbose_policy_info("GPU optimization during GPU comp: %s", gpu_optimize ? "Enabled" : "Disabled");
 

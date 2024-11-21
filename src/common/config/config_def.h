@@ -183,6 +183,8 @@
 #define DEFAULT_ENERGY_MODEL  "avx512_model.so"
 #endif
 
+#define DEFAULT_GPU_OPT 1
+
 
 
 /* Maximum power error supported. It is used to compute the min time to compute

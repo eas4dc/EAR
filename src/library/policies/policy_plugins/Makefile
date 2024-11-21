@@ -17,6 +17,7 @@ poli_BINS += \
     gpu_min_time.so \
     gpu_min_time_energy.so
 
+
 GPU_OPT_FLAG = -DGPU_OPT=1
 endif
 endif

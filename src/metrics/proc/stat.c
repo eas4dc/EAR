@@ -287,8 +287,10 @@ state_t proc_stat_data_diff(proc_stat_t *ps2, proc_stat_t *ps1, proc_stat_t *psD
 	debug("Elapsed time %lld", elap);
 
 	if (elap){
-		psD->cpu_util = 100*(((psD->utime + psD->stime)*1000/clk_per_second)/elap);
-		debug("Utime %lu Stime %lu Util %u", psD->utime, psD->stime,  psD->cpu_util);
+		// We cast clk_per_second to have a real value expression to not get a zero value
+		// before multiplying finally by 100.
+		psD->cpu_util =(uint) (100*(((psD->utime + psD->stime)*1000/(double)clk_per_second)/elap));
+		debug("Utime %lu Stime %lu Util %u", psD->utime, psD->stime, psD->cpu_util);
 	}else{
 		psD->cpu_util = 0;
 	}

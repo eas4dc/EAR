@@ -219,19 +219,19 @@ AuthorizedGroups=grp1,grp2
 # minimum between the maximum permitted GPU frequency and gpu_def_freq.
 #
 #
-Tag=6148 default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so 
-Tag=6148_GPU  max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000 policy=optimize
+Tag=CPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so
+Tag=GPU max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000 policy=optimize
 
 #---------------------------------------------------------------------------------------------------
 ## Power policies
 ## ---------------------------------------------------------------------------------------------------
 #
 ## Policy names must be exactly file names for policies installeled in the system.
-DefaultPowerPolicy=min_time
-Policy=monitoring Settings=0 DefaultPstate=1 Privileged=0
+DefaultPowerPolicy=min_energy
+Policy=monitoring Settings=0 DefaultPstate=0 Privileged=0
 Policy=min_time Settings=0.7 DefaultPstate=4 Privileged=0
-Policy=min_energy Settings=0.05 DefaultPstate=1 Privileged=0
-Policy=optimize Settings=0.00 DefaultPstate=1 Privileged=0
+Policy=min_energy Settings=0.05 DefaultPstate=0 Privileged=0
+Policy=optimize Settings=0.05 DefaultPstate=0 Privileged=0
 #
 # For homogeneous systems, default frequencies can be easily specified using freqs.
 # For heterogeneous systems it is preferred to use pstates or use tags 
@@ -281,9 +281,9 @@ Island=0 Nodes=node10[01-80] DBIP=node1081 DBSECIP=node1082 EARGMID=1
 
 # These nodes are in island0 using different DB connections and with a different architecture. 
 # These nodes will use the same EARGM as the previous nodes.
-Island=0 Nodes=node11[01-80] DBIP=node1084 DBSECIP=node1085 tag=6126
+Island=0 Nodes=node11[01-80] DBIP=node1084 DBSECIP=node1085 tag=CPU
 # These nodes are is island0 and will use default values for DB connection (line 0 for island0) and default tag.
-Island=0 Nodes=node12[01-80]
+Island=0 Nodes=node12[01-80] tag=GPU
 
 
 # Will use default tag. 

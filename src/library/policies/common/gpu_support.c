@@ -39,6 +39,9 @@ static char master_lock_file[SZ_PATH];
 extern const int polsyms_n;
 extern const char *polsyms_nam[];
 
+extern uint gpu_optimize;
+
+
 static void optimization_config(settings_conf_t * app_settings);
 
 state_t policy_gpu_load(settings_conf_t * app_settings, polsym_t * psyms)
@@ -68,6 +71,8 @@ state_t policy_gpu_load(settings_conf_t * app_settings, polsym_t * psyms)
 	/* If the above didn't apply, try to load the configured GPU policy plug-in */
 
 	char gpupolicy_name[SZ_FILENAME];
+  char *cgpu_optimize = ear_getenv(GPU_ENABLE_OPT);
+  if (cgpu_optimize != NULL) gpu_optimize = atoi(cgpu_optimize);
 
 	verbose_info2_master
 	    ("GPU optimization %s. GPU policy plug-in base name: %s",

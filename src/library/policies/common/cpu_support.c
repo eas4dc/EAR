@@ -340,7 +340,7 @@ int signatures_different(signature_t *s1, signature_t *s2, char *policy, energy_
       compute_cpu_freq_min_energy(s1, *energy_model, best_freq, time_ref, power_ref, eff_gain, curr_pstate, min_pstate, my_pol_ctx.num_pstates /*c->num_pstates*/, new_freq);
   }
   best_pstate = frequency_closest_pstate(*new_freq);
-  verbose_master(2, "%scurr pstate %lu | new pstate %lu ~ def freq %lu | new freq %lu ~ time ref %f%s", COL_RED, curr_pstate, best_pstate, curr_freq, *new_freq, time_ref, COL_CLR);
+  //verbose_master(2, "%scurr pstate %lu | new pstate %lu ~ def freq %lu | new freq %lu ~ time ref %f%s", COL_RED, curr_pstate, best_pstate, curr_freq, *new_freq, time_ref, COL_CLR);
   return best_pstate != curr_pstate;
 }
 

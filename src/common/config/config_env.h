@@ -182,9 +182,10 @@
 #define FLAG_REPORT_CPUPOW_MODEL     "EAR_REPORT_CPUPOW_MODEL"    // Asks the cpu power model to print per process data
 #define FLAG_SHARE_INFO_PPROC        "EAR_SHARE_INFO_PER_PROCESS" // Forces to share all the signatures.
 #define FLAG_SHARE_INFO_PNODE 	     "EAR_SHARE_INFO_PER_NODE"    // Forces to share only the average signature per node.
-#define FLAG_APP_MGR_POLICIES	     "EAR_APP_MGR_POLICIES"
+#define FLAG_APP_MGR_POLICIES	       "EAR_APP_MGR_POLICIES"
 #define FLAG_GET_MPI_STATS           "EAR_GET_MPI_STATS"
 #define FLAG_REPORT_EARL_EVENTS      "REPORT_EARL_EVENTS" // Generates extra events during the execution of the EARL
+#define FLAG_GPU_ENABLE_OPT          "EARL_GPU_ENABLE_OPT"          // This var forces to use GPU Optimization.
 //#define FLAG_REPORT_EARL_LOOPS       "REPORT_EARL_LOOPS"
 /** @} */
 
@@ -200,6 +201,7 @@
 #define SCHED_NETWORK_USE_IMC        "SLURM_NETWORK_USE_IMC"               // TODO: Deprectated.
 #define SCHED_TRY_TURBO              "SLURM_TRY_TURBO"                     // TODO: Deprectated.
 #define SCHED_LOAD_BALANCE_TH        "SLURM_LOAD_BALANCE_TH"               // TODO: Deprectated.
+#define GPU_ENABLE_OPT               "GPU_ENABLE_OPT"                      // TODO: Deprectated.
 /** @} */
 
 

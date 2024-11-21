@@ -933,7 +933,7 @@ static void metrics_global_start()
 
   /* OS procs statistics */
   metric_cond(proc_ps_ok, proc_stat_read(&proc_ctx, &metrics_proc_init[APP]), VERB_PROCPS, "proc_stat_read failed in global start");
-  metric_cond(proc_ps_ok, proc_stat_data_copy(&metrics_proc_init[LOO], &metrics_proc_init[APP]), VERB_PROCPS, "proc_stat_data_copy failed in global start");
+  metric_cond(proc_ps_ok, proc_stat_data_copy(&metrics_proc_end[LOO], &metrics_proc_init[APP]), VERB_PROCPS, "proc_stat_data_copy failed in global start");
 
   #if USE_CUPTI
   if (read_cupti_metrics){
@@ -984,9 +984,6 @@ static void metrics_global_start()
 	debug("cpi_read ready");
   /* To be used in partial_start */
   cpi_data_copy(&cpi_read2[LOO], &cpi_read1[APP]);
-
-
-
 }
 
 
@@ -1168,10 +1165,8 @@ static void metrics_global_stop()
 
 static void metrics_partial_start()
 {
-
-
 	debug("metrics_partial_start starts %p %p %lu",
-			metrics_ipmi[LOO], aux_energy, node_energy_datasize);
+	      metrics_ipmi[LOO], aux_energy, node_energy_datasize);
 
 	/* This must be replaced by a copy of energy */
 	/* Energy node */
@@ -1181,66 +1176,70 @@ static void metrics_partial_start()
 	metrics_usecs[LOO] = aux_time;
 	last_elap_sec = 0;
 
-
 	/* Per-process IO data */
 	debug("starting IO for process");
-  io_copy(&metrics_io_init[LOO], &metrics_io_end[LOO]);
+	io_copy(&metrics_io_init[LOO], &metrics_io_end[LOO]);
 	debug("IO read done");
 
-
-  metric_cond(proc_ps_ok, proc_stat_data_copy(&metrics_proc_init[LOO], &metrics_proc_end[LOO]), VERB_PROCPS, "proc_stat_data_copy failed in partial start");
-
+	// Proc stat
+	metric_cond(proc_ps_ok,
+		    proc_stat_data_copy(&metrics_proc_init[LOO],
+					&metrics_proc_end[LOO]), VEARL_ERROR,
+		    "proc_stat_data_copy failed in partial start");
 
 	/* These data is measured only by the master */
 	if (master) {
 		/* Avg CPU freq */
-    cpufreq_data_copy(cpufreq_read1[LOO], cpufreq_read2[LOO]);
+		cpufreq_data_copy(cpufreq_read1[LOO], cpufreq_read2[LOO]);
 		debug("cpufreq_read ");
 
 		/* Avg IMC freq */
-		if (mgt_imcfreq.ok){
+		if (mgt_imcfreq.ok) {
 			/* Reads the IMC */
-      imcfreq_data_copy(imcfreq_read1[LOO], imcfreq_read2[LOO]);
+			imcfreq_data_copy(imcfreq_read1[LOO],
+					  imcfreq_read2[LOO]);
 		}
 
 		/* Per NODE IO data */
-    io_copy(&metrics_io_init[LOO_NODE], &metrics_io_end[LOO_NODE]);
+		io_copy(&metrics_io_init[LOO_NODE], &metrics_io_end[LOO_NODE]);
 
 #if USE_GPUS
-        /* GPUS */
-        /*  Avoidable since at global start: gpu_metrics_read2[LOO] <- gpu_metrics_read1[APP]
-            if (gpu_loop_stopped) {
-            */
-        gpu_data_copy(gpu_metrics_read1[LOO], gpu_metrics_read2[LOO]);
-        /*
-           } else {
-           gpu_data_copy(gpu_metrics_read1[LOO], gpu_metrics_read1[APP]);
-           }
-           */
-        debug("gpu_copy in partial start");
-        #if USE_CUPTI
-        if (read_cupti_metrics){
-          gpuproc_data_copy(proc_gpu_data_init[LOO], proc_gpu_data_end[LOO]);
-        }
-        #endif
-#endif // USE_GPUS
+		/* GPUS */
+		/*  Avoidable since at global start: gpu_metrics_read2[LOO] <- gpu_metrics_read1[APP]
+		   if (gpu_loop_stopped) {
+		 */
+		gpu_data_copy(gpu_metrics_read1[LOO], gpu_metrics_read2[LOO]);
+		/*
+		   } else {
+		   gpu_data_copy(gpu_metrics_read1[LOO], gpu_metrics_read1[APP]);
+		   }
+		 */
+		debug("gpu_copy in partial start");
+#if USE_CUPTI
+		if (read_cupti_metrics) {
+			gpuproc_data_copy(proc_gpu_data_init[LOO],
+					  proc_gpu_data_end[LOO]);
+		}
+#endif
+#endif				// USE_GPUS
 
-				temp_data_copy(temp_read1[LOO], temp_read2[LOO]);
+		temp_data_copy(temp_read1[LOO], temp_read2[LOO]);
 
-    } // master_rank
+	}			// master_rank
 
 	/* Energy RAPL */
-  energy_cpu_data_copy(no_ctx, last_rapl, aux_rapl);
+	energy_cpu_data_copy(no_ctx, last_rapl, aux_rapl);
 	debug("RAPL copied");
 
 	// New metrics
-  bwidth_data_copy(bwidth_read1[LOO], bwidth_read2[LOO]);
-  flops_data_copy(&flops_read1[LOO], &flops_read2[LOO]);
-  cache_data_copy(&cache_read1[LOO], &cache_read2[LOO]);
-  cpi_data_copy(&cpi_read1[LOO], &cpi_read2[LOO]);
+	bwidth_data_copy(bwidth_read1[LOO], bwidth_read2[LOO]);
+	flops_data_copy(&flops_read1[LOO], &flops_read2[LOO]);
+	cache_data_copy(&cache_read1[LOO], &cache_read2[LOO]);
+	cpi_data_copy(&cpi_read1[LOO], &cpi_read2[LOO]);
 
 	debug("partial_start ends");
 }
+
 
 /****************************************************************************************************************************************************************/
 /*************************** This function is executed every N seconds to check if signature can be compute *****************************************************/

@@ -1,5 +1,9 @@
 ### EAR 5.1.1
 - Bug fixed: The application local\_id attribute is now copied to the power monitor context when saving the application signature.
+- Per-process CPU utilization fixed.
+- Classify module default verbosity fixed.
+- econtrol's manpage with improved examples.
+- Support for GPU models in the Configuration file.
 
 ### EAR 5.1.0
 - CPU temperature monitoring included in application monitoring and reported to csv files.
