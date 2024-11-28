@@ -132,7 +132,10 @@ void flops_data_accum(flops_t *flA, flops_t *flD, double *gfs)
         flA->f512   += flD->f512;
         flA->d512   += flD->d512;
         flA->secs   += flD->secs;
-        flA->gflops += flD->gflops;
+        // Individual counters are already weigthed
+        flA->gflops = (flA->f64 + flA->d64 + flA->f128 + flA->d128 + flA->f256 + flA->d256 + flA->f512 + flA->d512)/flA->secs;
+        flA->gflops /= ((double) 1E9);
+
     }
     if (gfs != NULL) {
         *gfs = flA->gflops;

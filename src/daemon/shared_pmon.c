@@ -82,18 +82,21 @@ state_t get_jobmon_path(char *tmp, uint ID, char *path)
 }
 powermon_app_t  * create_jobmon_shared_area(char *path, powermon_app_t  * pmapp, int *fd)
 {
-	
-  powermon_app_t  *sh_pmapp;
-  int fd_pmapp;
-
-  
   if (path==NULL) return NULL;
+
+  int fd_pmapp;
   mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-  sh_pmapp = (powermon_app_t *)create_shared_area(path, perms, (char *) pmapp, sizeof(powermon_app_t), &fd_pmapp, 0);
+
+  powermon_app_t  *sh_pmapp = (powermon_app_t *)create_shared_area(path, perms, (char *) pmapp, sizeof(powermon_app_t), &fd_pmapp, 0);
+
+	/* We don't the fd when we create the shared area. So the current fd
+	 * is 0. It is needed to update it. */
+	if (sh_pmapp) {
+					sh_pmapp->fd_shared_areas[SELF] = fd_pmapp;
+	}
   
   if (fd != NULL) *fd = fd_pmapp;
   return sh_pmapp;
-
 }
 powermon_app_t  * attach_jobmon_shared_area(char * path, int *fd)
 {

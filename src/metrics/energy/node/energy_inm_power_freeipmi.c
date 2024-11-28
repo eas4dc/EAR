@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
 
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -146,7 +147,8 @@ static int sdr_get_home_directory ( char *buf, unsigned int buflen)
 				}
 				debug("pw_dir %s\n", pwd.pw_dir); 
 
-        free(tbuf);
+				// The string fields pointed to by the members of the passwd structure are stored in the buffer buf of size buflen
+        //free(tbuf);
 
 				if (pwd.pw_dir)
 				{
@@ -155,15 +157,19 @@ static int sdr_get_home_directory ( char *buf, unsigned int buflen)
 												if (strlen (pwd.pw_dir) > (buflen - 1))
 												{
 																debug("internal overflow error\n");
+																free(tbuf);
 																return -1;
 												}
 
 												strcpy (buf, pwd.pw_dir);
+												free(tbuf);
 												return 0;
 								}
 				}
 
 				snprintf (buf, buflen, "/tmp/.%s-%s", PACKAGE_NAME, pwd.pw_name);
+				// Releasing now
+				free(tbuf);
 				if (access (buf, R_OK|W_OK|X_OK) < 0)
 				{
 								if (errno == ENOENT)
@@ -225,7 +231,7 @@ static int sdr_get_config_directory ( const char *cache_dir, char *buf, unsigned
 				}
 				debug("home directory is %s\n", tbuf);
 				snprintf(buf, buflen, "%s/.%s", tbuf, PACKAGE_NAME);
-				debug("sdr_get_config_directory success\n");
+				debug("sdr_get_config_directory success %s\n", buf);
 				return (0);
 }
 
@@ -241,7 +247,7 @@ static int sdr_cache_get_cache_directory ( const char *cache_dir, char *buf, uns
         return (-1);
 
     snprintf (buf, buflen, "%s/%s", tbuf, SDR_CACHE_DIR);
-    debug("sdr_cache_get_cache_directory success\n");
+    debug("sdr_cache_get_cache_directory success %s\n", buf);
 
     return (0);
 }
@@ -350,7 +356,7 @@ state_t energy_init(void **c)
 	
 	
     	if (ipmi_sdr_cache_open(sdr_ctx, ipmi_ctx, cachefilenamebuf) < 0) {
-        	debug("Error ipmi_sdr_cache_open, creating it\n");
+		debug("Error ipmi_sdr_cache_open, creating it %s\n", cachefilenamebuf);
         	char buff[4096];
         	snprintf(buff,sizeof(buff), "%s/sbin/ipmi-oem intelnm get-node-manager-statistics mode=globalpower", FREEIPMI_BASE);
         	if (execute(buff) != EAR_SUCCESS){
@@ -361,6 +367,11 @@ state_t energy_init(void **c)
         	}
 	
     	}
+
+			debug("Opening again sdr ctx");
+			if (ipmi_sdr_cache_open(sdr_ctx, ipmi_ctx, cachefilenamebuf) < 0) {
+				debug("Error ipmi_sdr_cache_open, Warning , it will probbaly not work", ipmi_sdr_ctx_errormsg(sdr_ctx));
+			}
 	
 	
     	debug("ipmi_sdr_cache_iterate\n");
@@ -369,7 +380,7 @@ state_t energy_init(void **c)
                 	NULL) < 0)
     	{
         	if (!found) {
-            	debug("Error ipmi_sdr_cache_iterate\n");
+		debug("Error ipmi_sdr_cache_iterate %s\n", ipmi_sdr_ctx_errormsg(sdr_ctx));
             	pthread_mutex_unlock(&node_energy_lock_nm);
             	energy_dispose(no_ctx);
             	return EAR_ERROR;
@@ -444,7 +455,7 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
 
 		*currentp = 0;
 		if (!inm_initialized)
-    {
+		{
 			debug("INM not initialized");
 			return EAR_ERROR;
 		}
@@ -477,6 +488,7 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
                 fiid_obj_errormsg (obj_cmd_rs));
         destroy_and_return(EAR_ERROR);
     }
+
     *avgp = val; 
     //debug("Average power %d\n", val);
     if (FIID_OBJ_GET (obj_cmd_rs,
@@ -519,7 +531,7 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
     }
     *periodp = val;
     //debug("Statistics reporting period %d\n", val);
-    verbose(0,"power: Max power %u Min power %u Avg power %u Current power %u Period %u\n", *maxp, *minp, *avgp, *currentp, *periodp);
+    verbose(2,"power: Max power %u Min power %u Avg power %u Current power %u Period %u\n", *maxp, *minp, *avgp, *currentp, *periodp);
 
     /* For error control */
     if (*currentp > *maxp){
@@ -532,7 +544,7 @@ static state_t inm_power_reading(ipmi_ctx_t ipmi_ctx, uint *maxp, uint *minp,
        *currentp = nm_free_last_power_measurement;
     }
 
-    destroy_and_return(EAR_SUCCESS);
+		destroy_and_return(EAR_SUCCESS);
 }
 
 /**** These functions are used to accumulate the energy */

@@ -171,7 +171,8 @@ state_t folder_remove(char *path)
 	folder_remove(file_path);
     }else unlink(file_path);
   }
-  //folder_close(&job_folder);
+	// Closing folder to avoid fd to remain open
+  folder_close(&job_folder);
   debug("Deleting folder %s", job_path);
   rmdir(job_path);
 	return EAR_SUCCESS;

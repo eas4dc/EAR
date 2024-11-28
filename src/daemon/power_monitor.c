@@ -480,12 +480,14 @@ void end_context(int cc, uint get_lock)
 							error("Creating job pmon path in end_context");
 						}
 						/* Releasing self shared area */
+						debug("Releasing self shared area for context %d at %s fd %d", cc, jobpmon_path, current_ear_app[cc]->fd_shared_areas[SELF]);
 						jobmon_shared_area_dispose(jobpmon_path, NULL, current_ear_app[cc]->fd_shared_areas[SELF]);
 
             del_job_in_node(current_ear_app[cc]->app.job.id);
 
             get_settings_conf_path(ear_tmp, ID, shmem_path);
 
+						debug("Releasing shared settings area for context %d at %s fd %d", cc, shmem_path, current_ear_app[cc]->fd_shared_areas[SETTINGS_AREA]);
             settings_conf_shared_area_dispose(shmem_path, current_ear_app[cc]->settings, current_ear_app[cc]->fd_shared_areas[SETTINGS_AREA]);
             get_resched_path(ear_tmp, ID, shmem_path);
             resched_shared_area_dispose(shmem_path, current_ear_app[cc]->resched, current_ear_app[cc]->fd_shared_areas[RESCHED_AREA]);
@@ -661,7 +663,7 @@ int new_context(job_id id, job_id sid, int *cc)
     /* This info will be overwritten later */
     current_ear_app[ccontext]->app.job.id = id;
     current_ear_app[ccontext]->app.job.step_id = sid;
-    debug("New context created at pos %d", ccontext);
+    debug("New context created: %d", ccontext);
 
     add_job_in_node(id);
 
@@ -677,25 +679,24 @@ int new_context(job_id id, job_id sid, int *cc)
 			return EAR_ERROR;
 		}
 		// We use the new shared area rather than the allocated area
-		powermon_app_t *aux1 , *aux2;
+		powermon_app_t *aux1, *aux2;
 		aux1 = current_ear_app[ccontext];
 		if ((aux2 = create_jobmon_shared_area(jobpmon_path, current_ear_app[ccontext], &current_ear_app[ccontext]->fd_shared_areas[SELF])) == NULL){
-			error("Error creating shared memory for pmon for ((%lu,%lu)", id,sid);
+			error("Error creating shared memory for pmon for ((%lu,%lu)", id, sid);
 			ear_unlock(&powermon_app_mutex[ccontext]);
 			return EAR_ERROR;
 		}
 		current_ear_app[ccontext]->sh_self = (void *)aux2;
 #if USE_PMON_SHARED_AREA
-		// This option forces eard to use the shared pmapp region , otherwise it is not updated dynamically
+		// This option forces eard to use the shared pmapp region, otherwise it is not updated dynamically
 		// it could be used to see the list of jobs but not to update job state etc
 		current_ear_app[ccontext] = aux2;
 		free(aux1);
 #endif
-		verbose(VJOBPMON,"Self context in path '%s' for (%lu/%lu)", jobpmon_path, id, sid);
+		verbose(VJOBPMON, "(%lu/%lu) 'Self' context in '%s' (fd %d)", id, sid, jobpmon_path, current_ear_app[ccontext]->fd_shared_areas[SELF]);
 		/* End of Pmon mapping */
 
     get_settings_conf_path(ear_tmp, ID, shmem_path);
-    debug("Settings for new context placed at %s", shmem_path);
 
     current_ear_app[ccontext]->settings = create_settings_conf_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[SETTINGS_AREA]);
     if (current_ear_app[ccontext]->settings == NULL) {
@@ -704,12 +705,13 @@ int new_context(job_id id, job_id sid, int *cc)
         ear_unlock(&powermon_app_mutex[ccontext]);
         return EAR_ERROR;
     }
+    debug("(%lu/%lu) Settings for new context '%s' (fd %d)",
+				id, sid, shmem_path, current_ear_app[ccontext]->fd_shared_areas[SETTINGS_AREA]);
 
     /* Context 0 is the default one */
     memcpy(current_ear_app[ccontext]->settings, current_ear_app[0]->settings, sizeof(settings_conf_t));
 
     get_resched_path(ear_tmp, ID, shmem_path);
-    debug("Resched path for new context placed at %s",shmem_path);
 
     current_ear_app[ccontext]->resched = create_resched_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[RESCHED_AREA]);
 
@@ -718,6 +720,7 @@ int new_context(job_id id, job_id sid, int *cc)
         ear_unlock(&powermon_app_mutex[ccontext]);
         return EAR_ERROR;
     }
+    debug("(%lu/%lu) Resched path for new context in '%s' (fd %d)", id, sid, shmem_path, current_ear_app[ccontext]->fd_shared_areas[RESCHED_AREA]);
 
     current_ear_app[ccontext]->resched->force_rescheduling = 0;
 
@@ -727,21 +730,18 @@ int new_context(job_id id, job_id sid, int *cc)
 
     get_app_mgt_path(ear_tmp, ID, shmem_path);
 
-    debug("App_MGR for new context placed at %s",shmem_path);
-
     current_ear_app[ccontext]->app_info = create_app_mgt_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[APP_MGT_AREA]);
 
     if (current_ear_app[ccontext]->app_info == NULL) {
-        error("Error creating shared memory between EARD & EARL for app_mgt (%lu,%lu)",id,sid);
+        error("Error creating shared memory between EARD & EARL for app_mgt (%lu,%lu)", id, sid);
         ear_unlock(&powermon_app_mutex[ccontext]);
         return EAR_ERROR;
     }
+    debug("(%lu/%lu) App. mgt. for new context in '%s' (fd %d)", id, sid, shmem_path, current_ear_app[ccontext]->fd_shared_areas[APP_MGT_AREA]);
 
     /* Default value for app_info */
 
     get_pc_app_info_path(ear_tmp,ID, shmem_path);
-
-    debug("PC_app_info for new context placed at %s", shmem_path);
 
     current_ear_app[ccontext]->pc_app_info = create_pc_app_info_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[PC_APP_AREA]);
     if (current_ear_app[ccontext]->pc_app_info == NULL){
@@ -749,6 +749,7 @@ int new_context(job_id id, job_id sid, int *cc)
         ear_unlock(&powermon_app_mutex[ccontext]);
         return EAR_ERROR;
     }
+    debug("(%lu/%lu) Powercap app. info for new context in '%s' (fd %d)", id, sid, shmem_path, current_ear_app[ccontext]->fd_shared_areas[PC_APP_AREA]);
 
     current_ear_app[ccontext]->pc_app_info->cpu_mode = powercap_get_cpu_strategy();
 
@@ -770,8 +771,8 @@ int new_context(job_id id, job_id sid, int *cc)
      * ???????????????????????????? */
 
 
-    debug("Context created for (%lu,%lu), num_contexts %d max_context_created %d",
-          id,sid,num_contexts+1,max_context_created);
+    debug("(%lu,%lu) Context created, #contexts: %d, max. context created: %d",
+		    id, sid, num_contexts+1, max_context_created);
 
     num_contexts++;
 

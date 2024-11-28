@@ -112,7 +112,7 @@
 
 /* Forces the intel pstate to create the cpufreq list using turbo freq. Used in cases where the turbo
  * is on/off dynamically. It just works when using intel_pstate CPUFreq driver. */
-#define DYNAMIC_BOOST_MGT										0
+#define DYNAMIC_BOOST_MGT										1
 /* When set to 1, frequency is set to default when a new loop starts.
  * Otherwise, the current frequency is used till the policy is applied */
 #define RESET_FREQ                          0

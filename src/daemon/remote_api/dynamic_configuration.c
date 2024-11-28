@@ -797,7 +797,7 @@ state_t process_remote_requests(int clientfd) {
 
     debug("Process remote request %d", req);
 
-    if (req == EAR_SOCK_DISCONNECTED) return req;
+    if (req == EAR_SOCK_DISCONNECTED) return EAR_ERROR;
     else if (req == EAR_BAD_ARGUMENT) {
         verbose(VRAPI, "Recieved command with wrong security key");
         ack = EAR_IGNORE;

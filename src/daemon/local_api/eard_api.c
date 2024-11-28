@@ -156,7 +156,7 @@ int eards_read(int fd,char *buff,int size, uint wait_mode)
 
 	if (tries >= MAX_PIPE_TRIES)
 	{
-		error("Error reading data, max number of tries reached. tries %d received %u (last ret %d errno %d)",tries, received, ret,errno);
+		error("Error reading data, max number of tries reached. tries %d/%d received %u (last ret %d errno %d fd %d)",tries, MAX_PIPE_TRIES, received, ret,errno, fd);
 	}
 	if (ret<0) return ret;
 	return received;
