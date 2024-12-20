@@ -798,7 +798,7 @@ void create_job_area(uint ID)
 	ret = mkdir(job_path, 0777);
 
 	if (ret < 0 ) {
-		verbose(VJOBPMON + 1, "Couldn't create jobpath (%s)", strerror(errno));
+		error("Could not create job path: %s", strerror(errno));
 	}
 
 	umask(old_mask);
@@ -1716,6 +1716,7 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
     uint new_app_id = create_ID(appID->job.id, appID->job.step_id);
 
     /* Creating ID folder */
+		verbose(VJOBPMON + 1, "Creating job area for %lu/%lu (%u)", appID->job.id, appID->job.step_id, new_app_id);
     create_job_area(new_app_id);
 
     energy_tag_t *my_tag;

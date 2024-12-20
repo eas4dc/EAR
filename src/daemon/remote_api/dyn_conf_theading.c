@@ -16,8 +16,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdbool.h>
-#include <signal.h>
 #include <pthread.h>
+#include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -77,8 +77,11 @@ state_t add_new_connection()
         error("new remote connection fd is too large (%d, max is %d). Closing connection", new_fd, AFD_MAX);
         close(new_fd);
     }
+
+	debug("Successfully added new FD: %d", new_fd);
 	return EAR_SUCCESS;
 }
+
 
 state_t remove_remote_connection(int fd)
 {
@@ -93,6 +96,11 @@ bool is_socket_alive(int32_t socketfd)
 	debug("Entering is_socket_alive with fd %d\n", socketfd);
 	struct tcp_info info = { 0 };
     socklen_t  optlen = sizeof(info);
+
+    int32_t tmp = 0;
+    ioctl(socketfd, FIONREAD, &tmp);
+    // If there's data pending to read, keep the socket alive
+    if (tmp > 0) return true;
 
 	int32_t ret = getsockopt(socketfd, IPPROTO_TCP, TCP_INFO, &info, &optlen);
 	if (ret < 0) {
@@ -113,8 +121,10 @@ static void check_all_fds(afd_set_t *fdset)
 		if (fdset->fds[i].fd != -1) {
 			if (i == pipe_for_new_conn[0]) continue;
 			if (!is_socket_alive(i)) {
-				debug("Remote api(check_all_fds) closing connection %d", i);
-				remove_remote_connection(i);
+				// verbose(0, "%sWarning%s Remote api(check_all_fds) closing connection %d", i);
+				// remove_remote_connection(i);
+				verbose(VRAPI-1, "%sWarning%s Connection %d remotely closed!",
+						COL_YLW, COL_CLR, i);
 			}
 		}
 	}
@@ -130,6 +140,7 @@ void *process_remote_req_th(void * arg)
 	int i;
 
 	debug("Thread to process remote requests created ");
+	verbose(VRAPI, "RemoteAPI connection fd %d", pipe_for_new_conn[0]);
 	while ((numfds_ready = aselectv(&rfds_basic, NULL)) && (eard_must_exit == 0))
 	{
 		verbose(VRAPI, "RemoteAPI thread new info received (new_conn/new_data)");
