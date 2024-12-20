@@ -1,3 +1,8 @@
+### EAR 5.1.3
+- Bugs fixed:
+  - Prevent closing remote connection.
+  - Increase timeout limit for remote connections.
+
 ### EAR 5.1.2
 - Bugs fixed:
   - Prevent closing eard fd 0 when storing powermon\_app fd into shared memory.
