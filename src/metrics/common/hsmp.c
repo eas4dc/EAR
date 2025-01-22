@@ -51,7 +51,7 @@ static mailbox_t zen2_mailbox = {
 static ushort  amd_vendor        = 0x1022; // AMD
 static char   *zen2_pci_dfs[2]   = { "00.0", NULL };
 static ushort  zen2_pci_ids[6]   = { 0x1450, 0x15d0, 0x1480, 0x1630, 0x14b5, 0x00 };
-static ushort  zen3_pci_ids[7]   = { 0x14a4, 0x14b5, 0x14d8, 0x14e8, 0x1480, 0x153a, 0x1507, 0x00 };
+static ushort  zen3_pci_ids[8]   = { 0x14a4, 0x14b5, 0x14d8, 0x14e8, 0x1480, 0x153a, 0x1507, 0x00 };
 static uint    zen2_nbios_count  = 4;
 static char  **mist_pci_dfs;
 static ushort *mist_pci_ids;

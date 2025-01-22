@@ -105,7 +105,7 @@
 #define CPUFREQ_SET_ALL_USERS 1
 
 /** Maximum number of tries when doing non-blocking communications. */
-#define MAX_SOCKET_COMM_TRIES               9000000
+#define MAX_SOCKET_COMM_TRIES               40000000
 //
 
 /* These flags configures EARL */
@@ -251,7 +251,7 @@
 /**@{*/
 
 /** Enable IMC management. */
-#define  EAR_eUFS         1
+#define  EAR_eUFS         0
 
 /** IMC controller threshold. */
 #define  EAR_IMC_TH       0.02
@@ -260,7 +260,7 @@
 #define  EAR_USE_PHASES   1
 
 /** Enable EARL load balance. */
-#define  EAR_USE_LB       1
+#define  EAR_USE_LB       0
 #define  EAR_LB_TH        0.8
 
 /** Set turbo for critical path processes. */

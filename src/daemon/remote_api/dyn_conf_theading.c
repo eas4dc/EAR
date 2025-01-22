@@ -91,41 +91,12 @@ state_t remove_remote_connection(int fd)
     return EAR_SUCCESS;
 }
 
-bool is_socket_alive(int32_t socketfd)
-{
-	debug("Entering is_socket_alive with fd %d\n", socketfd);
-	struct tcp_info info = { 0 };
-    socklen_t  optlen = sizeof(info);
-
-    int32_t tmp = 0;
-    ioctl(socketfd, FIONREAD, &tmp);
-    // If there's data pending to read, keep the socket alive
-    if (tmp > 0) return true;
-
-	int32_t ret = getsockopt(socketfd, IPPROTO_TCP, TCP_INFO, &info, &optlen);
-	if (ret < 0) {
-		debug("Error getting sockopt FD %d errnum %d (%s)\n", socketfd, errno, strerror(errno));
-		return true;
-	} else if (info.tcpi_state == TCP_CLOSE_WAIT) {
-		debug("Socket opt with TCP_CLOSE_WAIT!\n");
-		return false;
-	}
-	debug("Socket %d opt got with state %d!\n",socketfd, info.tcpi_state);
-	return true;
-}
-
 static void check_all_fds(afd_set_t *fdset)
 {
 	debug("Testing sockets min %d max %d", fdset->fd_min+1, fdset->fd_max);
 	for (int32_t i = fdset->fd_min+1; i <= fdset->fd_max; i++) {
 		if (fdset->fds[i].fd != -1) {
 			if (i == pipe_for_new_conn[0]) continue;
-			if (!is_socket_alive(i)) {
-				// verbose(0, "%sWarning%s Remote api(check_all_fds) closing connection %d", i);
-				// remove_remote_connection(i);
-				verbose(VRAPI-1, "%sWarning%s Connection %d remotely closed!",
-						COL_YLW, COL_CLR, i);
-			}
 		}
 	}
 }

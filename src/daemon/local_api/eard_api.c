@@ -41,7 +41,7 @@
 #include <management/gpu/gpu.h>
 
 #define OUTTER_MAX_PIPE_TRIES  60
-#define MAX_PIPE_TRIES         (MAX_SOCKET_COMM_TRIES*1000)
+#define MAX_PIPE_TRIES         (ullong)(MAX_SOCKET_COMM_TRIES*(ullong)1000)
 #define MAX_TRIES              1
 #define USE_NON_BLOCKING_IO    1
 
@@ -114,7 +114,7 @@ int eards_read(int fd,char *buff,int size, uint wait_mode)
 	to_recv = size;
 
 	int out_tries = 0;
-	int tries = 0;
+	ullong tries = 0;
 	ullong limit_outer_tries;
 
 	if (connecting) limit_outer_tries = OUTTER_MAX_PIPE_TRIES * 1000;
@@ -152,11 +152,11 @@ int eards_read(int fd,char *buff,int size, uint wait_mode)
 			out_tries = limit_outer_tries;
 		}
 	}
-	debug("limits reached %lu/%llu", tries, out_tries);
+	debug("limits reached %llu/%llu", tries, out_tries);
 
 	if (tries >= MAX_PIPE_TRIES)
 	{
-		error("Error reading data, max number of tries reached. tries %d/%d received %u (last ret %d errno %d fd %d)",tries, MAX_PIPE_TRIES, received, ret,errno, fd);
+		error("Error reading data, max number of tries reached. tries %llu/%llu received %u (last ret %d errno %d fd %d)",tries, MAX_PIPE_TRIES, received, ret,errno, fd);
 	}
 	if (ret<0) return ret;
 	return received;
@@ -171,7 +171,7 @@ int eards_write(int fd,char *buff,int size)
 {
 #if USE_NON_BLOCKING_IO
   int ret;
-  int tries=0;
+  ullong tries=0;
   uint to_send,sended=0;
   uint must_abort=0;
   to_send=size;
@@ -210,7 +210,7 @@ int eards_write(int fd,char *buff,int size)
 			out_tries = limit_outer_tries;
 		}
 	}
-	debug("limits reached %lu/%llu", tries, out_tries);
+	debug("limits reached %llu/%llu", tries, out_tries);
   /* If there are bytes left to send, we return a 0 */
 	if (ret<0) return ret;
 	return sended;

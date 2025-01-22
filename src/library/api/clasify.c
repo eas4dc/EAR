@@ -171,14 +171,19 @@ state_t classify_init(topology_t *tp_in, settings_conf_t *libconf)
         CPI_MEM_BOUND = 0.9;
         GBS_MEM_BOUND = 350;
         goto report_classify;
-      }
-      /* Zen3 = Milan */
-      if (tp_in->family >= FAMILY_ZEN3)
-      {
+      } else if (tp_in->family > FAMILY_ZEN3)
+			{
         CPI_CPU_BOUND = 0.6;
         GBS_CPU_BOUND = 400;
         CPI_MEM_BOUND = 0.9;
         GBS_MEM_BOUND = 500;
+        goto report_classify;
+			} else {
+      /* Zen3 = Milan */
+				CPI_CPU_BOUND = 0.45;
+				GBS_CPU_BOUND = 250;
+				CPI_MEM_BOUND = 0.6;
+				GBS_MEM_BOUND = 350;
         goto report_classify;
       }
       break;

@@ -40,6 +40,7 @@
 extern uint dyn_unc;
 extern polctx_t my_pol_ctx;
 extern ear_classify_t phases_limits;
+extern settings_conf_t *system_conf;
 
 state_t compute_reference(signature_t *signature, energy_model_t energy_model, ulong *curr_freq, ulong *def_freq, ulong *freq_ref, double *time_ref, double *power_ref)
 {
@@ -315,24 +316,34 @@ int signatures_different(signature_t *s1, signature_t *s2, char *policy, energy_
   ulong curr_freq = s1->def_f;
   ulong curr_pstate = frequency_closest_pstate(curr_freq);
 
-  ulong def_freq = curr_freq;
-  ulong def_pstate = curr_pstate;
+  // ulong def_freq = curr_freq;
+  // ulong def_pstate = curr_pstate;
 
+
+  ulong def_freq = system_conf->def_freq;
+  ulong def_pstate = frequency_closest_pstate(def_freq);
+  verbose_master(2,"Computing signatures_different for policy %s ref_pstate %lu ", policy, def_pstate);
+
+
+
+  #if 0
   // But if the policy is min_time_energy, we change the def_freq/def_pstate values
-  if (strcmp(policy, "min_time_energy"))
+  if (strcmp(policy, "min_time_energy") == 0)
   {
     def_freq = s2->def_f;
     def_pstate = frequency_closest_pstate(def_freq);
   }
+  #endif
 
   compute_reference(s1, *energy_model, &curr_freq, &def_freq, &best_freq, &time_ref, &power_ref);
   best_pstate = frequency_closest_pstate(best_freq);
   // verbose_master(3, "Time ref %lf Power ref %lf Freq ref %lu", time_ref, power_ref, best_freq);
-  if (strcmp(policy, "min_time"))
+  if (strcmp(policy, "min_time") == 0)
     compute_cpu_freq_min_time(s1, *energy_model, min_pstate, time_ref, eff_gain, curr_pstate, best_pstate, best_freq, def_freq, new_freq);
-  else if (strcmp(policy, "min_energy"))
+  else if (strcmp(policy, "min_energy") == 0){
+    verbose_master(3,"Selecting estimated CPU freq to evaluate signature different");
     compute_cpu_freq_min_energy(s1, *energy_model, best_freq, time_ref, power_ref, eff_gain, curr_pstate, min_pstate, my_pol_ctx.num_pstates /*c->num_pstates*/, new_freq);
-  else
+  }else
   {
     if (curr_freq > def_freq)
       compute_cpu_freq_min_time(s1, *energy_model, min_pstate, time_ref, eff_gain, curr_pstate, best_pstate, best_freq, def_freq, new_freq);

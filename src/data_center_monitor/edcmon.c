@@ -12,10 +12,20 @@
 
 #include <common/system/plugin_manager.h>
 #include <unistd.h>
+#include <sys/resource.h>
+
 
 int main(int argc, char *argv[])
 {
     printf("%s: Started....\n", argv[0]);
+
+    /** Change the open file limit */
+    struct rlimit rl;
+    getrlimit(RLIMIT_NOFILE, &rl);
+    debug("current limit %lu max %lu", rl.rlim_cur, rl.rlim_max);
+    rl.rlim_cur = rl.rlim_max;
+    setrlimit(RLIMIT_NOFILE, &rl);
+
     plugin_manager_main(argc, argv);
     plugin_manager_wait();
     return 0;

@@ -1237,7 +1237,7 @@ static state_t int_policy_ok(polctx_t *c, signature_t *curr_sig, signature_t *la
                 }
                 else
                 {
-                    verbose_master(2, "%sApplication becomes unbalanced%s", COL_RED, COL_CLR);
+                    verbose_info("%sApplication becomes unbalanced%s", COL_RED, COL_CLR);
                     signature_is_unbalance = 1;
                     *ok = 0;
                 }
@@ -1284,7 +1284,7 @@ static state_t int_policy_ok(polctx_t *c, signature_t *curr_sig, signature_t *la
 
                     if (mpi_changed)
                     {
-                        verbose_master(2, "%sMPI stats changed. Starting again%s",
+                        verbose_info("%sMPI stats changed. Starting again%s",
                                        COL_RED, COL_CLR);
                         *ok = 0;
                     }
@@ -1327,18 +1327,18 @@ static state_t int_policy_ok(polctx_t *c, signature_t *curr_sig, signature_t *la
         freq_per_core = 0;
     }
 
-    if (*ok == 1)
+    if ((*ok == 1) && (min_energy_state != SELECT_CPUFREQ))
     {
         /* TODO: check if application is unbalanced */
         if (use_energy_models && freq_per_core == 0 && signatures_different(curr_sig, last_sig, "min_energy", &cpu_energy_model, min_pstate))
         {
-            verbose_master(2, "%sSignature is too different from the one used for CPU freq. Starting again%s",
+            verbose_info("%sSignature is too different from the one used for CPU freq. Starting again (based on policy_sim)%s",
                             COL_RED, COL_CLR);
             *ok = 0;
         }
-        else if (default_signatures_different(last_sig, curr_sig, 0.2))
+        else if (!use_energy_models && default_signatures_different(last_sig, curr_sig, 0.2))
         {
-            verbose_master(2, "%sSignature is too different from the one used for CPU freq. Starting again%s",
+            verbose_info("%sSignature is too different from the one used for CPU freq. Starting again (based on metrics)%s",
                            COL_RED, COL_CLR);
             *ok = 0;
         }
@@ -1356,7 +1356,7 @@ static state_t int_policy_ok(polctx_t *c, signature_t *curr_sig, signature_t *la
         {
             *ok = 0;
 
-            verbose(2, "%sMIN ENERGY POLICY OK%s We are not saving energy.", COL_RED, COL_CLR);
+            verbose_info("%smin_energy:%s energy savings less than expected. Applying again", COL_RED, COL_CLR);
         }
 #endif
     }
