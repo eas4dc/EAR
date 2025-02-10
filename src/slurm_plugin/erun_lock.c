@@ -51,7 +51,7 @@ int lock_master(char *path_tmp, int job_id)
     xsprintf(path_slave_step, "%s/slave.step", path_job);
     //
 	plug_verbose(_sp, 3, "Trying to get the lock %s", path_master_lock);
-    if ((fd_master = file_lock_master(path_master_lock)) < 0) {
+    if ((fd_master = ear_file_lock_master(path_master_lock)) < 0) {
 	    plug_error(_sp, "while taking lock_master %s", strerror(errno));
     }
     // Returning FD means it got the unique master lock
@@ -129,7 +129,7 @@ void files_clean(int job_id, int step_id)
 {
 	plug_verbose(_sp, 3, "function lock_clean");
 	// 1. Remove master.lock (paths are set in lock_master())
-	file_unlock_master(fd_master, path_master_lock);
+	ear_file_unlock_master(fd_master, path_master_lock);
 	// 2. Remove slave.lock
 	ear_file_clean(path_slave_lock);
 	// 3. Remove slave.step

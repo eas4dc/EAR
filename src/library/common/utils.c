@@ -62,7 +62,7 @@ state_t utils_build_valid_plugin_path(char *result_path, size_t result_path_s,
 			 hack_earl_install, plug_endpt, plug_name);
 
 		debug("Looking for %s", result_path);
-		if (file_exists(result_path))
+		if (ear_file_exists(result_path))
 			return EAR_SUCCESS;
 	}
 
@@ -70,12 +70,12 @@ state_t utils_build_valid_plugin_path(char *result_path, size_t result_path_s,
 	snprintf(result_path, result_path_s - 1, "%s/%s/%s",
 		 sconf->installation.dir_plug, plug_endpt, plug_name);
 	debug("Looking for %s", result_path);
-	if (file_exists(result_path))
+	if (ear_file_exists(result_path))
 		return EAR_SUCCESS;
 
 	/* Test whether the plug-in is where plug_endpt literally says */
 	debug("Looking for %s", plug_name)
-	    if (file_exists(plug_name)) {
+	    if (ear_file_exists(plug_name)) {
 		strncpy(result_path, plug_name, result_path_s - 1);
 		return EAR_SUCCESS;
 	}

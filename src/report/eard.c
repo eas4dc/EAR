@@ -85,17 +85,21 @@ state_t report_events(report_id_t *id, ear_event_t *eves, uint count)
 	return EAR_SUCCESS;
 }
 
-state_t report_misc(report_id_t *id, uint type, const char *data, uint count)
+state_t report_misc(report_id_t * id, uint type, const char *data, uint count)
 {
-	if (!must_report) return EAR_SUCCESS;
-	if (!eards_connected()) return EAR_ERROR;
-	application_t * apps = (application_t *)data;
+	if (type != WF_APPLICATION)
+		return EAR_SUCCESS;
+	if (!must_report)
+		return EAR_SUCCESS;
+
+	if (!eards_connected())
+		return EAR_ERROR;
+
+	application_t *apps = (application_t *) data;
 	debug("Report type %u", type);
-	for (uint i = 0; i < count; i++){
-		if (type == WF_APPLICATION){
-			eards_write_wf_app_signature(&apps[i]);
-		}
-  }
-  return EAR_SUCCESS;
+	for (uint i = 0; i < count; i++) {
+		eards_write_wf_app_signature(&apps[i]);
+	}
+	return EAR_SUCCESS;
 
 }

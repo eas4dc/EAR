@@ -100,14 +100,14 @@ state_t linux_powercap_load(topology_t * tp_in)
 		sprintf(aux_folder_name, linux_powercap_folder, j);
 		debug("testing driver folder %s", aux_folder_name);
 		/* Check socket folder */
-		if (file_is_directory(aux_folder_name)) {
+		if (ear_file_is_directory(aux_folder_name)) {
 			debug("Socket %d exists", j);
 			linux_powercap_socket[j] = 1;
 
 			/* Core */
 			sprintf(aux_folder_name, linux_powercap_core_folder, j);
 			debug("Testing %s", aux_folder_name);
-			if (file_is_directory(aux_folder_name)) {
+			if (ear_file_is_directory(aux_folder_name)) {
 				debug("core folder detected %s",
 				      aux_folder_name);
 				sprintf(pck_name, linux_powercap_pck_name, j);
@@ -161,7 +161,7 @@ state_t linux_powercap_load(topology_t * tp_in)
 			sprintf(aux_folder_name, linux_powercap_uncore_folder,
 				j, j);
 			debug("Testing %s", aux_folder_name);
-			if (file_is_directory(aux_folder_name)) {
+			if (ear_file_is_directory(aux_folder_name)) {
 				debug("uncore folder detected %s",
 				      aux_folder_name);
 				/* This code is just to check the name is the expected one */

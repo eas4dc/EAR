@@ -130,17 +130,19 @@ state_t popen_open(char *command, int escape_lines, int one_shot, popen_t *p)
 
 void popen_close(popen_t *p)
 {
-	debug("killing %d", p->pid);
+	if (p && p->opened) {
+		debug("killing %d", p->pid);
 
-	// SIGKILL might be too aggressive but it can not be blocked.
-	kill(p->pid, SIGKILL);
+		// SIGKILL might be too aggressive but it can not be blocked.
+		kill(p->pid, SIGKILL);
 
-	fclose(p->file);
+		fclose(p->file);
 
-	waitpid(p->pid, NULL, 0);
+		waitpid(p->pid, NULL, 0);
 
-	// p->opened = 0;
-	memset(p, 0, sizeof(popen_t));
+		// p->opened = 0;
+		memset(p, 0, sizeof(popen_t));
+	}
 }
 
 static void static_flush(popen_t *p, char *buffer)

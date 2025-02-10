@@ -2426,7 +2426,7 @@ state_t metrics_compute_signature_finish(signature_t *metrics, uint iterations,
                          ear_my_rank, masters_info.my_master_rank);
 
 		if (state_fail(report_misc(&report_id, MPITRACE,
-                                   (cchar *) &sig_shared_region[my_node_id], -1)))
+                                   (cchar *) &sig_shared_region[my_node_id], 0)))
         {
 			verbose(3, "%sERROR%s Reporting mpitrace for process %d",
                     COL_RED, COL_CLR, my_node_id);

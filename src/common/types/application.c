@@ -147,7 +147,7 @@ int print_application_fd(int fd, application_t *app, int new_line, char is_exten
 int create_app_header(char * header, char *path, uint num_gpus, char is_extended, int single_column)
 {
 		/* If file already exists we will not add the header */
-		if (file_is_regular(path)) return EAR_SUCCESS;
+		if (ear_file_is_regular(path)) return EAR_SUCCESS;
 
 #if WF_SUPPORT
 		char *HEADER_JOB = "NODENAME;JOBID;STEPID;APPID";

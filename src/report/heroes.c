@@ -106,8 +106,8 @@ state_t report_init(report_id_t *id,cluster_conf_t *cconf)
     
     /* Loop filename is automatically generated */
     if (csv_log_file_env != NULL){
-       if (!file_is_directory(csv_log_file_env)){
-          if (file_is_regular(csv_log_file_env)){
+       if (!ear_file_is_directory(csv_log_file_env)){
+          if (ear_file_is_regular(csv_log_file_env)){
             error("Invalid heroes path.It  must be a directory, not a regular file (%s)", csv_log_file_env);
             must_report = 0;
             return EAR_ERROR;
@@ -121,7 +121,7 @@ state_t report_init(report_id_t *id,cluster_conf_t *cconf)
         }
 
 	      debug("Using PATH :%s", csv_log_file_env);
-				if (file_is_directory(csv_log_file_env) || (csv_log_file_env[strlen(csv_log_file_env) - 1] == '/')){ 
+				if (ear_file_is_directory(csv_log_file_env) || (csv_log_file_env[strlen(csv_log_file_env) - 1] == '/')){
 					debug("%s is directory", csv_log_file_env);
           sprintf(path_dir_app,"%s/heroes_app_logs", csv_log_file_env);
           ret = mkdir(path_dir_app, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
@@ -178,7 +178,7 @@ state_t report_applications(report_id_t *id,application_t *apps, uint count)
     sig_ext_t *sigex;
 		if (!must_report) return EAR_SUCCESS;
     if ((apps == NULL) || (count == 0)) return EAR_SUCCESS;
-    if (!file_app_created && !file_is_regular(csv_log_file)){
+    if (!file_app_created && !ear_file_is_regular(csv_log_file)){
 			debug("heroes creating app header");
       uint num_gpus = 0;
 #if USE_GPUS
@@ -226,8 +226,8 @@ state_t report_loops(report_id_t *id,loop_t *loops, uint count)
     // TODO: we could return EAR_ERROR
     if ((loops == NULL) || (count == 0)) return EAR_SUCCESS;
 
-		debug("header created %u , %s is regular %d", file_loop_created, csv_loop_log_file, file_is_regular(csv_loop_log_file));
-    if (!file_loop_created && !file_is_regular(csv_loop_log_file)){
+		debug("header created %u , %s is regular %d", file_loop_created, csv_loop_log_file, ear_file_is_regular(csv_loop_log_file));
+    if (!file_loop_created && !ear_file_is_regular(csv_loop_log_file)){
 			debug("heroes creating loop header: GPUS on=%d", USE_GPUS);
     	uint num_gpus = 0;
 #if USE_GPUS

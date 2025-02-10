@@ -231,7 +231,7 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
 		// Allocate exactly what we need
     char *HEADER = calloc(header_len, sizeof(char));
 
-    if (file_is_regular(path)) {
+    if (ear_file_is_regular(path)) {
         debug("%s is a regular file", path);
 				free(HEADER);
         return EAR_SUCCESS;

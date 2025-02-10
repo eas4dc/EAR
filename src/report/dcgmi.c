@@ -119,8 +119,8 @@ state_t report_init(report_id_t *id, cluster_conf_t *cconf)
 		if (csv_log_file_env) {
 			int ret;
 			debug("Using PATH: %s", csv_log_file_env);
-			if (!file_is_directory(csv_log_file_env)) {
-				if (file_is_regular(csv_log_file_env)) {
+			if (!ear_file_is_directory(csv_log_file_env)) {
+				if (ear_file_is_regular(csv_log_file_env)) {
 					error
 					    ("DCGMI report plug-in: Invalid path. It must be a directory, not a regular file (%s).",
 					     csv_log_file_env);
@@ -141,7 +141,7 @@ state_t report_init(report_id_t *id, cluster_conf_t *cconf)
 				}
 			}
 
-			if (file_is_directory(csv_log_file_env)
+			if (ear_file_is_directory(csv_log_file_env)
 			    || (csv_log_file_env[strlen(csv_log_file_env) - 1]
 				== '/')) {
 				debug("%s is directory", csv_log_file_env);
@@ -238,7 +238,7 @@ state_t report_applications(report_id_t *id, application_t *apps, uint count)
 	 * So we just create the header if we don't have the file opened and the
 	 * file doesn't exist.
 	 */
-	if (fd_app < 0 && !file_is_regular(csv_log_file)) {
+	if (fd_app < 0 && !ear_file_is_regular(csv_log_file)) {
 		debug("Creating application header");
 #if DCGMI
 		dcgmi_lib_dcgmi_sig_csv_header(extra_header_app,
@@ -343,7 +343,7 @@ state_t report_loops(report_id_t *id, loop_t *loops, uint count)
 	sem_wait(report_csv_sem_loop);
 
 	/* The same logic as with report_applications. */
-	if (fd_loops < 0 && !file_is_regular(csv_loop_log_file)) {
+	if (fd_loops < 0 && !ear_file_is_regular(csv_loop_log_file)) {
 		debug("dcgmi creating loop header");
 
 #if DCGMI

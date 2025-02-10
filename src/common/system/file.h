@@ -43,41 +43,41 @@
 #define F_OX 			S_IXOTH
 
 /** Locks the file for writting in a fixed part. */
-int file_lock(int fd);
+int ear_file_lock(int fd);
 
 /** Tries to acquire the lock through the file descriptor `fd`.
  * If the lock is hold by another process, the function returns immediately and errno can be read.
  * \return 0 The lock was acquired.
  * \return -1 Otherwise. */
-int file_trylock(int fd);
+int ear_file_trylock(int fd);
 
 /** Tries to acquire the lock with file_trylock with a max a attemps = tiemoput, expressed as loop iterations, not time. Returns true when the lock has been acquired. */
-int file_lock_timeout(int fd, ulong timeout);
+int ear_file_lock_timeout(int fd, ulong timeout);
 
 /** Creates a file to be used  as lock. It doesn't locks the file */
-int file_lock_create(char *lock_file_name);
+int ear_file_lock_create(char *lock_file_name);
 
 /** Opens a file with O_EXCL, only one process per node will do that */
-int file_lock_master(char *lock_file_name);
-int file_lock_master_perm(char *lock_file_name, int flag, mode_t mode);
+int ear_file_lock_master(char *lock_file_name);
+int ear_file_lock_master_perm(char *lock_file_name, int flag, mode_t mode);
 
 /** Closes and removes the lock file */
-void file_lock_clean(int fd, char *lock_file_name);
+void ear_file_lock_clean(int fd, char *lock_file_name);
 
 /** Unlocks the file */
-int file_unlock(int fd);
+int ear_file_unlock(int fd);
 
 /** Releases a lock file */
-int file_unlock_master(int fd, char *lock_file_name);
+int ear_file_unlock_master(int fd, char *lock_file_name);
 
 /** Returns whether the file pointed by \p path exsits. */
-int file_exists(const char *path);
+int ear_file_exists(const char *path);
 
 /** */
-int file_is_regular(const char *path);
+int ear_file_is_regular(const char *path);
 
 /** */
-int file_is_directory(const char *path);
+int ear_file_is_directory(const char *path);
 
 /** */
 ssize_t ear_file_size(char *path);

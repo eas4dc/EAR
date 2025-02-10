@@ -123,7 +123,7 @@ uint policy_gpu_opt_enabled()
 		return gpu_opt_enabled;
 	} else if (gpu_opt_enabled == 0) {
 		// Try to get the lock and become the 'master optimizer'
-		if (!file_trylock(fd_gpu_optimize)) {
+		if (!ear_file_trylock(fd_gpu_optimize)) {
 			verbose_info("[%d] GPU master optimizer changed!",
 				     getpid());
 			gpu_opt_enabled = 1;
@@ -139,11 +139,11 @@ void policy_gpu_unlock_opt()
 	/* We can't use non-zero evaluation here,
 	 * since -1 means 'feature not enabled'. */
 	if (gpu_opt_enabled > 0) {
-		if (file_unlock(fd_gpu_optimize) < 0) {
+		if (ear_file_unlock(fd_gpu_optimize) < 0) {
 			verbose_error("Unlocking GPU optimize lock (%d): %s",
 				      errno, strerror(errno));
 		}
-		file_lock_clean(fd_gpu_optimize, master_lock_file);
+		ear_file_lock_clean(fd_gpu_optimize, master_lock_file);
 		gpu_opt_enabled = 0;
 	}
 }
@@ -172,7 +172,7 @@ static void optimization_config(settings_conf_t * app_settings)
 			 "%s/%u", tmp, app_settings->id);
 
 		/* Check whether it exists. */
-		if (!file_is_directory(job_tmp_path)) {
+		if (!ear_file_is_directory(job_tmp_path)) {
 			verbose_warning
 			    ("%s does not exist. GPU optimization lock can't be created.",
 			     job_tmp_path);
@@ -183,7 +183,7 @@ static void optimization_config(settings_conf_t * app_settings)
 		snprintf(master_lock_file, sizeof(master_lock_file) - 1,
 			 "%s/%s", job_tmp_path, MASTER_LOCK_FILENAME);
 
-		if ((fd_gpu_optimize = file_lock_create(master_lock_file)) < 0) {
+		if ((fd_gpu_optimize = ear_file_lock_create(master_lock_file)) < 0) {
 			verbose_error
 			    ("Creating %s lock file: %s", master_lock_file,
 			     strerror(errno));
@@ -191,7 +191,7 @@ static void optimization_config(settings_conf_t * app_settings)
 		}
 
 		/* Try to acquire the lock */
-		if (file_trylock(fd_gpu_optimize) < 0) {
+		if (ear_file_trylock(fd_gpu_optimize) < 0) {
 			gpu_opt_enabled = 0;
 		} else {
 			gpu_opt_enabled = 1;

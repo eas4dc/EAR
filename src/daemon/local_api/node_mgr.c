@@ -40,12 +40,12 @@ state_t nodemgr_lock_init(char *tmp)
   strncpy(node_mgr_tmp,tmp, sizeof(node_mgr_tmp));
   xsnprintf(node_mgr_lock,sizeof(node_mgr_lock),"%s/%s",node_mgr_tmp,LOCK_NODE_MGR_LCK);
 
-  if (file_is_regular(node_mgr_lock)){
-    fd_node_mgr_lck = file_lock_create(node_mgr_lock);
+  if (ear_file_is_regular(node_mgr_lock)){
+    fd_node_mgr_lck = ear_file_lock_create(node_mgr_lock);
     if (fd_node_mgr_lck < 0) return EAR_ERROR;
   }else{
     oldm = umask(0);
-    fd_node_mgr_lck = file_lock_create(node_mgr_lock);
+    fd_node_mgr_lck = ear_file_lock_create(node_mgr_lock);
     if (fd_node_mgr_lck >= 0) chmod(node_mgr_lock, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
     umask(oldm);
     if (fd_node_mgr_lck < 0) return EAR_ERROR;
@@ -65,14 +65,14 @@ state_t nodemgr_job_init(char *tmp, ear_njob_t **nodelist)
   }
 
 	/* If we can open it, we try to access the shared data */
-	if (!file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
+	if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
 
 	/* The eard will create this area */
 	xsnprintf(node_mgr_info,sizeof(node_mgr_info),"%s/%s",node_mgr_tmp,LOCK_NODE_MGR_INFO);
 	//verbose(WF_SUPPORT_VERB, "NODE MGR region path %s\n", node_mgr_info);
 	node_jobs_list = (ear_njob_t *)attach_shared_area(node_mgr_info,sizeof(ear_njob_t)*MAX_CPUS_SUPPORTED,O_RDWR,&fd_node_mgr_info,NULL);
 
-	file_unlock(fd_node_mgr_lck);
+	ear_file_unlock(fd_node_mgr_lck);
 	*nodelist = node_jobs_list;
 	if (node_jobs_list == NULL){ 
 		debug("Error: attach shared area for job mgr returns NULL");
@@ -106,14 +106,14 @@ state_t nodemgr_server_init(char *tmp, ear_njob_t **nodelist)
 
   xsnprintf(node_mgr_info,sizeof(node_mgr_info),"%s/%s",node_mgr_tmp,LOCK_NODE_MGR_INFO);
   /* If we can open it, we try to access the shared data */
-	if (!file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
+	if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
 
   /* The eard will create this area */
 	debug("NODE MGR INFO %s\n", node_mgr_info);
 	mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH; // Read and write permission for the owner user. Read permission for group and others.
   node_jobs_list = (ear_njob_t *) create_shared_area(node_mgr_info, perms, (char *) node_jobs_list, sizeof(ear_njob_t) * MAX_CPUS_SUPPORTED, &fd_node_mgr_info, 0);
 	
-  file_unlock(fd_node_mgr_lck);
+  ear_file_unlock(fd_node_mgr_lck);
 	*nodelist = node_jobs_list;
 	if (node_jobs_list == NULL){ 
 		debug("Error, shared memory region for job mgr not created");
@@ -134,7 +134,7 @@ state_t nodemgr_get_num_jobs_attached(uint *num_jobs)
 	*num_jobs = 0;
 
 	/* Get the lock */
-	if (!file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
+	if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
 
 	for (uint i = 0 ; i < MAX_CPUS_SUPPORTED ; i++){
 #if WF_SUPPORT
@@ -150,7 +150,7 @@ state_t nodemgr_get_num_jobs_attached(uint *num_jobs)
 #endif
 	}
 
-	file_unlock(fd_node_mgr_lck);
+	ear_file_unlock(fd_node_mgr_lck);
 	*num_jobs = total_jobs;	
 	return EAR_SUCCESS;
 }
@@ -170,7 +170,7 @@ state_t nodemgr_attach_job(ear_njob_t *my_job, uint *my_index)
   if (new){
     //verbose(WF_SUPPORT_VERB,"Adding new job in NODE MGR region ");
 	  /* Get the lock */
-	  if (!file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
+	  if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
   
 	  for (uint i = 0 ; i < MAX_CPUS_SUPPORTED ; i++){
       if (node_jobs_list[i].jid == -1){
@@ -178,23 +178,23 @@ state_t nodemgr_attach_job(ear_njob_t *my_job, uint *my_index)
 			  memcpy(&node_jobs_list[i],my_job, sizeof(ear_njob_t));
 			  *my_index = i;
   
-			  file_unlock(fd_node_mgr_lck);	
+			  ear_file_unlock(fd_node_mgr_lck);
 			  return EAR_SUCCESS;
 		  }else {
 			  debug("Looking at index %d", i);
 		  }
     }
   
-	  file_unlock(fd_node_mgr_lck);	
+	  ear_file_unlock(fd_node_mgr_lck);
   }else{
     s = EAR_SUCCESS;
 #if WF_SUPPORT
     //verbose(WF_SUPPORT_VERB,"Adding new app in NODE MGR region in pos %u", pos);
-    if (!file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
+    if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
     node_jobs_list[pos].modification_time = my_job->modification_time;
     node_jobs_list[pos].num_earl_apps++;
     //verbose(WF_SUPPORT_VERB,"PENDING add the mask");
-    file_unlock(fd_node_mgr_lck);
+    ear_file_unlock(fd_node_mgr_lck);
 #endif
   }
 	return s;
@@ -208,17 +208,17 @@ state_t nodemgr_find_job(ear_njob_t *my_job, uint *my_index)
   if (fd_node_mgr_lck < 0) return EAR_ERROR;
   
   /* Get the lock */
-  if (!file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
+  if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
   
   for (uint i = 0 ; i < MAX_CPUS_SUPPORTED ; i++){
     if ((node_jobs_list[i].jid == my_job->jid) && (node_jobs_list[i].sid == my_job->sid)){
       *my_index = i;
-      file_unlock(fd_node_mgr_lck);
+      ear_file_unlock(fd_node_mgr_lck);
       return EAR_SUCCESS;
     }
   }
   
-  file_unlock(fd_node_mgr_lck);
+  ear_file_unlock(fd_node_mgr_lck);
   return s;
 }
 
@@ -231,7 +231,7 @@ state_t nodemgr_job_end(uint index)
 	if (index >= MAX_CPUS_SUPPORTED) return EAR_ERROR;
 
 	/* Get the lock */
-	if (!file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
+	if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
 
 #if WF_SUPPORT
   node_jobs_list[index].num_earl_apps--;
@@ -245,7 +245,7 @@ state_t nodemgr_job_end(uint index)
   }
 #endif
 
-  file_unlock(fd_node_mgr_lck);
+  ear_file_unlock(fd_node_mgr_lck);
   return s;
 }
 
@@ -257,7 +257,7 @@ state_t nodemgr_clean_job(job_id jid,job_id sid)
 	for (uint i = 0;i< MAX_CPUS_SUPPORTED;i++){
 		if ((node_jobs_list[i].jid == jid) && (node_jobs_list[i].sid == sid)){
 			/* Get the lock */
-			if (!file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
+			if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
 
 				if ((node_jobs_list[i].jid == jid) && (node_jobs_list[i].sid == sid)){
 					node_jobs_list[i].jid = -1;
@@ -268,7 +268,7 @@ state_t nodemgr_clean_job(job_id jid,job_id sid)
 #endif
 				}
 
-  		file_unlock(fd_node_mgr_lck);
+		ear_file_unlock(fd_node_mgr_lck);
 			return EAR_SUCCESS;
 		}
 	}
@@ -279,25 +279,25 @@ state_t nodemgr_clean_job(job_id jid,job_id sid)
 state_t nodemgr_server_end()
 {
   /* Get the lock */
-	if (!file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
+	if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
 
 	/* Release shared memory */
 	dispose_shared_area(node_mgr_info, fd_node_mgr_info);
 
 	/* Remove the lock */
-	file_unlock(fd_node_mgr_lck);
-	file_lock_clean(fd_node_mgr_lck,node_mgr_lock);
+	ear_file_unlock(fd_node_mgr_lck);
+	ear_file_lock_clean(fd_node_mgr_lck,node_mgr_lock);
   return EAR_SUCCESS;
 
 }
 
 state_t node_mgr_info_lock()
 {
-	if (!file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
+	if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES)) return EAR_ERROR;
 	return EAR_SUCCESS;
 }
 
 void node_mgr_info_unlock()
 {
-	file_unlock(fd_node_mgr_lck);
+	ear_file_unlock(fd_node_mgr_lck);
 }

@@ -251,7 +251,7 @@ static void read_coefficients(int argc, char *argv[], int n_nodes)
 		/* The program reports coefficients in stdout and csv file */
 		xsprintf(buffer, "%s/coeffs.%s", path_root, node_name);
 
-		if (file_is_regular(buffer))
+		if (ear_file_is_regular(buffer))
 		{
 			read_file(buffer, node_name);
 		}
