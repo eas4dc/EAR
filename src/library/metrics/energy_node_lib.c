@@ -15,7 +15,6 @@
 #include <common/config.h>
 #include <common/includes.h>
 
-#include <common/output/verbose.h>
 #include <common/output/debug.h>
 
 #include <common/system/lock.h>
@@ -24,6 +23,7 @@
 #include <daemon/local_api/eard_api.h>
 
 #include <library/metrics/energy_node_lib.h>
+#include <library/common/verbose_lib.h>
 
 static struct energy_op {
 	state_t(*datasize) (size_t *size);
@@ -102,7 +102,7 @@ state_t energy_node_load(char *path, int eard)
 		return EAR_SUCCESS;
 	}
 
-	verbose(2, "Loading %s plugin...", path);
+	verbose_info2_master("Loading %s plugin...", path);
 	/* If EAR full installation, path is the path of the official energy plugin, if not (EAR lite),
 	 * It is the path to the eard_nm energy plugin, which is a special case where EAR lite uses an official
 	 * installation not compatible 
@@ -121,7 +121,7 @@ state_t energy_node_load(char *path, int eard)
 
 	/* If there is a not privileged initialization */
 	if (energy_ops.no_privilege_init != NULL) {
-		debug("The loaded plugin requires a non-priviledged init...");
+		debug("The loaded plugin does not require privileges");
 		energy_ops.no_privilege_init();
 	}
 
@@ -129,7 +129,7 @@ state_t energy_node_load(char *path, int eard)
 
 	if (energy_ops.is_privileged != NULL) {
 		requires_privileges = energy_ops.is_privileged();
-		debug("Energy lib doesn't requires root privileges");
+		debug("Node energy plug-in requires privileges: %d", requires_privileges);
 	}
 
 	int root_privileges = (getuid() == 0);

@@ -70,9 +70,6 @@
 #define verbose_policy_info(msg, ...) \
     verbose_info2_master("Policy: " msg, ##__VA_ARGS__);
 
-/* Must be migrated to config_env */
-#define GPU_ENABLE_OPT "EAR_GPU_ENABLE_OPT"
-
 #define is_master (masters_info.my_master_rank >= 0)
 
 static int ear_mpi_opt;

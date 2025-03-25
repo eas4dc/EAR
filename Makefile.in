@@ -79,7 +79,7 @@ datarootdir        = @datarootdir@
 DOCDIR             = @docdir@
 CHOWN_USR          = @USER@
 CHOWN_GRP          = @GROUP@
-CONSTANTS          = -DSEC_KEY=10001 -DESTIMATE_PERF=0 -DSYSTEM_TYPE=@SYSTEM_TYPE@
+CONSTANTS          = -DSEC_KEY=10001 -DESTIMATE_PERF=0 -DSYSTEM_TYPE=@SYSTEM_TYPE@ -DUSE_PVC_HWMON=@USE_PVC_HWMON@
 REPLACE            =
 
 ######## EXPORTS

@@ -1,4 +1,4 @@
-CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC -Wall
+CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC $(CONSTANTS)
 
 ######## FILES
 

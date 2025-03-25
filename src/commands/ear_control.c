@@ -177,6 +177,7 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
 	char temp[GENERIC_NAME];
 	char final[GENERIC_NAME];
 	char step_id[12];
+	char job_id[12];
 	for (i=0; i<num_ips; i++)
 	{
 		if (ips[i].counter)
@@ -184,17 +185,23 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
 			if (mode != ERR_ONLY) 
 			{
 				printf("%10s\t", ips[i].name);
-				if (ips[i].step_id == BATCH_STEP)
-					sprintf(step_id, "%-8s", "sbatch");
-                else if (ips[i].step_id == INTERACT_STEP)
-					sprintf(step_id, "%-8s", "interact");
-				else
-					sprintf(step_id, "%-8d", ips[i].step_id);
-
+				if (ips[i].job_id == 0) {
+					sprintf(job_id, "-");
+					sprintf(step_id, "-");
+				}
+				else {
+					sprintf(job_id, "%6d", ips[i].job_id);
+					if (ips[i].step_id == BATCH_STEP)
+						sprintf(step_id, "%8s", "batch");
+					else if (ips[i].step_id == INTERACT_STEP)
+						sprintf(step_id, "%8s", "interact");
+					else
+						sprintf(step_id, "%8d", ips[i].step_id);
+				}
 				if (mode == NODE_ONLY || mode == FULL_STATUS)
 				{
-					printf("%5d\t%3dC\t%.2lf\t%.2lf\t%6d\t%8s", ips[i].power, ips[i].temp, (double)ips[i].max_freq/1000000.0,
-							(double)ips[i].current_freq/1000000.0, ips[i].job_id, step_id);
+					printf("%5d\t%3dC\t%.2lf\t%.2lf\t%6s\t%8s", ips[i].power, ips[i].temp, (double)ips[i].max_freq/1000000.0,
+							(double)ips[i].current_freq/1000000.0, job_id, step_id);
 				}
 
 				if (mode == FULL_STATUS || mode == POLICY_ONLY)
@@ -340,18 +347,26 @@ void check_app_status(app_status_t status, ip_table_t *ips, int num_ips, char is
 	ulong GPU_freq=0;
 #endif
 	char step_id[12];
+	char job_id[12];
 	for (i = 0; i < num_ips; i++)
 		if (htonl(status.ip) == htonl(ips[i].ip_int))
 		{
-			if (status.step_id == BATCH_STEP)
-				sprintf(step_id, "%-8s", "sbatch");
-            else if (status.step_id == INTERACT_STEP)
-				sprintf(step_id, "%-8s", "interact");
-			else
-				sprintf(step_id, "%-8ld", status.step_id);
+			if(status.job_id == 0) {//no job, this should be a defined constant
+				sprintf(job_id, "%s", "-");
+				sprintf(step_id, "%s", "-");
+			}
+			else {
+				sprintf(job_id, "%-7lu", status.job_id);
+				if (status.step_id == BATCH_STEP)
+					sprintf(step_id, "%-8s", "batch");
+				else if (status.step_id == INTERACT_STEP)
+					sprintf(step_id, "%-8s", "interact");
+				else
+					sprintf(step_id, "%-8ld", status.step_id);
+			}
 			if (is_master)
-				printf("%7lu-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf", 
-						status.job_id, step_id, status.nodes,
+				printf("%-7s-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf",
+						job_id, step_id, status.nodes,
 						status.signature.DC_power, status.signature.CPI, status.signature.GBS, 
 						status.signature.Gflops, status.signature.time, (double)status.signature.avg_f/1000000);
 			else

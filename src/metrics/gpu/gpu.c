@@ -8,16 +8,23 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-// #define SHOW_DEBUGS 1
 #include <stdlib.h>
 #include <pthread.h>
+
+// #define SHOW_DEBUGS 1
 #include <common/output/debug.h>
 #include <metrics/gpu/gpu.h>
 #include <metrics/gpu/archs/eard.h>
 #include <metrics/gpu/archs/nvml.h>
 #include <metrics/gpu/archs/dummy.h>
 #include <metrics/gpu/archs/oneapi.h>
+#include <metrics/gpu/archs/pvc_power_hwmon.h>
 #include <metrics/gpu/archs/rsmi.h>
+
+#ifndef USE_PVC_HWMON
+#warning "USE_PVC_HWMON not defined! Defining it to 0..."
+#define USE_PVC_HWMON 0
+#endif
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static gpu_ops_t       ops;
@@ -35,7 +42,13 @@ void gpu_load(int force_api)
     }
     gpu_nvml_load(&ops, force_api);
     gpu_rsmi_load(&ops, force_api);
-    gpu_oneapi_load(&ops, force_api);
+		if (USE_PVC_HWMON) {
+			if (state_fail(gpu_pvc_hwmon_load(&ops, force_api))) {
+				debug("GPU PVC HWMON Load error: %s", state_msg);
+			}
+		} else {
+			gpu_oneapi_load(&ops, force_api);
+		}
     gpu_eard_load(&ops, API_IS(force_api, API_EARD));
 dummy:
     gpu_dummy_load(&ops);
@@ -148,6 +161,11 @@ static void static_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int i
 		memset(d3, 0, sizeof(gpu_t));
 		return;
 	}
+
+	// Computing time
+	double time_f = timestamp_diff(&d2->time, &d1->time, TIME_SECS);
+	debug("static_data_diff accumulated time diff %lf (d2 %lu d1 %lu)", time_f, d2->time.tv_sec, d1->time.tv_sec);
+
 	// No overflow control is required (64-bits are enough)
 	d3->freq_gpu = (d2->freq_gpu - d1->freq_gpu) / d3->samples;
 	d3->freq_mem = (d2->freq_mem - d1->freq_mem) / d3->samples;
@@ -159,8 +177,13 @@ static void static_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int i
 	d3->energy_j = (d2->energy_j - d1->energy_j);
 	d3->working  = (d2->working);
 	d3->correct  = 1;
+	if (d3->power_w == 0){
+		d3->power_w = d3->energy_j / time_f;
+		debug("WARNING: Computing power using energy : %lf power = %lf energy / %lf secs", d3->power_w, d3->energy_j, time_f);
+	}
 
-	#if 0
+
+	#if 1
 	debug("%d freq gpu (KHz), %lu = %lu - %lu", i, d3->freq_gpu, d2->freq_gpu, d1->freq_gpu);
     debug("%d freq mem (KHz), %lu = %lu - %lu", i, d3->freq_mem, d2->freq_mem, d1->freq_mem);
     debug("%d power    (W)  , %0.2lf = %0.2lf - %0.2lf", i, d3->power_w, d2->power_w, d1->power_w);

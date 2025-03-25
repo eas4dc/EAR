@@ -22,6 +22,7 @@
 #elif DB_PSQL
 #include "libpq-fe.h"
 #endif
+#include <stdbool.h>
 
 #if 0
 #if DB_MYSQL
@@ -115,6 +116,11 @@ int db_read_applications_query(application_t **apps, char *query);
 int db_read_loops_query(loop_t **loops, char *query);
 
 void db_reset_counters();
+
+/* As the name implies, it checks for the MariaDB/MySQL environment variables
+ * (LIBMYSQL_PLUGINS, LIBMYSQL_PLUGIN_DIR, MARIADB_PLUGIN_DIR, LIBMARIADB_PLUGINS, MARIADB_PLUGINS)
+ * and unsets them if they are set. Returns true if any of them was found, and false if none was set */
+bool check_and_unset_environment_variables();
 
 
 /** Runs the received query to database, and stores the results as a string in results.

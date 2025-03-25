@@ -1,41 +1,129 @@
-%define _prefix @prefix@
-%define _sysconfdir @sysconfdir@
-%define _libdir @libdir@
+%global _ear_path @prefix@
+%global _ear_etc @sysconfdir@
+%global _ear_tmp @localstatedir@
 
-Name:           ear
+# The base name of the package, which should match the SPEC file name.
+Name:           ear-sn
+# The upstream version number of the software.
 Version:        @PACKAGE_VERSION@
-Release:        1%{?dist}
+# The number of times this version of the software was released. Normally, set
+# the initial value to 1%%{?dist}, and increment it with each new release of the
+# package. Reset to 1 when a new Version of the software is built.
+Release:        2%{?dist}
+# A brief, one-line summary of the package.
 Summary:        Energy Aware Runtime - %{version} ready to be deployed on a service node.
 
 License: EPL-2.0 license
-URL: https://gitlab.bsc.es/ear_team/ear_private
-Source0: %{name}-%{version}.tar.gz
+URL: https://gitlab.bsc.es/ear_team/ear
+Prefix: %{_prefix}
+Prefix: %{_sysconfdir}
 
 %description
-This package includes EAR commands, tools, the SLURM plug-in, libraries, the daemon and configuration files needed in a log-in node.
-
-%prep
-%setup -q
+EAR (service node) rpm package includes the EARDBD service, configuration files and tools required to get the Database Manager Daemon service running in your cluster.
 
 %install
-rm -rf $RPM_BUILD_ROOT
+
+# TODO: SLURM and PBS dependant installed just when required.
 
 mkdir -p %{buildroot}%{_bindir}
-cp -r bin/* %{buildroot}%{_bindir} 
-mkdir -p %{buildroot}%{_sysconfdir}
-cp -r etc/* %{buildroot}%{_sysconfdir}
-mkdir -p %{buildroot}%{_libdir}
-cp -r lib/* %{buildroot}%{_libdir}
+cp -r %{_ear_path}/bin/* %{buildroot}%{_bindir}
+mv %{buildroot}%{_bindir}/tools %{buildroot}%{_bindir}/ear-tools
+
 mkdir -p %{buildroot}%{_sbindir}
-cp -r sbin/* %{buildroot}%{_sbindir}
+cp %{_ear_path}/sbin/eardbd %{_ear_path}/sbin/edb_clean_apps %{_ear_path}/sbin/edb_clean_pm %{_ear_path}/sbin/edb_create %{buildroot}%{_sbindir}
+
+mkdir -p %{buildroot}%{_libdir}
+cp -r %{_ear_path}/lib/plugins %{buildroot}%{_libdir}
+
+mkdir -p %{buildroot}%{_sysconfdir}
+cp -r %{_ear_etc}/ear %{buildroot}%{_sysconfdir}
 
 %files
-# %license LICENSE
-%{_bindir}
-%{_sysconfdir}
-%{_sbindir}
-%{_libdir}
+# %%license LICENSE
+%{_bindir}/eacct
+%{_bindir}/ereport
+%{_bindir}/econtrol
+%{_bindir}/erun
+%{_bindir}/ear-tools
+%{_bindir}/ear-info
+
+%{_sbindir}/eardbd
+%{_sbindir}/edb_clean_*
+%{_sbindir}/edb_create
+
+%{_libdir}/plugins
+
+%{_sysconfdir}/ear
+
+%post
+
+# Check whether we installed the etcdir in a place different to what it was configured.
+# If so, we need to update the configured paths.
+if [[ "$RPM_INSTALL_PREFIX1" != %{_ear_etc} ]]; then
+	sed -i -e "s:\(CoefficientsDir=\)\(.\+\)\(/ear/coeffs\):\1${RPM_INSTALL_PREFIX1}\3:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+	sed -i -e "s:\(EtcDir=\)\(.\+\):\1${RPM_INSTALL_PREFIX1}:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+fi
+
+if [[ "$RPM_INSTALL_PREFIX0" != %{_ear_path} ]]; then
+	sed -i -e "s:\(InstDir=\)\(.\+\):\1${RPM_INSTALL_PREFIX0}:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+fi
+
+# By default, rpm sets _libdir as _prefix/lib64, but EAR components
+# assume _prefix/lib. Therefore we link to the assumed path if applies
+if [[ "$RPM_INSTALL_PREFIX0/%{_lib}" != "$RPM_INSTALL_PREFIX0/lib" ]]; then
+	mkdir -p "$RPM_INSTALL_PREFIX0/lib"
+	ln -s "$RPM_INSTALL_PREFIX0/%{_lib}/plugins" $RPM_INSTALL_PREFIX0/lib
+fi
+
+mkdir -p %{_ear_tmp}
+chmod ugo+rwx %{_ear_tmp}
+
+# Create the service file
+echo "[Unit]
+Description=EARDBD - Data Base manager
+#ConditionPathExists=%{_ear_tmp}
+#Wants=req1.service req2.service
+After=mariadb.service
+
+[Service]
+Type=simple
+Environment=\"EAR_ETC=${RPM_INSTALL_PREFIX1}\"
+ExecStart=${RPM_INSTALL_PREFIX0}/sbin/eardbd
+ExecStop=/bin/kill -TERM \$MAINPID
+#Restart=on-failure
+KillMode=process
+LimitMEMLOCK=infinity
+LimitSTACK=infinity
+
+[Install]
+WantedBy=multi-user.target" > /usr/lib/systemd/system/eardbd.service
+
+# Link to service file
+ln -fs /usr/lib/systemd/system/eardbd.service /etc/systemd/system/multi-user.target.wants/eardbd.service
+
+# Start service
+systemctl enable eardbd
+systemctl start eardbd
+
+%preun
+set -x
+systemctl stop eardbd
+
+%postun
+
+set -x
+
+rm -rf %{_ear_tmp}
+rm /etc/systemd/system/multi-user.target.wants/eardbd.service /usr/lib/systemd/system/eardbd.service
+
+if [[ "$RPM_INSTALL_PREFIX0/%{_lib}" != "$RPM_INSTALL_PREFIX0/lib" ]]; then
+	rm "$RPM_INSTALL_PREFIX0"/lib/plugins
+fi
+
+systemctl daemon-reload
 
 %changelog
-* Mon Nov 4 2024 Oriol Vidal <oriol.vidal@bsc.es> - 5.1-1
-- RPM SPEC file for service nodes.
+* Wed Mar 19 2025 Oriol Vidal <oriol.vidal@bsc.es> - 5.1-2
+- Make the package relocatable.
+* Fri Mar 7 2025 Oriol Vidal <oriol.vidal@bsc.es> - 5.1-1
+- First version of EAR (service node) rpm package.

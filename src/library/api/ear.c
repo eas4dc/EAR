@@ -2900,7 +2900,7 @@ static ulong last_check = 0;
 static uint first_exec_monitor = 1;
 
 
-uint id_ovh_earl_monitor;
+uint id_ovh_earl_monitor, id_ovh_earl_monitor_new_iteartion;
 
 state_t earl_periodic_actions_init(void *no_arg)
 {
@@ -2919,6 +2919,7 @@ state_t earl_periodic_actions_init(void *no_arg)
     pthread_setname_np(pthread_self(), "EARL_monitor");
 
     overhead_suscribe("earl_monitor", &id_ovh_earl_monitor);
+		overhead_suscribe("earl_monitor_new_iteartion", &id_ovh_earl_monitor_new_iteartion);
 
 		configure_sigactions();
 
@@ -2963,10 +2964,16 @@ state_t earl_periodic_actions(void *no_arg)
 		/* This lock is to avoid this function to be called at the same time than ear_finalize */
 		state_t st = ear_trylock(&earl_th_locks);
 		if (state_ok(st)){
-			if (!exiting)
+			if (!exiting) {
+				overhead_start(id_ovh_earl_monitor_new_iteartion);
 				states_new_iteration(my_id, ITERS_PER_PERIOD, ear_iterations, 1, 1, lib_period, 0);
+				overhead_stop(id_ovh_earl_monitor_new_iteartion);
+			}
 			ear_unlock(&earl_th_locks);
-		}else return EAR_SUCCESS;
+		} else {
+			overhead_stop(id_ovh_earl_monitor);
+			return EAR_SUCCESS;
+		}
 		if (avg_mpi_calls_per_second() >= MAX_MPI_CALLS_SECOND) limit_exceeded = 1;
 	}
 

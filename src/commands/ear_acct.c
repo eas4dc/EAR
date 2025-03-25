@@ -714,6 +714,10 @@ void print_short_apps(application_t *apps, int num_apps, int fd, int is_csv)
 
 void _add_string_filter(char *query, char *addition, char *value, bool quotes)
 {
+    if (strchr(value, ' ') || strchr(value, '\'')) {
+        printf("\"%s\" argument (\"%s\") is invalid.\n", addition, value);
+        exit(1);
+    }
 	if (query_filters < 1)
 		strcat(query, " WHERE ");
 	else
@@ -1545,6 +1549,11 @@ int main(int argc, char *argv[])
 
 	verb_level = -1;
 	verb_enabled = 0;
+
+    if (check_and_unset_environment_variables()) {
+        printf("Warning: using MySQL/MariaDB environment variables is not supported, unsetting them.\n");
+    }
+
 	if (get_ear_conf_path(path_name)==EAR_ERROR){
 		fprintf(stderr, "Error getting ear.conf path\n");
 		exit(1);

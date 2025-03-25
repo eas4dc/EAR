@@ -3036,18 +3036,21 @@ static void set_default_powermon_end(powermon_app_t *app, uint idle)
   }
 
 #if USE_GPUS
-  /* GPUs */
-#if 0
-  if (idle && app->policy_freq && my_node_conf->gpu_def_freq)
-  {
-    /* EARD is not aware of the GPUs used */
-    ulong idle_gpu_freq;
-    /* We assume all the gpus are the same */
-    gpu_mgr_get_min(0, &idle_gpu_freq);
-    verbose(VCONF, "Set idle GPU freq %.2f GHz", (float) idle_gpu_freq / 1000000.0);
-    gpu_mgr_set_freq_all_gpus(idle_gpu_freq);
-  }
-#endif
+  /* Restore GPU frequency just when the node goes idle, and the Daemon is
+	 * configured as ForceFrequencies, or the EAR Library was loaded. */
+	if (idle && app->policy_freq) {
+		ulong idle_gpu_freq;
+		/* We check whether the gpu_def_freq is set.
+		 * Otherwise, we reset to the maximum GPU frequency. */
+		if(my_node_conf->gpu_def_freq) {
+			idle_gpu_freq = my_node_conf->gpu_def_freq;
+		} else {
+			gpu_mgr_get_max(0, &idle_gpu_freq);
+		}
+		/* We assume all the gpus are the same */
+		verbose(VCONF, "Set idle GPU freq %.3f GHz", (float) idle_gpu_freq / 1000000.0);
+		gpu_mgr_set_freq_all_gpus(idle_gpu_freq);
+	}
 #endif
 
   if (idle)

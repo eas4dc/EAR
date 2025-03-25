@@ -266,10 +266,22 @@ uint energy_data_is_null(edata_t e)
 	verbose(VCPU_GPU, "CPU-GPU: energy_data_is_null");
 	cpu_gpu_t *pe = (cpu_gpu_t *) e;
 
-	if (pe == NULL)
+	if (!pe) {
+		verbose(VCPU_GPU, "CPU-GPU: Energy data is a null pointer.");
 		return 1;
-	return (pe->cpu_energy[0] == 0 && pe->gpu_energy[0].power_w == 0);
+	}
 
+	for (int i = 0; i < MAX_SOCKETS_SUPPORTED * NUM_DOMAINS_CPU_GPU; i++) {
+		if (pe->cpu_energy[i] != 0)
+			return 0;
+	}
+
+	for (int i = 0; i < MAX_GPUS_SUPPORTED; i++) {
+		if (pe->gpu_energy[i].power_w != 0)
+			return 0;
+	}
+
+	return 1;
 }
 
 state_t energy_not_privileged_init()

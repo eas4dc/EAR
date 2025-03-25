@@ -187,6 +187,9 @@ src/tools/ear_conf
 src/tools/metrics_show
 src/tools/list_folders
 src/tools/groups_test
+src/tools/database_size_calculator
+src/tools/enodectl
+src/tools/loops_average
 src/commands/ear-info
 deployment.sh
 src/tools/node_manager_info
@@ -194,3 +197,7 @@ tmp.txt
 *.plist
 etc/examples/prolog_epilog/ejob
 etc/examples/prolog_epilog/list
+.deps
+.dirstamp
+src/daemon/app_api/Makefile*
+!src/daemon/app_api/Makefile.am

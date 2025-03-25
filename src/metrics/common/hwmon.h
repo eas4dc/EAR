@@ -26,6 +26,15 @@ Hwmon __attribute__((weak)) =
     .temp_max   = "/sys/class/hwmon/hwmon%d/temp%d_max",
     .temp_input = "/sys/class/hwmon/hwmon%d/temp%d_input",
 };
+struct Hwmon_pvc
+{
+	hwmon_t energy_j;
+}Hwmon_pvc_energy __attribute__((weak)) =
+{
+	.energy_j = "/sys/class/hwmon/hwmon%d/energy%d_input",
+};
+
+
 
 /* Find a set of drivers by name, also allocates memory for its ids.
  * Remember to free them. */

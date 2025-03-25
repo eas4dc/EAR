@@ -190,7 +190,19 @@ AC_DEFUN([AX_BEFORE_FEATURES],
    	if test "x$system_type" = "xEAR_Node_Mgr"; then
 			SYSTEM_TYPE=3
 		fi
-		
+
+# Use hardware monitor for PVC power reading and management
+	AC_ARG_ENABLE([pvc_hwmon],
+								[AS_HELP_STRING([--enable-pvc-hwmon],
+																[User hardware monitor support for Intel PVC GPUs (default is no).]
+															 )
+								],
+								[enable_pvc_hwmon=$enableval],
+								[enable_pvc_hwmon=no]
+								)
+	AS_IF([test "x$enable_pvc_hwmon" != xno],
+				[USE_PVC_HWMON=1],
+				[USE_PVC_HWMON=0])
 ])
 
 AC_DEFUN([AX_AFTER_FEATURES],
@@ -269,6 +281,7 @@ AC_DEFUN([AX_AFTER_FEATURES],
     AC_SUBST(SCHED_DIR)
     AC_SUBST(SCHED_NAME)
 	AC_SUBST(SYSTEM_TYPE)
+	AC_SUBST(USE_PVC_HWMON)
 ])
 
 AC_DEFUN([AX_AFTER_OUTPUT],

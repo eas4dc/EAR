@@ -71,6 +71,7 @@ mets_OBJS = \
     $(SRCDIR)/metrics/gpu/archs/eard.o \
     $(SRCDIR)/metrics/gpu/archs/nvml.o \
     $(SRCDIR)/metrics/gpu/archs/oneapi.o \
+    $(SRCDIR)/metrics/gpu/archs/pvc_power_hwmon.o \
     $(SRCDIR)/metrics/gpu/archs/rsmi.o \
     $(SRCDIR)/metrics/gpu/archs/gpuprof_nvml.o \
     $(SRCDIR)/metrics/gpu/archs/gpuprof_dcgmi.o \

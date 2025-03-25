@@ -1,10 +1,55 @@
-### EAR 5.1.5
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- v5.2 Implementation of Powercap setting by domain.
+- v5.2 Application CPU utiliztion is now computed and reported by EARL to CSV files.
+- v5.2 Now the power signature is printed when printing an application to CSV file.
+
+### Changed
+- v5.2 A new version of the `eacct` command is released providing an output format option.
+- v5.2 Reduce the periodicity in which EARL updates job's affinity mask.
+- v5.2 Improve roofline classification.
+- v5.2 `gpuprof_dcgmi` now filters unsupported events requested.
+
+### Fixed
+- v5.2 Fixed typo in cpupow define.
+- v5.2 Improved CPU governor list message.
+
+## [5.1.6] - 2025-03-22
+
+### Added
+- Support for reading GPU power of Intel PVC devices through Linux hwmon interface added.
+- CI pipeline added.
+- Added carbon footprint calculations to ereport.
+
+### Changed
+- `econtrol` displays a `-` character when there is not any job running on a node for which `econtrol --status` is requested.
+- EAR Data Center monitor reads the node energy plug-in from the `ear.conf` file.
+- Restore GPU frequency to the maximum when a job finishes under ForceFrequencies or EARL.
+- Changes in RPM spec files.
+- The CHANGELOG format follows the one proposed by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+### Fixed
+- Overhead module usage fixed.
+- Prevent FP exception when casting a decimal number after checking whether it is zero.
+- Prevent SQL injections through `eacct` command.
+- `energy_cpu_gpu` plug-in `is_null` method fixed.
+- Prevent loading MySQL/Mariadb plug-ins when runnig EAR commands that load MySQL/MariaDB Connector libraries.
+
+## EAR 5.1.5
 - Bugs fixed:
   - Prevent running code in EARD report plug-in misc method if the event type is not WF_APPLICATION
   - Prevent closing a popen structure if the process is already death.
   - file_ module's function naming changed to ear_file to prevent symbol name collisions with third-party applications.
 
-### EAR 5.1.4
+## EAR 5.1.4
 - Change the open file limit in edcmon.
 - Increase the timeout for remote calls.
 - Don't check for socket alive to reduce remote message parsing overhead.
@@ -14,12 +59,12 @@
   - Minor fixes in signature different decision algorithm.
   - Dimension in hsmp structure fixed.
 
-### EAR 5.1.3
+## EAR 5.1.3
 - Bugs fixed:
   - Prevent closing remote connection.
   - Increase timeout limit for remote connections.
 
-### EAR 5.1.2
+## EAR 5.1.2
 - Bugs fixed:
   - Prevent closing eard fd 0 when storing powermon\_app fd into shared memory.
   - Close folder fd when removing it.
@@ -28,14 +73,14 @@
 - Check whether new fds are not attended.
 - Now intel\_pstate driver creates the CPUFreq. list using Boost frequency by default.
 
-### EAR 5.1.1
+## EAR 5.1.1
 - Bug fixed: The application local\_id attribute is now copied to the power monitor context when saving the application signature.
 - Per-process CPU utilization fixed.
 - Classify module default verbosity fixed.
 - econtrol's manpage with improved examples.
 - Support for GPU models in the Configuration file.
 
-### EAR 5.1.0
+## EAR 5.1.0
 - CPU temperature monitoring included in application monitoring and reported to csv files.
 - Prevent workflows where all applications see all GPUs and all of them change GPU frequency.
 - Support for Python multiprocess module.
@@ -50,16 +95,16 @@
 - Fixed an error with EARD remote connections not being properly closed.
 - Add --domain option to econtrol.
 
-### EAR 5.0.4
+## EAR 5.0.4
 - Bug fixed: Missing earplug.so installation from rpm.
 
-### EAR 5.0.3
+## EAR 5.0.3
 - EARD local API creates an application directory if a third-party program connects with it.
 - Fixed a typo in ereport queries.
 - Prevent closing fd 0 on NTASK\_WORKSHARING use cases.
 - Prevent closing fd 0 when initiating earl\_node\_mgr\_info.
 
-### EAR 5.0
+## EAR 5.0
 - Workflows support. Automatic detection of applications executed with same jobid/stepid.
 - Fixed Intel PSTATE driver to avoid loading if there is a driver already loaded.
 - Robustness improved.
@@ -74,14 +119,14 @@
 - Fixes in EAR Loader to support MPI application when MPI symbols can not be detected.
 - GPU GFLOPS are now estimated and reported when using NVIDIA GPUs.
 
-### EAR 4.3.1
+## EAR 4.3.1
 - Documentation typos fixed.
 - EAR configuration files templates updated.
 - Bugs fixed for intel\_pstate CPUFreq driver support.
 - Powercap bug fixes.
 - ear.conf parsing errors found and fixed.
 
-### EAR 4.3
+## EAR 4.3
 - MPI stats collection now is guided by sampling to minimize the overhead.
 - EARL-EARD communication optimized.
 - EARL: Periodic actions optimization.
@@ -91,7 +136,7 @@
 - AMD Genoa is supported now.
 - Improved robustness in metrics computation to support hardware failures.
 
-### EAR 4.2
+## EAR 4.2
 - Improved support for node sharing : save/restore configurations
 - AMD(Zen3) CPUs
 - Intel(r) SST support ondemand
@@ -110,11 +155,11 @@
 - Improved metrics and management API
 - Changes in the environment variables have been done for homogeneity
 
-### EAR4.1.1
+## EAR4.1.1
 - Select replaced by poll to support bigger nodes
 - Minor changes in edb_create and FP exceptions fixes
 
-### EAR4.1
+## EAR4.1
 - Meta EARGM
 - Support for N jobs in node
 - CPU power models for N jobs
@@ -133,7 +178,7 @@
 - msr_safe 
 - HEROES plugin
 
-### EAR4.0
+## EAR4.0
 - AMD virtual p-states support and DF frequency management included
 - AMD optimization based on min_energy and min_time
 - GPU optimization in low GPU utilization phases
@@ -142,7 +187,7 @@
 - IO, Percentage of MPI and Uncore frequency reported to DB and included in eacct
 - econtrol extensions for EAR health-check
 
-### EAR3.4
+## EAR3.4
 - AMD monitoring support
 - TAGS support included in policies
 - Request dynamic in eard_rapi
@@ -150,7 +195,7 @@
 - Node powercap and cluster power cap under development
 - papi dependency removed
 
-### EAR3.3 vs EAR3.2
+## EAR3.3 vs EAR3.2
 - EAR loader included
 - GPU support migrated to nvml API
 - TAGS supported in ear.conf
@@ -159,7 +204,7 @@
 - Internal messaging protocol improved
 - Average CPU frequency and Average IMC frequency computation improved
 
-### EAR3.2
+## EAR3.2
 - GPU monitoring based on nvidia-smi command
 - GPU power reported to the DB
 - Postgress support

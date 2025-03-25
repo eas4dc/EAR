@@ -8,18 +8,24 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+
+//#define SHOW_DEBUGS 1
 #include <common/output/debug.h>
 #include <management/gpu/gpu.h>
 #include <management/gpu/archs/eard.h>
 #include <management/gpu/archs/nvml.h>
 #include <management/gpu/archs/dummy.h>
 #include <management/gpu/archs/oneapi.h>
+#include <management/gpu/archs/mgt_pvc_power_hwmon.h>
 #include <management/gpu/archs/rsmi.h>
+
+#ifndef USE_PVC_HWMON
+#warning "USE_PVC_HWMON not defined! Defining it to 0..."
+#define USE_PVC_HWMON 0
+#endif
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static mgt_gpu_ops_t   ops;
@@ -37,7 +43,11 @@ __attribute__((used)) void mgt_gpu_load(int force_api)
     // EARD then can be partially loaded.
     mgt_gpu_nvml_load(&ops);
     mgt_gpu_rsmi_load(&ops);
-    mgt_gpu_oneapi_load(&ops);
+		if (USE_PVC_HWMON) {
+			mgt_gpu_pvc_hwmon_load(&ops);
+		} else {
+			mgt_gpu_oneapi_load(&ops);
+		}
     mgt_gpu_eard_load(&ops, API_IS(force_api, API_EARD));
     mgt_gpu_dummy_load(&ops);
     loaded = 1;

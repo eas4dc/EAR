@@ -1703,3 +1703,21 @@ void db_free_results(char ***results, int num_cols, int num_rows)
     }
     free(results);
 }
+
+bool check_and_unset_environment_variables()
+{
+    if (getenv("MARIADB_PLUGINS") != NULL ||
+        getenv("MARIADB_PLUGIN_DIR") != NULL ||
+        getenv("LIBMARIADB_PLUGINS") != NULL ||
+        getenv("LIBMYSQL_PLUGIN_DIR") != NULL ||
+        getenv("LIBMYSQL_PLUGINS") != NULL) {
+
+        unsetenv("MARIADB_PLUGINS");
+        unsetenv("MARIADB_PLUGIN_DIR");
+        unsetenv("LIBMARIADB_PLUGINS");
+        unsetenv("LIBMYSQL_PLUGIN_DIR");
+        unsetenv("LIBMYSQL_PLUGINS");
+        return true;
+    }
+    return false;
+}

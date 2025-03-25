@@ -1,113 +1,155 @@
-%define _prefix @prefix@
-%define _sysconfdir @sysconfdir@
-%define _libdir @libdir@
+%global _ear_path @prefix@
+%global _ear_etc @sysconfdir@
+%global _ear_tmp @localstatedir@
 
+# The base name of the package, which should match the SPEC file name.
 Name:           ear
+# The upstream version number of the software.
 Version:        @PACKAGE_VERSION@
-Release:        1%{?dist}
-Summary:        Energy Aware Runtime - %{version} ready to be deployed.
+# The number of times this version of the software was released. Normally, set
+# the initial value to 1%{?dist}, and increment it with each new release of the
+# package. Reset to 1 when a new Version of the software is built.
+Release:        3%{?dist}
+# A brief, one-line summary of the package.
+Summary:        Energy Aware Runtime - %{version} ready to be deployed on a service node.
 
 License: EPL-2.0 license
-URL: https://gitlab.bsc.es/ear_team/ear_private
-Source0: %{name}-%{version}.tar.gz
+URL: https://gitlab.bsc.es/ear_team/ear
+Prefix: %{_prefix}
+Prefix: %{_sysconfdir}
 
 %description
-EAR rpm package includes the daemons, configuration files and tools required to make EAR working in your cluster.
-
-%prep
-%setup
+EAR rpm package includes required libraries, binaries, configuration files and tools to make EAR working in your cluster.
 
 %install
-rm -rf $RPM_BUILD_ROOT
 
-# Creating bin/tools
-mkdir -p %{buildroot}%{_bindir}/tools
+# TODO: SLURM and PBS dependant installed just when required.
 
-# Installing all tools' binaries
-install -m 0770 bin/tools/* %{buildroot}%{_bindir}/tools
-
-# Installing erun into bin
-install -m 0775 bin/erun %{buildroot}%{_bindir}
-
-# Instaling ear-info and econtrol
-install -m 2771 bin/ear-info bin/econtrol %{buildroot}%{_bindir}
-
-# Installing eacct and ereport if they were installed
-if [ -f bin/eacct ]; then
-install -m 2771 bin/eacct %{buildroot}%{_bindir}
-fi
-if [ -f bin/ereport ]; then
-install -m 2771 bin/eacct %{buildroot}%{_bindir}
-fi
+mkdir -p %{buildroot}%{_bindir}
+cp -r %{_ear_path}/bin/* %{buildroot}%{_bindir}
+mv %{buildroot}%{_bindir}/tools %{buildroot}%{_bindir}/ear-tools
 
 mkdir -p %{buildroot}%{_sbindir}
-install -m 0770 sbin/* %{buildroot}%{_sbindir}
+cp -r %{_ear_path}/sbin/* %{buildroot}%{_sbindir}
 
-# Creating etc, etc/ear and etc/ear/coeffs
-mkdir -p %{buildroot}%{_sysconfdir}/ear/coeffs
-if [ -n "$(ls -A etc/ear/coeffs)" ]; then
-install -m 0775 etc/ear/coeffs/* %{buildroot}%{_sysconfdir}/ear/coeffs
-fi
-
-install -m 0660 etc/ear/defines.log etc/ear/ear.conf* etc/ear/edcmon* %{buildroot}%{_sysconfdir}/ear
-
-# Creating and installing modules
-mkdir -p %{buildroot}%{_sysconfdir}/module
-install -m 0775 etc/module/* %{buildroot}%{_sysconfdir}/module
-
-mkdir -p %{buildroot}%{_sysconfdir}/slurm
-install -m 0644 etc/slurm/ear.plugstack.conf %{buildroot}%{_sysconfdir}/slurm
-
-mkdir -p %{buildroot}%{_sysconfdir}/systemd
-install -m 0660 etc/systemd/* %{buildroot}%{_sysconfdir}/systemd
-
-# Creating and installing include dir
-mkdir -p %{buildroot}%{_includedir}
-install -m 0664 include/ear.h include/earld.h %{buildroot}%{_includedir}
-
-# Creating and install lib
 mkdir -p %{buildroot}%{_libdir}
-install -m 0664 lib/libearld_dummy.a lib/libear_api.a %{buildroot}%{_libdir}
-install -m 0775 lib/libearld* %{buildroot}%{_libdir}
-install -m 0755 lib/libear*.so %{buildroot}%{_libdir}
-install -m 0755 lib/earplug.so %{buildroot}%{_libdir}
+cp %{_ear_path}/lib/earplug.so %{buildroot}%{_libdir}
+cp %{_ear_path}/lib/libear*.so %{buildroot}%{_libdir}
+cp %{_ear_path}/lib/libear*.a %{buildroot}%{_libdir}
+cp -r %{_ear_path}/lib/deps %{buildroot}%{_libdir}
+cp -r %{_ear_path}/lib/plugins %{buildroot}%{_libdir}
 
-mkdir -p %{buildroot}%{_libdir}/pbs
-install -m 0775 lib/pbs/* %{buildroot}%{_libdir}/pbs
+mkdir -p %{buildroot}%{_includedir}
+cp -r %{_ear_path}/include/* %{buildroot}%{_includedir}
 
-mkdir -p %{buildroot}%{_libdir}/plugins/policies
-install -m 0775 lib/plugins/policies/* %{buildroot}%{_libdir}/plugins/policies
-
-mkdir -p %{buildroot}%{_libdir}/plugins/tracer
-install -m 0775 lib/plugins/tracer/* %{buildroot}%{_libdir}/plugins/tracer
-
-mkdir -p %{buildroot}%{_libdir}/plugins/models
-install -m 0775 lib/plugins/models/* %{buildroot}%{_libdir}/plugins/models
-
-mkdir -p %{buildroot}%{_libdir}/plugins/reports
-install -m 0775 lib/plugins/reports/* %{buildroot}%{_libdir}/plugins/reports
-
-mkdir -p %{buildroot}%{_libdir}/plugins/energy
-install -m 0775 lib/plugins/energy/* %{buildroot}%{_libdir}/plugins/energy
-
-mkdir -p %{buildroot}%{_libdir}/plugins/eard_policies
-install -m 0775 lib/plugins/eard_policies/* %{buildroot}%{_libdir}/plugins/eard_policies
-
-mkdir -p %{buildroot}%{_libdir}/plugins/powercap
-install -m 0775 lib/plugins/powercap/* %{buildroot}%{_libdir}/plugins/powercap
-
-mkdir -p %{buildroot}%{_libdir}/plugins/monitoring
-install -m 0775 lib/plugins/monitoring/* %{buildroot}%{_libdir}/plugins/monitoring
+mkdir -p %{buildroot}%{_sysconfdir}
+cp -r %{_ear_etc}/ear %{buildroot}%{_sysconfdir}
 
 %files
-# %license LICENSE
-%{_bindir}
-%{_includedir}
-%{_sysconfdir}
-%{_sbindir}
-%{_libdir}
+# %%license LICENSE
+%{_bindir}/eacct
+%{_bindir}/ereport
+%{_bindir}/econtrol
+%{_bindir}/erun
+%{_bindir}/ear-tools
+%{_bindir}/ear-info
+
+%{_sbindir}/ear*d
+%{_sbindir}/edb_clean_*
+%{_sbindir}/edb_create
+%{_sbindir}/edcmon
+
+%{_libdir}/earplug.so
+%{_libdir}/libear*.so
+%{_libdir}/libear*.a
+%{_libdir}/deps
+%{_libdir}/plugins
+
+%{_includedir}/ear*.h
+
+%{_sysconfdir}/ear
+
+%post
+
+
+# Check whether we installed the etcdir in a place different to what it was configured.
+# If so, we need to update the configured paths.
+if [[ "$RPM_INSTALL_PREFIX1" != %{_ear_etc} ]]; then
+	sed -i -e "s:\(CoefficientsDir=\)\(.\+\)\(/ear/coeffs\):\1${RPM_INSTALL_PREFIX1}\3:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+	sed -i -e "s:\(EtcDir=\)\(.\+\):\1${RPM_INSTALL_PREFIX1}:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+fi
+
+if [[ "$RPM_INSTALL_PREFIX0" != %{_ear_path} ]]; then
+	sed -i -e "s:\(InstDir=\)\(.\+\):\1${RPM_INSTALL_PREFIX0}:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+fi
+
+# By default, rpm sets _libdir as _prefix/lib64, but EAR components
+# assume _prefix/lib. Therefore we link to the assumed path if applies
+if [[ "$RPM_INSTALL_PREFIX0/%{_lib}" != "$RPM_INSTALL_PREFIX0/lib" ]]; then
+	mkdir -p "$RPM_INSTALL_PREFIX0/lib"
+	ln -s "$RPM_INSTALL_PREFIX0/%{_lib}/earplug.so" $RPM_INSTALL_PREFIX0/lib
+	ln -s ${RPM_INSTALL_PREFIX0}/%{_lib}/libear*.so $RPM_INSTALL_PREFIX0/lib
+	ln -s ${RPM_INSTALL_PREFIX0}/%{_lib}/libear*.a $RPM_INSTALL_PREFIX0/lib
+	ln -s ${RPM_INSTALL_PREFIX0}/%{_lib}/deps $RPM_INSTALL_PREFIX0/lib
+	ln -s ${RPM_INSTALL_PREFIX0}/%{_lib}/plugins $RPM_INSTALL_PREFIX0/lib
+fi
+
+mkdir -p %{_ear_tmp}
+chmod ugo+rwx %{_ear_tmp}
+
+# Create the service file
+echo "[Unit]
+Description=EARD - Energy Aware Runtime node daemon
+#ConditionPathExists=%{_ear_tmp}
+#Wants=req1.service req2.service
+#After=req1.service req2.service
+
+
+[Service]
+Type=simple
+Environment=\"EAR_ETC=${RPM_INSTALL_PREFIX1}\"
+ExecStart=${RPM_INSTALL_PREFIX0}/sbin/eard
+ExecStop=/bin/kill -TERM \$MAINPID
+KillMode=process
+Restart=on-failure
+#RestartSec=1s
+LimitMEMLOCK=infinity
+LimitSTACK=infinity
+
+[Install]
+WantedBy=multi-user.target" > /usr/lib/systemd/system/eard.service
+
+ln -fs /usr/lib/systemd/system/eard.service /etc/systemd/system/multi-user.target.wants/eard.service
+
+systemctl enable eard
+systemctl start eard
+
+%preun
+set -x
+systemctl stop eard
+
+%postun
+
+set -x
+
+rm -rf %{_ear_tmp}
+rm /etc/systemd/system/multi-user.target.wants/eard.service /usr/lib/systemd/system/eard.service
+
+if [[ "%{_prefix}/lib" != %{_libdir} ]]; then
+rm ${RPM_INSTALL_PREFIX0}/lib/earplug.so
+rm ${RPM_INSTALL_PREFIX0}/lib/libear*.so
+rm ${RPM_INSTALL_PREFIX0}/lib/libear*.a
+rm ${RPM_INSTALL_PREFIX0}/lib/deps
+rm ${RPM_INSTALL_PREFIX0}/lib/plugins
+fi
+
+systemctl daemon-reload
 
 %changelog
+* Wed Mar 19 2025 Oriol Vidal <oriol.vidal@bss.es> - 5.1-3
+- Make the package relocatable.
+* Fri Mar 7 2025 Oriol Vidal <oriol.vidal@eas4dc.com> - 5.1-2
+- Remove pbs hook files from distribution.
 * Thu Oct 3 2024 Oriol Vidal <oriol.vidal@bsc.es> - 5.1-1
 - Fixes.
 * Fri Jun 14 2024 Oriol Vidal <oriol.vidal@bsc.es> - 5.0-1

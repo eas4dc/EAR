@@ -6,6 +6,7 @@ gpu_OBJS = \
     eard.o \
     dummy.o \
     nvml.o \
+		mgt_pvc_power_hwmon.o \
     oneapi.o \
     rsmi.o
 

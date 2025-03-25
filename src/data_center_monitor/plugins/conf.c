@@ -48,6 +48,7 @@ declr_up_action_init(_conf)
             return "Node not found in ear.conf";
         }
     }
+    strcpy(conf.cluster.install.obj_ener,conf.node->energy_plugin);
     conf.cluster_loaded = 1;
     debug("database: %s", conf.cluster.database.database);
     return "Configuration plugin loaded correctly";
