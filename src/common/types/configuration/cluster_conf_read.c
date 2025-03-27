@@ -24,6 +24,10 @@
 #include <common/types/configuration/cluster_conf_db.h>
 #include <common/types/configuration/cluster_conf_etag.h>
 
+#ifndef INCLUDE_CONF
+#define INCLUDE_CONF 0
+#endif
+
 #if 0
 static void insert_th_policy(cluster_conf_t *conf, char *token, int policy, int main)
 {
@@ -563,17 +567,17 @@ void get_cluster_config(FILE *conf_file, cluster_conf_t *conf, uint action)
         token = strtok(line, "=");
         strtoup(token);
 
-
-
-				if (EAR_include(token) == EAR_SUCCESS){
-					char *file_to_include = strtok(NULL, "=");
-					clean_newlines(file_to_include);
-					verbose(VCCONF, "Include file: '%s'", file_to_include);
-					FILE *fd_include = fopen(file_to_include, "r");
-					if (fd_include != NULL) get_cluster_config(fd_include, conf, ADD_CONTENT);
-					else verbose(VCCONF, "Include file cannot be open %s", strerror(errno));
-					continue;
-				}
+#if INCLUDE_CONF
+	if (EAR_include(token) == EAR_SUCCESS){
+		char *file_to_include = strtok(NULL, "=");
+		clean_newlines(file_to_include);
+		verbose(VCCONF, "Include file: '%s'", file_to_include);
+		FILE *fd_include = fopen(file_to_include, "r");
+		if (fd_include != NULL) get_cluster_config(fd_include, conf, ADD_CONTENT);
+		else verbose(VCCONF, "Include file cannot be open %s", strerror(errno));
+		continue;
+	}
+#endif
 
         if (EARGM_token(token) == EAR_SUCCESS){
             if (EARGM_parse_token(&conf->eargm,token) == EAR_SUCCESS) continue;
