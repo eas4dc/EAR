@@ -1,13 +1,63 @@
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+# Currently there is just on stage: build. Different jobs compile different versions of EAR by using
+# compile.sh script provided in the ear_ci repository: https://gitlab.bsc.es/ear_team/ear-ci
 stages:          # List of stages for jobs, and their order of execution
   - build
+  - test
 
-image: registry.gitlab.bsc.es/ear_team/ear_private
+image: registry.gitlab.bsc.es/ear_team/ear-ci
 
-build-job:       # This job runs in the build stage, which runs first.
+compile-no-mpi-loader:
   stage: build
   script:
-    - echo "Compiling the code..."
-    - build.sh
-    - echo "Compile complete."
-  rules:
-    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - export CONFIG_SITE="$TESTDIR/config-sites/config.no-mpi-loader.site"
+    - CONFIGURE_FLAGS="--prefix=$PWD/ear-no-mpi-loader" $TESTDIR/compile.sh
+    - make install
+  artifacts:
+    untracked: false
+    when: on_success
+    expire_in: 1 days
+    paths:
+      - "ear-no-mpi-loader"
+
+compile-no-mpi:
+  stage: build
+  script:
+    - export CONFIG_SITE="$TESTDIR/config-sites/config.no-mpi.site"
+    - MAKE_FEATURES="MPI_CFLAGS='$(pkgconf ompi-c --cflags)'" $TESTDIR/compile.sh
+
+compile-mpi:
+  stage: build
+  script:
+    - export CONFIG_SITE="$TESTDIR/config-sites/config.ompi.site"
+    - MAKE_FEATURES="MPI_CFLAGS='$(pkgconf ompi-c --cflags)'" CONFIGURE_FLAGS="--prefix=$PWD/ear-ompi" $TESTDIR/compile.sh
+    - make install
+  artifacts:
+    when: on_success
+    expire_in: 1 days
+    paths:
+      - "ear-ompi"
+
+test-install-no-mpi-loader:
+  stage: test
+  needs: [compile-no-mpi-loader]
+  script:
+    - echo "Checking installation for no MPI Loader installation"
+    - $TESTDIR/test_install.sh ear-no-mpi-loader
+    - test -f ear-no-mpi-loader/lib/libear.gen.so
+
+test-install-mpi:
+  stage: test
+  needs: [compile-mpi]
+  script:
+    - echo "Checking installation for MPI installation"
+    - $TESTDIR/test_install.sh ear-ompi
+    - test -f ear-ompi/lib/libear.ompi.so

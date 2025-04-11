@@ -1362,7 +1362,7 @@ static int get_ear_application_id_multiprocess(int app_multi)
 					usleep(100);
 					tries++;
 				}
-			} while((st != EAR_SUCCESS) && (tries < 1000));
+			} while((st != EAR_SUCCESS) && (tries < 1000000));
 			/* AID read or timeout. Timeout can generated blocks later. */
 			if (st == EAR_SUCCESS) {
 				earl_early_verb(VPROC_INIT, "Rank %d master_id detected: %d", ear_my_rank, master_pid);

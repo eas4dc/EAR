@@ -561,10 +561,17 @@ state_t pmgt_enable(pwr_mgt_t *phandler)
 }
 state_t pmgt_disable(pwr_mgt_t *phandler)
 {
-    state_t ret;
+    state_t ret = EAR_SUCCESS;
+    state_t temp_ret;
     int i;
-    for (i=0;i<NUM_DOMAINS;i++){
-        ret=freturn(pcsyms_fun[i].disable);
+    for (i = 0; i < NUM_DOMAINS; i++) {
+        if (domains_loaded[i]) {
+            temp_ret = freturn(pcsyms_fun[i].disable);
+            if (temp_ret != EAR_SUCCESS) {
+                ret = temp_ret; // Update ret if any domain disable fails
+            }
+            domains_loaded[i] = 0;
+        }
     }
     return ret;
 }

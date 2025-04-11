@@ -57,7 +57,7 @@ static uint projection_available(ulong from_ps, ulong to_ps);
 
 /** This function loads any information needed by the energy model.
  * It is called when the model just has been loaded. */
-state_t energy_model_init(char *ear_etc_path, char *ear_tmp_path, architecture_t *arch_desc)
+state_t energy_model_init(char *ear_coeffs_path, char *ear_tmp_path, architecture_t *arch_desc)
 {
   int i, ref;
   char * hack_file = ear_getenv(HACK_EARL_COEFF_FILE);

@@ -37,7 +37,7 @@ static int valid_range(ulong from,ulong to)
 }
 
 /* This function loads any information needed by the energy model */
-state_t energy_model_init(char *ear_etc_path, char *ear_tmp_path, architecture_t *arch_desc)
+state_t energy_model_init(char *ear_coeffs_path, char *ear_tmp_path, architecture_t *arch_desc)
 {
   char *hack_file = ear_getenv(HACK_EARL_COEFF_FILE);
   int i, ref;
@@ -72,8 +72,8 @@ state_t energy_model_init(char *ear_etc_path, char *ear_tmp_path, architecture_t
   int cfile_size;
 
   if (hack_file == NULL){
- 		xsnprintf(coeffs_path, sizeof(coeffs_path), "%s/ear/coeffs/island%d/coeffs.imc_perc.%s",\
- 	  ear_etc_path, system_conf->island, system_conf->tag);
+		xsnprintf(coeffs_path, sizeof(coeffs_path), "%s/island%d/coeffs.imc_perc.%s",\
+	  ear_coeffs_path, system_conf->island, system_conf->tag);
  		
 
   }else{

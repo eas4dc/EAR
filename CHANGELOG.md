@@ -1,5 +1,4 @@
 # Changelog
-
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
@@ -21,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - v5.2 Fixed typo in cpupow define.
 - v5.2 Improved CPU governor list message.
+
+## 5.1.8 - 2025-04-10
+
+### Fixed
+- Use ear.conf CoefficientsDir parameter instead of EAR\_ETC/coeffs as coefficients path in energy models in EARL.
+- Fix bug in pmgt\_disable() disabling non-loaded domains.
+- Avoid multiple master processes in NTASK\_WORKSHARING use case by increasing timeout for syncronization.
 
 ## 5.1.7 - 2025-03-27
 

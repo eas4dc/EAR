@@ -40,7 +40,7 @@ extern uint gpu_optimize;
 
 struct energy_model_s
 {
-	state_t (*model_init)	(char *ear_etc_path, char *ear_tmp_path, void *arch_desc);
+	state_t (*model_init)	(char *ear_coeffs_path, char *ear_tmp_path, void *arch_desc);
 	state_t (*model_project_time) (signature_t *signature, ulong from_ps, ulong to_ps, double *proj_time); 
 	state_t (*model_project_power) (signature_t *signature, ulong from_ps, ulong to_ps, double *proj_power);
 	uint (*model_projection_available) (ulong from_ps, ulong to_ps);
@@ -235,7 +235,7 @@ static energy_model_t energy_model_load(settings_conf_t *sconf, architecture_t *
 	// Init the energy model plug-in
 	if (energy_model->model_init)
 	{
-		ret = energy_model->model_init(sconf->installation.dir_conf, sconf->installation.dir_temp, arch_desc);
+		ret = energy_model->model_init(sconf->lib_info.coefficients_pathname, sconf->installation.dir_temp, arch_desc);
 		if (state_fail(ret))
 		{
 			error_lib("On %s: energy_model_init", energy_model_base_path);

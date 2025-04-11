@@ -33,7 +33,7 @@
 #endif // SCHED_SLURM
 
 #if SCHED_PBS
-#define BATCH_STEP     0
+#define BATCH_STEP     NULL_STEPID
 #define INTERACT_STEP -6 // Mimic from slurm.h value
 #endif
 

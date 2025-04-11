@@ -38,7 +38,7 @@ static int valid_range(ulong from_ps, ulong to_ps);
 
 
 /* This function loads any information needed by the energy model */
-state_t energy_model_init(char *ear_etc_path, char *ear_tmp_path, architecture_t *arch_desc)
+state_t energy_model_init(char *ear_coeffs_path, char *ear_tmp_path, architecture_t *arch_desc)
 {
   char *hack_file = ear_getenv(HACK_EARL_COEFF_FILE);
   int i, ref;
