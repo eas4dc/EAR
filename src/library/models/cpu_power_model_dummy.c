@@ -134,6 +134,7 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data,shsignature_t *sig,
         {
           L3[node_process]  = nmgr[j].shsig[lp].sig.L3_misses;
           node_L3 += L3[node_process];
+          inst[node_process] = nmgr[j].shsig[lp].sig.instructions;
         }
         job_in_process[node_process] = j;
         node_process++;
@@ -215,7 +216,7 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data,shsignature_t *sig,
 		CPU_power -= GPU_power;
 	}else {
 		/* This case should not happen */
-		if ((lsig->PCK_power > 0 ) && (	lsig->DRAM_power > 0)) CPU_power = lsig->PCK_power + lsig->DRAM_power;
+		if (lsig->PCK_power > 0) CPU_power = lsig->PCK_power + lsig->DRAM_power;
 		else 																									 CPU_power = 300;
 	}
 

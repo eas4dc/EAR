@@ -117,6 +117,27 @@ void fill_ip(char *buff, ip_table_t *table)
 	freeaddrinfo(result);
 }
 
+int generate_node_names_from_list(cluster_conf_t *my_cluster_conf, ip_table_t **ips, char **hosts, int32_t num_hosts)
+{
+
+    ip_table_t *new_ips = calloc(num_hosts, sizeof(ip_table_t));
+    for (int32_t i = 0; i < num_hosts; i++) {
+        my_node_conf_t *aux_node_conf;
+        strncpy(new_ips[i].name, hosts[i], strlen(hosts[i]));
+        aux_node_conf = get_my_node_conf(my_cluster_conf, hosts[i]);
+        if (aux_node_conf == NULL)
+            fprintf(stderr, "Error reading node %s configuration\n", hosts[i]);
+        else
+            new_ips[i].max_power = (uint) aux_node_conf->max_error_power;
+        fill_ip(hosts[i], &new_ips[i]); // fill the ip using the net_ext
+    }
+    *ips = new_ips;
+
+    return num_hosts;
+
+}
+
+
 int generate_node_names(cluster_conf_t my_cluster_conf, ip_table_t **ips)
 {
 	int k;
@@ -418,21 +439,25 @@ void process_powercap_status(powercap_status_t *powerstatus, int num_status)
 	}
 }
 
-void process_status(int num_status, status_t *status, char error_only)
+void process_status(int num_status, status_t *status, char error_only, char **hosts, int32_t num_hosts)
 {
-	if (num_status > 0 || error_only == ERR_ONLY)
-	{
-		int i, num_ips;
-		ip_table_t *ips = NULL;
-		num_ips = generate_node_names(my_cluster_conf, &ips);
-		clean_ips(ips, num_ips);
-		for (i = 0; i < num_status; i++)
-			check_ip(status[i], ips, num_ips);
-		print_ips(ips, num_ips, error_only);
-		free(ips);
-		free(status);
-	}
-	else printf("No status were retrieved (nodes may be inactive).\n");
+    if (num_status > 0 || error_only == ERR_ONLY)
+    {
+        int i, num_ips;
+        ip_table_t *ips = NULL;
+        if (num_hosts > 0 && hosts != NULL) {
+            num_ips = generate_node_names_from_list(&my_cluster_conf, &ips, hosts, num_hosts);
+        } else {
+            num_ips = generate_node_names(my_cluster_conf, &ips);
+        }
+        clean_ips(ips, num_ips);
+        for (i = 0; i < num_status; i++)
+            check_ip(status[i], ips, num_ips);
+        print_ips(ips, num_ips, error_only);
+        free(ips);
+        free(status);
+    }
+    else printf("No status were retrieved (nodes may be inactive).\n");
 }
 
 char *get_eardbd_type(int i)
@@ -1029,7 +1054,7 @@ int main(int argc, char *argv[])
                 }
             case 'e':
                 num_status = ear_cluster_get_status(&my_cluster_conf, &status);
-                process_status(num_status, status, 1);
+                process_status(num_status, status, 1, NULL, 0);
                 break;
             case 'k':
                 status_type = EAR_TYPE_HEALTH_CHECK;
@@ -1241,15 +1266,15 @@ int main(int argc, char *argv[])
         {
             case EAR_TYPE_STATUS:
                 num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
-                process_status(num_status, status, NODE_ONLY);
+                process_status(num_status, status, NODE_ONLY, nodes, num_nodes);
                 break;
             case EAR_TYPE_POLICY:
                 num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
-                process_status(num_status, status, POLICY_ONLY);
+                process_status(num_status, status, POLICY_ONLY, nodes, num_nodes);
                 break;
             case EAR_TYPE_FULL_STATUS:
                 num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
-                process_status(num_status, status, FULL_STATUS);
+                process_status(num_status, status, FULL_STATUS, nodes, num_nodes);
                 break;
             case EAR_TYPE_POWER_STATUS:
                 num_status = ear_get_powercap_status(&my_cluster_conf, &powerstatus, 0, nodes, num_nodes);
@@ -1276,7 +1301,7 @@ int main(int argc, char *argv[])
             case EAR_TYPE_HEALTH_CHECK:
                 printf("---------------------\nINACTIVE NODES\n---------------------\n");
                 num_status = ear_get_status(&my_cluster_conf, &status, nodes, num_nodes);
-                process_status(num_status, status, ERR_ONLY);
+                process_status(num_status, status, ERR_ONLY, nodes, num_nodes);
                 printf("---------------------\nINACTIVE EARDBDS\n---------------------\n");
                 num_status = eardbd_status_all(&my_cluster_conf, &edbstatus);
                 process_eardbd_status(num_status, edbstatus, 1);

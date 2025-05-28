@@ -249,8 +249,12 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
             dram_power[j] = mem_ratio * lsig->DRAM_power;
             /* TPI should be total accesses / total instructions, we are computing in this
              * way for compatibility */
-            tpi[j]        = (mem_ratio * data->cas_counters * cache_line_size) / inst[j];
-            debug("case 1[%d]: Ratio %.3f cas %llu inst %llu", j, mem_ratio, data->cas_counters, inst[j]);
+						if (inst[j]) {
+							tpi[j]        = (mem_ratio * data->cas_counters * cache_line_size) / inst[j];
+							debug("case 1[%d]: Ratio %.3f cas %llu inst %llu", j, mem_ratio, data->cas_counters, inst[j]);
+						} else {
+							tpi[j]        = (double)0;
+						}
         } else {
             /* If there is no cache misses, we distribute the GBs proportionally to the number of cpus, naive approach */
             cj = job_in_process[j];
@@ -326,7 +330,7 @@ state_t cpu_power_model_project_arch(lib_shared_data_t *data, shsignature_t *sig
     CPU_power -= GPU_power;
   }else {
     /* This case should not happen */
-    if ((lsig->PCK_power > 0 ) && ( lsig->DRAM_power > 0)) CPU_power = lsig->PCK_power + lsig->DRAM_power;
+    if (lsig->PCK_power > 0) CPU_power = lsig->PCK_power + lsig->DRAM_power;
     else                                                   CPU_power = 300;
   }
 

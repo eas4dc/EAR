@@ -21,6 +21,7 @@
 
 #define MAX_SYMBOLS 4
 #define MAX_PLUGINS 128
+#define PM_DEFAULT_VERB 2
 
 typedef void  (get_tag_f)         (cchar **tag, cchar **tags_deps);
 typedef char *(action_init_f)     (cchar *tag, void **data_alloc, void *data);
@@ -600,6 +601,7 @@ static int plugin_manager_configure(int argc, char *argv[])
 {
     char buffer[8192];
     char params[128];
+    char verb_lvl[2] = "\0";
 
     if (argc == 1 || args_get(argc, argv, "help", buffer)) {
         verbose(0, "Usage: %s [OPTIONS]\n", argv[0]);
@@ -623,8 +625,11 @@ static int plugin_manager_configure(int argc, char *argv[])
     if (!args_get(argc, argv, "plugins", buffer)) {
         return 0;
     }
-    if (args_get(argc, argv, "verbose", NULL)) {
-        VERB_SET_LV(5);
+    if (args_get(argc, argv, "verbose", verb_lvl)) {
+        if (verb_lvl[0] == '\0')
+            VERB_SET_LV(PM_DEFAULT_VERB)
+        else
+            VERB_SET_LV(atoi(verb_lvl))
     }
     if (args_get(argc, argv, "silence", NULL)) {
         VERB_SET_EN(0);

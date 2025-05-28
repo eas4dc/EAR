@@ -34,10 +34,10 @@ typedef struct metrics_info_s {
     apinfo_t cch; // cache
     apinfo_t flp; // flops
     apinfo_t tmp; // temp
-    apinfo_t pow; // energy_node
+    apinfo_t pow; // energy_cpu
     apinfo_t cpi; // cpi
     apinfo_t gpu; // gpu
-    apinfo_t nod; // energy
+    apinfo_t nod; // energy_node
 } metrics_info_t;
 
 typedef struct metrics_read_s {
