@@ -28,7 +28,7 @@ typedef struct application
 	job_t job;	
 	uint8_t is_mpi;
 	uint8_t is_learning;
-	char node_id[GENERIC_NAME];		
+	char node_id[GENERIC_NAME];
 	power_signature_t power_sig; // power_sig are power metrics related to the whole job, not only the mpi part
 	signature_t	signature; 		 // signature refers to the mpi part, it includes power metrics and performance metrics
 } application_t;

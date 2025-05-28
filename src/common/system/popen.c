@@ -400,45 +400,76 @@ static int child_function(void *arg)
 	return -1;
 }
 
-#if TEST1 || TEST2
+#if TEST1 || TEST2 || TEST3
 int main(int argc, char *argv[])
 {
-    popen_t p;
-    #if TEST1
-    double f1, f2;
-    char *s1;
-    int gpu;
+	popen_t p;
+#if TEST1
+	double f1, f2;
+	char *s1;
+	int gpu;
 
-    popen_open("for i in 0 1 2 3; do echo GPU $i 10.0 20.0 some_text && sleep 1; done", 0, 0, &p);
-    // The while(1) is here because read functions are non-blocking if init
-    // function isn't called with one_shot parameter enabled, which would block
-    // the readings. If the reading is non-blocking you will read nothing most
-    // of the time, having to repeat the readings.
-    while (1) {
-        while(popen_read2(&p, ' ', "aidds", &gpu, &f1, &f2, &s1)) {
-            printf("%d %f %f %s\n", gpu, f1, f2, s1);
-            if (gpu == 3) {
-                return 0;
-            }
-        }
-    }
-    #else
-    char *s1[3];
-    int i1;
-    popen_open("for i in 0 1 2 3; do echo $i text1 text2 text3 && sleep 1; done", 0, 0, &p);
-    while (1) {
-        while(popen_read2(&p, ' ', "iS", &i1, s1)) {
-            // As you can see the capital S is for vector. But the vectors have
-            // to be final letters because POPEN doesn't know the expected
-            // length. Maybe in the future we can implement a format like SN, DN
-            // or IN to specify the number of elements in advance.
-            printf("%d %s %s %s\n", i1, s1[0], s1[1], s1[2]);
-            if (i1 == 3) {
-                return 0;
-            }
-        }
-    }
-    #endif
-    return 0;
+	popen_open
+	    ("for i in 0 1 2 3; do echo GPU $i 10.0 20.0 some_text && sleep 1; done",
+	     0, 0, &p);
+	// The while(1) is here because read functions are non-blocking if init
+	// function isn't called with one_shot parameter enabled, which would block
+	// the readings. If the reading is non-blocking you will read nothing most
+	// of the time, having to repeat the readings.
+	while (1) {
+		while (popen_read2(&p, ' ', "aidds", &gpu, &f1, &f2, &s1)) {
+			printf("%d %f %f %s\n", gpu, f1, f2, s1);
+			if (gpu == 3) {
+				return 0;
+			}
+		}
+	}
+#elif TEST2
+	char *s1[3];
+	int i1;
+	popen_open
+	    ("for i in 0 1 2 3; do echo $i text1 text2 text3 && sleep 1; done",
+	     0, 0, &p);
+	while (1) {
+		while (popen_read2(&p, ' ', "iS", &i1, s1)) {
+			// As you can see the capital S is for vector. But the vectors have
+			// to be final letters because POPEN doesn't know the expected
+			// length. Maybe in the future we can implement a format like SN, DN
+			// or IN to specify the number of elements in advance.
+			printf("%d %s %s %s\n", i1, s1[0], s1[1], s1[2]);
+			if (i1 == 3) {
+				return 0;
+			}
+		}
+	}
+#else
+	if (state_fail(popen_open("dcgmi profile -l", 3, 1, &p))) {
+		printf("Error popen_open: %s\n", state_msg);
+		return EXIT_FAILURE;
+	}
+	char *event_name;
+	int event_id;
+	if (!popen_read(&p, "aaaiasa", &event_id, &event_name)) {
+		printf("Error popen_read: %s\n", state_msg);
+		popen_close(&p);
+		return EXIT_FAILURE;
+	}
+
+	int events_count;
+	if ((events_count = popen_count_read(&p)) == 0) {
+		printf("No events found\n");
+		popen_close(&p);
+		return EXIT_FAILURE;
+	}
+	printf("Events count: %d\n", events_count);
+
+	do {
+		printf("Event name: %s, event id: %d\n", event_name, event_id);
+	} while (popen_read(&p, "aaaiasa", &event_id, &event_name) && event_id != 0);
+
+	printf("Bye\n");
+	return EXIT_SUCCESS;
+#endif
+	return 0;
 }
 #endif

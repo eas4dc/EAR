@@ -32,7 +32,13 @@
 #define PC_DVFS     50
 #define PC_POWER    51
 
-
+typedef enum {
+	LEVEL_NODE,
+	LEVEL_DEVICE,
+	LEVEL_DOMAIN,
+	LEVEL_CPU,
+	LEVEL_GPU,
+} powercap_levels_t;
 
 #define PC_MODE_LIMIT   200
 #define PC_MODE_TARGET  201				

@@ -20,4 +20,22 @@
 #define PC_STATUS_START     6
 #define PC_STATUS_RUN       7
 
+typedef enum {
+	DRAM0 = 0,
+	DRAM1,
+	CPU0,
+	CPU1,
+	GPUSTART,
+	NUM_DEV_TYPES
+} powercap_device_types;
+
+typedef struct pc_device_types_map {
+    const char *name;
+    powercap_device_types type;
+} pc_device_types_map_t;
+
+extern pc_device_types_map_t device_map[];
+
+powercap_device_types get_device_enum(const char *device_name);
+
 #endif

@@ -16,36 +16,29 @@
 #include <common/types/power_signature.h>
 
 
-void copy_power_signature(power_signature_t *destiny, power_signature_t *source)
+void power_signature_copy(power_signature_t *dst, power_signature_t *src)
 {
-    memcpy(destiny, source, sizeof(power_signature_t));
+    memcpy(dst, src, sizeof(power_signature_t));
 }
 
-void init_power_signature(power_signature_t *sig)
+void power_signature_init(power_signature_t *power_signature)
 {
-    memset(sig, 0, sizeof(power_signature_t));
+    memset(power_signature, 0, sizeof(power_signature_t));
 }
 
-uint are_equal_power_sig(power_signature_t *sig1, power_signature_t *sig2, double th)
+void power_signature_print_fd(int fd, power_signature_t *power_signature)
 {
-    if (!equal_with_th(sig1->DC_power, sig2->DC_power, th)) return 0;
-    if (!equal_with_th(sig1->DRAM_power, sig2->DRAM_power, th)) return 0;
-    if (!equal_with_th(sig1->PCK_power, sig2->PCK_power, th)) return 0;
-    if (!equal_with_th(sig1->EDP, sig2->EDP, th)) return 0;    
-    return 1;
+	if (!power_signature) {
+		return;
+	}
+	dprintf(fd, "%lf;%lf;%lf;%lf;%lf;%lf;%lu;%lu",
+			power_signature->DC_power, power_signature->DRAM_power, power_signature->PCK_power,
+			power_signature->max_DC_power,
+			power_signature->min_DC_power,
+			power_signature->time, power_signature->avg_f, power_signature->def_f);
 }
 
-void print_power_signature_fd(int fd, power_signature_t *sig)
-{
-	/* print order: AVG.FREQ;DEF.FREQ;TIME;DC-NODE-POWER;DRAM-POWER;*/
-	//int i;
-    
-	dprintf(fd, "%lu;%lu;", sig->avg_f, sig->def_f);
-	dprintf(fd, "%lf;", sig->time);
-	dprintf(fd, "%lf;%lf;%lf;", sig->DC_power, sig->DRAM_power, sig->PCK_power);
-}
-
-void clean_db_power_signature(power_signature_t *ps, double limit)
+void power_signature_db_clean(power_signature_t *ps, double limit)
 {
 		if (!isnormal(ps->DC_power))		ps->DC_power = 0;
 		if (!isnormal(ps->DRAM_power))  ps->DRAM_power = 0;

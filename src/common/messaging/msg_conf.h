@@ -96,6 +96,7 @@ typedef union req_data{
     powercap_opt_t      pc_opt;
     eargm_req_t         eargm_data;
 	int                 release_power;
+	char                *message;
 }req_data_t;
 
 typedef struct request{
@@ -207,6 +208,7 @@ typedef struct power_check {
 #define EAR_RC_APP_NODE_STATUS      601
 #define EAR_RC_APP_MASTER_STATUS    602
 #define EAR_RC_NODE_PURGE           603
+#define EAR_RC_SEND_MESSAGE         604
 
 /* New functions for power limits */
 #define EAR_RC_RED_POWER            700

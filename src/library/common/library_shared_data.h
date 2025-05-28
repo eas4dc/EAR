@@ -79,6 +79,7 @@ typedef struct mpi_calls_types
 /** \name Shared info
  * This group of definitions is used to share data between processes. */
 /**@{*/
+
 /** Global application data shared between processes. */
 typedef struct lib_shared_data {
     uint        earl_on;
@@ -125,6 +126,7 @@ typedef struct shsignature {
 #if MPI_OPTIMIZED
 	ulong             mpi_freq;
 #endif
+	uint cpu_util; /*!< The CPU utilization computed from Proc Stat */
 } shsignature_t;
 
 
@@ -254,51 +256,50 @@ int compute_per_node_most_loaded_process(lib_shared_data_t *data,shsignature_t *
 state_t compute_job_node_instructions(const shsignature_t *sig, int n_procs, ull *instructions);
 
 
-/** Computes the total number of FLOP instructions of a job where its \p n_procs processses
- * have their signatures at \p sig. The result is stored at the address pointed by \p flops.
- * \param flops The address of this pointer must be the first position of an allocated space of
- * size FLOPS_EVENTS * sizeof (unsigned long). Otherwise you will overwrite memory. */
+/** Computes the total number of FLOP instructions of a job where its \p n_procs
+ * processses have their signatures at \p sig. The result is stored at the
+ * address pointed by \p flops.
+ *
+ * \param flops The address of this pointer must be the first position of an
+ * allocated space of size FLOPS_EVENTS * sizeof (unsigned long). Otherwise
+ * you will overwrite memory. */
 state_t compute_job_node_flops(const shsignature_t *sig, int n_procs, ull *flops);
 
 /** Computes the accumulated IO MB_S */
 state_t compute_job_node_io_mbs(const shsignature_t *sig, int n_procs, double *io_mbs);
 
-
-/** Computes the total number of cycles of a job where its \p n_procs processses have their
- * signatures at \p sig. The result is stored at the address pointed by \p t_cycles. */
+/** Computes the total number of cycles of a job where its \p n_procs
+ * processses have their signatures at \p sig. The result is stored
+ * at the address pointed by \p t_cycles. */
 state_t compute_job_node_cycles(const shsignature_t *sig, int n_procs, ull *t_cycles);
 
-
-/** Computes the total number of L1 misses of a job where its \p n_procs processses have their
- * signatures at \p sig. The result is stored at the address pointed by \p t_L1. */
+/** Computes the total number of L1 misses of a job where its \p n_procs
+ * processses have their signatures at \p sig. The result is stored at
+ * the address pointed by \p t_L1. */
 state_t compute_job_node_L1_misses(const shsignature_t *sig, int n_procs, ull *t_L1);
-
 
 /** Computes the total number of L2 misses of a job where its \p n_procs processses have their
  * signatures at \p sig. The result is stored at the address pointed by \p t_L2. */
 state_t compute_job_node_L2_misses(const shsignature_t *sig, int n_procs, ull *t_L2);
 
-
 /** Computes the total number of L3 misses of a job where its \p n_procs processses have their
  * signatures at \p sig. The result is stored at the address pointed by \p t_L3. */
 state_t compute_job_node_L3_misses(const shsignature_t *sig, int n_procs, ull *t_L3);
 
-
 /** Compute the total GFlop/s rate of a job where its \p n_procs processes have their signatures
  * at \p sig. The result is stored at the address pointed by \p t_gflops. */
 state_t compute_job_node_gflops(const shsignature_t *sig, int n_procs, double *t_gflops);
-
 
 uint compute_max_vpi_idx(const shsignature_t *sig, int n_procs, double *max_vpi);
 
 void compute_total_io(lib_shared_data_t *data,shsignature_t *sig,ullong *total_io);
 void compute_total_node_avx_and_avx_fops(lib_shared_data_t *data,shsignature_t *sig,ullong *avx);
 
-
 /** Counts the number of CPUs of the job (on the current node) based on 
  * \p data's node_mask attribute and stores it on \p cpus. */
 void compute_job_cpus(lib_shared_data_t *data, uint *cpus);
 
+state_t compute_job_node_cpuutil(const shsignature_t *sig, int n_procs, uint *t_cpuutil);
 
 void load_app_mgr_env();
 int my_shsig_id();

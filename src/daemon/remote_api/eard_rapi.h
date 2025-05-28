@@ -51,4 +51,6 @@ int ear_get_app_node_status(cluster_conf_t *conf, app_status_t **app_status, cha
 /* Sets the powercap limit.*/
 void ear_set_powerlimit(cluster_conf_t *my_cluster_conf, unsigned long limit, char **nodes, int num_nodes);
 
+void ear_send_message(cluster_conf_t *conf, char *message, char **nodes, int num_nodes);
+
 #endif

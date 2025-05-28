@@ -30,7 +30,7 @@ eardbd_HDRS = eardbd.h \
 
 ######## RULES
 
-all: $(oths_BINS) $(eardbd_BINS)
+all: $(othsbd_BINS) $(eardbd_BINS)
 
 eardbd_api.o: eardbd_api.c eardbd_api.h $(eardbd_LIBS)
 	$(CC) $(CFLAGS) -c $<

@@ -1122,6 +1122,29 @@ int ear_nodelist_set_powercap_opt(cluster_conf_t *my_cluster_conf, powercap_opt_
 	return EAR_SUCCESS;
 }
 
+void ear_cluster_send_message(cluster_conf_t *my_cluster_conf, char *message)
+{
+	request_t command = { 0 };
+	command.req = EAR_RC_SEND_MESSAGE;
+	command.my_req.message = message;
+	send_command_all(command, my_cluster_conf);
+}
+
+void ear_nodelist_send_message(cluster_conf_t *my_cluster_conf, char *message, char **nodes, int num_nodes)
+{
+	request_t command = { 0 };
+	int *ips;
+	get_ip_nodelist(my_cluster_conf, nodes, num_nodes, &ips);
+	debug("ear_node_new_job");
+	command.nodes = ips;
+	command.num_nodes = num_nodes;
+	command.req = EAR_RC_SEND_MESSAGE;
+	command.time_code = time(NULL);
+	command.my_req.message = message;
+	send_command_nodelist(&command, my_cluster_conf);
+	free(ips);
+}
+
 /* pings all nodes */
 void ear_cluster_ping(cluster_conf_t *my_cluster_conf)
 {

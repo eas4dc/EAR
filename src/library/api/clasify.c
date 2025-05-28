@@ -433,11 +433,11 @@ state_t roofline_classify(signature_t *sig, uint num_cpus, uint *cbound, uint *m
   
   if (gflops / gbs >= roofline->threshold) 
   {
-    *cbound = (gflops / num_cpus) / roofline->peak_gflops >= 0.75;
+    *cbound = 1;
   }
   else 
   {
-    *mbound = (gbs / num_cpus) / roofline->peak_bandwidth >= 0.75;
+    *mbound = (gbs / num_cpus) / roofline->peak_bandwidth >= 0.6;
   }
   return EAR_SUCCESS;
 }

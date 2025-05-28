@@ -60,7 +60,6 @@ typedef struct sig_ext
 #if DLB_SUPPORT
 		earl_talp_t				 earl_talp_data;
 #endif
-		proc_stat_t        proc_ps;
 		ulong              sel_mem_freq_khz;
 } sig_ext_t;
 

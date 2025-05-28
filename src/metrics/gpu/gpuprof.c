@@ -121,6 +121,14 @@ GPUPROF_F_DATA_COPY(gpuprof_data_copy)
     return ops.data_copy(dataD, dataS);
 }
 
+int gpuprof_compare_events(const void *gpuprof_ev_ptr1, const void *gpuprof_ev_ptr2)
+{
+	const gpuprof_evs_t *ev1 = gpuprof_ev_ptr1;
+	const gpuprof_evs_t *ev2 = gpuprof_ev_ptr2;
+
+	return ev1->id - ev2->id;
+}
+
 #ifdef TEST_EXAMPLE
 #include <stdlib.h>
 #include <metrics/common/apis.h>

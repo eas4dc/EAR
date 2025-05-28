@@ -331,6 +331,8 @@ static void fill_cpus_out_of_cgroup(uint exc);
 
 static void policy_new_phase(uint phase, signature_t *sig);
 
+static void verbose_governor_list(int vrb_lvl);
+
 #define DEBUG_CPUFREQ_COST 0
 
 #if DEBUG_CPUFREQ_COST
@@ -2178,17 +2180,8 @@ static state_t policy_set_cpus_governor(uint exclusive)
 		check(mgt_cpufreq_governor_get_list(no_ctx, governor_list_before_init),
 			  "Retrieving the governor list.");
 
-		// Verbose governor list
-		if (VERB_ON(POLICY_INFO))
-		{
-			verbosen(POLICY_INFO, "List of governors of %u CPUs: ", lib_shared_region->num_cpus);
-			for (int i = 0; i < metrics_get(MGT_CPUFREQ)->devs_count; i++)
-			{
-				verbosen(POLICY_INFO, " %u", governor_list_before_init[i]);
-				;
-			}
-			verbose(POLICY_INFO, " ");
-		}
+        // Verbose governor list
+				verbose_governor_list(POLICY_INFO);
 
 		// Set userspace governor on CPUs not used by the job
 
@@ -2378,5 +2371,36 @@ static void build_plugin_path(char *policy_plugin_path, size_t plug_path_size, s
 	if (state_fail(utils_build_valid_plugin_path(policy_plugin_path, plug_path_size,
 					"policies", my_policy_name, app_settings))) {
 		verbose_warning_master("Policy plug-in %s not found", my_policy_name);
+	}
+}
+
+static void verbose_governor_list(int vrb_lvl)
+{
+	if (VERB_ON(vrb_lvl))
+	{
+		verbosen(vrb_lvl, "Governor list of %u CPUs:", lib_shared_region->num_cpus);
+
+		uint last_gov = governor_list_before_init[0];
+		int last_gov_cpu = 0;
+
+		char gov_str[16];
+		governor_tostr(last_gov, gov_str);
+
+		for (int i = 1; i < metrics_get(MGT_CPUFREQ)->devs_count; i++)
+		{
+			uint cpu_i_gov = governor_list_before_init[i];
+			/* If the governor change, we print the number of CPUs since the last
+			 * governor. Then update the last governor and its cpu id. */
+			if (cpu_i_gov != last_gov) {
+				verbosen(vrb_lvl, " %d CPUs to %s", i - last_gov_cpu, gov_str);
+				last_gov = cpu_i_gov;
+				last_gov_cpu = i;
+				governor_tostr(last_gov, gov_str);
+			}
+		}
+
+		/* Finally we print the remaining CPUs with the last governor, since
+		 * we skip the loop when we reach the end. */
+		verbose(vrb_lvl, " %d CPUs to %s", metrics_get(MGT_CPUFREQ)->devs_count - last_gov_cpu, gov_str);
 	}
 }

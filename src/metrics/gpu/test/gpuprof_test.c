@@ -16,7 +16,7 @@
 #include <metrics/common/apis.h>
 
 
-#define EVENT_SET_CNT 1 // The number of sets you expect to test.
+#define EVENT_SET_CNT 2 // The number of sets you expect to test.
 
 
 static apinfo_t             info;
@@ -25,8 +25,8 @@ static gpuprof_t            *m1;
 static gpuprof_t            *m2;
 static gpuprof_t            *mD;
 
-// static const gpuprof_evs_t *evs;
-// static uint                 evs_count;
+static const gpuprof_evs_t *evs;
+static uint                 evs_count;
 
 
 int main(int argc, char *argv[])
@@ -42,12 +42,10 @@ int main(int argc, char *argv[])
 	gpuprof_data_alloc(&mD);
 	printf("ALLOCATED DATA\n");
 
-	/*
 	gpuprof_events_get(&evs, &evs_count);
-	for (i = 0; i < evs_count; ++i) {
+	for (int i = 0; i < evs_count; ++i) {
 		printf("EVENT_%d: id.%02u %s\n", i, evs[i].id, evs[i].name);
 	}
-	*/
 
 	// char aux[8];
 	// printf("Waiting before event set...\n");
@@ -73,11 +71,11 @@ int main(int argc, char *argv[])
 	// scanf("%s", aux);
 
 	gpuprof_read(m1);
-	sleep(3);
+	sleep(5);
 
 	int curr_set = 0;
 	int count = 0;
-	while(1)
+	while(count < 100)
 	{
 		gpuprof_read_diff(m2, m1, mD);
 		for (int d = 0; d < info.devs_count; ++d) {

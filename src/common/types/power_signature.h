@@ -18,52 +18,48 @@
 // WARNING! This type is serialized through functions pwoer_signature_serialize
 // and power_signature_deserialize. If you want to add new types, make sure to
 // update these functions too.
-typedef struct power_signature
-{
-    double DC_power;
-    double DRAM_power;
-    double PCK_power;
-    double EDP;
-    double max_DC_power;
-    double min_DC_power;
-	double time;
-    ulong avg_f;
-    ulong def_f;
+typedef struct power_signature {
+  double DC_power;
+  double DRAM_power;
+  double PCK_power;
+  double EDP;
+  double max_DC_power;
+  double min_DC_power;
+  double time;
+  ulong avg_f;
+  ulong def_f;
 } power_signature_t;
 
-typedef struct accum_power_sig{
-	ulong DC_energy;
-	ulong DRAM_energy;
-	ulong PCK_energy;
-	ulong avg_f;
-	double max, min;
+typedef struct accum_power_sig {
+  ulong DC_energy;
+  ulong DRAM_energy;
+  ulong PCK_energy;
+  ulong avg_f;
+  double max, min;
 #if USE_GPUS
-	ulong GPU_energy;
+  ulong GPU_energy;
 #endif
-}accum_power_sig_t;
+} accum_power_sig_t;
 
-
-// Function declarations
-
-/** Replicates the power_signature in *source to *destiny */
-void copy_power_signature(power_signature_t *destiny, power_signature_t *source);
+/** Replicates the power signature in *src to *dst. */
+void power_signature_copy(power_signature_t *dst, power_signature_t *src);
 
 /** Initializes all values of the power_signature to 0.*/
-void init_power_signature(power_signature_t *sig);
-
-/** returns true if basic values for sig1 and sig2 are equal with a maximum %
-*   of difference defined by threshold (th) */
-uint are_equal_power_sig(power_signature_t *sig1,power_signature_t *sig2,double th);
+void power_signature_init(power_signature_t *power_signature);
 
 /** Outputs the power_signature contents to the file pointed by the fd. */
-void print_power_signature_fd(int fd, power_signature_t *sig);
+void power_signature_print_fd(int fd, power_signature_t *power_signature);
 
-void clean_db_power_signature(power_signature_t *ps, double limit);
+void power_signature_db_clean(power_signature_t *ps, double limit);
 
-void power_signature_serialize(serial_buffer_t *b, power_signature_t *power_sig);
+void power_signature_serialize(serial_buffer_t *b,
+                               power_signature_t *power_sig);
 
-void power_signature_deserialize(serial_buffer_t *b, power_signature_t *power_sig);
+void power_signature_deserialize(serial_buffer_t *b,
+                                 power_signature_t *power_sig);
 
+/** \todo This function is mostly the same as power_signature_db_clean, except
+ * that it also controls freq values. It is not called from anywhere.  */
 void power_signature_clean_before_db(power_signature_t *sig, double pwr_limit);
 
 #endif

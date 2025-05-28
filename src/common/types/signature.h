@@ -47,12 +47,15 @@ typedef struct gpu_signature
   gpu_app_t gpu_data[MAX_GPUS_SUPPORTED];
 } gpu_signature_t;
 
-
-typedef struct cpu_signature{
+typedef struct cpu_signature {
 	uint  devs_count;
 	llong temp[MAX_SOCKETS_SUPPORTED];
 } cpu_signature_t;
 
+typedef struct proc_stat_signature_s {
+	uint cpu_util;
+	uint mem_util;
+} proc_stat_signature_t;
 
 typedef struct mini_sig
 {
@@ -116,6 +119,7 @@ typedef struct signature
 #if WF_SUPPORT
 	cpu_signature_t cpu_sig;
 #endif
+	proc_stat_signature_t ps_sig;
   void *sig_ext;
 } signature_t;
 

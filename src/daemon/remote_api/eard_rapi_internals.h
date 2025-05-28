@@ -192,6 +192,7 @@ int ear_node_get_power(power_check_t *power);
  * */
 int ear_cluster_get_power(cluster_conf_t *my_cluster_conf, power_check_t *power);
 
+void ear_cluster_send_message(cluster_conf_t *conf, char *message);
 
 /* Nodelist functions, they do the same as their ear_cluster or ear_nodelist counterparts but only to the
  * nodes in the list. */
@@ -204,6 +205,7 @@ void ear_nodelist_restore_conf(cluster_conf_t *my_cluster_conf, int *ips, int nu
 void ear_nodelist_set_powerlimit(cluster_conf_t *my_cluster_conf, unsigned long limit, char **nodes, int num_nodes);
 void ear_nodelist_set_risk(risk_t risk, unsigned long target, cluster_conf_t *my_cluster_conf, int *ips, int num_ips);
 void ear_nodelist_set_default_powercap(cluster_conf_t *my_cluster_conf, int *ips, int num_ips);
+void ear_nodelist_send_message(cluster_conf_t *conf, char *message, char **nodes, int num_nodes);
 
 /* The following functions return the number of status retrieved on success, 0 on error */
 int iplist_status(cluster_conf_t *my_cluster_conf, status_t **status, int *ips, int num_ips);

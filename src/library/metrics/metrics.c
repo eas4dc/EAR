@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 
 #define _GNU_SOURCE
@@ -938,16 +938,15 @@ static void metrics_global_start()
   metric_cond(proc_ps_ok, proc_stat_read(&proc_ctx, &metrics_proc_init[APP]), VERB_PROCPS, "proc_stat_read failed in global start");
   metric_cond(proc_ps_ok, proc_stat_data_copy(&metrics_proc_end[LOO], &metrics_proc_init[APP]), VERB_PROCPS, "proc_stat_data_copy failed in global start");
 
-  #if USE_CUPTI
-  if (read_cupti_metrics){
-    if (state_fail(gpuproc_read(no_ctx, proc_gpu_data_init[APP]))){
-      verbose_warning("gpuproc_read failed");
-    }
-    /* We will copy in partial start */
-    gpuproc_data_copy(proc_gpu_data_end[LOO], proc_gpu_data_init[APP]);
-  }
+#if USE_GPUS && USE_CUPTI
+	if (read_cupti_metrics){
+		if (state_fail(gpuproc_read(no_ctx, proc_gpu_data_init[APP]))){
+			verbose_warning("gpuproc_read failed");
+		}
+		/* We will copy in partial start */
+		gpuproc_data_copy(proc_gpu_data_end[LOO], proc_gpu_data_init[APP]);
+	}
   #endif
-
 
 	/* Per process IO data */
 	if (io_read(&ctx_io, &metrics_io_init[APP]) != EAR_SUCCESS){
@@ -1156,6 +1155,10 @@ static void metrics_global_stop()
 	cache_read_diff(no_ctx, &cache_read2[APP], &cache_read1[APP], &cache_diff[APP], &cache_bwidth[APP]);
 	cpi_read_diff(no_ctx,   &cpi_read2[APP],   &cpi_read1[APP],   &cpi_diff[APP],   &cpi_avrg[APP]);
 
+  metric_cond(proc_ps_ok, proc_stat_read_diff(&proc_ctx, &metrics_proc_end[APP],
+				&metrics_proc_init[APP], &metrics_proc_diff[APP]), VERB_PROCPS,
+			"EARL proc_stat_read_diff failed in global_stop");
+
   #if USE_CUPTI
   if (read_cupti_metrics){
     if (state_fail(gpuproc_read_diff(no_ctx, proc_gpu_data_end[APP], proc_gpu_data_init[APP], proc_gpu_data_diff[APP]))){
@@ -1316,8 +1319,6 @@ static int metrics_partial_stop(uint where)
   verbose_master(0,"FAKE_ENERGY_READING used ");
   #endif
 
-
-
 	/* If EARD is present, we wait until the power is computed */
 	if ((where==SIG_END) && (c_energy==0) && (master)) {
 		debug("EAR_NOT_READY because of accumulated energy %lu\n",c_energy);
@@ -1403,10 +1404,8 @@ static int metrics_partial_stop(uint where)
 	}
 	io_diff(&metrics_io_diff[LOO], &metrics_io_init[LOO], &metrics_io_end[LOO]);
 
-
   /* Process statistics */
-  metric_cond(proc_ps_ok, proc_stat_read(&proc_ctx, &metrics_proc_end[LOO]), VERB_PROCPS, "EARL proc_stat_read failed in partial_stop");
-
+	metric_cond(proc_ps_ok, proc_stat_read_diff(&proc_ctx, &metrics_proc_end[LOO], &metrics_proc_init[LOO], &metrics_proc_diff[LOO]), VERB_PROCPS, "EARL proc_stat_read_diff failed in partial_stop");
 
 	//  Manual time accumulation
 	metrics_usecs[LOO] = c_time;
@@ -1470,8 +1469,6 @@ static int metrics_partial_stop(uint where)
 			}
 			debug("AVG IMC frequency %.2f",(float)imcfreq_avrg[LOO]/1000000.0);
 		}
-
-    
 
 		/* Only the master read RAPL because is not per-process metric */
 		/* RAPL energy */
@@ -1554,7 +1551,6 @@ void copy_node_data(signature_t *dest, signature_t *src)
 
 static void estimate_metrics_not_available_by_processes(signature_t *metrics)
 {
-
   /* This function is executed after all processes compute their signature */
   if (!master) { return;}
   verbose_master(3, "Cache BDWITH  %f",  lib_shared_region->total_cache_bwidth);
@@ -1613,7 +1609,7 @@ static void estimate_metrics_not_available_by_node(uint sign_app_loop_idx, signa
 }
 
 
-/* This function computes the signature: per loop (global = LOO) or application ( global = APP)
+/* This function computes the signature: per loop (sign_app_loop_idx = LOO) or application (sign_app_loop_idx = APP)
  * The node master has computed the per-node metrics and the rest of processes uses this information. */
 static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *metrics,
 		uint iterations, ulong procs)
@@ -1621,19 +1617,30 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
 	// If sign_app_loop_idx is 1, it means that the global application metrics are required
 	// instead the small time metrics for loops. 'sign_app_loop_idx' is just a
 	// signature index.
-	sig_ext_t *sig_ext;
-	uint num_th = ear_get_num_threads();
 
-	//verbose(0, "process %d - %sapp/loop(1/0) %u%s",
-  //			my_node_id, COL_YLW, sign_app_loop_idx, COL_CLR);
+	// TODO: Is difficult to understand the context of this verbose message
+	if (VERB_ON(VEARL_INFO2) && (sign_app_loop_idx == APP)) {
+		verbose_info2_master("Process ending in exclusive mode: %u", exclusive);
+	}
+
+	if (!metrics) {
+		return;
+	}
+
+	if (metrics->sig_ext == NULL) {
+		metrics->sig_ext = (void *) calloc(1, sizeof(sig_ext_t));
+	}
+	sig_ext_t *sig_ext = metrics->sig_ext;
 
 	/* Total time */
 	metrics_usecs[sign_app_loop_idx] = ear_max(metrics_usecs[sign_app_loop_idx], 1);
 	double time_s = (double) metrics_usecs[sign_app_loop_idx] / 1000000.0;
 
-	if (VERB_ON(VEARL_INFO2) && (sign_app_loop_idx == APP)) {
-		verbose_info2_master("Process ending in exclusive mode: %u", exclusive);
-	}
+	sig_ext->elapsed = time_s;
+
+	/* Time per iteration */
+	iterations = ear_max(iterations, 1);
+	metrics->time = time_s / (double) iterations;
 
 	/* Avg CPU frequency */
 	metrics->avg_f = cpufreq_avrg[sign_app_loop_idx];
@@ -1647,21 +1654,10 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
 	temp_data_copy(metrics->cpu_sig.temp, temp_diff[sign_app_loop_idx]);
 #endif
 
-	
-
-	/* Time per iteration */
-	iterations = ear_max(iterations, 1);
-	metrics->time = time_s / (double) iterations;
-
 	/* Cache misses */
 	metrics->L1_misses = cache_diff[sign_app_loop_idx].l1d_misses;
 	metrics->L2_misses = cache_diff[sign_app_loop_idx].l2_misses;
 	metrics->L3_misses = cache_diff[sign_app_loop_idx].l3_misses;
-
-	if (metrics->sig_ext == NULL) {
-		metrics->sig_ext = (void *) calloc(1, sizeof(sig_ext_t));
-	}
-	sig_ext = metrics->sig_ext;
 
 #if USE_GPUS & DCGMI
 	if (master && dcgmi_lib_is_enabled() && (sig_ext->dcgmis.set_cnt == 0))
@@ -1669,9 +1665,6 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
 		dcgmi_lib_dcgmi_sig_init(&sig_ext->dcgmis);
     }
 #endif
-	sig_ext = metrics->sig_ext;
-	sig_ext->elapsed = time_s;
-
 
 	/* FLOPS */
 	/* flops_data_accum used in this way just computes the Gflops */
@@ -1680,6 +1673,7 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
 	flops_help_toold(&flops_diff[sign_app_loop_idx], metrics->FLOPS);
 
 	/* num_th is 1 if perf supports accumulating per thread counters */
+	uint num_th = ear_get_num_threads();
 	metrics->Gflops = metrics->Gflops * num_th;
 	for (uint i = 0; i < FLOPS_EVENTS; i++) metrics->FLOPS[i] = metrics->FLOPS[i] * num_th;
 
@@ -1709,7 +1703,7 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
 	}
   verbose_master(TPI_DEBUG, "GBS %.2lf TPI %.2lf", metrics->GBS, metrics->TPI);
 
-  #if USE_CUPTI
+  #if USE_GPUS && USE_CUPTI
   if (read_cupti_metrics){
     gpuproc_data_tostr(proc_gpu_data_diff[sign_app_loop_idx], gpu_proc_buffer, sizeof(gpu_proc_buffer));
     verbose_master(VERBOSE_CUPTI, "GPU PROC data for master: %s", gpu_proc_buffer);
@@ -1722,13 +1716,6 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
 
 	/* Per Node IO data */
 	int io_app_loop_idx = sign_app_loop_idx;
-
-
-  /* OS process statistics */
-
-  metric_cond(proc_ps_ok, proc_stat_data_diff(&metrics_proc_end[sign_app_loop_idx], &metrics_proc_init[sign_app_loop_idx], &metrics_proc_diff[sign_app_loop_idx]), VERB_PROCPS, "EARL proc_stat_data_diff failed in compute signature_data");
-  metric_cond(proc_ps_ok, proc_stat_data_copy(&(sig_ext->proc_ps), &metrics_proc_diff[sign_app_loop_idx]), VERB_PROCPS, "EARL proc_stat_data_copy in compute_signature");
-
 
 	/* Each process will compute its own IO_MBS, except
 	 * the master, that computes per node IO_MBS */
@@ -1744,11 +1731,25 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
     (double) metrics_io_diff[io_app_loop_idx].wchar / (double) (1024 * 1024);
 
 	metrics->IO_MBS = iogb/time_s;
-    #if 0
-    if (metrics->IO_MBS > phases_limits.io_th) {
-        verbose(1," %s.[%d] With high IO activity %.2lf", node_name, my_node_id, metrics->IO_MBS);
-    }
-    #endif
+
+  /* OS process statistics
+	 * We are storing the proc stat info in the extended signature but maybe this
+	 * is legacy.
+  metric_cond(proc_ps_ok, proc_stat_data_copy(&(sig_ext->proc_ps),
+				&metrics_proc_diff[sign_app_loop_idx]),
+			VERB_PROCPS, "EARL proc_stat_data_copy in compute_signature");
+	*/
+
+	/* Each process saves its CPU util. in the shared region. We are losing here
+	 * the rest of proc_ps metrics in order to not increase unnecessary the shared
+	 * region. In the case we need to share more metrics, we can define a type in
+	 * the lib_shared_data's sh_signature.
+	 */
+	if (proc_ps_ok) {
+		sig_shared_region[my_node_id].cpu_util =
+			metrics_proc_diff[sign_app_loop_idx].cpu_util;
+		metrics->ps_sig.cpu_util = metrics_proc_diff[sign_app_loop_idx].cpu_util;
+	}
 
 	if (master) {
 		sig_ext->max_mpi = 0;
@@ -2210,7 +2211,6 @@ void metrics_dispose(signature_t *metrics, ulong procs)
 	uint num_ready;
 	float wait_time = 0;
 
-
 #if METRICS_OVH
     //verbose(0,"[%d] Total usecs in metrics signature finish %lu", my_node_id, total_metrics_ovh);
     if (masters_info.my_master_rank >= 0) overhead_report(1);
@@ -2429,8 +2429,7 @@ state_t metrics_compute_signature_finish(signature_t *metrics, uint iterations,
 		if (state_fail(report_misc(&report_id, MPITRACE,
                                    (cchar *) &sig_shared_region[my_node_id], 0)))
         {
-			verbose(3, "%sERROR%s Reporting mpitrace for process %d",
-                    COL_RED, COL_CLR, my_node_id);
+			verbose_error("Reporting mpitrace for process");
 		}
 
     // Report node metrics
@@ -2438,8 +2437,7 @@ state_t metrics_compute_signature_finish(signature_t *metrics, uint iterations,
                                    (cchar *) metrics->sig_ext,
                                    lib_shared_region->num_processes)))
         {
-			verbose_master(3, "%sERROR%s Reporting mpi node metrics.[%d]",
-                    COL_RED, COL_CLR, my_node_id);
+			verbose_error("Reporting mpi node metrics");
 		}
 
 #if METRICS_OVH
@@ -2538,6 +2536,16 @@ void metrics_app_node_signature(signature_t * master, signature_t * ns)
 		     state_msg);
 	}
 
+	/* Proc stat aggregation */
+	uint total_cpuutil = 0;
+	if (state_fail(compute_job_node_cpuutil(sig_shared_region,
+					lib_shared_region->num_processes, &total_cpuutil))) {
+		verbose_warning("Error computing application's node total CPU util: %s",
+				state_msg);
+	} else {
+		ns->ps_sig.cpu_util = total_cpuutil;
+	}
+
 	ns->L1_misses = L1;
 	ns->L2_misses = L2;
 	ns->L3_misses = L3;
@@ -2552,8 +2560,7 @@ void metrics_app_node_signature(signature_t * master, signature_t * ns)
 	ns->PCK_power = 0;
 	if (master) {
 		for (uint lp = 0; lp < lib_shared_region->num_processes; lp++) {
-			valid_period =
-			    (ulong) sig_shared_region[lp].sig.valid_time;
+			valid_period = (ulong) sig_shared_region[lp].sig.valid_time;
 			max_inst =
 			    ear_max(max_inst,
 				    sig_shared_region[lp].sig.instructions);
@@ -2600,7 +2607,6 @@ void metrics_app_node_signature(signature_t * master, signature_t * ns)
 			       ns->avg_f, ns->TPI, accesses, inst);
 	}
 	signature_copy(&lib_shared_region->node_signature, ns);
-
 }
 
 void metrics_job_signature(const signature_t *master, signature_t *dst)
@@ -2650,6 +2656,16 @@ void metrics_job_signature(const signature_t *master, signature_t *dst)
 	dst->L2_misses = L2;
 	dst->L3_misses = L3;
 
+	/* Proc stat aggregation */
+	uint total_cpuutil = 0;
+	if (state_fail(compute_job_node_cpuutil(sig_shared_region,
+					lib_shared_region->num_processes, &total_cpuutil))) {
+		verbose_warning("Error computing application's node total CPU util: %s",
+				state_msg);
+	} else {
+		debug("Total CPU util: %u", total_cpuutil);
+		dst->ps_sig.cpu_util = total_cpuutil;
+	}
 }
 
 extern uint last_earl_phase_classification;
@@ -2813,8 +2829,6 @@ void metrics_read_cpupower()
     elap = timestamp_diff(&currt, &last_cpupower, TIME_MSECS);
     last_cpupower = currt;
 
-
-
     energy_cpu_read(no_ctx, metrics_rapl_fine_monitor_end);
     energy_cpu_data_diff(no_ctx, metrics_rapl_fine_monitor_start, metrics_rapl_fine_monitor_end, metrics_rapl_fine_monitor_diff);
     energy_cpu_data_copy(no_ctx, metrics_rapl_fine_monitor_start, metrics_rapl_fine_monitor_end); 
@@ -2902,7 +2916,6 @@ static state_t metrics_compute_total_io(io_data_t *total)
 		return_msg(EAR_ERROR, Generr.input_null);
     }
 }
-
 
 /* Update the description of this function (at the top) if you modify it. */
 static void read_metrics_options()

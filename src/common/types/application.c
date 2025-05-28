@@ -114,27 +114,24 @@ int read_application_text_file(char *path, application_t **apps, char is_extende
 }
 
 
-int print_application_fd(int fd, application_t *app, int new_line, char is_extended, int single_column)
+int print_application_fd(int fd, application_t *app, int new_line, char is_extended,
+		                     int single_column)
 {
-    char buff[1024];
-    sprintf(buff, "%s;", app->node_id);
-    write(fd, buff, strlen(buff));
+    char buff[512];
     print_job_fd(fd, &app->job);
-    dprintf(fd, ";");
+    sprintf(buff, ";%u;%u;%s;", app->is_mpi, app->is_learning, app->node_id);
+    write(fd, buff, strlen(buff));
 
     if (!app->is_mpi)
     {
         signature_init(&app->signature);
     }
 
-    if (app->signature.DRAM_power == 0) app->signature.DRAM_power = app->power_sig.DRAM_power;
-    if (app->signature.PCK_power == 0) app->signature.PCK_power = app->power_sig.PCK_power;
-    if (app->signature.DC_power == 0) app->signature.DC_power = app->power_sig.DC_power;
-    if (app->signature.avg_f == 0) app->signature.avg_f = app->power_sig.avg_f;
-    if (app->signature.def_f == 0) app->signature.def_f = app->power_sig.def_f;
-    if (app->signature.time == 0) app->signature.time = app->power_sig.time;
-
     signature_print_fd(fd, &app->signature, is_extended, single_column,',');
+
+		dprintf(fd, ";");
+
+		power_signature_print_fd(fd, &app->power_sig);
 
     if (new_line) {
         dprintf(fd, "\n");
@@ -150,17 +147,31 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
 		if (ear_file_is_regular(path)) return EAR_SUCCESS;
 
 #if WF_SUPPORT
-		char *HEADER_JOB = "NODENAME;JOBID;STEPID;APPID";
+		char *HEADER_JOB = "JOBID;STEPID;APPID;USERID;GROUPID;ACCOUNTID;JOBNAME;"\
+												"ENERGY_TAG;JOB_START_TIME;JOB_END_TIME;JOB_START_DATE;"\
+												"JOB_END_DATE;JOB_EARL_START_TIME;JOB_EARL_END_TIME;POLICY;"\
+												"POLICY_TH;JOB_NPROCS;JOB_TYPE;JOB_DEF_FREQ";
 #else
-		char *HEADER_JOB = "NODENAME;JOBID;STEPID";
+		char *HEADER_JOB = "JOBID;STEPID;USERID;GROUPID;ACCOUNTID;JOBNAME;"\
+												"ENERGY_TAG;JOB_START_TIME;JOB_END_TIME;JOB_START_DATE;"\
+												"JOB_END_DATE;JOB_EARL_START_TIME;JOB_EARL_END_TIME;POLICY;"\
+												"POLICY_TH;JOB_NPROCS;JOB_TYPE;JOB_DEF_FREQ";
 #endif // WF_SUPPORT
 
-    char *HEADER_BASE = ";USERID;GROUPID;JOBNAME;USER_ACC;"\
-												 "ENERGY_TAG;POLICY;POLICY_TH;START_TIME;"\
-												 "END_TIME;START_DATE;END_DATE;AVG_CPUFREQ_KHZ;"\
-												 "AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;TIME_SEC;CPI;TPI;MEM_GBS;"\
+    char *HEADER_BASE = "EARL_ENABLED;EAR_LEARNING_PHASE;NODENAME";
+
+		char *HEADER_SIGN = ";AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;"\
+												 "TIME_SEC;CPI;TPI;MEM_GBS;"\
 												 "IO_MBS;PERC_MPI;DC_NODE_POWER_W;DRAM_POWER_W;PCK_POWER_W;"\
-												 "CYCLES;INSTRUCTIONS;CPU-GFLOPS";
+												 "CYCLES;INSTRUCTIONS;CPU_GFLOPS;CPU_UTIL";
+
+		char ext_header[128] = ";L1_MISSES;L2_MISSES;L3_MISSES;SPOPS_SINGLE;SPOPS_128;"\
+														"SPOPS_256;SPOPS_512;DPOPS_SINGLE;DPOPS_128;DPOPS_256;"\
+														"DPOPS_512";
+		if (!is_extended)
+		{
+			memset(ext_header, 0, sizeof(ext_header));
+		}
 
 #if USE_GPUS
 #if WF_SUPPORT
@@ -173,13 +184,6 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
 #else
 	char HEADER_GPU_SIG[1] = "\0";
 #endif // USE_GPUS
-
-		char ext_header[128] = ";L1_MISSES;L2_MISSES;L3_MISSES;SPOPS_SINGLE;SPOPS_128;"\
-														"SPOPS_256;SPOPS_512;DPOPS_SINGLE;DPOPS_128;DP_256;DPOPS_512";
-		if (!is_extended)
-		{
-			memset(ext_header, 0, sizeof(ext_header));
-		}
 
     // We force here num_gpus in order to be more robust with other formats.
     num_gpus = MAX_GPUS_SUPPORTED * USE_GPUS; // USE_GPUS can set a zero on num_gpus
@@ -200,7 +204,10 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
 	
 #endif
 
-		size_t header_len = strlen(HEADER_JOB) + strlen(HEADER_BASE) + num_gpus * USE_GPUS * strlen(HEADER_GPU_SIG) + strlen(ext_header) + 1 + strlen(cpu_sig_hdr);
+	// Full version
+	char *HEADER_POWER_SIG = ";NODEMGR_DC_NODE_POWER_W;NODEMGR_DRAM_POWER_W;NODEMGR_PCK_POWER_W;NODEMGR_MAX_DC_POWER_W;NODEMGR_MIN_DC_POWER_W;NODEMGR_TIME_SEC;NODEMGR_AVG_CPUFREQ_KHZ;NODEMGR_DEF_FREQ_KHZ";
+
+		size_t header_len = strlen(HEADER_JOB) + strlen(HEADER_BASE) + strlen(HEADER_SIGN) + num_gpus * USE_GPUS * strlen(HEADER_GPU_SIG) + strlen(ext_header) + 1 + strlen(cpu_sig_hdr) + strlen(HEADER_POWER_SIG);
 		if (header)
 		{
 			header_len += strlen(header);
@@ -215,6 +222,7 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
 
 		strncat(HEADER, HEADER_JOB, header_len - strlen(HEADER) - 1);
 		strncat(HEADER, HEADER_BASE, header_len - strlen(HEADER) - 1);
+		strncat(HEADER, HEADER_SIGN, header_len - strlen(HEADER) - 1);
 
 		if (is_extended)
 		{
@@ -236,6 +244,8 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
     }
 #endif
 
+	strncat(HEADER, HEADER_POWER_SIG, header_len - strlen(HEADER) - 1);
+
 	  int fd = open(path, OPTIONS, PERMISSION);
     if (fd >= 0) {
     	dprintf(fd, "%s\n", HEADER);
@@ -245,7 +255,6 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
 
 	return EAR_SUCCESS;
 }
-
 
 int append_application_text_file(char *path, application_t *app, char is_extended, int add_header, int single_column)
 {
@@ -282,7 +291,7 @@ int scan_application_fd(FILE *fd, application_t *app, char is_extended)
                 "%lf;%lf;%lf;%lf;" \
                 "%lf;%lf;%lf;" \
                 "%llu;%llu;%lf;" \
-                "%llu;%llu;%llu;" \
+                "%u;%llu;%llu;%llu;" \
                 "%llu;%llu;%llu;%llu;"	\
                 "%llu;%llu;%llu;%llu\n",
                 a->node_id, &a->job.id, &a->job.step_id, a->job.user_id,
@@ -291,7 +300,7 @@ int scan_application_fd(FILE *fd, application_t *app, char is_extended)
                 &a->signature.time, &a->signature.CPI, &a->signature.TPI, &a->signature.GBS,
                 &a->signature.DC_power, &a->signature.DRAM_power, &a->signature.PCK_power,
                 &a->signature.cycles, &a->signature.instructions, &a->signature.Gflops,
-                &a->signature.L1_misses, &a->signature.L2_misses, &a->signature.L3_misses,
+                &a->signature.ps_sig.cpu_util, &a->signature.L1_misses, &a->signature.L2_misses, &a->signature.L3_misses,
                 &a->signature.FLOPS[0], &a->signature.FLOPS[1], &a->signature.FLOPS[2], &a->signature.FLOPS[3],
                 &a->signature.FLOPS[4], &a->signature.FLOPS[5], &a->signature.FLOPS[6], &a->signature.FLOPS[7]);
 
@@ -420,12 +429,12 @@ void verbose_application_data(uint vl, application_t *app)
         char mpi_info_txt[512]; // signature details
 
         snprintf(mpi_info_txt, sizeof(mpi_info_txt),
-                "(mpi_sig) Wall time: %0.3lf s, nominal freq.: %0.2f GHz, avg. freq: %0.2f GHz, avg imc freq: %0.2f GHz\n"
-                "          Avg. mpi_time/exec_time %.1lf %%\n\n"
-                "          tasks: %lu\n\n"
-                "          CPI/TPI: %0.3lf/%0.3lf, GB/s: %0.3lf, GFLOPS: %0.3lf, IO: %0.3lf (MB/s)\n"
-                "          DC/DRAM/PCK power (W): %0.3lf/%0.3lf/%0.3lf GFlops/Watt %.3lf\n\n",
-                app->signature.time, def_f, avg_f, avg_imc_f,
+                "(Appl. sign.) Wall time: %0.3lf s, CPU util.: %u %% nominal freq.: %0.2f GHz, avg. freq: %0.2f GHz, avg imc freq: %0.2f GHz\n"
+                "              Avg. mpi_time/exec_time %.1lf %%\n\n"
+                "              tasks: %lu\n\n"
+                "              CPI/TPI: %0.3lf/%0.3lf, GB/s: %0.3lf, GFLOPS: %0.3lf, IO: %0.3lf (MB/s)\n"
+                "              DC/DRAM/PCK power (W): %0.3lf/%0.3lf/%0.3lf GFlops/Watt %.3lf\n\n",
+                app->signature.time, app->signature.ps_sig.cpu_util, def_f, avg_f, avg_imc_f,
                 app->signature.perc_MPI,
                 app->job.procs,
                 app->signature.CPI, app->signature.TPI, app->signature.GBS, app->signature.Gflops, app->signature.IO_MBS,
@@ -547,12 +556,12 @@ void report_mpi_application_data(int vl, application_t *app)
 
     if (app->is_mpi) {
         snprintf(mpi_info_txt, sizeof(mpi_info_txt),
-                "(mpi_sig) Wall time: %0.3lf s, nominal freq.: %0.2f GHz, avg. freq: %0.2f GHz, avg imc freq: %0.2f GHz\n"
-                "          Avg. mpi_time/exec_time %.1lf %%\n\n"
-                "          tasks: %lu\n\n"
-                "          CPI/TPI: %0.3lf/%0.3lf, GB/s: %0.3lf, GFLOPS: %0.3lf, IO: %0.3lf (MB/s)\n"
-                "          DC/DRAM/PCK power: %0.3lf/%0.3lf/%0.3lf (W) GFlops/Watts %.3lf\n\n",
-                app->signature.time, def_f, avg_f, avg_imc_f,
+                "(Appl. sign.) Wall time: %0.3lf s, CPU util.: %u %%, nominal freq.: %0.2f GHz, avg. freq: %0.2f GHz, avg imc freq: %0.2f GHz\n"
+                "              Avg. mpi_time/exec_time %.1lf %%\n\n"
+                "              tasks: %lu\n\n"
+                "              CPI/TPI: %0.3lf/%0.3lf, GB/s: %0.3lf, GFLOPS: %0.3lf, IO: %0.3lf (MB/s)\n"
+                "              DC/DRAM/PCK power: %0.3lf/%0.3lf/%0.3lf (W) GFlops/Watts %.3lf\n\n",
+                app->signature.time, app->signature.ps_sig.cpu_util, def_f, avg_f, avg_imc_f,
                 app->signature.perc_MPI,
                 app->job.procs,
                 app->signature.CPI, app->signature.TPI, app->signature.GBS, app->signature.Gflops, app->signature.IO_MBS,
@@ -616,8 +625,6 @@ void application_deserialize(serial_buffer_t *b, application_t *app)
     power_signature_deserialize(b, &app->power_sig);
     signature_deserialize(b, &app->signature);
 }
-
-
 
 void fill_basic_sig(application_t *app)
 {

@@ -668,6 +668,7 @@ static state_t dcgmi_paction(void *p)
 			/* Change the active set of events */
 			dcgmi_curr_ev_set = (dcgmi_curr_ev_set + 1) % dcgmi_data.dcgmi_set_count;
 			gpuprof_events_set(all_devs, dcgmi_data.dcgmi_event_ids_csv[dcgmi_curr_ev_set]);
+			sleep(1);
 
 			/* Start reading the new event set. */
 			gpuprof_read(dcgmi_data.gpuprof_read1[dcgmi_curr_ev_set]);

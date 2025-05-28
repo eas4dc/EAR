@@ -7,19 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- v5.2 Implementation of Powercap setting by domain.
-- v5.2 Application CPU utiliztion is now computed and reported by EARL to CSV files.
-- v5.2 Now the power signature is printed when printing an application to CSV file.
+- v6.0 GPU GFLOPS field added in the EAR Database.
+- v6.0 Added quality of life functions to management/cpupow API.
+- v6.0 New API for reading metrics through Linux hwmon.
+- v6.0 NVIDIA Grace Hopper devices support.
+- v6.0 Added AdminUsers to provide more privileges than AuthorizedUsers.
+- v6.0 Added --force option to the SLURM Plugin.
+- v6.0 Added a mechanism to dynamically increase the timeout window in msg_internals when a node connects but does not return data.
+- v6.0 Added stall cycles to CPI API.
+- v6.0 Application CPU usage field added in the EAR Database.
+- v6.0 Temperature readings through Linux hwmon.
+- v6.0 Added ARM compatibility to PERF (still unstable).
+- v6.0 New tool to create application signature from loop signature in DB.
+- v6.0 New command enodectl.
+- v6.0 Added HSMP opening mode control.
+- v6.0 Added an option to ereport to query by user\_group.
 
 ### Changed
-- v5.2 A new version of the `eacct` command is released providing an output format option.
-- v5.2 Reduce the periodicity in which EARL updates job's affinity mask.
-- v5.2 Improve roofline classification.
-- v5.2 `gpuprof_dcgmi` now filters unsupported events requested.
+- v6.0 Renamed DBIP and DBSECIP in ear.conf to EARDBD\_IP and EARDBD\_MIRROR\_IP to better reflect what it is.
+- v6.0 Energy node API.
+- v6.0 EAR Loader improved.
+- v6.0 Bandwidth, cache and flops APIs improved.
+- v6.0 Create a fallback mechanism for failed inserts to DB.
+- v6.0 Added pointer recalculation in cache\_data\_copy.
 
 ### Fixed
-- v5.2 Fixed typo in cpupow define.
-- v5.2 Improved CPU governor list message.
+- v6.0 A heap-buffer overflow when opening perf files is fixed.
+- v6.0 Minor fixes in the database size calculator tool.
+- v6.0 Fixed erroneous time weight calculation for each loop in loops\_average.
+- v6.0 Fixed SIGALRM for job validation.
+- v6.0 Switch to P\_STATE 0 after userspace governor in AMD17 architecture, and a fix in PCI opened file descriptors.
+- v6.0 Fixed DUMMY Cache API.
+- v6.0 Fixed compilation errors when using PostgreSQL.
+- v6.0 Several minor fixes in IMCFreq amd19 management API.
+- v6.0 Fixed errors with ereport's -G option.
+
+## [5.2] - 2025-05-28
+
+### Added
+- Implementation of Powercap setting by domain.
+- Application CPU utiliztion is now computed and reported by EARL to CSV files.
+- Now the power signature is printed when printing an application to CSV file.
+- Print all application fields in the csv file.
+
+### Changed
+- A new version of the `eacct` command is released providing an output format option.
+- Reduce the periodicity in which EARL updates job's affinity mask.
+- Improve roofline classification.
+- `gpuprof_dcgmi` now filters unsupported events requested.
+
+### Fixed
+- Fixes related to setting powercap to single devices and domains.
+- Fixed typo in cpupow define.
+- Improved CPU governor list message.
 
 ## 5.1.9 - 2025-04-28
 

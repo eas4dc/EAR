@@ -63,6 +63,7 @@ core_OBJS = \
     $(SRCDIR)/common/types/periodic_aggregation.o \
     $(SRCDIR)/common/types/services.o \
     $(SRCDIR)/common/types/pc_app_info.o \
+    $(SRCDIR)/common/types/powercap.o \
     $(SRCDIR)/common/utils/args.o \
     $(SRCDIR)/common/utils/data_register.o \
     $(SRCDIR)/common/utils/dtools.o \
@@ -74,7 +75,8 @@ core_OBJS = \
     $(SRCDIR)/common/utils/strtable.o \
     $(SRCDIR)/common/utils/special.o \
     $(SRCDIR)/common/utils/stress.o \
-    $(SRCDIR)/common/utils/sched_support.o 
+    $(SRCDIR)/common/utils/sched_support.o
+
 
 #    $(SRCDIR)/common/external/ear_external.o
 

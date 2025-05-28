@@ -1135,7 +1135,7 @@ void job_init_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh,
     // reset signature
     signature_init(&pmapp->app.signature);
 
-    init_power_signature(&pmapp->app.power_sig);
+    power_signature_init(&pmapp->app.power_sig);
 
     pmapp->app.power_sig.max_DC_power = 0;
     pmapp->app.power_sig.min_DC_power = 10000;
@@ -1256,7 +1256,7 @@ void report_powermon_app(powermon_app_t *app) {
 
     verbose_application_data(0, &app->app);
 
-    clean_db_power_signature(&app->app.power_sig, my_node_conf->max_sig_power);
+    power_signature_db_clean(&app->app.power_sig, my_node_conf->max_sig_power);
 
     report_application_in_file(&app->app);
 

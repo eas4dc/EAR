@@ -272,7 +272,7 @@ int read_command(int s, request_t *command)
     //there is still data pending to read
     if (head.size > aux_size)
     {
-        if (command->req == EAR_RC_SET_POWERCAP_OPT)
+		if (command->req == EAR_RC_SET_POWERCAP_OPT)
         {
             debug("read_command:received powercap_opt");
             memcpy(&command->my_req, &tmp_command[aux_size], sizeof(powercap_opt_t)); //first we copy the base powercap_opt_t
@@ -288,7 +288,13 @@ int read_command(int s, request_t *command)
             memcpy(command->my_req.pc_opt.greedy_nodes, &tmp_command[aux_size], offset);
             memcpy(command->my_req.pc_opt.extra_power, &tmp_command[aux_size + offset], offset);
         }
-        else
+		else if (command->req == EAR_RC_SEND_MESSAGE)
+		{
+			debug("read_command:received send_message");
+			command->my_req.message = calloc(head.size - aux_size, sizeof(char));
+			memcpy(command->my_req.message, &tmp_command[aux_size], head.size - aux_size);
+		}
+		else
         {
             debug("read_command:recieved command with additional data: %d", command->req);
             debug("read_command:head.size %u internal_req_t size %lu current_size %lu", 
@@ -362,6 +368,9 @@ size_t get_command_size(request_t *command, char **data_to_send)
 		case EAR_RC_GET_POWERCAP_STATUS:
 			size += sizeof(int);
 			break;
+		case EAR_RC_SEND_MESSAGE:
+			size += sizeof(char) * (strlen(command->my_req.message) + 1);
+			break;
         case EARGM_NEW_JOB:
         case EARGM_END_JOB:
         case EARGM_INC_PC:
@@ -397,6 +406,9 @@ size_t get_command_size(request_t *command, char **data_to_send)
             memcpy(&command_b[aux_size], command->my_req.pc_opt.greedy_nodes, offset);
             memcpy(&command_b[aux_size + offset], command->my_req.pc_opt.extra_power, offset);
             break;
+		case EAR_RC_SEND_MESSAGE:
+			memcpy(&command_b[aux_size], command->my_req.message, size - aux_size);
+			break;
         default:
             debug("get_command_size: copying additional data, total_size: %lu, already copied %lu", size, aux_size);
             memcpy(&command_b[aux_size], &command->my_req, size-aux_size); 

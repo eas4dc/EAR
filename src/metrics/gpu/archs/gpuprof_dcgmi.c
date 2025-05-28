@@ -26,17 +26,36 @@
 // different events in different GPUs, we would have to open multiple POPEN
 // processes.
 
+#define DCGMI_POOL_CACHE_SIZE 3
+
+typedef struct dcgmi_pool_cache_s {
+	short int dirty_pos;
+	short int masks[DCGMI_POOL_CACHE_SIZE];
+	uint hash_evs_count[DCGMI_POOL_CACHE_SIZE];
+	/* Size of each hash/evs is at most 12 events x 4 chars each id + 11 commas */
+	char hashes[DCGMI_POOL_CACHE_SIZE][64];
+	char evs_supported[DCGMI_POOL_CACHE_SIZE][64];
+} dcgmi_pool_cache_t;
+
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static gpuprof_evs_t *events;
 static uint events_count;
 static popen_t p;
 static gpuprof_t *pool;
+static short int event_pool_mask;
 static double *pool_aux_buffer;	//auxiliar buffer
 static char command_ids[256];
 static ullong *serials;
 static uint devs_count;
 static uint user_devs_count;
 static int *user_devs;
+
+// A cache to memorize already requested events list is used to avoid
+// filtering for unsupported events every time new event set is requested.
+static dcgmi_pool_cache_t pool_cache;
+
+static unsigned char pool_cache_check(char *hash, char **evs, uint *evs_count, short int *mask);
+static void pool_cache_update(char *hash, char *evs_supported, uint evs_count, short int mask);
 
 static int get_user_devices()
 {
@@ -111,6 +130,7 @@ static int get_user_devices()
 	return 1;
 }
 
+// TODO: Return error to notify the API user
 GPUPROF_F_LOAD(gpuprof_dcgmi_load)
 {
 	char *event_name;
@@ -150,31 +170,36 @@ GPUPROF_F_LOAD(gpuprof_dcgmi_load)
 		return;
 	}
 	// Events
-	if (state_fail(s = popen_open("dcgmi dmon --list", 3, 1, &p))) {
+	if (state_fail(s = popen_open("dcgmi profile -l", 3, 1, &p))) {
 		debug("Failed popen_open: %s", state_msg);
 		return;
 	}
 	// Allocating
-	if (!popen_read(&p, "sai", &event_name, &event_id)) {
+	if (!popen_read(&p, "aaaiasa", &event_id, &event_name)) {
 		debug("Failed popen_read: %s", state_msg);
 		return;
 	}
-	if ((events_count = popen_count_read(&p)) == 0) {
+	if (event_id == 0 || ((events_count = popen_count_read(&p)) == 0)) {
 		debug("No events found");
 		return;
 	}
 	events = calloc(events_count, sizeof(gpuprof_evs_t));
 	events_count = 0;
 	// Saving events
+	/* popen_read reads the last line of dcgmi profile -l and formats it as event_id = 0,
+	 * therefore we filter this last event. */
 	do {
 		strcpy(events[events_count].name, event_name);
 		events[events_count].id = (uint) event_id;
 		debug("EV%d: %s", event_id, event_name);
 		++events_count;
 	}
-	while (popen_read(&p, "sai", &event_name, &event_id));
+	while (popen_read(&p, "aaaiasa", &event_id, &event_name) && event_id != 0);
 
 	popen_close(&p);
+
+	// Sorting events for checking later whether a requested event is supported
+	qsort(events, events_count, sizeof(gpuprof_evs_t), gpuprof_compare_events);
 
 	// Allocating pool and an auxiliar buffer
 	gpuprof_dcgmi_data_alloc(&pool);
@@ -238,24 +263,99 @@ static void set(int dev, char *evs, uint ids_count)
 	pool[dev].values_count = ids_count;
 }
 
+static short int filter_unsupported_events(char *req_evs_str, uint *req_evs_count, char **evs_supported)
+{
+	// The resulting mask indicates which ev_ids are filtered
+	short int mask = 0;
+
+	// If req_evs_str is in the cache, other arguments are filled
+	if (pool_cache_check(req_evs_str, evs_supported, req_evs_count, &mask)) {
+		return mask;
+	}
+
+	// If not in the cache, arguments are left untouched
+
+	// Getting the number of events to monitor
+	uint *ev_ids = (uint *) strtoat(req_evs_str, ',', NULL, req_evs_count, ID_UINT);
+
+	// An auxiliar buffer to store the string representation of an event id
+	char ev_str[8];
+
+	// A boolean variable used to format the filtered list
+	uint first = 1;
+
+	size_t evs_supported_len = 0;
+
+	for (int i = 0; i < *req_evs_count; i++) {
+
+		/* Create a gpuprof_evs_t to search for an id */
+		gpuprof_evs_t req_ev = {.id = ev_ids[i]};
+
+		/* Search across events supported for the requested event id */
+		if (bsearch(&req_ev, events, events_count, sizeof(gpuprof_evs_t), gpuprof_compare_events)) {
+
+			/* Format the supported event depending on whether it is the first in the list */
+			if (!first) {
+				snprintf(ev_str, sizeof(ev_str), ",%u", req_ev.id);
+			} else {
+				snprintf(ev_str, sizeof(ev_str), "%u", req_ev.id);
+				first = 0;
+			}
+
+			/* Concat the supported event to the result string */
+			size_t ev_str_len = strlen(ev_str);
+			memcpy((*evs_supported)+evs_supported_len, ev_str, ev_str_len);
+			evs_supported_len += ev_str_len;
+
+			/* Set event enabled in the mask */
+			mask |= (1 << i);
+		}
+	}
+
+	// Free strtoat allocated memory
+	free(ev_ids);
+
+	// Terminate the resulting string
+	(*evs_supported)[evs_supported_len++] = '\0';
+
+	// Update the cache
+	pool_cache_update(req_evs_str, *evs_supported, *req_evs_count, mask);
+
+	return mask;
+}
+
 GPUPROF_F_EVENTS_SET(gpuprof_dcgmi_events_set)
 {
 	char command[512];
 	uint ids_count;
 	state_t s;
-	uint *ids;
 	int d;
 
 	if (evs == NULL) {
 		return;
 	}
-	// Getting the number of events to monitor
-	ids = (uint *) strtoat(evs, ',', NULL, &ids_count, ID_UINT);
-	free(ids);
-	// Filling the pool
+
+	// Filtering those requested events not supported
+
+	// TODO: Cache requested events
+
+	/* Allocate a string to put events filtered. The string will have
+	 * at most the same size as the requested events list (evs). */
+	char *evs_supported = malloc((strlen(evs) + 1) * sizeof(char));
+
 	while (pthread_mutex_trylock(&lock)) ;
+
+	// Update the requested/supported events mask
+	event_pool_mask = filter_unsupported_events(evs, &ids_count, &evs_supported);
+	if (!event_pool_mask) {
+		debug("No events supported");
+		goto leave1;
+	}
+
+	// Filling the pool
+
 	// New popen every 2 seconds
-	sprintf(command, "dcgmi dmon -e %s %s -d 2000 2>&1", evs, command_ids);
+	sprintf(command, "dcgmi dmon -e %s %s -d 2000 2>&1", evs_supported, command_ids);
 	debug("Command: '%s'", command);
 	if (state_fail(s = popen_open(command, 2, 0, &p))) {
 		debug("Failed popen_open: %s", state_msg);
@@ -266,6 +366,7 @@ GPUPROF_F_EVENTS_SET(gpuprof_dcgmi_events_set)
 		set(d, evs, ids_count);
 	}
  leave1:
+	free(evs_supported);
 	pthread_mutex_unlock(&lock);
 }
 
@@ -276,6 +377,7 @@ static void unset()
 	for (d = 0; d < devs_count; ++d) {
 		invalidate(pool, d);
 	}
+	event_pool_mask = 0;
 }
 
 GPUPROF_F_EVENTS_UNSET(gpuprof_dcgmi_events_unset)
@@ -289,8 +391,6 @@ GPUPROF_F_READ(gpuprof_dcgmi_read)
 {
 	char *buffer;
 	int dev;
-	int m;
-
 	while (pthread_mutex_trylock(&lock)) ;
 	// Pooling
 	while (popen_read(&p, "siD", &buffer, &dev, pool_aux_buffer)) {
@@ -308,13 +408,19 @@ GPUPROF_F_READ(gpuprof_dcgmi_read)
 		dev = user_devs[dev];
 		// If its a correct entry...
 		if (strstr(buffer, "GPU") != NULL) {
-			for (m = 0; m < pool[dev].values_count; ++m) {
-				pool[dev].values[m] += pool_aux_buffer[m];
-				debug
-				    ("D%d_M%d: %04.2lf += %04.2lf, %0.lf samples, %p hash",
-				     dev, m, pool[dev].values[m],
-				     pool_aux_buffer[m],
-				     pool[dev].samples_count, pool[dev].hash);
+			int pool_aux_idx = 0;
+			for (int pool_idx = 0; pool_idx < pool[dev].values_count; ++pool_idx) {
+				/* Check whether the event idx is enabled */
+				if (event_pool_mask & (1 << pool_idx)) {
+					debug
+							("D%d_M%d: %04.2lf += %04.2lf, %0.lf samples, %p hash",
+							 dev, pool_idx, pool[dev].values[pool_idx],
+							 pool_aux_buffer[pool_aux_idx],
+							 pool[dev].samples_count, pool[dev].hash);
+					pool[dev].values[pool_idx] += pool_aux_buffer[pool_aux_idx++];
+					} else {
+						pool[dev].values[pool_idx] = 0;
+					}
 			}
 			pool[dev].samples_count += 1.0;
 			timestamp_getfast(&pool[dev].time);
@@ -393,4 +499,28 @@ GPUPROF_F_DATA_COPY(gpuprof_dcgmi_data_copy)
 		dataD[dev].hash = dataS[dev].hash;
 		dataD[dev].time = dataS[dev].time;
 	}
+}
+
+static unsigned char pool_cache_check(char *hash, char **evs_supported, uint *evs_count, short int *mask)
+{
+	for (int i = 0; i < DCGMI_POOL_CACHE_SIZE; i++) {
+		if (!strcmp(hash, pool_cache.hashes[i])) {
+			debug("Requested event list (%s) cached: %s", hash, pool_cache.hashes[i]);
+			strcpy(*evs_supported, pool_cache.evs_supported[i]);
+			*evs_count = pool_cache.hash_evs_count[i];
+			*mask = pool_cache.masks[i];
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static void pool_cache_update(char *hash, char *evs_supported, uint evs_count, short int mask)
+{
+	strcpy(pool_cache.hashes[pool_cache.dirty_pos], hash);
+	strcpy(pool_cache.evs_supported[pool_cache.dirty_pos], evs_supported);
+	pool_cache.hash_evs_count[pool_cache.dirty_pos] = evs_count;
+	pool_cache.masks[pool_cache.dirty_pos] = mask;
+	debug("Pool cache updated: pos: %hd mask: %hx hash: %s hash events count: %u supported events list: %s", pool_cache.dirty_pos, pool_cache.masks[pool_cache.dirty_pos], pool_cache.hashes[pool_cache.dirty_pos], pool_cache.hash_evs_count[pool_cache.dirty_pos], pool_cache.evs_supported[pool_cache.dirty_pos]);
+	pool_cache.dirty_pos = (pool_cache.dirty_pos + 1) % DCGMI_POOL_CACHE_SIZE;
 }

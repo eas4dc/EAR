@@ -109,4 +109,11 @@ void gpuprof_data_alloc(gpuprof_t **data);
 
 void gpuprof_data_copy(gpuprof_t *dataD, gpuprof_t *dataS);
 
+/** This is a comparison function you can use for searching and sorting arrays of gpuprof_evs_t.
+	* In fact, it compares two gpuprof events and says who is greater.
+	* \return -1 The first argument is "less" than the second.
+	* \return 0 Both arguments are equal.
+	* \return 1 The first argument is "greater". */
+int gpuprof_compare_events(const void *gpuprof_ev_ptr1, const void *gpuprof_ev_ptr2);
+
 #endif
