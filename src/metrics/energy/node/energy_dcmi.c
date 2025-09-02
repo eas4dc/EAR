@@ -455,11 +455,11 @@ state_t dcmi_thread_main(void *p)
     if (dcmi_current_power_reading.current_power > 0) {
         //current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
         current_elapsed = (ulong) dcmi_elapsed;
-        current_energy = current_elapsed * dcmi_current_power_reading.avg_power;
+        current_energy = current_elapsed * dcmi_current_power_reading.current_power;
 
         /* Energy is reported in MJ */
         dcmi_accumulated_energy += (current_energy * 1000);
-        verbose(2,"DCMI AVG power in last %lu sec is %lu", current_elapsed, dcmi_current_power_reading.avg_power);		
+        verbose(2,"DCMI AVG power in last %lu sec is %lu", current_elapsed, dcmi_current_power_reading.current_power);
     } else {
         debug("Current power is 0 in dcmi power reading pool reading, Resetting the context");
 				closedev(&dcmi_context_for_pool);
@@ -653,13 +653,13 @@ state_t energy_dc_read(void *c, edata_t energy_mj)
     if (dcmi_current_power_reading.current_power > 0) {
         //current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
         current_elapsed = (ulong) dcmi_elapsed;
-        current_energy = current_elapsed * dcmi_current_power_reading.avg_power;
+        current_energy = current_elapsed * dcmi_current_power_reading.current_power;
 
         /* Energy is reported in MJ */
         dcmi_accumulated_energy += (current_energy * 1000);
     		memcpy(&dcmi_last_power_reading, &dcmi_current_power_reading, sizeof(dcmi_power_data_t));
 
-        debug("AVG power in last %lu ms is %lu", current_elapsed, dcmi_current_power_reading.avg_power);		
+        debug("AVG power in last %lu ms is %lu", current_elapsed, dcmi_current_power_reading.current_power);
     } else {
         debug("Current power is 0 in dcmi power reading pool reading");
         st = EAR_ERROR;
@@ -699,12 +699,12 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
 
     if (dcmi_current_power_reading.current_power > 0) {
         current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;	
-        current_energy = current_elapsed * dcmi_current_power_reading.avg_power;
+        current_energy = current_elapsed * dcmi_current_power_reading.current_power;
 
         /* Energy is reported in MJ */
         dcmi_accumulated_energy += (current_energy * 1000);
 
-        debug("AVG power in last %lu ms is %lu", current_elapsed, dcmi_current_power_reading.avg_power);		
+        debug("AVG power in last %lu ms is %lu", current_elapsed, dcmi_current_power_reading.current_power);
     } else {
         debug("Current power is 0 in dcmi power reading pool reading");
         st = EAR_ERROR;

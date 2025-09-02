@@ -403,7 +403,7 @@ CPUPOW_F_POWERCAP_RESET(mgt_cpupow_amd17_powercap_reset)
     }
     // Iterating
     for (i = 0; i < d->tp->cpu_count; ++i) {
-        args[0] = d->pl[i].reg;
+        args[0] = d->pi[i].tdp * 1000U;
         if (state_fail(hsmp_send(d->tp->cpus[i].socket_id, d->pl_address_write, args, reps))) {
             debug("Failed while sending HSMP_%s_POWER_LIMIT: %s", d->name, state_msg);
         }

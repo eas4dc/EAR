@@ -14,6 +14,8 @@
 //gcc -I ../../ -o test energy_node_test.c ../libmetrics.a ../../common/libcommon.a -ldl -lpthread -rdynamic
 //sudo ./test /ear_install_path/lib/plugins energy_inm_power.so
 
+#define SHOW_WARNINGS 1
+
 int main(int argc, char *argv[])
 {
 	cluster_conf_t conf;
@@ -37,34 +39,49 @@ int main(int argc, char *argv[])
 
 	monitor_init();
 
-	s = energy_init(&conf, &eh);
+	if(state_fail(energy_init(&conf, &eh))) {
+		printf("energy_init failed: %s", state_msg);
+		return EXIT_FAILURE;
+	}
 
 	energy_units(&eh, &node_units);
   energy_datasize(&eh, &node_size);
 
 	printf("Energy units %u Energy size %u\n", node_units, node_size);
 	
-	energy_mj_init = (edata_t *) malloc(node_size);
-	energy_mj_end  = (edata_t *) malloc(node_size);
-	energy_mj_diff = (edata_t *) malloc(node_size);
+	energy_mj_init = malloc(node_size);
+	energy_mj_end  = malloc(node_size);
+	// energy_mj_diff = (edata_t *)malloc(node_size);
 
-	//
-	s = energy_dc_read(&eh, energy_mj_init);
+	if (state_fail(energy_dc_read(&eh, energy_mj_init))) {
+		warning("First energy reading failed.");
+	}
+	char energy_str[32];
+	energy_to_str(&eh, energy_str, energy_mj_init);
+	printf("Energy init: %s\n", energy_str);
+
 	uint i = 0;
-	while(i<10){
+	while (i < 10) {
 		i++;
 	  sleep(wait_period);
 
-	  s = energy_dc_read(&eh, energy_mj_end);
+	  if (state_fail(energy_dc_read(&eh, energy_mj_end))) {
+			warning("Energy reading failed.");
+		}
+
+		energy_to_str(&eh, energy_str, energy_mj_end);
+		printf("Energy end: %s\n", energy_str);
+
 	  energy_accumulated(NULL, &energy_mj_diff, energy_mj_init, energy_mj_end);
-	  printf("Total energy %lu mj. Avg Power %.2lf W\n", energy_mj_diff, ((double)energy_mj_diff/(double)(node_units*wait_period)));
+	  printf("Total energy %lu mj. Avg Power %.2lf W\n",
+		       energy_mj_diff, ((double)energy_mj_diff/(double)(node_units*wait_period)));
 
 		memcpy((char *)energy_mj_init, (char *)energy_mj_end, node_size);
 	}
 
-	//
-	s = energy_dispose(&eh);
-	printf("energy_dispose %d\n", s);
+	if (state_fail(energy_dispose(&eh))) {
+		warning("Energy dispose failed.");
+	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }

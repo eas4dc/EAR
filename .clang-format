@@ -1,0 +1,55 @@
+
+---
+Language: Cpp
+
+# defaults from the Microsoft style, but with 4 columns indentation.
+BasedOnStyle: Microsoft
+IndentWidth: 4
+
+#align assignments variable=value
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+
+#align variable declarations
+#AlignConsecutiveDeclarations:
+  #Enabled: true
+  #AcrossEmptyLines: false
+
+#align #defines
+AlignConsecutiveMacros:
+  Enabled: true
+  AcrossEmptyLines: true
+
+#if newline is inserted before or after {
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterEnum: false
+  AfterStruct: false
+  AfterControlStatement: Never
+  BeforeElse: false
+
+#indents "case" after switch statements
+IndentCaseLabels: True
+
+# use \n at line end always, never \r\n
+LineEnding: LF
+
+#defines pointers as always int *p
+PointerAlignment: Right
+
+#always put a newline between structs, enums and functions definitions
+SeparateDefinitionBlocks: Always
+
+#puts a space after assignments: a= 5 becomes a = 5
+SpaceBeforeAssignmentOperators: true
+
+#removes spaces after cast-> (double)variable
+SpaceAfterCStyleCast: true
+
+SpacesInLineCommentPrefix:
+  Minimum : 1
+  Maximum : 2
+
+---

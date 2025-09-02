@@ -21,6 +21,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v5.2 Fixed typo in cpupow define.
 - v5.2 Improved CPU governor list message.
 
+
+## 5.1.10 - 2025-09-02
+
+### Added
+- EARGM now reads EARGMNAME variable and writes to DB and log using this name, if available.
+- EARGM reads "ip:port" to support multiple eargms in the same node.
+- Setting the soft powercap to unlimited when the eargm is started or restarted.
+- Added reset modes (to default and to TDP) to management/cpupow.
+- The ereport command can now manage list of user groups.
+- Edcmon calls plugin_manager_close() when SIGINT or SIGTERM is received.
+
+### Changed
+- Using current_power instead of avg_power in dcmi node energy.
+- Powermonitor is now reporting last_calculated_power instead of last_power_reported in powermon_current_power().
+
+### Fixed
+- Set the maximum CPUFreq. value when the nominal+1000 is not available on systems using intel_cpufreq driver.
+- Fix powercap reset to the wrong value for AMD CPUs.
+- Change setgid bits in the rpm spec file.
+- Cleaned CPUPOW warnings.
+- Fixed acpi_cpufreq.c segmentation fault error.
+- Fixed plugin_manager_close() and plugin_manager_after_close functions.
+- Fixes in gpu powercap init and logic.
+- Fixed serialization and deserialization of authorized users, groups and accounts.
+
 ## 5.1.9 - 2025-04-28
 
 ### Added

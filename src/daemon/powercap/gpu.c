@@ -34,8 +34,8 @@
 
 
 
-static ulong current_gpu_pc=0;
-static ulong default_gpu_pc=0;
+static ulong current_gpu_pc = POWER_CAP_UNLIMITED;
+static ulong default_gpu_pc = POWER_CAP_UNLIMITED;
 static uint gpu_pc_enabled=0;
 static uint c_status=PC_STATUS_IDLE;
 static uint c_mode=PC_MODE_LIMIT;
@@ -443,7 +443,7 @@ uint get_powercap_status(domain_status_t *status)
     status->exceed = 0;
     for (i=0;i<gpu_pc_num_gpus;i++){
         /* gpu_pc_util is an average during a period , is more confident than an instantaneous measure*/
-        if ((t_freq[i] > gpu_freq[i]) && (gpu_pc_util[i]>0)){ 
+        if (tmp_stress && (t_freq[i] > gpu_freq[i]) && (gpu_pc_util[i]>0)){
             //debug("We cannot release power from GPU %d",i);
             if (c_status == PC_STATUS_RELEASE) {
                 debug("GPU status ASK_DEF, current_pc %lu and def_pc %lu", current_gpu_pc, default_gpu_pc);

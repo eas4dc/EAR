@@ -127,6 +127,7 @@ static ulong * powermon_freq_list;
 static int powermon_num_pstates;
 static periodic_metric_t current_sample;
 static double last_power_reported = 0;
+static double last_calculated_power = 0;
 static ulong  last_node_power     = 0;
 
 static uint *powermon_restore_cpufreq_list;
@@ -2424,6 +2425,8 @@ void update_historic_info(power_data_t *last_pmon, nm_data_t *nm, power_data_t *
         }
     }
 
+    last_calculated_power = corrected_power;
+
     /* report periodic metric */
     if (report) {
 				periodic_metric_clean_before_db(&current_sample);
@@ -2855,7 +2858,7 @@ uint powermon_is_idle()
 
 uint powermon_current_power()
 {
-    return (uint)last_power_reported;
+    return (uint)last_calculated_power;
 }
 
 
