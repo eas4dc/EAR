@@ -56,7 +56,7 @@
 #define GROUP_QUERY "SELECT SUM(DC_power*time)/? FROM Power_signatures WHERE id IN " \
                     "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs " \
                     "ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id WHERE "\
-                    "Jobs.user_group = '%s' AND start_time >= ? AND end_time <= ? AND DC_power < %d)"
+                    "Jobs.user_group LIKE '%%%s%%' AND start_time >= ? AND end_time <= ? AND DC_power < %d)"
 
 #define ETAG_QUERY  "SELECT SUM(DC_power*time)/? FROM Power_signatures WHERE id IN " \
                     "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs " \

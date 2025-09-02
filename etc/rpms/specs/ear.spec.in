@@ -71,6 +71,7 @@ cp -r %{_ear_etc}/ear %{buildroot}%{_sysconfdir}
 
 %post
 
+chmod +s %{_bindir}/eacct %{_bindir}/ereport %{_bindir}/econtrol
 
 # Check whether we installed the etcdir in a place different to what it was configured.
 # If so, we need to update the configured paths.

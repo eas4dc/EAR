@@ -48,29 +48,51 @@ void eargm_nodelist_set_powerlimit(cluster_conf_t *conf, uint limit, char **host
 {
 	if (hosts == NULL || num_hosts < 1) return;
 
-	int i, j, rc, port;
+	int32_t i, j, rc, port;
+    char tmp[1024] = { 0 };
+    char *hostname = NULL;
+    char *port_str = NULL;
 
 	for (i = 0; i < num_hosts; i++) {
+        //copy the host string to preserve it
+        strncpy(tmp, hosts[i], 1023);
 		port = -1;
-		for (j = 0; j < conf->eargm.num_eargms; j++) {
-			if (!strcasecmp(hosts[i], conf->eargm.eargms[j].node)) {
-				port = conf->eargm.eargms[j].port;
-				break;
-			}
-		}
-		if (port < 0) {
-			warning("node %s not found in the configuration file, skipping", hosts[i]); 
-			continue;
-		}
-		rc = remote_connect(hosts[i], port);
-		if (rc < 0) {
-			error("Error connecting to %s:%u", hosts[i], port);
-			continue;
-		}
-		if (!eargm_send_set_powerlimit(limit)) {
-			error("Error sending powerlimit to %s", conf->eargm.eargms[i].node);
-		}
-        remote_disconnect();
+        //hostname will always be the start
+        hostname = tmp;
+        port_str = NULL;
+        //port_str will point to the ':' char if it exists, or will be NULL if it does not
+        port_str = strchr(tmp, ':');
+
+        //if ':' is not present, we search for the port in the eargm list
+        if (port_str == NULL) {
+            for (j = 0; j < conf->eargm.num_eargms; j++) {
+                if (!strcasecmp(hosts[i], conf->eargm.eargms[j].node)) {
+                    port = conf->eargm.eargms[j].port;
+                    break;
+                }
+            }
+        } else {
+            //place a '\0' instead of ':' so the remote_connect still works
+            *port_str = '\0';
+            //advance the pointer to the first number of the port and parse it
+            port_str++;
+            port = atoi(port_str);
+        }
+
+        //this can only occur if a port was not specified and the eargm is not on the eargm list
+        if (port < 0) {
+            warning("node %s not found in the configuration file, skipping", hosts[i]);
+            continue;
+        }
+        rc = remote_connect(hostname, port);
+        if (rc < 0) {
+            error("Error connecting to %s:%u", hosts[i], port);
+            continue;
+        }
+        if (!eargm_send_set_powerlimit(limit)) {
+            error("Error sending powerlimit to %s", conf->eargm.eargms[i].node);
+        }
+       remote_disconnect();
 
 	}
 

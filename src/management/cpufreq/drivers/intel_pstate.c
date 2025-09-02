@@ -8,42 +8,42 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #define _GNU_SOURCE
-#include <sched.h>
+#include <common/config/config_def.h>
+#include <common/output/debug.h>
+#include <common/output/verbose.h>
+#include <common/utils/keeper.h>
 #include <fcntl.h>
+#include <management/cpufreq/cpufreq_base.h>
+#include <management/cpufreq/drivers/intel_pstate.h>
+#include <metrics/common/file.h>
+#include <sched.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <common/config/config_def.h>
-#include <common/output/verbose.h>
-#include <common/output/debug.h>
-#include <common/utils/keeper.h>
-#include <metrics/common/file.h>
-#include <management/cpufreq/cpufreq_base.h>
-#include <management/cpufreq/drivers/intel_pstate.h>
 
-#define PATH_SMF   "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_max_freq" // line break
-#define PATH_SGV   "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_governor" // line break
-#define PATH_SMF0  "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"  // Test write
-#define PATH_SNF0  "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"  // Test write
-#define PATH_CMF0  "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"  // Test read
-#define PATH_CNF0  "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq"  // Test read
+#define PATH_SMF  "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_max_freq" // line break
+#define PATH_SGV  "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_governor" // line break
+#define PATH_SMF0 "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"  // Test write
+#define PATH_SNF0 "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"  // Test write
+#define PATH_CMF0 "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"  // Test read
+#define PATH_CNF0 "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq"  // Test read
 
-static uint    cpu_count;
+static uint cpu_count;
 static ullong *current_list;
-static uint    avail_list_count;
-static ullong  avail_list[128]; // From 10 GHz to 1 GHz there are 90 items, enough
-static cfb_t   bf;
-static ullong  freq_ps0; // KHz
-static ullong  freq_max; // KHz
-static ullong  freq_max0; // Initial max freq
-static ullong  freq_min0; // Initial min freq
-static uint    governor0;
-static uint    governor_last = 0;
-static int    *fds_smf; // FD scaling max freq
-static int    *fds_sgv;
+static uint avail_list_count;
+static ullong avail_list[128]; // From 10 GHz to 1 GHz there are 90 items, enough
+static cfb_t bf;
+static ullong freq_ps0;  // KHz
+static ullong freq_max;  // KHz
+static ullong freq_max0; // Initial max freq
+static ullong freq_min0; // Initial min freq
+static uint governor0;
+static uint governor_last = 0;
+static int *fds_smf; // FD scaling max freq
+static int *fds_sgv;
 
 void mgt_intel_pstate_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
 {
@@ -51,25 +51,29 @@ void mgt_intel_pstate_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
     int set_governor  = 1;
 
     // Check if other driver is already loaded
-    if (apis_loaded(ops)) return;
+    if (apis_loaded(ops))
+        return;
     // This is a scaling_max_freq file driver (based on intel_pstate model).
-    if (!filemagic_exists(PATH_SMF0)) return;
+    if (!filemagic_exists(PATH_SMF0))
+        return;
     // Checking max/min frequency
     if (!mgt_intel_pstate_read_cpuinfo(1, &freq_max0)) {
         if (!keeper_load_uint64("AcpiCpufreqMaxFrequency", &freq_max0)) {
-            if (!mgt_intel_pstate_read_scaling(1, &freq_max0)) {}
+            if (!mgt_intel_pstate_read_scaling(1, &freq_max0)) {
+            }
         }
     }
     if (!mgt_intel_pstate_read_cpuinfo(0, &freq_min0)) {
         if (!keeper_load_uint64("AcpiCpufreqMinFrequency", &freq_min0)) {
-            if (!mgt_intel_pstate_read_scaling(0, &freq_min0)) {}
+            if (!mgt_intel_pstate_read_scaling(0, &freq_min0)) {
+            }
         }
     }
     // It worked so we can save the value for next loads
     if (freq_max0 != 0LLU) keeper_save_uint64("AcpiCpufreqMaxFrequency", freq_max0);
     if (freq_min0 != 0LLU) keeper_save_uint64("AcpiCpufreqMinFrequency", freq_min0);
     if (freq_max0 == 0LLU) freq_max0 = avail_list[0];
-    if (freq_min0 == 0LLU) freq_min0 = avail_list[avail_list_count-1];
+    if (freq_min0 == 0LLU) freq_min0 = avail_list[avail_list_count - 1];
     // Set check
     set_frequency = filemagic_can_mwrite(PATH_SMF, tp->cpu_count, &fds_smf);
     set_governor  = filemagic_can_mwrite(PATH_SGV, tp->cpu_count, &fds_sgv);
@@ -78,9 +82,9 @@ void mgt_intel_pstate_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
     // Getting base frequency and boost
     cpufreq_base_init(tp, &bf);
     // Saving some required data
-    cpu_count     = tp->cpu_count;
-    freq_max      = freq_max0;
-    current_list  = calloc(cpu_count, sizeof(ullong));
+    cpu_count    = tp->cpu_count;
+    freq_max     = freq_max0;
+    current_list = calloc(cpu_count, sizeof(ullong));
     //
     mgt_intel_pstate_governor_get(&governor0);
     keeper_macro(uint32, "IntelPstateDefaultGovernor", governor0);
@@ -90,28 +94,28 @@ void mgt_intel_pstate_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
     debug("IntelPstateMinFrequency   : %llu", freq_min0);
     debug("IntelPstateBaseFrequency  : %llu", bf.frequency);
     // Driver references
-    apis_put(ops->init                 , mgt_intel_pstate_init                                );
-    apis_put(ops->dispose              , mgt_intel_pstate_dispose                             );
-    apis_put(ops->reset                , mgt_intel_pstate_reset                               );
-    apis_put(ops->get_freq_details     , mgt_intel_pstate_get_freq_details                    );
-    apis_put(ops->get_available_list   , mgt_intel_pstate_get_available_list                  );
-    apis_put(ops->get_current_list     , mgt_intel_pstate_get_current_list                    );
-    apis_put(ops->get_boost            , mgt_intel_pstate_get_boost                           );
-    apis_put(ops->get_governor         , mgt_intel_pstate_governor_get                        );
-    apis_put(ops->get_governor_list    , mgt_intel_pstate_governor_get_list                   );
-    apis_put(ops->is_governor_available, mgt_intel_pstate_governor_is_available               );
-    apis_pin(ops->set_current_list     , mgt_intel_pstate_set_current_list     , set_frequency);
-    apis_pin(ops->set_current          , mgt_intel_pstate_set_current          , set_frequency);
-    apis_pin(ops->set_governor         , mgt_intel_pstate_governor_set         , set_governor );
-    apis_pin(ops->set_governor_mask    , mgt_intel_pstate_governor_set_mask    , set_governor );
-    apis_pin(ops->set_governor_list    , mgt_intel_pstate_governor_set_list    , set_governor );
+    apis_put(ops->init, mgt_intel_pstate_init);
+    apis_put(ops->dispose, mgt_intel_pstate_dispose);
+    apis_put(ops->reset, mgt_intel_pstate_reset);
+    apis_put(ops->get_freq_details, mgt_intel_pstate_get_freq_details);
+    apis_put(ops->get_available_list, mgt_intel_pstate_get_available_list);
+    apis_put(ops->get_current_list, mgt_intel_pstate_get_current_list);
+    apis_put(ops->get_boost, mgt_intel_pstate_get_boost);
+    apis_put(ops->get_governor, mgt_intel_pstate_governor_get);
+    apis_put(ops->get_governor_list, mgt_intel_pstate_governor_get_list);
+    apis_put(ops->is_governor_available, mgt_intel_pstate_governor_is_available);
+    apis_pin(ops->set_current_list, mgt_intel_pstate_set_current_list, set_frequency);
+    apis_pin(ops->set_current, mgt_intel_pstate_set_current, set_frequency);
+    apis_pin(ops->set_governor, mgt_intel_pstate_governor_set, set_governor);
+    apis_pin(ops->set_governor_mask, mgt_intel_pstate_governor_set_mask, set_governor);
+    apis_pin(ops->set_governor_list, mgt_intel_pstate_governor_set_list, set_governor);
     debug("Loaded INTEL_PSTATE");
 }
 
 state_t mgt_intel_pstate_init()
 {
     ullong m = 0;
-    uint i = 0;
+    uint i   = 0;
 
 #if DYNAMIC_BOOST_MGT
     bf.boost_enabled = 1;
@@ -120,19 +124,19 @@ state_t mgt_intel_pstate_init()
     // Discovering if boost is enabled
     if (bf.boost_enabled) {
         // Boost is marked as base clock + 1MHz
-        freq_ps0 = bf.frequency + 1000;
+        freq_ps0      = bf.frequency + 1000;
         avail_list[0] = freq_ps0;
         debug("avail_list%u: %llu (B)", 0, avail_list[0]);
         i = 1;
     }
     // While greater than 1GHz
-    while((avail_list[i] = bf.frequency - (100000LLU*m)) >= 1000000) {
+    while ((avail_list[i] = bf.frequency - (100000LLU * m)) >= 1000000) {
         debug("avail_list%u: %llu", i, avail_list[i]);
         ++m;
         ++i;
     }
     avail_list_count = i;
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t mgt_intel_pstate_dispose()
@@ -156,14 +160,14 @@ void mgt_intel_pstate_get_freq_details(freq_details_t *details)
 state_t mgt_intel_pstate_get_available_list(const ullong **list, uint *list_count)
 {
     static ullong shared_list[128];
-    memcpy(shared_list, avail_list, sizeof(ullong)*128);
+    memcpy(shared_list, avail_list, sizeof(ullong) * 128);
     if (list != NULL) {
         *list = (const ullong *) shared_list;
     }
     if (list_count != NULL) {
         *list_count = avail_list_count;
     }
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t mgt_intel_pstate_get_current_list(const ullong **p)
@@ -175,7 +179,7 @@ state_t mgt_intel_pstate_get_current_list(const ullong **p)
     for (cpu = 0; cpu < cpu_count; ++cpu) {
         if (!filemagic_word_read(fds_smf[cpu], data, 1)) {
             current_list[cpu] = 0LLU;
-            s = EAR_ERROR;
+            s                 = EAR_ERROR;
         } else {
             current_list[cpu] = (ullong) atoi(data);
             if (bf.boost_enabled && current_list[cpu] == freq_max) {
@@ -191,7 +195,7 @@ state_t mgt_intel_pstate_get_current_list(const ullong **p)
 state_t mgt_intel_pstate_get_boost(uint *boost_enabled)
 {
     *boost_enabled = bf.boost_enabled;
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 /** Setters */
@@ -204,17 +208,17 @@ state_t mgt_intel_pstate_set_current(uint freq_index, int cpu)
     }
     // Correcting invalid values
     if (freq_index >= avail_list_count) {
-        freq_index = avail_list_count-1;
+        freq_index = avail_list_count - 1;
     }
     // If is one P_STATE for all CPUs
     if (cpu == all_cpus) {
-				debug("All cpus: boost enabled: %u, freq index %u", bf.boost_enabled, freq_index);
+        debug("All cpus: boost enabled: %u, freq index %u", bf.boost_enabled, freq_index);
         if (bf.boost_enabled && freq_index == 0) {
             sprintf(data, "%llu", freq_max0);
         } else {
             sprintf(data, "%llu", avail_list[freq_index]);
         }
-        return (filemagic_word_mwrite(fds_smf, cpu_count, data, 1) ? EAR_SUCCESS:EAR_ERROR);
+        return (filemagic_word_mwrite(fds_smf, cpu_count, data, 1) ? EAR_SUCCESS : EAR_ERROR);
     }
     // If it is for a specified CPU
     if (cpu >= 0 && cpu < cpu_count) {
@@ -225,7 +229,7 @@ state_t mgt_intel_pstate_set_current(uint freq_index, int cpu)
         }
         debug("writing a word '%s' freq_index %u freq_max %llu", data, freq_index, freq_max0);
         strcat(data, "\n");
-        return (filemagic_word_write(fds_smf[cpu], data, strlen(data), 0) ? EAR_SUCCESS:EAR_ERROR);
+        return (filemagic_word_write(fds_smf[cpu], data, strlen(data), 0) ? EAR_SUCCESS : EAR_ERROR);
     }
     return_msg(EAR_ERROR, Generr.cpu_invalid);
 }
@@ -295,7 +299,7 @@ state_t mgt_intel_pstate_governor_set(uint governor)
     if (!filemagic_word_mwrite(fds_smf, cpu_count, buffer_freq, 1)) {
         // If fails, nothing by now
     }
-    return (filemagic_word_mwrite(fds_sgv, cpu_count, buffer_govr, 1) ? EAR_SUCCESS:EAR_ERROR);
+    return (filemagic_word_mwrite(fds_sgv, cpu_count, buffer_govr, 1) ? EAR_SUCCESS : EAR_ERROR);
 }
 
 static state_t set_governor_single(int cpu, char *governor)
@@ -373,7 +377,7 @@ int mgt_intel_pstate_read_cpuinfo(int max, ullong *khz)
     char buffer[64];
     int fd = -1;
 
-    if (!filemagic_can_read (path_cpuinfo, &fd) || !filemagic_word_read(fd, buffer, 0)) {
+    if (!filemagic_can_read(path_cpuinfo, &fd) || !filemagic_word_read(fd, buffer, 0)) {
         return 0;
     }
     *khz = 0LLU | (ullong) atoi(buffer);
@@ -387,7 +391,7 @@ int mgt_intel_pstate_read_scaling(int max, ullong *khz)
     char buffer[64];
     int fd = -1;
 
-    if (!filemagic_can_read (path_scaling, &fd) || !filemagic_word_read(fd, buffer, 0)) {
+    if (!filemagic_can_read(path_scaling, &fd) || !filemagic_word_read(fd, buffer, 0)) {
         return 0;
     }
     *khz = 0LLU | (ullong) atoi(buffer);
@@ -395,12 +399,12 @@ int mgt_intel_pstate_read_scaling(int max, ullong *khz)
     return 1;
 }
 
-#if TEST
-static const ullong       *frequencies;
-static uint                 governors[1024];
-static char                 buffer[128];
-static mgt_ps_driver_ops_t  ops;
-static topology_t           tp;
+#if TEST1
+static const ullong *frequencies;
+static uint governors[1024];
+static char buffer[128];
+static mgt_ps_driver_ops_t ops;
+static topology_t tp;
 
 int main(int argc, char *argv[])
 {

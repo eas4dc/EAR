@@ -142,6 +142,61 @@ struct avg_apps {
     int num_nodes;
 };
 
+/* Averages the fields in signatures that make sense */
+void average_signatures(signature_t *dst, signature_t *src, int nums)
+{
+	int i;
+	dst->time = src->time / nums;
+	dst->EDP = src->EDP / nums;
+	dst->TPI = src->TPI / nums;
+	dst->CPI = src->CPI / nums;
+	dst->time = src->time / nums;
+	dst->avg_f = src->avg_f / nums;
+	dst->avg_imc_f = src->avg_imc_f / nums;
+	dst->def_f = src->def_f / nums;
+	dst->perc_MPI = src->perc_MPI / nums;
+#if USE_GPUS
+	dst->gpu_sig.num_gpus = src->gpu_sig.num_gpus;
+	for (i = 0; i < MAX_GPUS_SUPPORTED; i++) {
+		dst->gpu_sig.gpu_data[i].GPU_freq =
+		    src->gpu_sig.gpu_data[i].GPU_freq / nums;
+		dst->gpu_sig.gpu_data[i].GPU_mem_freq =
+		    src->gpu_sig.gpu_data[i].GPU_mem_freq / nums;
+		dst->gpu_sig.gpu_data[i].GPU_util =
+		    src->gpu_sig.gpu_data[i].GPU_util / nums;
+		dst->gpu_sig.gpu_data[i].GPU_mem_util =
+		    src->gpu_sig.gpu_data[i].GPU_mem_util / nums;
+#if WF_SUPPORT
+		dst->gpu_sig.gpu_data[i].GPU_temp =
+		    src->gpu_sig.gpu_data[i].GPU_temp / nums;
+		dst->gpu_sig.gpu_data[i].GPU_temp_mem =
+		    src->gpu_sig.gpu_data[i].GPU_temp_mem / nums;
+#endif
+	}
+#endif
+}
+
+void average_power_signatures(power_signature_t *dest, int32_t num_sigs)
+{
+    dest->time /= num_sigs;
+    dest->EDP /= num_sigs;
+    dest->avg_f /= num_sigs;
+    dest->def_f /= num_sigs;
+}
+
+void acum_power_sig_metrics(power_signature_t *dest, power_signature_t *src)
+{
+    dest->DC_power += src->DC_power;
+    dest->DRAM_power += src->DRAM_power;
+    dest->PCK_power += src->PCK_power;
+    dest->max_DC_power += src->max_DC_power;
+    dest->min_DC_power += src->min_DC_power;
+    dest->EDP += src->EDP;
+    dest->time += src->time;
+    dest->avg_f += src->avg_f;
+    dest->def_f += src->def_f;
+}
+
 void average_applications(application_t *apps, int num_apps, struct avg_apps **sorted_apps, int *num_sorted_apps)
 {
     if (num_apps < 1 || apps == NULL) return; //for safety
@@ -162,6 +217,7 @@ void average_applications(application_t *apps, int num_apps, struct avg_apps **s
 				avg_apps[current].app.job.local_id == apps[i].job.local_id) { //existing application
 
             acum_sig_metrics(&avg_apps[current].app.signature, &apps[i].signature);
+            acum_power_sig_metrics(&avg_apps[current].app.power_sig, &apps[i].power_sig);
             avg_apps[current].num_nodes++; //either way, we get a +1 to the nodes counter
         } else { //new application
             current++;
@@ -175,7 +231,8 @@ void average_applications(application_t *apps, int num_apps, struct avg_apps **s
     avg_apps = realloc(avg_apps, sizeof(struct avg_apps)*current);
 
     for (i = 0; i < current; i++) {
-        compute_avg_sig(&avg_apps[i].app.signature, &avg_apps[i].app.signature, avg_apps[i].num_nodes);
+        average_signatures(&avg_apps[i].app.signature, &avg_apps[i].app.signature, avg_apps[i].num_nodes);
+        average_power_signatures(&avg_apps[i].app.power_sig, avg_apps[i].num_nodes);
     }
     *sorted_apps = avg_apps;
     *num_sorted_apps = current;

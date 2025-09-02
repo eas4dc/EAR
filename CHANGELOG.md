@@ -42,6 +42,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 Several minor fixes in IMCFreq amd19 management API.
 - v6.0 Fixed errors with ereport's -G option.
 
+## 5.2.1 - 2025-09-02
+
+### Added
+- Added missing averaged values to eacct.
+- Added averaging of power signatures.
+
+### Changed
+- Updated powercap algorithms for gpu, cpu_generic. Using LEVEL_DOMAIN in set_powercap_value calls() in powercap_mgt.c.
+
+### Fixed
+- Updated the PACKAGE_VERSION in the configure.ac file
+- Add a missing ; in the application signature header csv
+- Fixed serialization/deserialization of authorized users, groups and accounts.
+- Fixed an error where eacct would average power consumed by multiple nodes of the application, instead of adding it.
+
 ## [5.2] - 2025-05-28
 
 ### Added
@@ -60,6 +75,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixes related to setting powercap to single devices and domains.
 - Fixed typo in cpupow define.
 - Improved CPU governor list message.
+
+
+## 5.1.10 - 2025-09-02
+
+### Added
+- EARGM now reads EARGMNAME variable and writes to DB and log using this name, if available.
+- EARGM reads "ip:port" to support multiple eargms in the same node.
+- Setting the soft powercap to unlimited when the eargm is started or restarted.
+- Added reset modes (to default and to TDP) to management/cpupow.
+- The ereport command can now manage list of user groups.
+- Edcmon calls plugin_manager_close() when SIGINT or SIGTERM is received.
+
+### Changed
+- Using current_power instead of avg_power in dcmi node energy.
+- Powermonitor is now reporting last_calculated_power instead of last_power_reported in powermon_current_power().
+
+### Fixed
+- Set the maximum CPUFreq. value when the nominal+1000 is not available on systems using intel_cpufreq driver.
+- Fix powercap reset to the wrong value for AMD CPUs.
+- Change setgid bits in the rpm spec file.
+- Cleaned CPUPOW warnings.
+- Fixed acpi_cpufreq.c segmentation fault error.
+- Fixed plugin_manager_close() and plugin_manager_after_close functions.
+- Fixes in gpu powercap init and logic.
+- Fixed serialization and deserialization of authorized users, groups and accounts.
 
 ## 5.1.9 - 2025-04-28
 

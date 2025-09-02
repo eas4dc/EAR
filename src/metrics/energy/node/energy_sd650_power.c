@@ -162,26 +162,32 @@ static struct ipmi_rs * sendcmd(struct ipmi_intf * intf, struct ipmi_rq * req)
 	rsp.data_len = recv.msg.data_len - 1;
 	return &rsp;
 };//sendcmd
-	
 
-// 0x3A 0x32 4 8 0 0 0
-// Get individual power (w) reading
-/*
-Response (LSB is first for each field):
-1f 19 9a 60 49 01 b5 00 05 01 19 00 00 00
-Response Decode
-Timestamp associated with power reading:
-Bytes 0-3 =seconds (e.g. 1f 19 9a 60 =101,325,087 sec –Unix epoch
-time)
-Bytes 4-5 =mS (e.g. 49 01 =329 mS)
-Total time =101,325,087.329 seconds
-Byte 6-7 =Decimal (LSB first), Node power:
-b5 00 = 00b5h = 181w
-Byte 8-9 =Decimal (LSB first), GPU power:
-05 01 = 0105h = 261w
-*/
-//
-//
+/* Information gathered from Lenovo document:
+ *
+ * Single Power Command
+ * --------------------
+ * Command: Get individual device power (watt) reading
+ *	On SD650 V3 the power reading does not include GPU.
+ * Raw Command String: 0x3A 0x32 4 8 0 0 0
+ *	Response (LSB is first for each field):
+ *		1f 19 9a 60 49 01 b5 00 05 01 19 00 00 00
+ *	Response Decode:
+ *		Timestamp associated with power reading:
+ *			Bytes 0-3 =seconds (e.g. 1f 19 9a 60 =101,325,087 sec –Unix epoch time)
+ *			Bytes 4-5 =mS (e.g. 49 01 =329 mS)
+ *				Total time = 101,325,087.329 seconds
+ *			Byte 6-7 =Decimal (LSB first), Node power:
+ *				b5 00 = 00b5h = 181w
+ *			Byte 8-9 =Decimal (LSB first), GPU power:
+ *				05 01 = 0105h = 261w
+ *			Byte 10-11 ==Decimal (LSB first), Riser1 power:
+ *				19 00 = 0019h = 25w
+ *	Node power includes the x86 compute portion of the tray+riser1+riser2 power.
+ *	Total tray power for SD650N V2 is Node power+GPU power.
+ *		In the example above it is 181W + 261W=442W.
+ */
+
 #define FIRST_BYTE_POWER_SEC		0
 #define FIRST_BYTE_POWER_MSEC		4
 #define FIRST_BYTE_NODE_POWER		6

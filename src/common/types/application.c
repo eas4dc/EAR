@@ -158,7 +158,7 @@ int create_app_header(char * header, char *path, uint num_gpus, char is_extended
 												"POLICY_TH;JOB_NPROCS;JOB_TYPE;JOB_DEF_FREQ";
 #endif // WF_SUPPORT
 
-    char *HEADER_BASE = "EARL_ENABLED;EAR_LEARNING_PHASE;NODENAME";
+    char *HEADER_BASE = ";EARL_ENABLED;EAR_LEARNING_PHASE;NODENAME";
 
 		char *HEADER_SIGN = ";AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;"\
 												 "TIME_SEC;CPI;TPI;MEM_GBS;"\

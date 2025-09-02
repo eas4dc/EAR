@@ -99,7 +99,7 @@ uint powercap_th_start=0;
 pthread_t eargm_server_api_th;
 pthread_t meta_eargm_th;
 cluster_conf_t my_cluster_conf;
-eargm_def_t *e_def;
+eargm_def_t *e_def = NULL;
 char **nodes = NULL;
 int num_eargm_nodes = 0;
 char my_ear_conf_path[GENERIC_NAME] = { 0 };	
@@ -792,9 +792,16 @@ int main(int argc, char *argv[])
     }
 
     create_tmp(my_cluster_conf.install.dir_temp);
-
+    char buf[20];
     if (my_cluster_conf.eargm.use_log){
-        create_log(my_cluster_conf.install.dir_temp, "eargmd", fd_my_log);
+        char *gm_name = ear_getenv("EARGMNAME");
+        if (gm_name) {
+            sprintf(buf, "eargmd-%s", gm_name);
+            create_log(my_cluster_conf.install.dir_temp, buf, fd_my_log);
+        }
+        else {
+            create_log(my_cluster_conf.install.dir_temp, "eargmd", fd_my_log);
+        }
     }
     TIMESTAMP_SET_EN(my_cluster_conf.eargm.use_log);
 

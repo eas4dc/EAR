@@ -25,6 +25,9 @@
 // Flag to use in powercap_set
 #define POWERCAP_DISABLE     UINT_MAX     //Disables the power cap in the device
 #define POWERCAP_DO_NOTHING (UINT_MAX-1)  //Don't change anything in the device
+// Flags to use in powercap_reset()
+#define RESET_DEFAULT 0 // Reset to previous values
+#define RESET_TDP     1 // Reset to TDP
 
 // API building scheme
 #define CPUPOW_F_LOAD(name)                void name (topology_t *tpo, mgt_cpupow_ops_t *ops)
@@ -75,7 +78,8 @@ state_t mgt_cpupow_powercap_get(int domain, uint *watts);
 
 state_t mgt_cpupow_powercap_set(int domain, uint *watts);
 
-state_t mgt_cpupow_powercap_reset(int domain);
+// Reset the whole domain to its starting state.
+state_t mgt_cpupow_powercap_reset(int domain, int reset_mode);
 
 state_t mgt_cpupow_tdp_get(int domain, uint *watts);
 

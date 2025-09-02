@@ -19,6 +19,7 @@
 
 static pthread_mutex_t  lock = PTHREAD_MUTEX_INITIALIZER;
 static uint             loaded;
+static int              cpus_count;
 static mgt_cpupow_ops_t ops;
 
 void mgt_cpupow_load(topology_t *tp, int eard)
@@ -30,6 +31,7 @@ void mgt_cpupow_load(topology_t *tp, int eard)
     mgt_cpupow_intel63_load(tp, &ops);
     mgt_cpupow_amd17_load(tp, &ops);
     mgt_cpupow_dummy_load(tp, &ops);
+    cpus_count = tp->cpu_count;
     loaded = 1;
 ret:
 	pthread_mutex_unlock(&lock);
@@ -66,8 +68,22 @@ state_t mgt_cpupow_powercap_set(int domain, uint *watts)
     return ops.powercap_set(domain, watts);
 }
 
-state_t mgt_cpupow_powercap_reset(int domain)
+static state_t reset_to_tdp(int domain)
 {
+    static uint *tdps = NULL;
+
+    if (tdps == NULL) {
+        tdps = calloc(cpus_count, sizeof(uint));
+    }
+    mgt_cpupow_tdp_get(domain, tdps);
+    return ops.powercap_set(domain, tdps);
+}
+
+state_t mgt_cpupow_powercap_reset(int domain, int reset_mode)
+{
+    if (reset_mode == RESET_TDP) {
+        return reset_to_tdp(domain);
+    }
     return ops.powercap_reset(domain);
 }
 

@@ -99,7 +99,7 @@
 /**@}*/
 
 /** Forces EARD and EARGM to be executed as root. */
-#define RUN_AS_ROOT 0
+#define RUN_AS_ROOT 1
 
 /** Allows normal users to change the CPU frequency without having to be authorized users. */
 #define CPUFREQ_SET_ALL_USERS 1
