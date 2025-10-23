@@ -111,4 +111,6 @@ void application_serialize(serial_buffer_t *b, application_t *app);
 
 void application_deserialize(serial_buffer_t *b, application_t *app);
 
+state_t application_create_header_str(char *header_dst, size_t header_dst_size, char * header_prefix, uint num_gpus, char is_extended, int single_column);
+
 #endif

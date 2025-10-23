@@ -816,17 +816,14 @@ void states_new_iteration(int my_id, uint period, uint iterations,
          * the number of iterations to compute the signature. */
         case SIGNATURE_STABLE:
             verbose_master(4,"SIGNATURE_STABLE");
-            overhead_start(id_ovh_stable);
 
             if (!lib_shared_region->master_ready) {
                 if (!dynais_used && ((iterations - begin_iter) < mpi_calls_iter)) {
-                    overhead_stop(id_ovh_stable);
                     return;
                 }
 
                 // I have executed N iterations more with a new frequency, we must check the signature
                 if (dynais_used && ((iterations - 1) % perf_count_period)) {
-                    overhead_stop(id_ovh_stable);
                     return;
                 }
             }
@@ -840,6 +837,7 @@ void states_new_iteration(int my_id, uint period, uint iterations,
                 }
             }
 #endif
+            overhead_start(id_ovh_stable);
     prev_cpufreq_khz = ear_frequency; // TODO: Why khz are prev, but pstate is curr?
     curr_pstate      = frequency_closest_pstate(ear_frequency);
 

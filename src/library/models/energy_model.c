@@ -17,6 +17,7 @@
 #include <library/common/utils.h>
 #include <common/system/symplug.h>
 #include <common/sizes.h>
+#include <common/config.h>
 
 
 #define freturn(call, ...) \

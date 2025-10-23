@@ -60,7 +60,7 @@ powercap_test: powercap_test.c $(mang_OBJS) $(comm_OBJS)
 	$(CCC) -rdynamic -o $@ $< $(LDFLAGS) $(mang_OBJS) $(SRCDIR)/daemon/local_api/libeard.a $(comm_OBJS) -lpthread -ldl -lm
 
 coeffs_compute: coeffs_compute.c $(mang_OBJS) $(db_OJBS) $(comm_OBJS)
-	$(CCC) -o $@ $< $(LDFLAGS) $(mang_OBJS) $(db_OJBS) $(comm_OBJS) $(DB_LDFLAGS) -lpthread -ldl
+	$(CCC) -o $@ $< $(LDFLAGS) $(mang_OBJS) $(db_OJBS) $(comm_OBJS) $(DB_LDFLAGS) -lpthread -ldl -lm
 
 coeffs_show: coeffs_show.c $(comm_OBJS)
 	$(CCC) -I$(SRCDIR) -o $@ $< $(comm_OBJS)

@@ -33,11 +33,11 @@ pbsutils_HDRS = \
 
 all: $(pbsutils_BINS) $(eardrapi_BINS) $(libhardware_BINS)
 
-libeard_rapi.so:
-	$(CC) $(CC_FLAGS) $(CFLAGS) -shared -o $@ $(eardrapi_OBJS) $(LDFLAGS)
+libeard_rapi.so: $(eardrapi_OBJS)
+	$(CC) $(CC_FLAGS) $(CFLAGS) $(LDFLAGS) -shared -o $@ $(eardrapi_OBJS)
 
 libpbs_hook_utils.so: $(pbsutils_SRCS) $(pbsutils_HDRS)
-	$(CC) $(CC_FLAGS) $(CFLAGS) -shared -o $@ $(pbsutils_SRCS) $(pbsutils_OBJS) $(LDFLAGS)
+	$(CC) $(CC_FLAGS) $(CFLAGS) $(LDFLAGS) -shared -o $@ $(pbsutils_SRCS) $(pbsutils_OBJS)
 
 # OPTIONS
 

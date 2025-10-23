@@ -19,34 +19,34 @@
 #define EAR_GUI               1 // When defined, activates dynamic traces on EARL.
 
 // Library
-#define FEAT_ONLY_MASTER    0
-#define ONLY_MASTER         (FEAT_ONLY_MASTER || !MPI)
+#define FEAT_ONLY_MASTER 0
+#define ONLY_MASTER      (FEAT_ONLY_MASTER || !MPI)
 
 // Database
-#define DB_MYSQL            @FEAT_DB_MYSQL@
-#define DB_PSQL             @FEAT_DB_PGSQL@
-#define DB_IS(db)           (db)
-#define USE_DB              DB_MYSQL || DB_PSQL
+#define DB_MYSQL  @FEAT_DB_MYSQL@
+#define DB_PSQL   @FEAT_DB_PGSQL@
+#define DB_IS(db) (db)
+#define USE_DB    DB_MYSQL || DB_PSQL
 
 // Scheduler
-#define SCHED_SLURM         @FEAT_SCHED_SLURM@
-#define SCHED_PBS           @FEAT_SCHED_PBS@
-#define SCHED_OAR           @FEAT_SCHED_OAR@
-#define SCHED_IS(sched)     (sched)
-#define USE_SCHED           SCHED_SLURM || SCHED_PBS || SCHED_OAR
+#define SCHED_SLURM     @FEAT_SCHED_SLURM@
+#define SCHED_PBS       @FEAT_SCHED_PBS@
+#define SCHED_OAR       @FEAT_SCHED_OAR@
+#define SCHED_IS(sched) (sched)
+#define USE_SCHED       SCHED_SLURM || SCHED_PBS || SCHED_OAR
 
 // Others
-#define RELEASE             "@PACKAGE_VERSION@"
-#define VERSION_MAJOR       @VERSION_MAJOR@
-#define VERSION_MINOR       @VERSION_MINOR@
+#define RELEASE       "@PACKAGE_VERSION@"
+#define VERSION_MAJOR @VERSION_MAJOR@
+#define VERSION_MINOR @VERSION_MINOR@
 
 // Legacy
-#define EAR_INSTALL_PATH    "@prefix@"
-#define MPI_C_LIB_PATH      "lib/libear"
+#define EAR_INSTALL_PATH "@prefix@"
+#define MPI_C_LIB_PATH   "lib/libear"
 
 // DLB support
 /* Defined to 1 if EAR is compiled with DLB support. */
-#define DLB_SUPPORT		@FEAT_DLB@
+#define DLB_SUPPORT @FEAT_DLB@
 /* Defined to 1 if the <dlb_talp.h> header file is available to be included. */
 #define HAVE_DLB_TALP_H @HAVE_DLB_TALP_H@
 

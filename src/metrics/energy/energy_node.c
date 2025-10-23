@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <common/config.h>
 #include <common/includes.h>
@@ -71,9 +71,11 @@ state_t energy_load(char *energy_obj)
 state_t energy_initialization(ehandler_t *eh)
 {
 	state_t ret;
+	debug("energy_initialization");
 	if (!energy_loaded){
 		state_return_msg(EAR_NOT_READY,0,"Energy plugin not loaded");
 	} 
+	debug("Energy plugin init");
 	ret = energy_ops.init(&eh->context);
   if (ret!=EAR_SUCCESS) debug("energy_ops.init() returned %d", ret);
   return ret;
@@ -85,6 +87,7 @@ state_t energy_init(cluster_conf_t *conf, ehandler_t *eh)
 
 	if (energy_loaded) {
 		debug("Energy plugin already loaded, executing basic init");	
+		debug("Energy plugin init");
 		if (state_fail(ret = energy_ops.init(&eh->context))) {
 			debug("energy_ops.init() returned %d", ret);
 		}
@@ -107,6 +110,7 @@ state_t energy_init(cluster_conf_t *conf, ehandler_t *eh)
 	energy_loaded = 1;
 	
 	if (energy_ops.init != NULL){ 
+		debug("Energy plugin init");
 		return energy_ops.init(&eh->context);
 	} else {
 		return_print(EAR_ERROR, "The symbol energy_init was not found in %s", energy_objc);

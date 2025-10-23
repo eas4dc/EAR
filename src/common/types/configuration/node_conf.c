@@ -252,7 +252,7 @@ void print_my_node_conf(my_node_conf_t *my_node_conf)
             my_node_conf->powercap_type,
             my_node_conf->gpu_def_freq, my_node_conf->cpu_max_pstate, my_node_conf->imc_max_pstate);
 	      verbose(VCCONF, "imc_max_freq %lu imc_min_freq %lu", my_node_conf->imc_max_freq, my_node_conf->imc_min_freq);
-        verbose(VCCONF, "Governor used in the IDLE %s pstate %d", my_node_conf->idle_governor, my_node_conf->idle_pstate);
+        verbose(VCCONF, "Governor used in the IDLE '%s' pstate %d", my_node_conf->idle_governor, my_node_conf->idle_pstate);
         power2str((ulong)my_node_conf->powercap, buffer);
         verbosen(VCCONF, "powercap %s ",buffer);
         power2str((ulong)my_node_conf->max_powercap, buffer);

@@ -8,20 +8,16 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #ifndef COMMON_CONFIG_DEF_H
 #define COMMON_CONFIG_DEF_H
 
-
 #include <common/config/config_install.h>
 
-#define LENOVO        0
-#define GRACE_HOOPER  1
-#define CRAY_HPE      2
-#define EAR_NODE_MGR  3
-#define GENERIC 			100
-
-
+#define LENOVO       0
+#define GRACE_HOOPER 1
+#define CRAY_HPE     2
+#define EAR_NODE_MGR 3
+#define GENERIC      100
 
 /** @name Paths
  * EAR paths and names. */
@@ -31,7 +27,6 @@
 #define REL_PATH_LOAD "lib/libearld.so"
 /**@}*/
 
-
 /** @name Suffixes
  * Loader definitions. */
 /**@{*/
@@ -40,37 +35,35 @@
 #define OPENMPI_EXT     "ompi.so"
 #define CUDA_EXT        "gen.so"
 #define OPENMP_EXT      "gen.so"
-#define ONEAPI_EXT			"gen.so"	
+#define ONEAPI_EXT      "gen.so"
 #define DEF_EXT         "gen.so"
 
 #define FUJITSU_MPI_EXT "fujitsu.so"
-#define CRAY_MPI_EXT "cray.so"
+#define CRAY_MPI_EXT    "cray.so"
 /**@}*/
-
 
 /** @name Database
  * These definitions affects DB configuration. */
 /**@{*/
 
 /** When set to 1, loops signatures are not reported to the DB to save space. */
-#define LARGE_CLUSTER       0
+#define LARGE_CLUSTER 0
 
 /* When set to 1, some fields are neither created not reported to the DB to save space. */
-#define DB_SIMPLE           0
+#define DB_SIMPLE 0
 
 /* Maximum number of simultaneous DB connection for mysql user commands. */
-#define MAX_DB_CONNECTIONS  20
+#define MAX_DB_CONNECTIONS 20
 
 /**@}*/
-
 
 /** @name Daemon */
 /**@{*/
 
 /** When set to 1, verbose, debug, and error output is sent to eard.log file stored at EAR_TMP. */
-#define EARD_FILE_LOG               1
+#define EARD_FILE_LOG 1
 /** Set minimum CPU frequency on idle phases. */
-#define EARD_POWERCAP_IDLE_MINFREQ  0
+#define EARD_POWERCAP_IDLE_MINFREQ 0
 /* If set to 1, there should be no issues with jobs running while the node is "idle".
  * If set to 0, the idle powercap will be POWERCAP_UNLIMITED */
 #define EARD_POWERCAP_IDLE_PERC 1
@@ -80,21 +73,19 @@
 #define MIX_RPC 1
 /**@}*/
 
-
 /** @name EAR Database Daemon  */
 /**@{*/
 #define EARDBD_TYPES 7
 /**@}*/
 
-
 /** @name EAR Global Manager */
 /**@{*/
 
 /** When set to 1, verbose,debug, and error output is sent to eargmd.log file stored at EAR_TMP. */
-#define EARGMD_FILE_LOG                     1
+#define EARGMD_FILE_LOG 1
 
 /** Cluster soft powercap with homogeneous powercap. */
-#define EARGM_POWERCAP_SOFTPC_HOMOGENEOUS   0
+#define EARGM_POWERCAP_SOFTPC_HOMOGENEOUS 0
 
 /**@}*/
 
@@ -105,68 +96,67 @@
 #define CPUFREQ_SET_ALL_USERS 1
 
 /** Maximum number of tries when doing non-blocking communications. */
-#define MAX_SOCKET_COMM_TRIES               40000000
+#define MAX_SOCKET_COMM_TRIES 40000000
 //
 
 /* These flags configures EARL */
 
 /* Forces the intel pstate to create the cpufreq list using turbo freq. Used in cases where the turbo
  * is on/off dynamically. It just works when using intel_pstate CPUFreq driver. */
-#define DYNAMIC_BOOST_MGT										1
+#define DYNAMIC_BOOST_MGT 1
 /* When set to 1, frequency is set to default when a new loop starts.
  * Otherwise, the current frequency is used till the policy is applied */
-#define RESET_FREQ                          0
+#define RESET_FREQ 0
 /* These three values are used to configure what is considered valid power
  * values. AVG power less than MIN_SIG_POWER or greather than MAX_SIG_POWER
  * generates a warning and a syslog message when activated. Values greather
  * than MAX_ERROR_POWER are considered an error and not reported into the DB */
-#define MIN_SIG_POWER                       30.0
-#define MAX_SIG_POWER                       5000.0
-#define MAX_ERROR_POWER                     5500.0
-#define MAX_TEMP                            150
-#define MAX_POWER_CAP                       0
-#define POWER_CAP_DISABLED                  0
-#define POWER_CAP_UNLIMITED                 1
-#define TEMP_CAP_UNLIMITED                  1
-#define POWER_CAP_AUTO_CONFIG               -1
-#define DEF_POWER_CAP                       POWER_CAP_AUTO_CONFIG
-#define POWER_CAP_TYPE                      "node"
+#define MIN_SIG_POWER         30.0
+#define MAX_SIG_POWER         5000.0
+#define MAX_ERROR_POWER       5500.0
+#define MAX_TEMP              150
+#define MAX_POWER_CAP         0
+#define POWER_CAP_DISABLED    0
+#define POWER_CAP_UNLIMITED   1
+#define TEMP_CAP_UNLIMITED    1
+#define POWER_CAP_AUTO_CONFIG -1
+#define DEF_POWER_CAP         POWER_CAP_AUTO_CONFIG
+#define POWER_CAP_TYPE        "node"
 //
-#define MAX_CPUF_PSTATE                     5
-#define MAX_IMCF_PSTATE                     5
-#define MAX_IMCF_FREQ                       0
-#define MIN_IMCF_FREQ                       0
+#define MAX_CPUF_PSTATE 5
+#define MAX_IMCF_PSTATE 5
+#define MAX_IMCF_FREQ   0
+#define MIN_IMCF_FREQ   0
 /* When set to 1, powercap events will be reported to database. */
-#define REPORT_POWERCAP                     0
+#define REPORT_POWERCAP 0
 /* These definitions affects to the output generated by services EAR services
  * When set to 1, some warning messages and written at syslog explicitly */
-#define SYSLOG_MSG                          1
+#define SYSLOG_MSG                        1
 
-#define PERFORMANCE_GAIN                    0.75
-#define EAR_ACCEPTED_TH                     0.05
-#define EAR_MIN_P_STATE                     4
-#define POWERMON_FREQ                       60
-#define DAEMON_PORT_NUMBER                  50000
-#define EARGM_PORT_NUMBER                   50001
-#define DEF_DBD_SERVER_PORT                 50002
-#define DEF_DBD_MIRROR_PORT                 50003
-#define DEF_DBD_SYNCHR_PORT                 50004
-#define DEFAULT_T1                          60
-#define DEFAULT_T2                          600
-#define MAX_ENERGY                          300
-#define DEFAULT_POWER                       300
-#define GRACE_T1                            3
-#define MAX_TIME_DYNAIS_WITHOUT_SIGNATURE   15
+#define PERFORMANCE_GAIN                  0.75
+#define EAR_ACCEPTED_TH                   0.05
+#define EAR_MIN_P_STATE                   4
+#define POWERMON_FREQ                     60
+#define DAEMON_PORT_NUMBER                50000
+#define EARGM_PORT_NUMBER                 50001
+#define DEF_DBD_SERVER_PORT               50002
+#define DEF_DBD_MIRROR_PORT               50003
+#define DEF_DBD_SYNCHR_PORT               50004
+#define DEFAULT_T1                        60
+#define DEFAULT_T2                        600
+#define MAX_ENERGY                        300
+#define DEFAULT_POWER                     300
+#define GRACE_T1                          3
+#define MAX_TIME_DYNAIS_WITHOUT_SIGNATURE 15
+#define METRICS_OVH                       0
 
-
-/* 
+/*
  * To be used by default in eard and eard_dummy
  */
 #define DEFAULT_EAR_INSTALL_PATH "/usr/lib/ear"
-#define DEFAULT_EAR_ETC_PATH "/etc"
+#define DEFAULT_EAR_ETC_PATH     "/etc"
 
-
-#if   SYSTEM_TYPE == LENOVO
+#if SYSTEM_TYPE == LENOVO
 #define DEFAULT_ENERGY_PLUGIN "energy_sd650.so"
 #define DEFAULT_ENERGY_MODEL  "avx512_model.so"
 #elif SYSTEM_TYPE == GRACE_HOOPER
@@ -185,34 +175,32 @@
 
 #define DEFAULT_GPU_OPT 1
 
-
-
 /* Maximum power error supported. It is used to compute the min time to compute
  * a valid signature */
-#define MAX_POWER_ERROR                     0.05
+#define MAX_POWER_ERROR 0.05
 /* Maximum dynais overhead supported per iteration */
-#define MAX_DYNAIS_OVERHEAD                 5
-#define MAX_MPI_CALLS_SECOND                10000
-#define MIN_MPI_CALLS_SECOND                200
-//#define MPI_CALLS_TO_CHECK_PERIODIC         100000
-#define MPI_CALLS_TO_CHECK_PERIODIC         MAX_MPI_CALLS_SECOND
+#define MAX_DYNAIS_OVERHEAD  5
+#define MAX_MPI_CALLS_SECOND 10000
+#define MIN_MPI_CALLS_SECOND 200
+// #define MPI_CALLS_TO_CHECK_PERIODIC         100000
+#define MPI_CALLS_TO_CHECK_PERIODIC MAX_MPI_CALLS_SECOND
 /* When set to 1, Pieces of code are activated to reduce the overhead introduced
  * by dynais */
-#define PERIOD                              10
+#define PERIOD 10
 /** Database Daemon Deaults */
 /* Enabling it, the output of EARDBD is sended to the log file stored in TMP */
-#define DEF_DBD_FILE_LOG                    1
-#define DEF_DBD_AGGREGATION_TIME            60
-#define DEF_DBD_INSERTION_TIME              30
+#define DEF_DBD_FILE_LOG         1
+#define DEF_DBD_AGGREGATION_TIME 60
+#define DEF_DBD_INSERTION_TIME   30
 /* MegaBytes allocated for caching the node metrics. */
-#define DEF_DBD_ALLOC_MBS                   120
-#define MAX_NODE_ENERGY_LOCK_TRIES          10000
+#define DEF_DBD_ALLOC_MBS          120
+#define MAX_NODE_ENERGY_LOCK_TRIES 10000
 /* Seconds between each EARDBD API connection retrys. */
-#define EARDBD_API_RETRY_SECS               60
-#define MIN_MPI_FOR_LOW_FREQ                20
+#define EARDBD_API_RETRY_SECS    60
+#define MIN_MPI_FOR_LOW_FREQ     20
 
-#define EARGM_DEF_POWERCAP_LIMIT            0
-#define EARGM_DEF_T1_POWER                  60
+#define EARGM_DEF_POWERCAP_LIMIT 0
+#define EARGM_DEF_T1_POWER       60
 /* 1=auto by default, 0=monitoring_only */
 #define EARGM_POWERCAP_DEF_MODE         1
 #define EARGM_POWERCAP_DEF_ACTION       "no_action"
@@ -227,47 +215,46 @@
  * architectures where hostname returned is not valid to communicate across
  * nodes. In that case, NW_EXT specified the extension to concatenate to
  * hostname */
-#define USE_EXT                             0
-#define NW_EXT                              "-opa"
+#define USE_EXT 0
+#define NW_EXT  "-opa"
 /** Specifies if the new version of the commands propagation is used and the number
  *  * of jumps per node. */
-#define NUM_PROPS                           3
+#define NUM_PROPS 3
 /** Specifies the maximum number of nodes a communication range can have. Propagations always
- * occur within a range, and the depth of propagations is calculated by taking 
+ * occur within a range, and the depth of propagations is calculated by taking
  * sum = NUM_PROPS + NUM_PROPS² + ... + NUM_PROPS^n
  * and getting the number of elements that constitue the sum such as the minimum sum >= MAX_RANGE.
  * Ex: MAX_RANGE 30 and NUM_PROPS 3 -> sum = 3 + 9 + 27 -> depth of propagation = 3 */
-#define MAX_RANGE                           30
+#define MAX_RANGE 30
 
 /* Whether the security key is send and used by the remote communication layer. If
- * set to 0, all remote messages will be accepted. Components compiled with 
+ * set to 0, all remote messages will be accepted. Components compiled with
  * different values of this constant will NOT be compatible */
-#define USE_SEC_KEY_RC                      0
-#define USE_PMON_SHARED_AREA		    1
-
+#define USE_SEC_KEY_RC       0
+#define USE_PMON_SHARED_AREA 1
 
 /** @name Library
  * EARL defaults. */
 /**@{*/
 
 /** Enable IMC management. */
-#define  EAR_eUFS         0
+#define EAR_eUFS 0
 
 /** IMC controller threshold. */
-#define  EAR_IMC_TH       0.02
+#define EAR_IMC_TH 0.02
 
 /** Enable EARL phase detection. */
-#define  EAR_USE_PHASES   1
+#define EAR_USE_PHASES 1
 
 /** Enable EARL load balance. */
-#define  EAR_USE_LB       0
-#define  EAR_LB_TH        0.8
+#define EAR_USE_LB 0
+#define EAR_LB_TH  0.8
 
 /** Set turbo for critical path processes. */
-#define  EAR_USE_TURBO_CP 1
+#define EAR_USE_TURBO_CP 1
 
 /** Enable DCGMI monitoring. */
-#define DCGM_DEFAULT            1
+#define DCGM_DEFAULT 1
 /** Enable DCGMI monitoring for all events */
 #define DCGM_ALL_EVENTS_DEFAULT 0
 
@@ -285,13 +272,11 @@
 
 /**@}*/
 
-
 /** @name Common
  * Parameters that set up different EAR components. */
 /**@{*/
 /** Instead of reporting the number of iterations, report the timestamp of the loop. */
 #define REPORT_TIMESTAMP 1
 /**@}*/
-
 
 #endif // COMMON_CONFIG_DEF_H

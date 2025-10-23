@@ -456,18 +456,27 @@ void restore_frequency()
     frequency_set_with_list(node_size, c_req_f);
 }
 
-state_t set_powercap_value(uint pid,uint domain,uint limit,uint *cpu_util)
+state_t set_powercap_value(uint pid, uint domain, uint *limit, uint *cpu_util)
 {
     int i;
     /* Set data */
-    debug("%sDVFS:set_powercap_value %u%s",COL_BLU,limit,COL_CLR);
-    default_dvfs_pc = limit;
+    debug("%sDVFS:set_powercap_value %u%s", COL_BLU, *limit, COL_CLR);
+    if (domain == LEVEL_DEVICE) {
+        uint32_t new_limit = 0;
+        for (int32_t i = 0; i < node_size; i++) {
+            new_limit += limit[i];
+        }
+        warning("Per device powercap not implemented for DVFS, adding up the values (new limit %u)", new_limit);
+        default_dvfs_pc = new_limit;
+    } else {
+        default_dvfs_pc = *limit;
+    }
     current_dvfs_pc = default_dvfs_pc;
     dvfs_status = PC_STATUS_OK;
     dvfs_ask_def = 0;
     for (i=0;i<MAX_CPUS_SUPPORTED;i++) prev_pstate[i] = UINT_MAX; //reset flipflop measures
     prev_counter = 0;
-    if (limit == POWER_CAP_UNLIMITED) {
+    if (current_dvfs_pc == POWER_CAP_UNLIMITED) {
         restore_frequency();
     }
     return EAR_SUCCESS;

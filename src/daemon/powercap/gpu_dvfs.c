@@ -407,12 +407,22 @@ void restore_frequency()
     mgt_gpu_freq_limit_set(no_ctx,n_freq);
 }
 
-state_t set_powercap_value(uint pid,uint domain,ulong limit,ulong *gpu_util)
+state_t set_powercap_value(uint pid, uint domain, uint32_t *limit, ulong *gpu_util)
 {
     gpu_dvfs_status = PC_STATUS_OK;
     gpu_dvfs_ask_def = 0;
-    default_gpu_pc = limit;
-    return int_set_powercap_value(default_gpu_pc,gpu_util);
+
+    if (domain == LEVEL_DEVICE) {
+        uint32_t new_limit = 0;
+        for (int32_t i = 0; i < gpu_pc_num_gpus; i++) {
+            new_limit += limit[i];
+        }
+        warning("Per device powercap not implemented for GPU DVFS, adding up the values (new limit %u)", new_limit);
+        default_gpu_pc = new_limit;
+    } else {
+        default_gpu_pc = *limit;
+    }
+    return int_set_powercap_value(default_gpu_pc, gpu_util);
 }
 
 state_t reset_powercap_value()

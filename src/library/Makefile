@@ -137,6 +137,7 @@ clean: clean.components rclean;
 post:
 	@ $(MAKE) -C 'metrics' $@ || exit
 	@ $(MAKE) -C 'policies' $@ || exit
+	@ $(MAKE) -C 'common' $@ || exit
 
 ######## SUBFOLDERS
 

@@ -126,7 +126,7 @@ void print_loop_id_fd(int fd, loop_id_t *loop_id)
 
 void print_loop_fd(int fd, loop_t *loop)
 {
-    dprintf(fd,"%lu;%lu;", loop->jid, loop->step_id);
+    dprintf(fd,"%lu;%lu;%lu;", loop->jid, loop->step_id,loop->local_id);
     dprintf(fd, "%s;", loop->node_id);
     signature_print_fd(fd, &loop->signature, 1, 0 , ' ');
     print_loop_id_fd(fd, &loop->id);

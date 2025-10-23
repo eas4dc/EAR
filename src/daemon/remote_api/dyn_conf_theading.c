@@ -120,7 +120,7 @@ void *process_remote_req_th(void * arg)
 			for (i = rfds_basic.fd_min; i <= rfds_basic.fd_max; i++) {
 				#if 0
 				if ((i != pipe_for_new_conn[0]) && AFD_ISHUP(i, &rfds_basic)) {
-					verbose(VRAPI, "ERROR: socket remote client has disconnected, closing the socket");
+					verbose(VRAPI-1, "ERROR: socket remote client has disconnected, closing the socket %d", i);
 					remove_remote_connection(i);
 				}
 				else 

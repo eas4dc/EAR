@@ -23,8 +23,11 @@ OBJS += dlb_talp_lib.o
 endif
 
 # Variables for dcgmi_lib_test target
+ifdef MPI_VERSION
+	ext = .$(MPI_VERSION)
+endif
 dcgmi_lib_test_LDFLAGS = -L$(SRCDIR)/library -L$(SRCDIR)/library/loader
-dcgmi_lib_test_LIBS = -lear -learld -lpthread
+dcgmi_lib_test_LIBS = -lear$(ext) -learld -lpthread
 
 all: $(OBJS)
 

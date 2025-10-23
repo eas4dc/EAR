@@ -42,6 +42,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 Several minor fixes in IMCFreq amd19 management API.
 - v6.0 Fixed errors with ereport's -G option.
 
+
+## 5.2.2 - 2025-10-23
+
+### Added
+
+- Default EAR Library strategy controlled through an environment variable.
+- Per-device setting support on missing powercap plugins.
+
+### Fixed
+
+- Fixed bad GFLOPS estimation in the loops\_average\_tool.
+- Fixed Intel MPI compatibility in EAR Loader.
+
 ## 5.2.1 - 2025-09-02
 
 ### Added
@@ -49,7 +62,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added averaging of power signatures.
 
 ### Changed
-- Updated powercap algorithms for gpu, cpu_generic. Using LEVEL_DOMAIN in set_powercap_value calls() in powercap_mgt.c.
+- Updated powercap algorithms for gpu, cpu\_generic. Using LEVEL\_DOMAIN in set\_powercap\_value calls() in powercap\_mgt.c.
+- `eacct` man page updated.
+- eacct '-c no_file' prints application header.
+
+### Fixed
+- Updated the PACKAGE_VERSION in the configure.ac file
+- Add a missing ; in the application signature header csv
+- Fixed serialization/deserialization of authorized users, groups and accounts.
+- Fixed an error where eacct would average power consumed by multiple nodes of the application, instead of adding it.
 
 ### Fixed
 - Updated the PACKAGE_VERSION in the configure.ac file

@@ -1,5 +1,5 @@
 .\" Manpage for eacct.
-.TH man 1 "June 2022" "4.1" "eacct man page"
+.TH man 1 "October 2024" "5.2" "eacct man page"
 .SH NAME
 eacct \- See a report of the last job executions reported by EAR's daemons.
 .SH SYNOPSIS
@@ -19,16 +19,69 @@ eacct is a simple command to see a jobs' energy accounting information. It can a
     -a      specifies the application names that will be retrieved. [default: all app_ids]
     -c      specifies the file where the output will be stored in CSV format. [default: no file]
     -t      specifies the energy_tag of the jobs that will be retrieved. [default: all tags].
-	-s      specifies the minimum start time of the jobs that will be retrieved in YYYY-MM-DD. [default: no filter].
-	-e      specifies the maximum end time of the jobs that will be retrieved in YYYY-MM-DD. [default: no filter].
+    -s      specifies the minimum start time of the jobs that will be retrieved in YYYY-MM-DD. [default: no filter].
+    -e      specifies the maximum end time of the jobs that will be retrieved in YYYY-MM-DD. [default: no filter].
     -l      shows the information for each node for each job instead of the global statistics for said job.
     -x      shows the last EAR events. Nodes, job ids, and step ids can be specified as if were showing job information.
     -m      prints power signatures regardless of whether mpi signatures are available or not.
     -r      shows the EAR loop signatures. Nodes, job ids, and step ids can be specified as if were showing job information.
-	-o      modifies the -r option to also show the corresponding jobs. Should be used with -j.
+    -o      modifies the -r option to also show the corresponding jobs. Should be used with -j.
     -n      specifies the number of jobs to be shown, starting from the most recent one. [default: 20][to get all jobs use -n all]
+    -F      specifies the format string to be used.
     -f      specifies the file where the user-database can be found. If this option is used, the information will be read from the file and not the database.
     -b      verbose mode for debugging purposes
+
+.SH Format characters
+
+eacct by default shows a pre-selected set of columns. A format string may be specified (like "janf", which would show the Job-Step-AID, application name, node_id and average cpu frequency columns) to better select what data will be output by the program. As it stands, there are format characters available for all Signatures, Power_signatures, Jobs, Applications and Loop fields. Widely, they are categorised in two sets: Signatures (which includes power_signatures) and Jobs (which include Applications and Loops).
+
+.SS Signatures
+.TS
+tab(@), right, box;
+c | c | c
+rB | rb | l.
+Field@Character@Description
+_
+AVG(GHz)@f@Average CPU frequency
+TIME(s)@t@Total application time
+ENERGY(KWh)@e@Total energy consumption
+POWER(W)@p@Average node power
+DRAM POW(W)@D@Average DRAM power
+PCK POW(W)@P@Average package power
+IMC(GHz)@i@Average IMC frequency
+GBS@g@Average bandwidth
+MPI(%)@m@Percentage of time spent in MPI calls
+IO(MBs)@o@Average input output speed
+FLOPS@F@Counters for each type of instruction
+GPU metrics@G@Average GPU power(total and active GPUs), frequency, utilization (GPU and GPU memory), Gflops
+All Freqs@r@Average, default and IMC frequency in a shorter format
+CACHE MISSES@L@L1, L2 and L3 cache misses
+CPI@C@Average clocks per instruction
+DEF(GHz)@d@Default CPU frequency
+TPI@T@Transactions per Instruction
+GFlops/W@s@Average Gflops per Watt
+CYCLES@y@Total application cycles
+INSTRUCTIONS@I@Number of instructions (accumulated counter)
+VPI(%)@v@Percentage of instructions that are vectorial (AVX256, AVX512)
+.TE
+.SS Jobs
+.TS
+tab(@), right, box;
+c | c | c
+rB | rb | l.
+Field@Character@Description
+_
+APPLICATION@a@Application name
+JOB/STEP@j@Job and step ID
+AID@x@Local application ID (mostly used to distinguish applications within workflows)
+USER@u@User that executed the application
+NODE@n@Nodename that the data belongs to (only available with -l and -r options)
+NODES@N@Total nodes used by the application (only available when NOT using -l or -r)
+DATE/TIMESTAMP@X@Timestamp of the loop signature or start and end time of a job.
+.TE
+
+Note that DATE and ITER are mutually exclusive, and depend on how EAR is compiled. By default, DATE will be used.
+
 
 .SH Usage examples
 
@@ -37,31 +90,31 @@ The default behaviour shows data from each job-step, aggregating the values from
 job-step is created with the data from the entire execution.
 A specific job may be specified with -j:
 
-[user@host EAR]$ eacct -j 175966
+[user@host]$ eacct -j 175966
 
-    JOB-STEP USER       APPLICATION      POLICY NODES AVG/DEF/IMC(GHz) TIME(s)    POWER(W) GBS     CPI   ENERGY(J)    GFLOPS/W IO(MBs) MPI%  G-POW (T/U)   G-FREQ  G-UTIL(G/MEM)
- 175966-sb   user       afid             NP     2     2.97/3.00/---    3660.00    381.51   ---     ---   2792619      ---      ---     ---   ---           ---     ---
- 175966-2    user       afid             MO     2     2.97/3.00/2.39   1205.26    413.02   146.21  1.04  995590       0.1164   0.0     21.0  ---           ---     ---
- 175966-1    user       afid             MT     2     2.62/2.60/2.37   1234.41    369.90   142.63  1.02  913221       0.1265   0.0     19.7  ---           ---     ---
- 175966-0    user       afid             ME     2     2.71/3.00/2.19   1203.33    364.60   146.23  1.07  877479       0.1310   0.0     17.9  ---           ---     ---
+    JOB-STEP USER       APPLICATION      POLICY NODES AVG/DEF/IMC(GHz) TIME(s)    POWER(W) GBS     CPI   ENERGY(KWh)    GFLOPS/W IO(MBs) MPI%  G-POW (T/U)   G-FREQ  G-UTIL(G/MEM)
+ 175966-sb   user       afid             NP     2     2.97/3.00/---    3660.00    381.51   ---     ---   279          ---      ---     ---   ---           ---     ---
+ 175966-2    user       afid             MO     2     2.97/3.00/2.39   1205.26    413.02   146.21  1.04  99           0.1164   0.0     21.0  ---           ---     ---
+ 175966-1    user       afid             MT     2     2.62/2.60/2.37   1234.41    369.90   142.63  1.02  91           0.1265   0.0     19.7  ---           ---     ---
+ 175966-0    user       afid             ME     2     2.71/3.00/2.19   1203.33    364.60   146.23  1.07  87           0.1310   0.0     17.9  ---           ---     ---
 
 For node-specific information, the -l option provides detailed accounting of each individual node:
 
-[user@host EAR]$ eacct -j 175966 -l
-     JOB-STEP    NODE ID    USER ID    APPLICATION      AVG-F/IMC-F TIME(s)    POWER(s)   GBS        CPI        ENERGY(J)  IO(MBS) MPI%  VPI(%)  G-POW(T/U)    G-FREQ G-UTIL(G/M)
-  175966-sb      cmp2506    user       afid              2.97/---   3660.00    388.79     ---        ---        1422970    ---     ---   ---     ---     ---      ---
-  175966-sb      cmp2507    user       afid              2.97/---   3660.00    374.22     ---        ---        1369649    ---     ---   ---     ---     ---      ---
-  175966-2       cmp2506    user       afid              2.97/2.39  1205.27    423.81     146.06     1.03       510807     0.0     21.2  0.23    ---     ---      ---
-  175966-2       cmp2507    user       afid              2.97/2.39  1205.26    402.22     146.35     1.05       484783     0.0     20.7  0.01    ---     ---      ---
-  175966-1       cmp2506    user       afid              2.58/2.38  1234.46    374.14     142.51     1.02       461859     0.0     19.4  0.00    ---     ---      ---
-  175966-1       cmp2507    user       afid              2.67/2.37  1234.35    365.67     142.75     1.03       451362     0.0     20.0  0.01    ---     ---      ---
-  175966-0       cmp2506    user       afid              2.71/2.19  1203.32    371.76     146.25     1.08       447351     0.0     17.9  0.01    ---     ---      ---
-  175966-0       cmp2507    user       afid              2.71/2.19  1203.35    357.44     146.21     1.05       430128     0.0     17.9  0.01    ---     ---      ---
+[user@host]$ eacct -j 175966 -l
+     JOB-STEP    NODE       USER ID    APPLICATION      AVG-F/IMC-F TIME(s)    POWER(s)   GBS        CPI        ENERGY(KWh)  IO(MBS) MPI%  VPI(%)  G-POW(T/U)    G-FREQ G-UTIL(G/M)
+  175966-sb      cmp2506    user       afid              2.97/---   3660.00    388.79     ---        ---        142        ---     ---   ---     ---     ---      ---
+  175966-sb      cmp2507    user       afid              2.97/---   3660.00    374.22     ---        ---        136        ---     ---   ---     ---     ---      ---
+  175966-2       cmp2506    user       afid              2.97/2.39  1205.27    423.81     146.06     1.03       51         0.0     21.2  0.23    ---     ---      ---
+  175966-2       cmp2507    user       afid              2.97/2.39  1205.26    402.22     146.35     1.05       48         0.0     20.7  0.01    ---     ---      ---
+  175966-1       cmp2506    user       afid              2.58/2.38  1234.46    374.14     142.51     1.02       46         0.0     19.4  0.00    ---     ---      ---
+  175966-1       cmp2507    user       afid              2.67/2.37  1234.35    365.67     142.75     1.03       45         0.0     20.0  0.01    ---     ---      ---
+  175966-0       cmp2506    user       afid              2.71/2.19  1203.32    371.76     146.25     1.08       44         0.0     17.9  0.01    ---     ---      ---
+  175966-0       cmp2507    user       afid              2.71/2.19  1203.35    357.44     146.21     1.05       43         0.0     17.9  0.01    ---     ---      ---
 
 For runtime data (EAR loops) one may retrieve them with -r. Both job_id and step_id filtering works:
 
-[user@host EAR]$ eacct -j 175966.1 -r
-    JOB-STEP      NODE ID    ITER.  POWER(W) GBS      CPI      GFLOPS/W TIME(s)  AVG_F IMC_F IO(MBS) MPI%  G-POWER(T/U) G-FREQ   G-UTIL(G/MEM)
+[user@host]$ eacct -j 175966.1 -r
+    JOB-STEP      NODE       ITER.  POWER(W) GBS      CPI      GFLOPS/W TIME(s)  AVG_F IMC_F IO(MBS) MPI%  G-POWER(T/U) G-FREQ   G-UTIL(G/MEM)
  175966-1         cmp2506    21     360.6    115.8    0.838    0.086    1.001    2.58  2.30  0.0     11.6  0.0   /   0.0  0.00     0%/0%
  175966-1         cmp2507    21     333.7    118.4    0.849    0.081    1.001    2.58  2.32  0.0     12.0  0.0   /   0.0  0.00     0%/0%
  175966-1         cmp2506    31     388.6    142.3    1.010    0.121    1.113    2.58  2.38  0.0     19.7  0.0   /   0.0  0.00     0%/0%
@@ -70,36 +123,71 @@ For runtime data (EAR loops) one may retrieve them with -r. Both job_id and step
 
 To easily transfer eacct's output, -c option saves it in .csv format. Both aggregated and detailed accountings are available, as well as filtering:
 
-[user@host EAR]$ eacct -j 175966 -c test.csv
+[user@host]$ eacct -j 175966 -c test.csv
  Successfully written applications to csv. Only applications with EARL will have its information properly written.
 
-[user@host EAR]$ eacct -j 175966.1 -c -l test.csv
+[user@host]$ eacct -j 175966.1 -c -l test.csv
  Successfully written applications to csv. Only applications with EARL will have its information properly written.
 
-eacct shows a pre-selected set of columns. Some flags sligthly modifies the set of columns reported:
+.SS Format examples
 
-- JOB-STEP: JobID and Step ID. sb is shown for the sbatch.
-- USER: Username who executed the job.
-- APP=APPLICATION: Job's name or executable name if job name is not provided.
-- POLICY: Energy optimization policy name (MO = Monitoring).
-- NODES: Number of nodes which ran the job.
-- AVG/DEF/IMC(GHz): Average CPU frequency, default frequency and average uncore frequency.
-    Includes all the nodes for the step. In KHz.
-- TIME(s) : Step execution time, in seconds.
-- POWER Average node power including all the nodes, in Watts.
-- GBS : CPU Main memory bandwidth (GB/second). Hint for CPU/Memory bound classification.
-- CPI : CPU Cycles per Instruction. Hint for CPU/Memory bound classification.
-- ENERGY(J) : Accumulated node energy. Includes all the nodes. In Joules.
-- GFLOPS/WATT : CPU GFlops per Watt. Hint for energy efficiency.
-- IO(MBs) : IO (read and write) Mega Bytes per second.
-- MPI% : Percentage of MPI time over the total execution time. It's the average including all
+By default, the following fields are shown:
+
+ - JOB-STEP: JobID and Step ID. sb is shown for the sbatch.
+ - USER: Username who executed the job.
+ - APP=APPLICATION: Job's name or executable name if job name is not provided.
+ - POLICY: Energy optimization policy name (MO = Monitoring).
+ - NODES: Number of nodes which ran the job.
+ - AVG/DEF/IMC(GHz): Average CPU frequency, default frequency and average uncore frequency.
+    Includes the average of all the nodes for the step. In KHz.
+ - TIME(s) : Step execution time, in seconds.
+ - POWER Average node power including all the nodes, in Watts.
+ - GBS : CPU Main memory bandwidth (GB/second). Hint for CPU/Memory bound classification.
+ - CPI : CPU Cycles per Instruction. Hint for CPU/Memory bound classification.
+ - ENERGY(KWh) : Accumulated node energy. Includes all the nodes. In Joules.
+ - GFLOPS/WATT : CPU+GPU GFlops per Watt. Hint for energy efficiency.
+ - IO(MBs) : IO (read and write) Mega Bytes per second.
+ - MPI% : Percentage of MPI time over the total execution time. It's the average including all
     the processes and nodes.
-- GPU metrics
+ - GPU metrics
   - G-POW (T/U)  : Average GPU power. Accumulated per node and average of all the nodes.
-    - T= Total (GPU power consumed even if the process is not using them).
+    - T = Total (GPU power consumed even if the process is not using them).
     - U = GPUs used by the job.
   - G-FREQ :   Average GPU frequency. Per node and average of all the nodes.
   - G-UTIL(G/MEM) : GPU utilization and GPU memory utilization.
+
+If a different format wants to be selected, use the -F option. For example:
+
+[user@host]$ eacct -F jant -n 5
+     JOB-STEP APPLICATION      NODE       TIME(s)
+   44546-sb   app0             node1      10
+   44545-sb   app1             node2      2608
+   44544-sb   app2             node2      2424
+   44535-sb   app3             node3      33
+   44535-0    app3             node3      32
+   44534-sb   app4             node4      580
+   44534-0    app4             node4      579
+
+[user@host]$ eacct -F GrpPD -j 44532
+G-POW (T/U)     G-FREQ   G-UTIL(G/MEM)  G-GFLOPS  AVG/DEF/IMC(GHz) POWER(W)   PKG POW(W) DRAM POW(W)
+--     /--      ---        ---%/---%    ---       ---/---/---      2501.30    65.53      33.19
+2469.93/2469.93 12.623      86%/72%     0.21      3.10/2.40/2.19   2820.45    276.08     33.29
+2504.11/2504.11 12.592      87%/73%     0.25      3.10/2.40/10.00  2774.30    276.61     33.26
+2467.16/2467.16 12.421      86%/71%     0.23      3.10/2.40/2.19   2734.94    276.62     33.27
+1867.57/1867.57 9.339       88%/64%     0.21      3.10/2.40/2.19   2192.37    277.63     33.22
+1844.12/1844.12 9.251       87%/63%     0.24      3.10/2.40/2.19   2202.16    277.38     33.15
+1940.16/1940.16 9.791       87%/65%     0.23      3.10/2.40/2.19   2237.15    277.17     33.22
+2474.90/2474.90 12.601      86%/71%     0.21      3.10/2.40/2.19   2787.34    275.55     33.24
+2478.75/2478.75 12.573      86%/72%     0.21      3.10/2.40/2.19   2805.21    275.53     33.27
+2454.27/2454.27 12.530      85%/71%     0.22      3.10/2.40/10.00  2749.69    273.32     33.20
+
+
+For the full list of options, please refer to the tables above in section "Format Characters".
+
+
+When using the -c option (CSV output), every field will be printed regardless of the format string.
+
+
 
 .SH BUGS
     - Saving the output to a file with the -c option and then reading it with -f may cause some issues if there are empty fields.

@@ -1,5 +1,5 @@
 .\" Manpage for ereport.
-.TH man 1 "June 2022" "4.1" "ereport man page"
+.TH man 1 "September 2025" "5.2" "ereport man page"
 .SH NAME
 ereport \- Produces a summary of the energy consumption reported by EAR's daemons.
 .SH SYNOPSIS
@@ -23,32 +23,15 @@ Options are as follows:
 					 'all' option shows all tags individually, not aggregated.
 	-i eardbd_name|all	 indicates from which eardbd (island) the energy will be computed. Default: none (all islands computed)
 					 'all' option shows all eardbds individually, not aggregated.
-		-d                 expands the results of -i to individual records. If an island is not specified, it prints all of them.
+	-d                 expands the results of -i to individual records. If an island is not specified, it prints all of them.
 	-g                	 shows the contents of EAR's database Global_energy table. The default option will show the records for the two previous T2 periods of EARGM.
-					 This option can only be modified with -s, not -e
+					     This option can only be modified with -s, not -e
 	-x                	 shows the daemon events from -s to -e. If no time frame is specified, it uses the default start and end times.
 	-z                	 shows the detailed periodic metrics reported during that period. If no time frame is specified, it uses the default start and end times.
 	-v                	 shows current EAR version.
 	-h                	 shows this message.
 
 
- -s start_time            indicates the start of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default: end_time minus insertion time*2.
- -e end_time              indicates the end of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default: current time.
- -n node_name |all        indicates from which node the energy will be computed. Default: none (all nodes computed)
-                                         'all' option shows all users individually, not aggregated.
- -u user_name |all        requests the energy consumed by a user in the selected period of time. Default: none (all users computed).
-                                         'all' option shows all users individually, not aggregated.
- -G user_group|all 	 requests the energy consumed by a user group in the selected period of time. Default: none (all groups computed).
-                                         'all' option shows all groups individually, not aggregated.
- -t energy_tag|all        requests the energy consumed by energy tag in the selected period of time. Default: none (all tags computed).
-                                         'all' option shows all tags individually, not aggregated.
- -i eardbd_name|all       indicates from which eardbd (island) the energy will be computed. Default: none (all islands computed)
-                                         'all' option shows all eardbds individually, not aggregated.
- -g                       shows the contents of EAR's database Global_energy table. The default option will show the records for the two previous T2 periods of EARGM.
-                                         This option can only be modified with -s, not -e
- -x                       shows the daemon events from -s to -e. If no time frame is specified, it shows the last 20 events.
- -v                       shows current EAR version.
- -h                       shows this message.
 
 .SH Usage examples
 

@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <common/math_operations.h>
 #include <common/system/time.h>
 #include <common/output/debug.h>
 
@@ -69,7 +70,7 @@ ullong timestamp_diff(timestamp *ts2, timestamp *ts1, ullong time_unit)
         endsec--;
         endnsec += 1E9;
     }
-    stamp = (((endsec - initsec)) * 1E9) + (endnsec - initnsec);
+    stamp = (((endsec - initsec)) * 1E9) + overflow_zeros_u64(endnsec , initnsec);
     return stamp / time_unit;
 }
 
