@@ -11,13 +11,13 @@
 #ifndef COMMON_SOCKETS_H
 #define COMMON_SOCKETS_H
 
-#include <netdb.h>
 #include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
 #include <common/sizes.h>
 #include <common/states.h>
 #include <common/types/generic.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 
 // Example:
 //	Server side example:
@@ -46,19 +46,19 @@
 //		sockets_send(socket.fd, type, data, data_size, 0LLU);
 //
 
-#define BACKLOG             2048
-#define TCP                 SOCK_STREAM
-#define UDP                 SOCK_DGRAM
-#define NON_BLOCK_TRYS      10000
+#define BACKLOG        2048
+#define TCP            SOCK_STREAM
+#define UDP            SOCK_DGRAM
+#define NON_BLOCK_TRYS 10000
 
 typedef struct socket {
-	struct addrinfo *info;
-	char             host_dst[SZ_NAME_SHORT];
-	char            *host;
-	uint             protocol;
-	uint             port;
-	uint             fd_closable;
-	int              fd;
+    struct addrinfo *info;
+    char host_dst[SZ_NAME_SHORT];
+    char *host;
+    uint protocol;
+    uint port;
+    uint fd_closable;
+    int fd;
 } socket_t;
 
 /* Common initialization */
@@ -119,19 +119,17 @@ void sockets_get_ip(struct sockaddr_storage *host_addr, long *ip);
 
 typedef struct socket_header_s {
 #if SOCKETS_DEBUG
-	char    host_src[SZ_NAME_SHORT]; // Filled in sockets_send()
-    time_t  timestamp;               // Filled in sockets_send()
+    char host_src[SZ_NAME_SHORT]; // Filled in sockets_send()
+    time_t timestamp;             // Filled in sockets_send()
 #endif
-	size_t  content_size;  // 8 bytes ( 8)
-	ullong  padding;       // 8 bytes (16)
-	uint    content_type;  // 4 byte  (20)
-}  socket_header_t;
+    size_t content_size; // 8 bytes ( 8)
+    ullong padding;      // 8 bytes (16)
+    uint content_type;   // 4 byte  (20)
+} socket_header_t;
 
-#define PACKET_HEADER(buffer) \
-	(socket_header_t *) buffer;
+#define PACKET_HEADER(buffer)  (socket_header_t *) buffer;
 
-#define PACKET_CONTENT(buffer) \
-	(void *) &buffer[sizeof(socket_header_t)];
+#define PACKET_CONTENT(buffer) (void *) &buffer[sizeof(socket_header_t)];
 
 /* (Obsolete) Header */
 state_t sockets_header_clean(socket_header_t *header);
@@ -143,4 +141,4 @@ state_t __sockets_send(socket_t *socket, socket_header_t *header, char *content)
 
 state_t __sockets_recv(int fd, socket_header_t *header, char *buffer, ssize_t size_buffer, int block);
 
-#endif //COMMON_SOCKETS_H
+#endif // COMMON_SOCKETS_H

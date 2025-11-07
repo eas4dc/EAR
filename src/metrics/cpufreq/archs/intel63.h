@@ -25,4 +25,4 @@ state_t cpufreq_intel63_read(ctx_t *c, cpufreq_t *f);
 
 state_t cpufreq_intel63_data_diff(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
 
-#endif //METRICS_CPUFREQ_PERF_H
+#endif // METRICS_CPUFREQ_PERF_H

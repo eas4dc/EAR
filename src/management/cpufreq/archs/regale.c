@@ -8,20 +8,20 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <stdlib.h>
 #include <common/output/debug.h>
 #include <common/utils/serial_buffer.h>
-#include <metrics/common/regale.h>
 #include <management/cpufreq/archs/regale.h>
+#include <metrics/common/regale.h>
+#include <stdlib.h>
 
-static uint                 cpu_count;
+static uint cpu_count;
 static mgt_ps_driver_ops_t *driver;
-static pstate_t            *available_list;
-static uint                 available_count;
-static uint                 boost_enabled;
-static uint                 idx_nominal;
+static pstate_t *available_list;
+static uint available_count;
+static uint boost_enabled;
+static uint idx_nominal;
 
 #define RGLE_MGT_CPUFREQ_GET_API          0
 #define RGLE_MGT_CPUFREQ_GET_AVAILABLE    1
@@ -44,16 +44,16 @@ regale_state_t regale_nm_governor_set(uint cpu, uint *idx);
 
 state_t mgt_cpufreq_regale_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_driver_ops_t *ops_driver, int regale)
 {
-	uint eard_api = 0;
+    uint eard_api = 0;
     uint i, khz;
-	state_t s;
+    state_t s;
 
-	if (!regale) {
-		return_msg(EAR_ERROR, "Regale's Node Manager not required");
-	}
-	if (!regale_connected()) {
-		return_msg(EAR_ERROR, "Regale's Node Manager is not connected");
-	}
+    if (!regale) {
+        return_msg(EAR_ERROR, "Regale's Node Manager not required");
+    }
+    if (!regale_connected()) {
+        return_msg(EAR_ERROR, "Regale's Node Manager is not connected");
+    }
     //
     cpu_count = tp_in->cpu_count;
     driver    = ops_driver;
@@ -74,28 +74,28 @@ state_t mgt_cpufreq_regale_load(topology_t *tp_in, mgt_ps_ops_t *ops, mgt_ps_dri
     if (state_fail(s = driver->init())) {
         return static_dispose(c, s, state_msg);
     }
-	// Setting references
-	apis_put(ops->init,               mgt_cpufreq_regale_init);
-	apis_put(ops->dispose,            mgt_cpufreq_regale_dispose);
-	apis_put(ops->count_available,    mgt_cpufreq_regale_count_available);
-	apis_put(ops->get_available_list, mgt_cpufreq_regale_get_available_list);
-	apis_put(ops->get_current_list,   mgt_cpufreq_regale_get_current_list);
-	apis_put(ops->get_nominal,        mgt_cpufreq_regale_get_nominal);
-	apis_put(ops->get_index,          mgt_cpufreq_regale_get_index);
-	apis_put(ops->set_current_list,   mgt_cpufreq_regale_set_current_list);
-	apis_put(ops->set_current,        mgt_cpufreq_regale_set_current);
-	apis_put(ops->get_governor,       mgt_cpufreq_regale_governor_get);
-	apis_put(ops->get_governor_list,  mgt_cpufreq_regale_governor_get_list);
-	apis_put(ops->set_governor,       mgt_cpufreq_regale_governor_set);
-	apis_put(ops->set_governor_mask,  mgt_cpufreq_regale_governor_set_mask);
-	apis_put(ops->set_governor_list,  mgt_cpufreq_regale_governor_set_list);
+    // Setting references
+    apis_put(ops->init, mgt_cpufreq_regale_init);
+    apis_put(ops->dispose, mgt_cpufreq_regale_dispose);
+    apis_put(ops->count_available, mgt_cpufreq_regale_count_available);
+    apis_put(ops->get_available_list, mgt_cpufreq_regale_get_available_list);
+    apis_put(ops->get_current_list, mgt_cpufreq_regale_get_current_list);
+    apis_put(ops->get_nominal, mgt_cpufreq_regale_get_nominal);
+    apis_put(ops->get_index, mgt_cpufreq_regale_get_index);
+    apis_put(ops->set_current_list, mgt_cpufreq_regale_set_current_list);
+    apis_put(ops->set_current, mgt_cpufreq_regale_set_current);
+    apis_put(ops->get_governor, mgt_cpufreq_regale_governor_get);
+    apis_put(ops->get_governor_list, mgt_cpufreq_regale_governor_get_list);
+    apis_put(ops->set_governor, mgt_cpufreq_regale_governor_set);
+    apis_put(ops->set_governor_mask, mgt_cpufreq_regale_governor_set_mask);
+    apis_put(ops->set_governor_list, mgt_cpufreq_regale_governor_set_list);
 
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t mgt_cpufreq_regale_init(ctx_t *c)
 {
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t mgt_cpufreq_regale_dispose(ctx_t *c)
@@ -111,15 +111,15 @@ state_t mgt_cpufreq_regale_dispose(ctx_t *c)
 
 state_t mgt_cpufreq_regale_count_available(ctx_t *c, uint *pstate_count)
 {
-	*pstate_count = available_count;
-	return EAR_SUCCESS;
+    *pstate_count = available_count;
+    return EAR_SUCCESS;
 }
 
 //
 state_t mgt_cpufreq_regale_get_available_list(ctx_t *c, pstate_t *pstate_list)
 {
-	memcpy(pstate_list, available_list, available_count*sizeof(pstate_t));
-	return EAR_SUCCESS;
+    memcpy(pstate_list, available_list, available_count * sizeof(pstate_t));
+    return EAR_SUCCESS;
 }
 
 state_t mgt_cpufreq_regale_get_current_list(ctx_t *c, pstate_t *pstate_list)
@@ -127,7 +127,7 @@ state_t mgt_cpufreq_regale_get_current_list(ctx_t *c, pstate_t *pstate_list)
     ullong khz;
     int cpu;
 
-	memset((void *) pstate_list, 0, sizeof(pstate_t)*cpu_count);
+    memset((void *) pstate_list, 0, sizeof(pstate_t) * cpu_count);
     for (cpu = 0; cpu < cpu_count; ++cpu) {
         regale_nm_cpufreq_get_current(cpu, &khz);
         pstate_list[cpu].khz = (ullong) khz;
@@ -139,8 +139,8 @@ state_t mgt_cpufreq_regale_get_current_list(ctx_t *c, pstate_t *pstate_list)
 
 state_t mgt_cpufreq_regale_get_nominal(ctx_t *c, uint *pstate_index)
 {
-	*pstate_index = idx_nominal;
-	return EAR_SUCCESS;
+    *pstate_index = idx_nominal;
+    return EAR_SUCCESS;
 }
 
 state_t mgt_cpufreq_regale_get_index(ctx_t *c, ullong freq_khz, uint *pstate_index, uint closest)
@@ -154,7 +154,7 @@ state_t mgt_cpufreq_regale_set_current_list(ctx_t *c, uint *pstate_index)
     ullong khz;
     int cpu;
 
-    memset((void *) pstate_list, 0, sizeof(pstate_t)*cpu_count);
+    memset((void *) pstate_list, 0, sizeof(pstate_t) * cpu_count);
     for (cpu = 0; cpu < cpu_count; ++cpu) {
         regale_nm_cpufreq_set_current(cpu, pstate_index[cpu]);
         debug("CPU%d: set to %llu KHz", cpu, available_list[cpu].khz);
@@ -184,7 +184,7 @@ state_t mgt_cpufreq_regale_governor_get(ctx_t *c, uint *governor)
 state_t mgt_cpufreq_regale_governor_get_list(ctx_t *c, uint *governors)
 {
     int cpu;
-    for (cpu = 0; cpu < cpu_count-1; ++cpu) {
+    for (cpu = 0; cpu < cpu_count - 1; ++cpu) {
         get_governor(cpu, &governors[cpu]);
     }
     return get_governor(cpu, &governors[cpu]);
@@ -215,7 +215,7 @@ state_t mgt_cpufreq_regale_governor_set_mask(ctx_t *c, uint governor, cpu_set_t 
 state_t mgt_cpufreq_regale_governor_set_list(ctx_t *c, uint *governors)
 {
     int cpu;
-    for (cpu = 0; cpu < cpu_count-1; ++cpu) {
+    for (cpu = 0; cpu < cpu_count - 1; ++cpu) {
         set_governor(cpu, governors[cpu]);
     }
     return set_governor(cpu, governors[cpu]);

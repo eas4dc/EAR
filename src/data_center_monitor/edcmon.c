@@ -8,10 +8,9 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <common/system/plugin_manager.h>
-#include <unistd.h>
 #include <sys/resource.h>
 #include <signal.h>
 #include <stdlib.h>

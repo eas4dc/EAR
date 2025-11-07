@@ -72,6 +72,7 @@
 #include <library/common/library_shared_data.h>
 #include <library/common/utils.h>
 #include <library/dynais/dynais.h>
+#include <library/loader/module_common.h>
 #include <library/loader/module_mpi.h>
 #include <library/metrics/metrics.h>
 #include <library/models/cpu_power_model.h>
@@ -127,6 +128,9 @@ static uint cancelled = 0;
 static uint first_application = 1;
 
 static pthread_mutex_t earl_th_locks = PTHREAD_MUTEX_INITIALIZER;
+
+/* Holds the configuration of the eard */
+static eard_state_t eard_conf;
 
 #define MASTER_ID masters_info.my_master_rank
 
@@ -260,6 +264,8 @@ uint limit_exceeded       = 0;
 extern ulong perf_accuracy_min_time;
 static uint exiting = 0;
 
+static node_sharing_strategy_t node_sharing_strategy = node;
+
 /* Checks whether the job-step folder was created.
  * This folder should be created by EARD (?).
  * If not, try to create it.
@@ -273,36 +279,30 @@ static void create_earl_verbose_files();
 /** Make a copy of pathname and store it to a file called pathname.bckp */
 static state_t earl_log_backup(char *pathname, size_t pathname_size);
 
-static state_t check_eard_earl_compatibility(state_t eard_connect_state)
+static state_t check_eard_earl_compatibility(state_t eard_connect_state, eard_state_t *eard_conf)
 {
     state_t st = EAR_SUCCESS;
-    return st;
     if (state_fail(eard_connect_state))
         return EAR_ERROR;
-
-    eard_state_t eard_conf;
-
-#if VERSION_MAJOR < 5
-    verbose_master(0, "Warning, EARD compatibility test not supported");
-    return EAR_SUCCESS;
-#endif
 
     // If eards_get_state returns EAR_ERROR, means that the connected EARD does not have the RPC
     // implemented, so we assume it is an old version and (by now) it should be compatible.
     // This is why currently if the below call returns ERROR, we return EAR_SUCCESS
-    if (state_ok(st = eards_get_state(&eard_conf))) {
-        if (eard_conf.version.major != VERSION_MAJOR) {
+    if (state_ok(st = eards_get_state(eard_conf))) {
+        if (eard_conf->version.major != VERSION_MAJOR) {
             verbose_warning_master("Major versions differ (EARD %u | EARL %u). Future versions shall consider this "
                                    "difference as an incompatibility.",
-                                   eard_conf.version.major, VERSION_MAJOR);
+                                   eard_conf->version.major, VERSION_MAJOR);
         }
-        if ((eard_conf.gpus_supported_count != MAX_GPUS_SUPPORTED) ||
-            (eard_conf.cpus_supported_count != MAX_CPUS_SUPPORTED) ||
-            (eard_conf.sock_supported_count != MAX_SOCKETS_SUPPORTED) || (eard_conf.gpus_support_enabled != USE_GPUS)) {
+        if ((eard_conf->gpus_supported_count != MAX_GPUS_SUPPORTED) ||
+            (eard_conf->cpus_supported_count != MAX_CPUS_SUPPORTED) ||
+            (eard_conf->sock_supported_count != MAX_SOCKETS_SUPPORTED) ||
+            (eard_conf->gpus_support_enabled != USE_GPUS)) {
             st = EAR_ERROR;
         }
-    } else
-        st = EAR_SUCCESS; /* If eards_get_state is not implemented, there is a possibility that it's not compatible */
+    } else {
+        st = EAR_SUCCESS;
+    }
     return st;
 }
 
@@ -332,6 +332,7 @@ static void print_local_data()
         verbose(1, "%30s: %u", "EAR privileged user", system_conf->user_type == AUTHORIZED);
         verbose(1, "%30s: %d ", "EARL on", lib_shared_region->earl_on);
         verbose(1, "%30s: %lu", "Max CPU freq", system_conf->max_freq);
+        verbose(1, "%30s: %s", "TAG", system_conf->tag);
         verbose(1, "-------------------------------------------------------");
     }
 }
@@ -1359,7 +1360,7 @@ static int get_ear_application_id_multiprocess(int app_multi)
             earl_early_verb(VPROC_INIT, "Rank %d reading AID from %s", ear_my_rank, AID_number_file);
             state_t st;
             do {
-                st = ear_file_read(AID_number_file, (char *) &master_pid, sizeof(master_pid));
+                st = ear_file_read(AID_number_file, (char *) &master_pid, sizeof(master_pid), 1);
                 if (st != EAR_SUCCESS) {
                     usleep(100);
                     tries++;
@@ -1380,13 +1381,18 @@ static int get_ear_application_id(uint can_synch)
 {
     int master_pid;
 #if MPI
+    verbose(2, "EARL[%d] can synchronize %d", getpid(), can_synch);
     if (can_synch) {
         master_pid = getpid();
-        PMPI_Bcast(&master_pid, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        if (PMPI_Bcast(&master_pid, 1, MPI_INT, 0, MPI_COMM_WORLD) != MPI_SUCCESS) {
+            verbose(2, "EARl[%d] MPI_Bcast failed", getpid());
+        }
+        verbose(2, "EARL[%d][rank %d/%d] APP ID from MPI %d", getpid(), ear_my_rank, ear_my_size, master_pid);
     } else {
         // This case applies to MPI apps where there is some issue with
         // the synchronization
         master_pid = get_ear_application_id_multiprocess(app_node_multiprocess);
+        verbose(2, "APP ID from MPI multiprocess %d", master_pid);
     }
 #else
     master_pid = get_ear_application_id_multiprocess(app_node_multiprocess);
@@ -1466,7 +1472,7 @@ static int get_loop_strategy()
 /*****************************************************************************************************************************************************/
 /*****************************************************************************************************************************************************/
 
-#define START_END_OVH 1
+#define START_END_OVH 0
 uint fake_force_shared_node = 0;
 
 void ear_init()
@@ -1657,7 +1663,7 @@ void ear_init()
 
     int i_am_master  = (my_id == 0);
     int verb_pid_lvl = i_am_master ? 1 : 2; // UPDATED
-    earl_early_verb(verb_pid_lvl, "--- EARL INIT [PID: %d] [MASTER: %d] ---", my_pid, i_am_master);
+    earl_early_verb(verb_pid_lvl, "--- EARL INIT [PID: %d AID %d] [MASTER: %d] ---", my_pid, AID, i_am_master);
 
     /* All masters connect in a new MPI communicator */
     attach_to_master_set(i_am_master, synchronize_masters);
@@ -1840,7 +1846,7 @@ void ear_init()
                 my_node_id, my_pid, ear_my_rank, node_name, ((ret == EAR_SUCCESS) ? "Connected" : "Not Connected"),
                 COL_CLR);
 
-        state_t eard_comp_state = check_eard_earl_compatibility(ret);
+        state_t eard_comp_state = check_eard_earl_compatibility(ret, &eard_conf);
 
         // Only for testing purposes
         if (fake_eard_error == 3) {
@@ -1915,7 +1921,8 @@ void ear_init()
     debug("Using ser cconf path %s", ser_cluster_conf_path);
     ser_cluster_conf = attach_ser_cluster_conf_shared_area(ser_cluster_conf_path, &ser_cluster_conf_size);
     debug("Serialized cluster conf requires %lu bytes", ser_cluster_conf_size);
-    deserialize_cluster_conf(&cconf, ser_cluster_conf, ser_cluster_conf_size);
+    verbose_info2_master("Deserializing the cluster conf")
+        deserialize_cluster_conf(&cconf, ser_cluster_conf, ser_cluster_conf_size, &eard_conf.version);
 
     debug("END Shared region creation section");
     /* Processes in same node connectes each other*/
@@ -2126,12 +2133,24 @@ void ear_init()
         verbose_master(VEAR_INIT, "%sWARNING%s An error ocurred initializing the power policy.", COL_YLW, COL_CLR);
     }
 
-    verbose_master(2, "Init CPU power models for node sharing");
+    char *cnode_share_strategy = ear_getenv(FLAG_NODE_SHARING_STRATEGY);
+    if (cnode_share_strategy) {
+        verbosen_info_master("Node sharing strategy define %s", cnode_share_strategy);
+        if (strcmp(cnode_share_strategy, "job") == 0) {
+            node_sharing_strategy = job;
+        } else if (strcmp(cnode_share_strategy, "node") == 0) {
+            node_sharing_strategy = node;
+        }
+    }
+    verbosen_info_master("Node sharing strategy: ");
+    verbose_master(VEARL_INFO, "%s", (node_sharing_strategy == node) ? "node" : "job");
+
+    verbose_info2_master("Init CPU power models for node sharing.");
     if (cpu_power_model_load(system_conf, &arch_desc, API_NONE) == EAR_SUCCESS) {
         verbose_master(VEAR_INIT, "CPU power models loaded.");
     }
 
-    if (cpu_power_model_init() == EAR_SUCCESS) {
+    if (cpu_power_model_init(node_sharing_strategy) == EAR_SUCCESS) {
         verbose_master(VEAR_INIT, "CPU power model initialized.");
     }
 
@@ -2226,8 +2245,8 @@ void ear_init()
     configure_sigactions();
 
 #if !EAR_OFF
-    /* Monitor is used for applications with no mpi of few mpi calss per second. Gets control of signature computation
-     * if neded*/
+    /* Monitor is used for applications with no mpi of few mpi calss per second. Gets control of signature
+     * computation if neded*/
 
     if (!module_mpi_is_enabled()) {
         ear_guided = TIME_GUIDED;
@@ -2430,7 +2449,7 @@ void ear_finalize(int exit_status)
     dispose = 1;
     verbose_master(2, "Total resources computed %d", get_total_resources());
     debug("%d: before metrics_dispose", my_node_id);
-    metrics_dispose(&application.signature, get_total_resources());
+    metrics_dispose(&application.signature, get_total_resources(), (node_sharing_strategy == node) ? 0 : 1);
     sig_shared_region[my_node_id].exited = 1;
     debug("%d: after metrics_dispose", my_node_id);
     dynais_dispose();
@@ -2501,7 +2520,7 @@ void ear_finalize(int exit_status)
 
     if (masters_info.my_master_rank >= 0)
         clean_eid_folder();
-        // print_resource_usage();
+    // print_resource_usage();
 
 #if START_END_OVH
     timestamp_getfast(&end_eard_init);
@@ -2521,6 +2540,28 @@ void ear_finalize(int exit_status)
 
 void ear_mpi_call_dynais_on(mpi_call call_type, p2i buf, p2i dest);
 void ear_mpi_call_dynais_off(mpi_call call_type, p2i buf, p2i dest);
+
+static void _go_to_time_guided(int new_ear_guided)
+{
+    ear_periodic_mode = PERIODIC_MODE_ON;
+
+    if (ear_guided != new_ear_guided) {
+        if (earl_monitor->time_burst < earl_monitor->time_relax) {
+            ITERS_PER_PERIOD = earl_monitor->time_burst / 1000;
+            monitor_burst(earl_monitor, 0);
+        }
+
+        // verbose(0,"[%d]: Dynais guided --> time guided at time %lu",
+        //         my_node_id, period_elapsed);
+
+        states_comm_configure_performance_accuracy(&cconf, &perf_accuracy_min_time, &lib_period);
+
+        mpi_calls_in_period = lib_period;
+        ear_iterations      = 1;
+        ear_guided          = new_ear_guided;
+        states_begin_period(my_id, 1, (ulong) lib_period, 1);
+    }
+}
 
 void ear_mpi_call(mpi_call call_type, p2i buf, p2i dest)
 {
@@ -2572,6 +2613,8 @@ void ear_mpi_call(mpi_call call_type, p2i buf, p2i dest)
             case PERIODIC_MODE_OFF: {
                 switch (dynais_enabled) {
                     case DYNAIS_ENABLED: {
+// DYNAIS_ENABLED is only enabled for MPI applications
+#if MPI
                         /* First time EAR computes a signature using dynais, check_periodic_mode is set to 0 */
                         if (check_periodic_mode == 0) {
                             ear_mpi_call_dynais_on(call_type, buf, dest);
@@ -2597,24 +2640,29 @@ void ear_mpi_call(mpi_call call_type, p2i buf, p2i dest)
                                 /* In that case, the maximum time without signature has been passed, go to set
                                  * ear_periodic_mode ON */
                                 if (limit_exceeded || time_from_mpi_init >= dynais_timeout) {
-                                    // we must compute N here
-                                    ear_periodic_mode = PERIODIC_MODE_ON;
+                                    if (limit_exceeded) {
+                                        // we must compute N here
+                                        ear_periodic_mode = PERIODIC_MODE_ON;
 
-                                    assert(dynais_timeout > 0);
+                                        assert(dynais_timeout > 0);
 
-                                    // mpi_calls_per_second = (uint)(total_mpi_calls/dynais_timeout);
-                                    mpi_calls_per_second = (uint) avg_mpi_calls_per_second();
+                                        // mpi_calls_per_second = (uint)(total_mpi_calls/dynais_timeout);
+                                        mpi_calls_per_second = (uint) avg_mpi_calls_per_second();
 
-                                    traces_start();
+                                        traces_start();
 
-                                    verbose_master(EARL_GUIDED_LVL,
-                                                   "Going to periodic mode after %lf secs: mpi calls in period %u.\n",
-                                                   time_from_mpi_init, mpi_calls_per_second);
+                                        verbose_master(
+                                            EARL_GUIDED_LVL,
+                                            "Going to periodic mode after %lf secs: mpi calls in period %u.\n",
+                                            time_from_mpi_init, mpi_calls_per_second);
 
-                                    ear_iterations = 0;
+                                        ear_iterations = 0;
 
-                                    states_begin_period(my_id, ear_event_l, (ulong) lib_period, 1);
-                                    states_new_iteration(my_id, 1, ear_iterations, 1, 1, lib_period, 0);
+                                        states_begin_period(my_id, ear_event_l, (ulong) lib_period, 1);
+                                        states_new_iteration(my_id, 1, ear_iterations, 1, 1, lib_period, 0);
+                                    } else
+                                        _go_to_time_guided(TIME_GUIDED);
+
                                 } else {
                                     /* We continue using dynais */
                                     ear_mpi_call_dynais_on(call_type, buf, dest);
@@ -2623,6 +2671,8 @@ void ear_mpi_call(mpi_call call_type, p2i buf, p2i dest)
                                 ear_mpi_call_dynais_on(call_type, buf, dest);
                             }
                         }
+
+#endif
                     } break;
                     case DYNAIS_DISABLED:
                         /** That case means we have computed some signature and we have decided to set dynais disabled
@@ -2989,26 +3039,11 @@ state_t earl_periodic_actions(void *no_arg)
 
         verbose_master(EARL_GUIDED_LVL, "%d: Phase time_guided %d dynais_guided %d period %u", my_node_id,
                        new_ear_guided == TIME_GUIDED, new_ear_guided == DYNAIS_GUIDED, lib_period);
-
+#if MPI
         if (new_ear_guided != DYNAIS_GUIDED) {
-            ear_periodic_mode = PERIODIC_MODE_ON;
-
-            if (ear_guided != new_ear_guided) {
-                if (earl_monitor->time_burst < earl_monitor->time_relax) {
-                    ITERS_PER_PERIOD = earl_monitor->time_burst / 1000;
-                    monitor_burst(earl_monitor, 0);
-                }
-
-                // verbose(0,"[%d]: Dynais guided --> time guided at time %lu",
-                //         my_node_id, period_elapsed);
-
-                states_comm_configure_performance_accuracy(&cconf, &perf_accuracy_min_time, &lib_period);
-
-                mpi_calls_in_period = lib_period;
-                ear_iterations      = 1;
-                states_begin_period(my_id, 1, (ulong) lib_period, 1);
-            }
+            _go_to_time_guided(new_ear_guided);
         }
+#endif
         ear_guided = new_ear_guided;
     }
 
@@ -3121,7 +3156,7 @@ static state_t earl_log_backup(char *pathname, size_t pathname_size)
         return_msg(EAR_ERROR, Generr.alloc_error);
     }
 
-    st = ear_file_read(pathname, file_buff, (size_t) file_size);
+    st = ear_file_read(pathname, file_buff, (size_t) file_size, 0);
     if (state_fail(st)) {
         verbose_error("Reading file %s (%d): %s", pathname, intern_error_num, intern_error_str);
         free(file_buff);

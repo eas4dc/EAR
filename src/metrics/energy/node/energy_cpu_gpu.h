@@ -10,7 +10,7 @@
 
 #ifndef ENERGY_NODE_CPU_GPU_H
 #define ENERGY_NODE_CPU_GPU_H
-#include <metrics/gpu/gpu.h>
 #include <metrics/energy_cpu/energy_cpu.h>
+#include <metrics/gpu/gpu.h>
 
 #endif

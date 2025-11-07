@@ -13,8 +13,8 @@
 
 #include <common/system/plugin_manager.h>
 
-typedef void (*callback_t) (char **parameters);
+typedef void (*callback_t)(char **parameters);
 
 void command_register(cchar *command, cchar *format, callback_t call);
 
-#endif //UP_CONFIG_H
+#endif // UP_CONFIG_H

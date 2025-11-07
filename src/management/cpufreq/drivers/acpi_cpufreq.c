@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #define _GNU_SOURCE
 #include <common/output/debug.h>
@@ -32,23 +32,24 @@
 #define PATH_CPB0 "/sys/devices/system/cpu/cpu0/cpufreq/cpb"                           // Test read
 #define PATH_BST0 "/sys/devices/system/cpu/cpufreq/boost"                              // Test read
 
-static uint    cpu_count;
-static cfb_t   bf;
-static uint    avail_list_count;
-static ullong  avail_list_real[N_FREQS]; // From 10 GHz to 1 GHz there are 90 items, enough
-static ullong  avail_list_disp[N_FREQS]; // Returned frequencies
+static uint cpu_count;
+static cfb_t bf;
+static uint avail_list_count;
+static ullong avail_list_real[N_FREQS]; // From 10 GHz to 1 GHz there are 90 items, enough
+static ullong avail_list_disp[N_FREQS]; // Returned frequencies
 static ullong *current_list;
-static int    *fds_sgv;
-static int    *fds_sss;
-static uint    governor_last;
-static uint    governor0;
-static ullong  freq_max0;
-static ullong  freq_min0;
+static int *fds_sgv;
+static int *fds_sss;
+static uint governor_last;
+static uint governor0;
+static ullong freq_max0;
+static ullong freq_min0;
 
 static int have1000(ullong khz)
 {
     ullong khz_cleaned = (khz / 10000LLU) * 10000LLU;
-    if (khz_cleaned == khz) return 0;
+    if (khz_cleaned == khz)
+        return 0;
     return ((khz - khz_cleaned) == 1000LLU);
 }
 
@@ -104,7 +105,7 @@ static state_t build_frequencies_list(ullong freq_max, ullong freq_min)
 
 static int is_userspace_available(char *buffer)
 {
-    int found_userspace =  0;
+    int found_userspace = 0;
     int fd_sag0         = -1;
 
     if (!filemagic_can_read(PATH_SAG0, &fd_sag0))
@@ -128,39 +129,41 @@ void mgt_acpi_cpufreq_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
     // Testing if frequency/governor set files are accessible
     set_frequency = filemagic_can_mwrite(PATH_SSS, tp->cpu_count, &fds_sss);
     set_governor  = filemagic_can_mwrite(PATH_SGV, tp->cpu_count, &fds_sgv);
-    if (!set_frequency && !filemagic_can_mread(PATH_SSS, tp->cpu_count, &fds_sss)) return;
-    if (!set_governor  && !filemagic_can_mread(PATH_SGV, tp->cpu_count, &fds_sgv)) return;
+    if (!set_frequency && !filemagic_can_mread(PATH_SSS, tp->cpu_count, &fds_sss))
+        return;
+    if (!set_governor && !filemagic_can_mread(PATH_SGV, tp->cpu_count, &fds_sgv))
+        return;
     // This is a userspace driver (based on acpi_cpufreq model).
     switch (is_userspace_available(buffer)) {
-    case -1:
-        debug("Can not determine if driver have userspace governor");
-        return;
-    case 0:
-        if (!set_governor) {
+        case -1:
             debug("Can not determine if driver have userspace governor");
             return;
-        }
-        // Saving current CPU0 governor
-        if (!filemagic_word_read(fds_sgv[0], buffer, 1)) {
-            debug("Error when reading current governor");
-            return;
-        }
-        // Some drivers shown a strange behaviour. Only showed that userspace is available
-        // after setting userspace in 'scaling_governor' file.
-        if (!filemagic_word_write(fds_sgv[0], Goverstr.userspace, strlen(Goverstr.userspace), 0)) {
-            debug("Error occurred: %s", state_msg);
-        }
-        // If is not found again...
-        is_userspace = (is_userspace_available(buffer) == 1);
-        // Recovering last governor
-        filemagic_word_write(fds_sgv[0], buffer, strlen(buffer), 0);
-        // Cleaning
-        if (!is_userspace) {
-            debug("Current driver does not have userspace governor");
-            free(fds_sss);
-            free(fds_sgv);
-            return;
-        }
+        case 0:
+            if (!set_governor) {
+                debug("Can not determine if driver have userspace governor");
+                return;
+            }
+            // Saving current CPU0 governor
+            if (!filemagic_word_read(fds_sgv[0], buffer, 1)) {
+                debug("Error when reading current governor");
+                return;
+            }
+            // Some drivers shown a strange behaviour. Only showed that userspace is available
+            // after setting userspace in 'scaling_governor' file.
+            if (!filemagic_word_write(fds_sgv[0], Goverstr.userspace, strlen(Goverstr.userspace), 0)) {
+                debug("Error occurred: %s", state_msg);
+            }
+            // If is not found again...
+            is_userspace = (is_userspace_available(buffer) == 1);
+            // Recovering last governor
+            filemagic_word_write(fds_sgv[0], buffer, strlen(buffer), 0);
+            // Cleaning
+            if (!is_userspace) {
+                debug("Current driver does not have userspace governor");
+                free(fds_sss);
+                free(fds_sgv);
+                return;
+            }
     }
     // Getting base frequency and boost
     cpufreq_base_init(tp, &bf);
@@ -181,8 +184,10 @@ void mgt_acpi_cpufreq_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
         }
     }
     // It worked so we can save the value for next loads
-    if (freq_max0 != 0LLU) keeper_save_uint64("AcpiCpufreqMaxFrequency", freq_max0);
-    if (freq_min0 != 0LLU) keeper_save_uint64("AcpiCpufreqMinFrequency", freq_min0);
+    if (freq_max0 != 0LLU)
+        keeper_save_uint64("AcpiCpufreqMaxFrequency", freq_max0);
+    if (freq_min0 != 0LLU)
+        keeper_save_uint64("AcpiCpufreqMinFrequency", freq_min0);
     // Building list of frequencies
     if (state_fail(build_frequencies_list(freq_max0, freq_min0))) {
         return;
@@ -193,21 +198,21 @@ void mgt_acpi_cpufreq_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
     keeper_macro(uint32, "AcpiCpufreqDefaultGovernor", governor0);
     debug("AcpiCpufreqDefaultGovernor: %u", governor0);
     // Driver references
-    apis_put(ops->init              , mgt_acpi_cpufreq_init);
-    apis_put(ops->dispose           , mgt_acpi_cpufreq_dispose);
-    apis_put(ops->reset             , mgt_acpi_cpufreq_reset);
-    apis_put(ops->get_freq_details  , mgt_acpi_cpufreq_get_freq_details);
+    apis_put(ops->init, mgt_acpi_cpufreq_init);
+    apis_put(ops->dispose, mgt_acpi_cpufreq_dispose);
+    apis_put(ops->reset, mgt_acpi_cpufreq_reset);
+    apis_put(ops->get_freq_details, mgt_acpi_cpufreq_get_freq_details);
     apis_put(ops->get_available_list, mgt_acpi_cpufreq_get_available_list);
-    apis_put(ops->get_current_list  , mgt_acpi_cpufreq_get_current_list);
-    apis_put(ops->get_boost         , mgt_acpi_cpufreq_get_boost);
-    apis_put(ops->get_governor      , mgt_acpi_cpufreq_governor_get);
-    apis_put(ops->get_governor_list , mgt_acpi_cpufreq_governor_get_list);
+    apis_put(ops->get_current_list, mgt_acpi_cpufreq_get_current_list);
+    apis_put(ops->get_boost, mgt_acpi_cpufreq_get_boost);
+    apis_put(ops->get_governor, mgt_acpi_cpufreq_governor_get);
+    apis_put(ops->get_governor_list, mgt_acpi_cpufreq_governor_get_list);
     apis_put(ops->is_governor_available, mgt_acpi_cpufreq_governor_is_available);
-    apis_pin(ops->set_current_list  , mgt_acpi_cpufreq_set_current_list,  set_frequency);
-    apis_pin(ops->set_current       , mgt_acpi_cpufreq_set_current,       set_frequency);
-    apis_pin(ops->set_governor      , mgt_acpi_cpufreq_governor_set,      set_governor);
-    apis_pin(ops->set_governor_mask , mgt_acpi_cpufreq_governor_set_mask, set_governor);
-    apis_pin(ops->set_governor_list , mgt_acpi_cpufreq_governor_set_list, set_governor);
+    apis_pin(ops->set_current_list, mgt_acpi_cpufreq_set_current_list, set_frequency);
+    apis_pin(ops->set_current, mgt_acpi_cpufreq_set_current, set_frequency);
+    apis_pin(ops->set_governor, mgt_acpi_cpufreq_governor_set, set_governor);
+    apis_pin(ops->set_governor_mask, mgt_acpi_cpufreq_governor_set_mask, set_governor);
+    apis_pin(ops->set_governor_list, mgt_acpi_cpufreq_governor_set_list, set_governor);
     debug("Loaded ACPI_CPUFREQ");
 }
 

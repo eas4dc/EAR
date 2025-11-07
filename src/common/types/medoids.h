@@ -18,33 +18,31 @@
 #ifndef _EAR_TYPES_MEDOID
 #define _EAR_TYPES_MEDOID
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <common/config.h>
 #include <common/states.h>
 #include <common/types/generic.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-#define N_MEDS 3
+#define N_MEDS    3
 #define MED_ELEMS 4
 #define CPU_BOUND 0
 #define MEM_BOUND 1
-#define MIX 2
+#define MIX       2
 
-#define N_EXTR 4 // number of metrics used
-#define ID_CPI 0
-#define ID_TPI 1
-#define ID_GBS 2
+#define N_EXTR    4 // number of metrics used
+#define ID_CPI    0
+#define ID_TPI    1
+#define ID_GBS    2
 #define ID_GFLOPS 3
 
-typedef struct medoids
-{
+typedef struct medoids {
     double cpu_bound[MED_ELEMS];
     double memory_bound[MED_ELEMS];
     double mix[MED_ELEMS];
 } medoids_t;
 
-typedef struct extremes
-{
+typedef struct extremes {
     double cpi_extreme[2];
     double tpi_extreme[2];
     double gbs_extreme[2];

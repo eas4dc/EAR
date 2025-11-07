@@ -9,33 +9,37 @@
  **************************************************************************/
 
 #include <assert.h>
-#include <stdlib.h>
-#include <pthread.h>
 #include <common/output/debug.h>
 #include <metrics/common/apis.h>
-#include <metrics/temperature/temperature.h>
-#include <metrics/temperature/archs/eard.h>
-#include <metrics/temperature/archs/amd17.h>
-#include <metrics/temperature/archs/intel63.h>
 #include <metrics/temperature/archs/dummy.h>
+#include <metrics/temperature/archs/eard.h>
+#include <metrics/temperature/archs/hwmon.h>
+#include <metrics/temperature/archs/intel63.h>
+#include <metrics/temperature/temperature.h>
+#include <pthread.h>
+#include <stdlib.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static uint            is_loaded;
-static apinfo_t        info;
-static temp_ops_t      ops;
+static uint is_loaded;
+static apinfo_t info;
+static temp_ops_t ops;
 
 void temp_load(topology_t *tp, uint force_api)
 {
     while (pthread_mutex_trylock(&lock));
-    if (is_loaded) { goto leave; }
-    if (API_IS(force_api, API_DUMMY)) { goto dummy; }
+    if (is_loaded) {
+        goto leave;
+    }
+    if (API_IS(force_api, API_DUMMY)) {
+        goto dummy;
+    }
 #if WF_SUPPORT
-    temp_eard_load   (tp, &ops, force_api);
+    temp_eard_load(tp, &ops, force_api);
 #endif
+    temp_hwmon_load(tp, &ops, force_api);
     temp_intel63_load(tp, &ops, force_api);
-    temp_amd17_load  (tp, &ops, force_api);
 dummy:
-    temp_dummy_load  (tp, &ops, force_api);
+    temp_dummy_load(tp, &ops, force_api);
     temp_get_info(&info);
     is_loaded = 1;
 leave:
@@ -74,13 +78,13 @@ state_t temp_read_copy(llong *t2, llong *t1, llong *tD, llong *average)
 // Data
 void temp_data_alloc(llong **temp)
 {
-	*temp = (llong *) calloc(info.devs_count, sizeof(llong));
+    *temp = (llong *) calloc(info.devs_count, sizeof(llong));
     assert(*temp != NULL);
 }
 
 void temp_data_copy(llong *tempD, llong *tempS)
 {
-	memcpy((void *) tempD, (const void *) tempS, sizeof(llong)*info.devs_count);
+    memcpy((void *) tempD, (const void *) tempS, sizeof(llong) * info.devs_count);
 }
 
 void temp_data_diff(llong *temp2, llong *temp1, llong *tempD, llong *average)
@@ -120,5 +124,24 @@ void temp_data_print(llong *list, llong avrg, int fd)
 {
     char buffer[1024];
     temp_data_tostr(list, avrg, buffer, 1024);
-    dprintf(fd, "%s", buffer); 
+    dprintf(fd, "%s", buffer);
 }
+
+#if TEST
+static topology_t tp;
+static llong t1[128];
+static llong t2[128];
+static llong tD[128];
+static llong tA;
+
+int main(int argc, char **argv)
+{
+    topology_init(&tp);
+    temp_load(&tp, API_FREE);
+    temp_read(t1, &tA);
+    sleep(1);
+    temp_read_copy(t2, t1, tD, &tA);
+    temp_data_print(tD, tA, verb_channel);
+    return 0;
+}
+#endif

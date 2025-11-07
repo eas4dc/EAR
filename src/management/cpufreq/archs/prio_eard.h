@@ -39,4 +39,4 @@ state_t mgt_prio_eard_set_current(uint idx, int cpu);
 
 void mgt_prio_eard_data_count(uint *prios_count, uint *idxs_count);
 
-#endif //MANAGEMENT_PRIORITY_EARD_H
+#endif // MANAGEMENT_PRIORITY_EARD_H

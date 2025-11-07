@@ -92,9 +92,6 @@
 /** Forces EARD and EARGM to be executed as root. */
 #define RUN_AS_ROOT 1
 
-/** Allows normal users to change the CPU frequency without having to be authorized users. */
-#define CPUFREQ_SET_ALL_USERS 1
-
 /** Maximum number of tries when doing non-blocking communications. */
 #define MAX_SOCKET_COMM_TRIES 40000000
 //
@@ -173,7 +170,8 @@
 #define DEFAULT_ENERGY_MODEL  "avx512_model.so"
 #endif
 
-#define DEFAULT_GPU_OPT 1
+#define DEFAULT_GPU_OPT      1
+#define DEF_TIMEOUT_COMMANDS 5
 
 /* Maximum power error supported. It is used to compute the min time to compute
  * a valid signature */

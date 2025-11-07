@@ -8,19 +8,17 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #ifndef METRICS_ENERGY_CPU_MSR_H
 #define METRICS_ENERGY_CPU_MSR_H
 
-
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <metrics/common/pci.h>
-#include <metrics/common/msr.h>
-#include <metrics/common/apis.h>
-#include <metrics/energy_cpu/energy_cpu.h>
 #include <common/hardware/topology.h>
+#include <fcntl.h>
+#include <metrics/common/apis.h>
+#include <metrics/common/msr.h>
+#include <metrics/common/pci.h>
+#include <metrics/energy_cpu/energy_cpu.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 state_t rapl_msr_load(topology_t *tp_in);
 
@@ -33,6 +31,5 @@ state_t rapl_msr_dispose(ctx_t *c);
 state_t rapl_msr_count_devices(ctx_t *c, uint *devs_count_in);
 
 state_t rapl_msr_read(ctx_t *c, ullong *values);
-
 
 #endif

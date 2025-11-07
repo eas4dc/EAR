@@ -11,7 +11,6 @@
 #ifndef _EAR_LDAPI_H_
 #define _EAR_LDAPI_H_
 
-
 void __attribute__((weak)) ear_constructor();
 void __attribute__((weak)) ear_destructor();
 

@@ -19,11 +19,11 @@
 
 void clean_global_connector();
 
-void eard_close_comm(int req_fd,int ack_fd);
+void eard_close_comm(int req_fd, int ack_fd);
 
 state_t eard_local_api();
 
-state_t service_close_by_id(ulong jid,ulong sid);
+state_t service_close_by_id(ulong jid, ulong sid);
 
 void services_init(topology_t *tp);
 

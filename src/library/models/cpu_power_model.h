@@ -17,17 +17,17 @@
 #include <common/types/configuration/cluster_conf.h>
 #include <daemon/shared_configuration.h>
 #include <library/common/library_shared_data.h>
+#include <library/models/cpu_power_model_common.h>
 
-/** Loads a CPU power model. It will first try to load cpu_power_model_default.so, located at EARL's install path
- * \param libconf    The current configuration.
+/** Loads a CPU power model.
+ * It will first try to load cpu_power_model_default.so, located at EARL's install path.
+ * \param libconf    The current EAR Library configuration.
  * \param arch_desc  The current architecture description used for models.
  * \param load_dummy Specify whether you want to load the DUMMY CPU power model. */
-state_t cpu_power_model_load(settings_conf_t *libconf, architecture_t *arch_desc,
-                             uint load_dummy);
+state_t cpu_power_model_load(settings_conf_t *libconf, architecture_t *arch_desc, uint load_dummy);
 
-state_t cpu_power_model_init();
+state_t cpu_power_model_init(node_sharing_strategy_t power_model_strategy);
 state_t cpu_power_model_status();
 
-state_t cpu_power_model_project(lib_shared_data_t *data, shsignature_t *sig,
-                                node_mgr_sh_data_t *nmgr);
+state_t cpu_power_model_project(lib_shared_data_t *data, shsignature_t *sig, node_mgr_sh_data_t *nmgr);
 #endif

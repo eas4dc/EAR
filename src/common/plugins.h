@@ -15,27 +15,26 @@
 #include <metrics/common/apis.h>
 
 // Attributes
-#define attr2(a1, a2)    __attribute__ ((a1, a2))
-#define attr(a)          __attribute__ ((a))
-#define attr_hidden      visibility("hidden")
-#define attr_protected   visibility("protected")
-#define attr_internal    visibility("internal")
-#define attr_weak        weak
+#define attr2(a1, a2)  __attribute__((a1, a2))
+#define attr(a)        __attribute__((a))
+#define attr_hidden    visibility("hidden")
+#define attr_protected visibility("protected")
+#define attr_internal  visibility("internal")
+#define attr_weak      weak
 // Verbosity parameters
-//#define none	0
-#define empty	NULL
+// #define none	0
+#define empty NULL
 
-#define preturn(call, ...) \
-	if (call == NULL) { \
-		return_msg(EAR_UNDEFINED, Generr.api_undefined); \
-	} \
-	return call (__VA_ARGS__);
+#define preturn(call, ...)                                                                                             \
+    if (call == NULL) {                                                                                                \
+        return_msg(EAR_UNDEFINED, Generr.api_undefined);                                                               \
+    }                                                                                                                  \
+    return call(__VA_ARGS__);
 
-#define preturn_opt(call, ...) \
-  if (call == NULL) { \
-    return EAR_SUCCESS; \
-  } \
-  return call (__VA_ARGS__);
+#define preturn_opt(call, ...)                                                                                         \
+    if (call == NULL) {                                                                                                \
+        return EAR_SUCCESS;                                                                                            \
+    }                                                                                                                  \
+    return call(__VA_ARGS__);
 
-
-#endif //EAR_PRIVATE_PLUGINS_H
+#endif // EAR_PRIVATE_PLUGINS_H

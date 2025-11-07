@@ -30,7 +30,7 @@
 //                MemberId is 1. You can use this method to select specific indexes by
 //                the Name, Id, Description, etc.
 //    - /Chassis[%d]/Power/PowerControl[MemberId=%d]/PowerConsumedWatts: also you can
-//                use the traditional %d print format to iterate over multiple JSON 
+//                use the traditional %d print format to iterate over multiple JSON
 //                array items.
 //
 //    Accesing to multiple array items through %d could be useful to accumulate their
@@ -71,4 +71,4 @@ state_t redfish_read(char *field, void *content, void *accum, uint *count, int t
 /* Count the array items of a field when the returned field is a JSON array. */
 state_t redfish_count_members(char *field, uint *count);
 
-#endif //METRICS_COMMON_REDFISH_H
+#endif // METRICS_COMMON_REDFISH_H

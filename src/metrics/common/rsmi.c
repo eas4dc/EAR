@@ -8,27 +8,27 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <common/states.h>
 #include <common/output/debug.h>
+#include <common/states.h>
 #include <common/system/symplug.h>
 #include <metrics/common/rsmi.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #ifndef RSMI_BASE
 #define RSMI_PATH ""
 #else
 #define RSMI_PATH RSMI_BASE
 #endif
-#define RSMI_LIB  "librocm_smi64.so"
-#define RSMI_N    21
+#define RSMI_LIB "librocm_smi64.so"
+#define RSMI_N   21
 
-#define ccv(f) \
-    if (f != RSMI_STATUS_SUCCESS) { \
-        debug(#f ": error"); \
+#define ccv(f)                                                                                                         \
+    if (f != RSMI_STATUS_SUCCESS) {                                                                                    \
+        debug(#f ": error");                                                                                           \
     }
 
 // https://docs.amd.com/bundle/rocm_smi_lib.5.0/page/globals_func.html
@@ -67,21 +67,21 @@ static const char *rsmi_names[] = {
 // fclk -> ¿df clock? It seems
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static rsmi_t          rsmi;
-static int             ok;
+static rsmi_t rsmi;
+static int ok;
 
 static state_t library_load()
 {
-    #define _open_test(path) \
-    debug("Openning %s", path); \
-    if (state_ok(plug_open(path, (void **) &rsmi, rsmi_names, RSMI_N, RTLD_NOW | RTLD_LOCAL))) { \
-        return EAR_SUCCESS; \
-    } else { \
-        debug("Failed: %s", state_msg); \
+#define _open_test(path)                                                                                               \
+    debug("Openning %s", path);                                                                                        \
+    if (state_ok(plug_open(path, (void **) &rsmi, rsmi_names, RSMI_N, RTLD_NOW | RTLD_LOCAL))) {                       \
+        return EAR_SUCCESS;                                                                                            \
+    } else {                                                                                                           \
+        debug("Failed: %s", state_msg);                                                                                \
     }
-    
-    #define open_test(path) \
-    _open_test(path RSMI_LIB); \
+
+#define open_test(path)                                                                                                \
+    _open_test(path RSMI_LIB);                                                                                         \
     _open_test(path RSMI_LIB ".1");
 
     _open_test(getenv("HACK_RSMI_FILE"));
@@ -120,11 +120,12 @@ static void library_destroy()
 
 state_t rsmi_open(rsmi_t *rsmi_in)
 {
-    #ifndef RSMI_BASE
+#ifndef RSMI_BASE
     return EAR_ERROR;
-    #endif
+#endif
     state_t s = EAR_SUCCESS;
-    while (pthread_mutex_trylock(&lock));
+    while (pthread_mutex_trylock(&lock))
+        ;
     if (ok) {
         goto fini;
     }
@@ -136,12 +137,12 @@ state_t rsmi_open(rsmi_t *rsmi_in)
         goto fini;
     }
     ok = 1;
-    fini:
+fini:
     if (ok && rsmi_in != NULL) {
         memcpy(rsmi_in, &rsmi, sizeof(rsmi_t));
     }
     pthread_mutex_unlock(&lock);
-    #if 0
+#if 0
     rsmi_util_t util[1024];
     rsmi_freqs_t freqs;
     ullong ullong1;
@@ -167,7 +168,7 @@ state_t rsmi_open(rsmi_t *rsmi_in)
     debug("#Utilization %lu (%u)", util[0].value, util[0].type);
     if (rsmi.get_clock(0, RSMI_CLK_TYPE_SYS, &freqs) != RSMI_STATUS_SUCCESS) {}
     debug("#Clock %lu", freqs.frequency[0]);
-    #endif
+#endif
     return s;
 }
 

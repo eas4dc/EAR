@@ -11,16 +11,15 @@
 #ifndef METRICS_GPU_PROC_H
 #define METRICS_GPU_PROC_H
 
-#include <common/types.h>
-#include <common/states.h>
 #include <common/plugins.h>
+#include <common/states.h>
 #include <common/system/time.h>
+#include <common/types.h>
 #include <metrics/common/apis.h>
 
 // This is an API to monitorize the GPU devices of the process.
 
-typedef struct gpuproc_s
-{
+typedef struct gpuproc_s {
     timestamp_t time;
     ullong samples;
     ullong flops_dp;
@@ -30,15 +29,14 @@ typedef struct gpuproc_s
     double cpi;
 } gpuproc_t;
 
-typedef struct gpuproc_ops_s
-{
-    void    (*get_api)       (uint *api);
-    state_t (*init)          (ctx_t *c);
-    state_t (*dispose)       (ctx_t *c);
-    state_t (*count_devices) (ctx_t *c, uint *devs_count);
-    state_t (*read)          (ctx_t *c, gpuproc_t *data);
-    state_t (*enable)        (ctx_t *c);
-    state_t (*disable)       (ctx_t *c);
+typedef struct gpuproc_ops_s {
+    void (*get_api)(uint *api);
+    state_t (*init)(ctx_t *c);
+    state_t (*dispose)(ctx_t *c);
+    state_t (*count_devices)(ctx_t *c, uint *devs_count);
+    state_t (*read)(ctx_t *c, gpuproc_t *data);
+    state_t (*enable)(ctx_t *c);
+    state_t (*disable)(ctx_t *c);
 } gpuproc_ops_t;
 
 // Discovers the low level API.

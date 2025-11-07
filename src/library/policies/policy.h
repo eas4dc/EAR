@@ -8,22 +8,19 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #ifndef EAR_POLICIES_H
 #define EAR_POLICIES_H
-
 
 #include <common/states.h>
 #include <common/types/loop.h>
 
-#include <library/common/library_shared_data.h>
 #include <library/api/mpi_support.h>
+#include <library/common/library_shared_data.h>
 #include <library/policies/policy_ctx.h>
 
 #include <daemon/shared_configuration.h>
 
-
-/** This is the entry function of the module. It basically loads the policy plug-in,
+/** This is the entry function of the module. It basically loads the policy plug-ins,
  * configures the context and reads and configure available P-States and max/min permitted.
  * Finally, it calls the policy_init method. */
 state_t init_power_policy(settings_conf_t *app_settings, resched_t *res);
@@ -31,7 +28,10 @@ state_t init_power_policy(settings_conf_t *app_settings, resched_t *res);
 /** \todo */
 state_t policy_node_apply(signature_t *my_sig, ulong *freq_set, int *ready);
 
-/** \todo */
+/** Frequency selection at application-level.
+ * Just the master process does something.
+ * If non-master or no connection with EARD, `ready` set to EAR_POLICY_CONTINUE.
+ * If the policy plug-in doesn't implement the method, `ready` set to EAR_POLICY_LOCAL_EV. */
 state_t policy_app_apply(ulong *freq_set, int *ready);
 
 /** This function fills \p freq_set with the default freq (only CPU) configured by the policy plugin loaded.
@@ -58,6 +58,5 @@ state_t policy_restore_to_mpi_pstate(uint index);
 /**
  * \todo These two functions needs to be reconsidered. */
 state_t policy_configure();
-
 
 #endif // EAR_POLICIES_H

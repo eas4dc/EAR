@@ -8,33 +8,33 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <string.h>
-#include <report/report.h>
 #include <common/output/debug.h>
 #include <common/system/plugin_manager.h>
 #include <data_center_monitor/plugins/conf.h>
 #include <data_center_monitor/plugins/metrics.h>
+#include <report/report.h>
+#include <string.h>
 
 #if SHOW_DEBUGS
-static cchar             *self_tag = "periodic_metrics";
+static cchar *self_tag = "periodic_metrics";
 #endif
 // Metrics
-static periodic_metric_t  cs; // Current sample
-static metrics_read_t     mr1;
-static metrics_read_t     mr2;
-static metrics_diff_t     mrD;
+static periodic_metric_t cs; // Current sample
+static metrics_read_t mr1;
+static metrics_read_t mr2;
+static metrics_diff_t mrD;
 // Reporting
-static conf_t            *conf;
-static report_id_t        rid;
-static uint               can_report;
-static ulong              mpi;
-static ullong             nominal_khz = 5000000;
+static conf_t *conf;
+static report_id_t rid;
+static uint can_report;
+static ulong mpi;
+static ullong nominal_khz = 5000000;
 
 declr_up_get_tag()
 {
-    *tag = "periodic_metrics";
+    *tag       = "periodic_metrics";
     *tags_deps = "!conf+!metrics";
 }
 
@@ -42,7 +42,7 @@ declr_up_action_init(_conf)
 {
     conf = (conf_t *) data;
     // Loading report manager (is using the same report plugins than EARDBD, by now)
-    if (state_ok(report_load(conf->cluster.install.dir_plug, conf->cluster.db_manager.plugins))){
+    if (state_ok(report_load(conf->cluster.install.dir_plug, conf->cluster.db_manager.plugins))) {
         report_create_id(&rid, 0, 0, 0);
         // Initializing report manager
         if (state_ok(report_init(&rid, &conf->cluster))) {
@@ -60,10 +60,10 @@ static void metrics_read_static(metrics_read_t *mr)
 declr_up_action_init(_periodic_metrics)
 {
     *data_alloc = &cs;
-    init_periodic_metric(&cs); //eard_power_monitoring()
+    init_periodic_metric(&cs); // eard_power_monitoring()
     metrics_data_alloc(&mr1, &mr2, &mrD);
     metrics_read_static(&mr1);
-    return rsprintf("Periodic Metrics plugin initialized correctly %s", !(can_report) ? "(missing conf)": "");
+    return rsprintf("Periodic Metrics plugin initialized correctly %s", !(can_report) ? "(missing conf)" : "");
 }
 
 declr_up_action_periodic(_periodic_metrics)
@@ -80,10 +80,10 @@ declr_up_action_periodic(_periodic_metrics)
     cs.DRAM_energy = mrD.pow_dram;
     cs.PCK_energy  = mrD.pow_pack;
     cs.DC_energy   = mrD.nod_avrg;
-    debug("%s.%lu.%lu.%llu: %lu J (%lu %lu), %lu KHz",
-        cs.node_id, cs.job_id, cs.step_id, mrD.samples, cs.DC_energy, cs.PCK_energy, cs.DRAM_energy, cs.avg_f);
+    debug("%s.%lu.%lu.%llu: %lu J (%lu %lu), %lu KHz", cs.node_id, cs.job_id, cs.step_id, mrD.samples, cs.DC_energy,
+          cs.PCK_energy, cs.DRAM_energy, cs.avg_f);
     // Corrections SNMP+PDU (power monitor thing)
-    if (conf != NULL && conf->node != NULL && cs.DC_energy > conf->node->max_error_power){
+    if (conf != NULL && conf->node != NULL && cs.DC_energy > conf->node->max_error_power) {
         // cs.DC_energy = conf->node->max_sig_power;
     }
     // Reporting and alert-system
@@ -100,8 +100,8 @@ declr_up_action_periodic(_periodic_metrics)
         report_periodic_metrics(&rid, &cs, 1); // Un plugin de report que haga un print para probar
     }
     metrics_data_copy(&mr1, &mr2);
-    sprintf(buffer, "%s.%lu.%lu.%llu: %lu J (%lu %lu), %lu KHz",
-        cs.node_id, cs.job_id, cs.step_id, mrD.samples, cs.DC_energy, cs.PCK_energy, cs.DRAM_energy, cs.avg_f);
+    sprintf(buffer, "%s.%lu.%lu.%llu: %lu J (%lu %lu), %lu KHz", cs.node_id, cs.job_id, cs.step_id, mrD.samples,
+            cs.DC_energy, cs.PCK_energy, cs.DRAM_energy, cs.avg_f);
     return buffer;
 }
 

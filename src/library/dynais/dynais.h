@@ -35,26 +35,26 @@
 #ifndef DYNAIS_H
 #define DYNAIS_H
 
-#include <common/types/generic.h>
 #include <common/hardware/topology.h>
+#include <common/types/generic.h>
 
-#define MAX_LEVELS      10
-#define METRICS_WINDOW  40000
-#define DYNAIS_SVE      4
-#define DYNAIS_AVX512   3
-#define DYNAIS_AVX2     2
-#define DYNAIS_DUMMY    1
-#define DYNAIS_NONE     0 
+#define MAX_LEVELS     10
+#define METRICS_WINDOW 40000
+#define DYNAIS_SVE     4
+#define DYNAIS_AVX512  3
+#define DYNAIS_AVX2    2
+#define DYNAIS_DUMMY   1
+#define DYNAIS_NONE    0
 
 // DynAIS output states
-#define END_LOOP       -1
-#define NO_LOOP         0
-#define IN_LOOP         1
-#define NEW_ITERATION   2
-#define NEW_LOOP        3
-#define END_NEW_LOOP    4
+#define END_LOOP      -1
+#define NO_LOOP       0
+#define IN_LOOP       1
+#define NEW_ITERATION 2
+#define NEW_LOOP      3
+#define END_NEW_LOOP  4
 
-typedef int (*dynais_call_t) (uint sample, uint *size, uint *level);
+typedef int (*dynais_call_t)(uint sample, uint *size, uint *level);
 
 // Returns a dynais_call_t type. It is a pointer a specific AVX dynais call.
 dynais_call_t dynais_init(topology_t *tp, uint window, uint levels);
@@ -67,4 +67,4 @@ int dynais_build_type();
 // Applies CRC to 64 bits sample, converting it to 32 bit value.
 uint dynais_sample_convert(ulong sample);
 
-#endif //DYNAIS_H
+#endif // DYNAIS_H

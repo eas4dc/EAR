@@ -25,4 +25,4 @@ state_t imcfreq_eard_count_devices(ctx_t *c, uint *dev_count);
 
 state_t imcfreq_eard_read(ctx_t *c, imcfreq_t *i);
 
-#endif //METRICS_IMCFREQ_EARD_H
+#endif // METRICS_IMCFREQ_EARD_H

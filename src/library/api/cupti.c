@@ -8,16 +8,15 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
-#include <stdio.h>
-#include <stdlib.h>
 #include <common/config.h>
 #include <common/states.h>
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 state_t ear_cuda_init()
 {
-	verbose_master(2,"CUDA detected");
-	return 0;
+    verbose_master(2, "CUDA detected");
+    return 0;
 }

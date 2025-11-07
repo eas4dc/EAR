@@ -11,7 +11,7 @@
 #ifndef _EARD_CONSTANT_H_
 #define _EARD_CONSTANT_H_
 
-#define EARDS_RAPL 	0
-#define POWERMON_RAPL	1
+#define EARDS_RAPL    0
+#define POWERMON_RAPL 1
 
 #endif

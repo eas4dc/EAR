@@ -8,36 +8,35 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <time.h>
-#include <stdlib.h>
+#include <common/hardware/defines.h>
 #include <common/output/debug.h>
 #include <common/system/random.h>
-#include <common/hardware/defines.h>
+#include <stdlib.h>
+#include <time.h>
 #if __ARCH_X86
 #include <immintrin.h>
 #endif
 
 uint random_get()
 {
-	int i = 0;
-	unsigned int v;
+    int i = 0;
+    unsigned int v;
 
-	// It is supported in AMD architectures too
-        #if __ARCH_X86
-	// It is supported in AMD architectures too
-	i =  _rdrand32_step(&v);
-	#endif
-	if (i == 0) {
-		debug("hardware did not generate a random number");
-		clock_t c = clock();
-		v = (unsigned int) c;
-	}
+#if __ARCH_X86
+    // It is supported in AMD architectures too
+    i = _rdrand32_step(&v);
+#endif
+    if (i == 0) {
+        debug("hardware did not generate a random number");
+        clock_t c = clock();
+        v         = (unsigned int) c;
+    }
 
-	return v;
+    return v;
 }
 
 uint random_getrank(uint min, uint offset)
 {
-	uint v = random_get();
-	return min + (v % offset);
+    uint v = random_get();
+    return min + (v % offset);
 }

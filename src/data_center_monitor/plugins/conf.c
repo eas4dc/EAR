@@ -8,17 +8,17 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <stdio.h>
 #include <common/output/debug.h>
 #include <data_center_monitor/plugins/conf.h>
+#include <stdio.h>
 
-static conf_t     conf;
+static conf_t conf;
 
 declr_up_get_tag()
 {
-    *tag = "conf";
+    *tag       = "conf";
     *tags_deps = NULL;
 }
 
@@ -48,7 +48,7 @@ declr_up_action_init(_conf)
             return "Node not found in ear.conf";
         }
     }
-    strcpy(conf.cluster.install.obj_ener,conf.node->energy_plugin);
+    strcpy(conf.cluster.install.obj_ener, conf.node->energy_plugin);
     conf.cluster_loaded = 1;
     debug("database: %s", conf.cluster.database.database);
     return "Configuration plugin loaded correctly";

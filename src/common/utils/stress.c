@@ -8,10 +8,10 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <stdlib.h>
+#include <common/hardware/defines.h>
 #include <common/output/error.h>
 #include <common/utils/stress.h>
-#include <common/hardware/defines.h>
+#include <stdlib.h>
 #if __ARCH_X86
 #include <immintrin.h>
 #endif
@@ -28,14 +28,14 @@ static void alloc_align(void **memptr, size_t alignment, size_t size)
 
 void stress_alloc()
 {
-    #define N 32*1024*1024 //32 MiB
-    #if __ARCH_X86
+#define N 32 * 1024 * 1024 // 32 MiB
+#if __ARCH_X86
     alloc_align((void **) &mem1, sizeof(__m256i), N);
     alloc_align((void **) &mem2, sizeof(__m256i), N);
-    #else
+#else
     alloc_align((void **) &mem1, 32, N);
     alloc_align((void **) &mem2, 32, N);
-    #endif
+#endif
 }
 
 void stress_free()
@@ -48,27 +48,27 @@ void stress_bandwidth(ullong ms)
 {
     int *pmem1 = (int *) mem1;
     int *pmem2 = (int *) mem2;
-    int pN = N / sizeof(int);
+    int pN     = N / sizeof(int);
     timestamp_t now;
     int n;
 
     // Computing time
     timestamp_getfast(&now);
     do {
-        for (n = 0; n < pN; n+=32) {
-            #if __ARCH_X86
+        for (n = 0; n < pN; n += 32) {
+#if __ARCH_X86
             __m256i reg = _mm256_set1_epi32(n);
-            _mm256_store_si256((__m256i *) &pmem1[n+ 0], reg);
-            _mm256_store_si256((__m256i *) &pmem2[n+ 0], reg);
-            _mm256_store_si256((__m256i *) &pmem1[n+ 8], reg);
-            _mm256_store_si256((__m256i *) &pmem2[n+ 8], reg);
-            _mm256_store_si256((__m256i *) &pmem1[n+16], reg);
-            _mm256_store_si256((__m256i *) &pmem2[n+16], reg);
-            _mm256_store_si256((__m256i *) &pmem1[n+24], reg);
-            _mm256_store_si256((__m256i *) &pmem2[n+24], reg);
-	    #else
-	    //TODO: memcpy(pmem2, pmem1, size);
-	    #endif
+            _mm256_store_si256((__m256i *) &pmem1[n + 0], reg);
+            _mm256_store_si256((__m256i *) &pmem2[n + 0], reg);
+            _mm256_store_si256((__m256i *) &pmem1[n + 8], reg);
+            _mm256_store_si256((__m256i *) &pmem2[n + 8], reg);
+            _mm256_store_si256((__m256i *) &pmem1[n + 16], reg);
+            _mm256_store_si256((__m256i *) &pmem2[n + 16], reg);
+            _mm256_store_si256((__m256i *) &pmem1[n + 24], reg);
+            _mm256_store_si256((__m256i *) &pmem2[n + 24], reg);
+#else
+// TODO: memcpy(pmem2, pmem1, size);
+#endif
         }
     } while (timestamp_diffnow(&now, TIME_MSECS) < ms);
 }
@@ -77,5 +77,6 @@ void stress_spin(ullong ms)
 {
     timestamp_t time;
     timestamp_getfast(&time);
-    while(timestamp_diffnow(&time, TIME_MSECS) < ms);
+    while (timestamp_diffnow(&time, TIME_MSECS) < ms)
+        ;
 }

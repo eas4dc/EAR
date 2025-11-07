@@ -16,4 +16,4 @@
 void avx512_dynais_core_n(ushort sample, ushort size, ushort level);
 void avx512_dynais_core_0(ushort sample, ushort size, ushort level);
 
-#endif //EAR_DYNAIS_CORE_H
+#endif // EAR_DYNAIS_CORE_H

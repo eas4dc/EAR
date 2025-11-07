@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#ifndef EXTERNAL_H 
+#ifndef EXTERNAL_H
 #define EXTERNAL_H
 
 #include <common/types/types.h>
@@ -16,7 +16,6 @@
 typedef struct ear_manager {
     int new_mask;
 } ear_mgt_t;
-
 
 ear_mgt_t *ear_connect();
 state_t ear_disconnect();

@@ -29,4 +29,4 @@ state_t imcfreq_amd17_read(ctx_t *c, imcfreq_t *i);
 
 state_t imcfreq_amd17_data_diff(imcfreq_t *i2, imcfreq_t *i1, ulong *freq_list, ulong *average);
 
-#endif //METRICS_IMCFREQ_DUMMY_H
+#endif // METRICS_IMCFREQ_DUMMY_H

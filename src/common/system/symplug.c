@@ -8,15 +8,13 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
-
-#include <common/system/symplug.h>
-
-#include <unistd.h>
-#include <dlfcn.h>
+// #define SHOW_DEBUGS 1
 
 #include <common/includes.h>
 #include <common/output/debug.h>
+#include <common/system/symplug.h>
+#include <dlfcn.h>
+#include <unistd.h>
 
 state_t plug_join(void *handle, void *calls[], const char *names[], uint n)
 {
@@ -43,13 +41,16 @@ state_t plug_join(void *handle, void *calls[], const char *names[], uint n)
 static state_t static_open(char *path, void *calls[], const char *names[], uint n, int flags)
 {
     void *handle;
-    debug("trying to access to '%s'", path);
-    if (access(path, X_OK) != 0) {
-				debug("plugin %s cannot be loaded error=%s", path, strerror(errno));
-        return_msg(EAR_ERROR, strerror(errno));
+
+    if (path != NULL) {
+        debug("Trying to access to '%s'", path);
+        if (access(path, X_OK) != 0) {
+            debug("Plugin %s cannot be accessed: %s", path, strerror(errno));
+            return_msg(EAR_ERROR, strerror(errno));
+        }
     }
     if ((handle = dlopen(path, flags)) == NULL) {
-				debug("plugin %s cannot be loaded by symplug error=%s", path, dlerror());
+        debug("Plugin %s cannot be loaded: %s", path, dlerror());
         return_msg(EAR_ERROR, dlerror());
     }
     debug("dlopen ok");
@@ -58,7 +59,7 @@ static state_t static_open(char *path, void *calls[], const char *names[], uint 
 
 state_t symplug_open(char *path, void *calls[], const char *names[], uint n)
 {
-	return static_open(path, calls, names, n, RTLD_GLOBAL | RTLD_NOW);
+    return static_open(path, calls, names, n, RTLD_GLOBAL | RTLD_NOW);
 }
 
 state_t plug_open(char *path, void *calls[], const char *names[], uint n, int flags)
@@ -68,12 +69,11 @@ state_t plug_open(char *path, void *calls[], const char *names[], uint n, int fl
 
 state_t plug_test(void *calls[], uint n)
 {
-	uint i;
-	for (i = 0; i < n; ++i)
-	{
-		if (calls[i] == NULL) {
-			return EAR_ERROR;
-		}
-	}
-	return EAR_SUCCESS;
+    uint i;
+    for (i = 0; i < n; ++i) {
+        if (calls[i] == NULL) {
+            return EAR_ERROR;
+        }
+    }
+    return EAR_SUCCESS;
 }

@@ -10,7 +10,6 @@ all: all.components $(energy_cpu_OBJS)
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<
-#	$(CC) $(CFLAGS) -o energy_cpu.o $(SRCDIR)/metrics/libmetrics.a $(SRCDIR)/common/libcommon.a
 
 ######## SUBFOLDERS
 

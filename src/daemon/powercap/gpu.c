@@ -252,11 +252,11 @@ state_t set_powercap_value(uint pid, uint32_t domain, uint32_t *limit, uint32_t 
     state_t ret = EAR_ERROR;
     debug("GPU: powermgr gpu power allocated %u", *limit);
     if (domain == LEVEL_NODE || domain == LEVEL_DOMAIN) {
-        ret = int_set_powercap_value((ulong)*limit, (ulong *) gpu_util);
+        ret = int_set_powercap_value((ulong) *limit, (ulong *) gpu_util);
 
         if (ret == EAR_SUCCESS) {
             default_gpu_pc = *limit;
-            c_status = PC_STATUS_OK;
+            c_status       = PC_STATUS_OK;
         }
     } else
         ret = int_set_per_device_powercap_value(limit, gpu_pc_util);
@@ -303,6 +303,7 @@ static state_t int_set_per_device_powercap_value(uint32_t *limit, ulong *gpu_uti
 
     /* Set data */
     debug("%s", COL_BLU);
+    debug("GPU: set_manual_powercap_value (first GPU: %u)", *limit);
     for (i = 0; i < gpu_pc_num_gpus; i++) {
         if (limit[i] == POWER_CAP_UNLIMITED) {
             limit[i] = gpu_pc_max_power[i];

@@ -11,12 +11,12 @@
 #ifndef METRICS_COMMON_LIKWID_H
 #define METRICS_COMMON_LIKWID_H
 
-#include <common/types.h>
 #include <common/states.h>
+#include <common/types.h>
 
 typedef struct likevs_s {
-	uint evs_count;
-	int gid;
+    uint evs_count;
+    int gid;
 } likevs_t;
 
 state_t likwid_init();

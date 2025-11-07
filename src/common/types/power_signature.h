@@ -19,25 +19,25 @@
 // and power_signature_deserialize. If you want to add new types, make sure to
 // update these functions too.
 typedef struct power_signature {
-  double DC_power;
-  double DRAM_power;
-  double PCK_power;
-  double EDP;
-  double max_DC_power;
-  double min_DC_power;
-  double time;
-  ulong avg_f;
-  ulong def_f;
+    double DC_power;
+    double DRAM_power;
+    double PCK_power;
+    double EDP;
+    double max_DC_power;
+    double min_DC_power;
+    double time;
+    ulong avg_f;
+    ulong def_f;
 } power_signature_t;
 
 typedef struct accum_power_sig {
-  ulong DC_energy;
-  ulong DRAM_energy;
-  ulong PCK_energy;
-  ulong avg_f;
-  double max, min;
+    ulong DC_energy;
+    ulong DRAM_energy;
+    ulong PCK_energy;
+    ulong avg_f;
+    double max, min;
 #if USE_GPUS
-  ulong GPU_energy;
+    ulong GPU_energy;
 #endif
 } accum_power_sig_t;
 
@@ -52,11 +52,9 @@ void power_signature_print_fd(int fd, power_signature_t *power_signature);
 
 void power_signature_db_clean(power_signature_t *ps, double limit);
 
-void power_signature_serialize(serial_buffer_t *b,
-                               power_signature_t *power_sig);
+void power_signature_serialize(serial_buffer_t *b, power_signature_t *power_sig);
 
-void power_signature_deserialize(serial_buffer_t *b,
-                                 power_signature_t *power_sig);
+void power_signature_deserialize(serial_buffer_t *b, power_signature_t *power_sig);
 
 /** \todo This function is mostly the same as power_signature_db_clean, except
  * that it also controls freq values. It is not called from anywhere.  */

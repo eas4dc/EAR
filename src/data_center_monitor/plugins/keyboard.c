@@ -8,51 +8,53 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
+#include <common/output/debug.h>
 #include <ctype.h>
+#include <data_center_monitor/plugins/keyboard.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <common/output/debug.h>
-#include <data_center_monitor/plugins/keyboard.h>
 
 typedef struct keyboard_s {
-    cchar     *command;
-    cchar     *format;
-    uint       params_count;
+    cchar *command;
+    cchar *format;
+    uint params_count;
     callback_t callback;
 } keyboard_t;
 
-static pthread_t  thread;
+static pthread_t thread;
 static keyboard_t keys[1024];
-static uint       keys_count;
-static int        is_closing;
+static uint keys_count;
+static int is_closing;
 
 declr_up_get_tag()
 {
-    *tag = "keyboard";
+    *tag       = "keyboard";
     *tags_deps = NULL;
 }
 
 static uint format_count(cchar *format)
 {
     const char *p = format;
-    uint inword = 0;
-    uint count = 0;
+    uint inword   = 0;
+    uint count    = 0;
 
-    do switch(*p) {
-        case '\0':
-        case ' ':
-            if (inword) {
-                inword = 0;
-                count++;
-            }
-            break;
-        default:
-            inword = 1;
-    } while(*p++);
+    do
+        switch (*p) {
+            case '\0':
+            case ' ':
+                if (inword) {
+                    inword = 0;
+                    count++;
+                }
+                break;
+            default:
+                inword = 1;
+        }
+    while (*p++);
 
     return count;
 }
@@ -63,8 +65,7 @@ void command_register(cchar *command, cchar *format, callback_t callback)
     keys[keys_count].format       = format;
     keys[keys_count].callback     = callback;
     keys[keys_count].params_count = format_count(format);
-    debug("Registered command %s with %u parameters",
-          keys[keys_count].command, keys[keys_count].params_count);
+    debug("Registered command %s with %u parameters", keys[keys_count].command, keys[keys_count].params_count);
     ++keys_count;
 }
 
@@ -106,7 +107,8 @@ static void *command_read(void *x)
         }
     }
     // Waiting here until the parent dies
-    while(is_closing);
+    while (is_closing)
+        ;
     return NULL;
 }
 

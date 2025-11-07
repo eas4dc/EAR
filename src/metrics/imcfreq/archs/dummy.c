@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 #include <common/output/debug.h>
 #include <metrics/imcfreq/archs/dummy.h>
 
@@ -19,75 +19,75 @@ static uint devs_count;
 
 void imcfreq_dummy_load(topology_t *tp, imcfreq_ops_t *ops)
 {
-	// If there is an API already loaded
-	if (apis_loaded(ops)) {
+    // If there is an API already loaded
+    if (apis_loaded(ops)) {
         apis_add(ops->init_static, imcfreq_dummy_init_static);
-	}
+    }
 
-	// Filling each gap
-	apis_put(ops->get_api,       imcfreq_dummy_get_api);
-	apis_put(ops->init,          imcfreq_dummy_init);
-	apis_put(ops->dispose,       imcfreq_dummy_dispose);
-	apis_put(ops->count_devices, imcfreq_dummy_count_devices);
-	apis_put(ops->read,          imcfreq_dummy_read);
-	apis_put(ops->data_alloc,    imcfreq_dummy_data_alloc);
-	apis_put(ops->data_free,     imcfreq_dummy_data_free);
-	apis_put(ops->data_copy,     imcfreq_dummy_data_copy);
-	apis_put(ops->data_diff,     imcfreq_dummy_data_diff);
-	apis_put(ops->data_print,    imcfreq_dummy_data_print);
-	apis_put(ops->data_tostr,    imcfreq_dummy_data_tostr);
+    // Filling each gap
+    apis_put(ops->get_api, imcfreq_dummy_get_api);
+    apis_put(ops->init, imcfreq_dummy_init);
+    apis_put(ops->dispose, imcfreq_dummy_dispose);
+    apis_put(ops->count_devices, imcfreq_dummy_count_devices);
+    apis_put(ops->read, imcfreq_dummy_read);
+    apis_put(ops->data_alloc, imcfreq_dummy_data_alloc);
+    apis_put(ops->data_free, imcfreq_dummy_data_free);
+    apis_put(ops->data_copy, imcfreq_dummy_data_copy);
+    apis_put(ops->data_diff, imcfreq_dummy_data_diff);
+    apis_put(ops->data_print, imcfreq_dummy_data_print);
+    apis_put(ops->data_tostr, imcfreq_dummy_data_tostr);
 
-	// Static info
-	devs_count = tp->socket_count;
-	ops_static = ops;
+    // Static info
+    devs_count = tp->socket_count;
+    ops_static = ops;
 }
 
 void imcfreq_dummy_get_api(uint *api, uint *api_intern)
 {
-	*api = API_DUMMY;
-	if (api_intern) {
-		*api_intern = API_NONE;
-	}
+    *api = API_DUMMY;
+    if (api_intern) {
+        *api_intern = API_NONE;
+    }
 }
 
 state_t imcfreq_dummy_init(ctx_t *c)
 {
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t imcfreq_dummy_init_static(ctx_t *c)
 {
-	return ops_static->count_devices(c, &devs_count);
+    return ops_static->count_devices(c, &devs_count);
 }
 
 state_t imcfreq_dummy_dispose(ctx_t *c)
 {
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t imcfreq_dummy_count_devices(ctx_t *c, uint *devs_count_in)
 {
-	*devs_count_in = devs_count;
-	return EAR_SUCCESS;
+    *devs_count_in = devs_count;
+    return EAR_SUCCESS;
 }
 
 state_t imcfreq_dummy_read(ctx_t *c, imcfreq_t *i)
 {
-	uint cpu;
-	if (i == NULL) {
-		return_msg(EAR_ERROR, Generr.input_null);
-	}
+    uint cpu;
+    if (i == NULL) {
+        return_msg(EAR_ERROR, Generr.input_null);
+    }
     // Cleaning
     memset(i, 0, devs_count * sizeof(imcfreq_t));
     for (cpu = 0; cpu < devs_count; ++cpu) {
         i[cpu].error = 1;
     }
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t imcfreq_dummy_data_alloc(imcfreq_t **i, ulong **freq_list)
 {
-		debug("Data alloc %lu bytes",devs_count*sizeof(imcfreq_t));
+    debug("Data alloc %lu bytes", devs_count * sizeof(imcfreq_t));
     if (i != NULL) {
         if ((*i = (imcfreq_t *) calloc(devs_count, sizeof(imcfreq_t))) == NULL) {
             return_msg(EAR_ERROR, strerror(errno));
@@ -128,7 +128,7 @@ state_t imcfreq_dummy_data_diff(imcfreq_t *i2, imcfreq_t *i1, ulong *freq_list, 
     ulong aux2; // Counts valid devices
     int cpu;
 
-	debug("imcfreq_dummy_data_diff");
+    debug("imcfreq_dummy_data_diff");
 
     if (i2 == NULL || i1 == NULL) {
         return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
@@ -149,7 +149,7 @@ state_t imcfreq_dummy_data_diff(imcfreq_t *i2, imcfreq_t *i1, ulong *freq_list, 
             continue;
         }
         //
-        freq  = (i2[cpu].freq - i1[cpu].freq) / time;
+        freq = (i2[cpu].freq - i1[cpu].freq) / time;
         aux1 += freq;
         aux2 += 1;
         //
@@ -163,14 +163,14 @@ state_t imcfreq_dummy_data_diff(imcfreq_t *i2, imcfreq_t *i1, ulong *freq_list, 
             *average = aux1 / aux2;
         }
     }
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 void imcfreq_dummy_data_print(ulong *freq_list, ulong *average, int fd)
 {
-	char buffer[SZ_BUFFER];
-	imcfreq_data_tostr(freq_list, average, buffer, SZ_BUFFER);
-	dprintf(fd, "%s", buffer);
+    char buffer[SZ_BUFFER];
+    imcfreq_data_tostr(freq_list, average, buffer, SZ_BUFFER);
+    dprintf(fd, "%s", buffer);
 }
 
 char *imcfreq_dummy_data_tostr(ulong *freq_list, ulong *average, char *buffer, size_t length)

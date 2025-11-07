@@ -47,4 +47,4 @@ state_t mgt_gpu_oneapi_power_cap_reset(ctx_t *c);
 
 state_t mgt_gpu_oneapi_power_cap_set(ctx_t *c, ulong *watts);
 
-#endif //MANAGEMENT_GPU_ONEAPI_H
+#endif // MANAGEMENT_GPU_ONEAPI_H

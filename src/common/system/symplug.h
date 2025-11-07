@@ -16,16 +16,16 @@
  * It is basically used for loading EAR plug-ins.
  */
 
-#include <dlfcn.h>
-#include <common/types.h>
-#include <common/states.h>
 #include <common/plugins.h> // Not used
+#include <common/states.h>
+#include <common/types.h>
+#include <dlfcn.h>
 
 /** Reads a set of symbol names from a dynamic loaded shared object.
  * NULL pointers are not checked.
  *
  * \param[in] handle A handle of a dynamic loaded shared object returned by dlopen.
- * \param[out] calls An address to a pointer to an allocated space of memory to 
+ * \param[out] calls An address to a pointer to an allocated space of memory to
  *	store symbol addresses.
  * \param[in] names A pointer to a NULL-terminated strings (i.e., symbol names) array.
  * \param[in] n The number of symbols you are expected to read.
@@ -40,4 +40,4 @@ state_t plug_open(char *path, void *calls[], const char *names[], uint n, int fl
 
 state_t plug_test(void *calls[], uint n);
 
-#endif //COMMON_SYSTEM_SYMPLUG_H
+#endif // COMMON_SYSTEM_SYMPLUG_H

@@ -11,12 +11,12 @@
 #ifndef MANAGEMENT_H
 #define MANAGEMENT_H
 
-#include <metrics/metrics.h>
 #include <management/cpufreq/cpufreq.h>
 #include <management/cpufreq/priority.h>
-#include <management/imcfreq/imcfreq.h>
 #include <management/cpupow/cpupow.h>
 #include <management/gpu/gpu.h>
+#include <management/imcfreq/imcfreq.h>
+#include <metrics/metrics.h>
 
 typedef struct manages_info_s {
     apinfo_t cpu; // cpufreq
@@ -26,7 +26,7 @@ typedef struct manages_info_s {
     apinfo_t gpu; // gpu
 } manages_info_t;
 
-void management_init(manages_info_t *man, topology_t *tp, ullong force_api);
+void management_load(manages_info_t *man, topology_t *tp, ullong force_api);
 
 void management_info_get(manages_info_t *m);
 
@@ -36,4 +36,4 @@ void management_info_print(manages_info_t *m, int fd);
 
 char *management_data_tostr();
 
-#endif //MANAGEMENT_H
+#endif // MANAGEMENT_H

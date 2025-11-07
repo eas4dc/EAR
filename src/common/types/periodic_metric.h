@@ -11,20 +11,20 @@
 #ifndef _EAR_TYPES_PERIODIC_METRIC
 #define _EAR_TYPES_PERIODIC_METRIC
 
-#include <time.h>
 #include <common/config.h>
 #include <common/types/generic.h>
+#include <stdio.h>
+#include <time.h>
 
-typedef struct periodic_metric
-{
-		/* short */
+typedef struct periodic_metric {
+    /* short */
     ulong DC_energy;
     ulong job_id;
     ulong step_id;
     time_t start_time;
     time_t end_time;
     char node_id[NODE_SIZE];
-		/* Full */
+    /* Full */
     ulong avg_f;
     ulong temp;
     ulong DRAM_energy;
@@ -44,7 +44,7 @@ void copy_periodic_metric(periodic_metric_t *destiny, periodic_metric_t *source)
 void periodic_metrict_print_channel(FILE *file, periodic_metric_t *pm);
 
 /** Modifies jid, sid at new job */
-void new_job_for_period(periodic_metric_t *pm,ulong job_id, ulong s_id);
+void new_job_for_period(periodic_metric_t *pm, ulong job_id, ulong s_id);
 
 /** Sets to null job and sid */
 void end_job_for_period(periodic_metric_t *pm);
@@ -59,7 +59,7 @@ void end_job_for_period(periodic_metric_t *pm);
 void init_sample_period(periodic_metric_t *pm);
 
 /** Sets the end time for the period and the energy */
-void end_sample_period(periodic_metric_t *pm,ulong energy);
+void end_sample_period(periodic_metric_t *pm, ulong energy);
 
 /* Cleans pm data to avoid out of range values */
 void periodic_metric_clean_before_db(periodic_metric_t *pm);

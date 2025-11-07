@@ -12,6 +12,7 @@ band_OBJS = \
     intel106.o \
     intel143.o \
 	likwid.o \
+	perf.o
 
 ######## RULES
 

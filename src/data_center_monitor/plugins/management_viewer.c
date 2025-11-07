@@ -8,17 +8,17 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <string.h>
-#include <report/report.h>
 #include <common/output/debug.h>
 #include <common/system/plugin_manager.h>
 #include <data_center_monitor/plugins/management.h>
+#include <report/report.h>
+#include <string.h>
 
 declr_up_get_tag()
 {
-    *tag = "management_viewer";
+    *tag       = "management_viewer";
     *tags_deps = "!management";
 }
 

@@ -11,50 +11,47 @@
 #ifndef _EARD_LOG_H
 #define _EARD_LOG_H
 
-#include <time.h>
 #include <common/config.h>
+#include <common/types/event_type.h>
 #include <common/types/generic.h>
 #include <common/types/job.h>
-#include <common/types/event_type.h>
+#include <time.h>
 
 #include <report/report.h>
-
-
 
 #if 0
 /* EARD Init events */
 
-#define PM_CREATION_ERROR       100
-#define APP_API_CREATION_ERROR  101
-#define DYN_CREATION_ERROR      102
-#define UNCORE_INIT_ERROR       103
-#define RAPL_INIT_ERROR         104
-#define ENERGY_INIT_ERROR       105
-#define CONNECTOR_INIT_ERROR    106
-#define RCONNECTOR_INIT_ERROR   107
+#define PM_CREATION_ERROR      100
+#define APP_API_CREATION_ERROR 101
+#define DYN_CREATION_ERROR     102
+#define UNCORE_INIT_ERROR      103
+#define RAPL_INIT_ERROR        104
+#define ENERGY_INIT_ERROR      105
+#define CONNECTOR_INIT_ERROR   106
+#define RCONNECTOR_INIT_ERROR  107
 
 
 
 /* EARD runtime events */
-#define DC_POWER_ERROR		300
-#define TEMP_ERROR			301
-#define FREQ_ERROR			302
-#define RAPL_ERROR			303
-#define GBS_ERROR			304
-#define CPI_ERROR			305
+#define DC_POWER_ERROR         300
+#define TEMP_ERROR             301
+#define FREQ_ERROR             302
+#define RAPL_ERROR             303
+#define GBS_ERROR              304
+#define CPI_ERROR              305
 
 /* EARD powercap events */
-#define POWERCAP_VALUE  500
-#define RESET_POWERCAP  501
-#define INC_POWERCAP    502
-#define RED_POWERCAP    503
-#define SET_POWERCAP    504
-#define SET_ASK_DEF     505
-#define RELEASE_POWER   506
+#define POWERCAP_VALUE         500
+#define RESET_POWERCAP         501
+#define INC_POWERCAP           502
+#define RED_POWERCAP           503
+#define SET_POWERCAP           504
+#define SET_ASK_DEF            505
+#define RELEASE_POWER          506
 
-
-#define EARD_RT_ERRORS  6
-#define FIRST_RT_ERROR  300
+#define EARD_RT_ERRORS         6
+#define FIRST_RT_ERROR         300
 
 #endif
 

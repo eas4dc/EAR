@@ -11,10 +11,10 @@
 #ifndef MANAGEMENT_PRIORITY_H
 #define MANAGEMENT_PRIORITY_H
 
-#include <common/types.h>
-#include <common/states.h>
-#include <common/plugins.h>
 #include <common/hardware/topology.h>
+#include <common/plugins.h>
+#include <common/states.h>
+#include <common/types.h>
 #include <metrics/common/isst.h>
 
 // PRIORITY is a subsystem of CPUFREQ. It can take the control over the
@@ -25,11 +25,11 @@
 // |-----------|------------------------------------------------------------------|
 // | Ice Lake  | Core, a change in a specific thread affects also to its sibling. |
 
-#define PRIO_FREQ_MAX      ISST_MAX_FREQ // Max boosted frequency
-#define PRIO_FREQ_MAX_NB  (PRIO_FREQ_MAX-1) // Max non-boosted frequency
-#define PRIO_HIGH         (UINT_MAX-2)
-#define PRIO_LOW          (UINT_MAX-3)
-#define PRIO_SAME          ISST_SAME_PRIO // Do not change the priority, use the same
+#define PRIO_FREQ_MAX    ISST_MAX_FREQ       // Max boosted frequency
+#define PRIO_FREQ_MAX_NB (PRIO_FREQ_MAX - 1) // Max non-boosted frequency
+#define PRIO_HIGH        (UINT_MAX - 2)
+#define PRIO_LOW         (UINT_MAX - 3)
+#define PRIO_SAME        ISST_SAME_PRIO // Do not change the priority, use the same
 
 typedef struct cpuprio_s {
     ullong max_khz;
@@ -39,20 +39,19 @@ typedef struct cpuprio_s {
     uint idx;
 } cpuprio_t;
 
-typedef struct mgt_prio_ops_s
-{
-    void    (*get_api) (uint *api);
-    state_t (*init)    ();
-    state_t (*dispose) ();
-    state_t (*enable)  ();
-    state_t (*disable) ();
-    int     (*is_enabled) ();
-    state_t (*get_available_list) (cpuprio_t *prio_list);
-    state_t (*set_available_list) (cpuprio_t *prio_list);
-    state_t (*get_current_list)   (uint *list_idx);
-    state_t (*set_current_list)   (uint *list_idx);
-    state_t (*set_current)        (uint idx, int cpu);
-    void    (*data_count)         (uint *prio_count, uint *idx_count);
+typedef struct mgt_prio_ops_s {
+    void (*get_api)(uint *api);
+    state_t (*init)();
+    state_t (*dispose)();
+    state_t (*enable)();
+    state_t (*disable)();
+    int (*is_enabled)();
+    state_t (*get_available_list)(cpuprio_t *prio_list);
+    state_t (*set_available_list)(cpuprio_t *prio_list);
+    state_t (*get_current_list)(uint *list_idx);
+    state_t (*set_current_list)(uint *list_idx);
+    state_t (*set_current)(uint idx, int cpu);
+    void (*data_count)(uint *prio_count, uint *idx_count);
 } mgt_prio_ops_t;
 
 /* PRIORITY is a CPUFREQ subsystem, loading CPUFREQ also loads PRIORITY automatically. */
@@ -86,28 +85,28 @@ state_t mgt_cpufreq_prio_set_current(uint idx, int cpu);
 void mgt_cpufreq_prio_data_count(uint *prio_count, uint *devs_count);
 /* Allocating lists. */
 void mgt_cpufreq_prio_data_alloc(cpuprio_t **prio_list, uint **idx_list);
-    
+
 void mgt_cpufreq_prio_data_print(cpuprio_t *prio_list, uint *idx_list, int fd);
 
 void mgt_cpufreq_prio_data_tostr(cpuprio_t *prio_list, uint *idx_list, char *buffer, int length);
 
 // Short names
-#define mgt_cpuprio_load               mgt_cpufreq_prio_load
-#define mgt_cpuprio_init               mgt_cpufreq_prio_init
-#define mgt_cpuprio_dispose            mgt_cpufreq_prio_dispose
-#define mgt_cpuprio_get_api            mgt_cpufreq_prio_get_api
-#define mgt_cpuprio_count_devices(c,n) mgt_cpufreq_prio_data_count(NULL,n)
-#define mgt_cpuprio_enable             mgt_cpufreq_prio_enable
-#define mgt_cpuprio_disable            mgt_cpufreq_prio_disable
-#define mgt_cpuprio_is_enabled         mgt_cpufreq_prio_is_enabled
-#define mgt_cpuprio_get_available_list mgt_cpufreq_prio_get_available_list
-#define mgt_cpuprio_set_available_list mgt_cpufreq_prio_set_available_list
-#define mgt_cpuprio_get_current_list   mgt_cpufreq_prio_get_current_list
-#define mgt_cpuprio_set_current_list   mgt_cpufreq_prio_set_current_list
-#define mgt_cpuprio_set_current        mgt_cpufreq_prio_set_current
-#define mgt_cpuprio_data_count         mgt_cpufreq_prio_data_count
-#define mgt_cpuprio_data_alloc         mgt_cpufreq_prio_data_alloc
-#define mgt_cpuprio_data_print         mgt_cpufreq_prio_data_print
-#define mgt_cpuprio_data_tostr         mgt_cpufreq_prio_data_tostr 
+#define mgt_cpuprio_load                mgt_cpufreq_prio_load
+#define mgt_cpuprio_init                mgt_cpufreq_prio_init
+#define mgt_cpuprio_dispose             mgt_cpufreq_prio_dispose
+#define mgt_cpuprio_get_api             mgt_cpufreq_prio_get_api
+#define mgt_cpuprio_count_devices(c, n) mgt_cpufreq_prio_data_count(NULL, n)
+#define mgt_cpuprio_enable              mgt_cpufreq_prio_enable
+#define mgt_cpuprio_disable             mgt_cpufreq_prio_disable
+#define mgt_cpuprio_is_enabled          mgt_cpufreq_prio_is_enabled
+#define mgt_cpuprio_get_available_list  mgt_cpufreq_prio_get_available_list
+#define mgt_cpuprio_set_available_list  mgt_cpufreq_prio_set_available_list
+#define mgt_cpuprio_get_current_list    mgt_cpufreq_prio_get_current_list
+#define mgt_cpuprio_set_current_list    mgt_cpufreq_prio_set_current_list
+#define mgt_cpuprio_set_current         mgt_cpufreq_prio_set_current
+#define mgt_cpuprio_data_count          mgt_cpufreq_prio_data_count
+#define mgt_cpuprio_data_alloc          mgt_cpufreq_prio_data_alloc
+#define mgt_cpuprio_data_print          mgt_cpufreq_prio_data_print
+#define mgt_cpuprio_data_tostr          mgt_cpufreq_prio_data_tostr
 
-#endif //MANAGEMENT_PRIORITY_H
+#endif // MANAGEMENT_PRIORITY_H

@@ -11,17 +11,18 @@
 #ifndef MANAGEMENT_CPUFREQ_BASE_H
 #define MANAGEMENT_CPUFREQ_BASE_H
 
-#include <common/states.h>
 #include <common/hardware/topology.h>
+#include <common/states.h>
 
 typedef struct cpufreq_base_s {
     ullong frequency; // In KHZ
-    uint   boost_enabled;
-    uint   not_reliable;
+    uint boost_enabled;
+    uint not_reliable;
 } cpufreq_base_t;
+
 // Alias
 typedef cpufreq_base_t cfb_t;
 
 void cpufreq_base_init(topology_t *tp, cpufreq_base_t *base);
 
-#endif //MANAGEMENT_CPUFREQ_BASE_H
+#endif // MANAGEMENT_CPUFREQ_BASE_H

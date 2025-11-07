@@ -8,95 +8,94 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#include <common/sizes.h>
+#include <common/system/file.h>
+#include <common/system/process.h>
 #include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <signal.h>
 #include <sys/types.h>
-#include <common/system/file.h>
-#include <common/sizes.h>
-#include <common/system/process.h>
+#include <unistd.h>
 
 void process_data_initialize(process_data_t *prodata, char *name, char *path_pid)
 {
-	sprintf(prodata->path_pid, "%s/%s.pid", path_pid, name);
-	strcpy(prodata->name, name);
-	process_update_pid(prodata);
+    sprintf(prodata->path_pid, "%s/%s.pid", path_pid, name);
+    strcpy(prodata->name, name);
+    process_update_pid(prodata);
 }
 
 void process_update_pid(process_data_t *prodata)
 {
-	prodata->pid = getpid();
+    prodata->pid = getpid();
 }
 
 int process_exists(const process_data_t *prodata, char *bin_name, pid_t *pid)
 {
-	int value = 0;
-	state_t state;
+    int value = 0;
+    state_t state;
 
-	//
-	state = process_pid_file_load(prodata, pid);
+    //
+    state = process_pid_file_load(prodata, pid);
 
-	if (state_fail(state)) {
-		return 0;
-	}
+    if (state_fail(state)) {
+        return 0;
+    }
 
-	//
-	value = !((kill(*pid, 0) < 0) && (errno == ESRCH));
+    //
+    value = !((kill(*pid, 0) < 0) && (errno == ESRCH));
 
-	if (value)
-	{
-		char *buffer1 = malloc(SZ_PATH);
-		char *buffer2 = malloc(SZ_PATH);
-		char *p;
+    if (value) {
+        char *buffer1 = malloc(SZ_PATH);
+        char *buffer2 = malloc(SZ_PATH);
+        char *p;
 
-		sprintf(buffer1, "/proc/%d/cmdline", *pid);
-		ear_file_read(buffer1, buffer2, SZ_PATH);
-		p = strstr(buffer2, bin_name);
+        sprintf(buffer1, "/proc/%d/cmdline", *pid);
+        ear_file_read(buffer1, buffer2, SZ_PATH, 0);
+        p = strstr(buffer2, bin_name);
 
-		free(buffer1);
-		free(buffer2);
+        free(buffer1);
+        free(buffer2);
 
-		return (p != NULL);
-	}
+        return (p != NULL);
+    }
 
-	return 0;
+    return 0;
 }
 
 state_t process_pid_file_save(const process_data_t *prodata)
 {
-	char buffer[SZ_NAME_SHORT];
-	state_t state;
+    char buffer[SZ_NAME_SHORT];
+    state_t state;
 
-	sprintf(buffer, "%d\n", prodata->pid);
-	state = ear_file_write(prodata->path_pid, buffer, strlen(buffer));
+    sprintf(buffer, "%d\n", prodata->pid);
+    state = ear_file_write(prodata->path_pid, buffer, strlen(buffer));
 
-	if (state_fail(state)) {
-		return state;
-	}
+    if (state_fail(state)) {
+        return state;
+    }
 
-	state_return(EAR_SUCCESS);
+    state_return(EAR_SUCCESS);
 }
 
 state_t process_pid_file_load(const process_data_t *prodata, pid_t *pid)
 {
-	char buffer[SZ_NAME_SHORT];
-	state_t state;
+    char buffer[SZ_NAME_SHORT];
+    state_t state;
 
-	state = ear_file_read(prodata->path_pid, buffer, SZ_NAME_SHORT);
+    state = ear_file_read(prodata->path_pid, buffer, SZ_NAME_SHORT, 0);
 
-	if (state_fail(state)) {
-		state_return(state);
-	}
+    if (state_fail(state)) {
+        state_return(state);
+    }
 
-	*pid = (pid_t) atoi(buffer);
-	state_return(EAR_SUCCESS);
+    *pid = (pid_t) atoi(buffer);
+    state_return(EAR_SUCCESS);
 }
 
 state_t process_pid_file_clean(process_data_t *prodata)
 {
-	ear_file_clean(prodata->path_pid);
-	state_return(EAR_SUCCESS);
+    ear_file_clean(prodata->path_pid);
+    state_return(EAR_SUCCESS);
 }

@@ -13,4 +13,4 @@
 
 char *special_ear_logo();
 
-#endif //COMMON_UTILS_SPECIAL_H
+#endif // COMMON_UTILS_SPECIAL_H

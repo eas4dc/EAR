@@ -11,17 +11,17 @@
 #ifndef EAR_TYPES_H
 #define EAR_TYPES_H
 
+#include <common/types/application.h>
+#include <common/types/configuration/cluster_conf.h>
+#include <common/types/generic.h>
 #include <common/types/log.h>
 #include <common/types/loop.h>
-#include <common/types/generic.h>
-#include <common/types/application.h>
-#include <common/types/periodic_metric.h>
 #include <common/types/periodic_aggregation.h>
-#include <common/types/configuration/cluster_conf.h>
+#include <common/types/periodic_metric.h>
 
 #include <common/types/job.h>
 #include <common/types/loop.h>
-#include <common/types/services.h>
 #include <common/types/pc_app_info.h>
+#include <common/types/services.h>
 
-#endif //EAR_TYPES_H
+#endif // EAR_TYPES_H

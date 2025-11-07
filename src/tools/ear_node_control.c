@@ -8,12 +8,12 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#include <common/config.h>
+#include <common/external/ear_external.h>
+#include <common/states.h>
+#include <common/types/configuration/cluster_conf.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <common/config.h>
-#include <common/states.h>
-#include <common/external/ear_external.h>
-#include <common/types/configuration/cluster_conf.h>
 
 enum actions {
     NO_ACTION,
@@ -47,7 +47,7 @@ void new_mask(int jobid, int stepid)
     mgt->new_mask = 1;
 
     if (state_fail(ear_disconnect())) {
-        printf("Error deattaching from the shared region area\n"); 
+        printf("Error deattaching from the shared region area\n");
     }
 }
 
@@ -60,36 +60,34 @@ int main(int argc, char *argv[])
     }
 
     char c;
-    int option_idx = 0;
-    static struct option long_options[] = {
-        {"jobid",       required_argument, 0, 0},
-        {"stepid",      required_argument, 0, 1},
-        {"new-mask",    no_argument, 0, 2},
-        {NULL,          0, 0, 0}
-    };
-    
+    int option_idx                      = 0;
+    static struct option long_options[] = {{"jobid", required_argument, 0, 0},
+                                           {"stepid", required_argument, 0, 1},
+                                           {"new-mask", no_argument, 0, 2},
+                                           {NULL, 0, 0, 0}};
 
     int jobid = 0, stepid = 0;
     enum actions action = NO_ACTION;
     while (1) {
-		c = getopt_long(argc, argv, "j:s:", long_options, &option_idx);
-        if (c == -1) break;
+        c = getopt_long(argc, argv, "j:s:", long_options, &option_idx);
+        if (c == -1)
+            break;
         switch (c) {
             case 0:
-               jobid = atoi(optarg);
-               break;
+                jobid = atoi(optarg);
+                break;
             case 1:
-               stepid = atoi(optarg);
-               break;
+                stepid = atoi(optarg);
+                break;
             case 2:
-               action = NEW_MASK;
-               break;
+                action = NEW_MASK;
+                break;
             default:
-               break;
+                break;
         }
     }
 
-    switch(action) {
+    switch (action) {
         case NO_ACTION:
             usage(argv[0]);
             break;
@@ -102,4 +100,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-

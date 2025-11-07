@@ -8,18 +8,18 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#include <common/output/verbose.h>
+#include <common/states.h>
+#include <common/types/coefficient.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <common/states.h>
-#include <common/output/verbose.h>
-#include <common/types/coefficient.h>
 
-#define PERMISSION  S_IRUSR  | S_IWUSR | S_IRGRP | S_IROTH
-#define OPTIONS     O_WRONLY | O_CREAT | O_TRUNC | O_APPEND
+#define PERMISSION S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+#define OPTIONS    O_WRONLY | O_CREAT | O_TRUNC | O_APPEND
 
 int coeff_file_size(char *path)
 {
@@ -30,9 +30,9 @@ int coeff_file_size(char *path)
     }
 
     ret = lseek(fd, 0, SEEK_END);
-	close(fd);
+    close(fd);
 
-	return ret;
+    return ret;
 }
 
 int coeff_file_read_no_alloc(char *path, coefficient_t *coeffs, int size)
@@ -43,8 +43,7 @@ int coeff_file_read_no_alloc(char *path, coefficient_t *coeffs, int size)
         return EAR_OPEN_ERROR;
     }
 
-    if ((ret = read(fd, coeffs, size)) != size)
-    {
+    if ((ret = read(fd, coeffs, size)) != size) {
         close(fd);
         return EAR_READ_ERROR;
     }
@@ -63,8 +62,7 @@ int coeff_gpu_file_read_no_alloc(char *path, coefficient_gpu_t *coeffs, int size
     }
     // move the seek pointer
     lseek(fd, offset, SEEK_SET);
-    if ((ret = read(fd, coeffs, fsize)) != fsize)
-    {
+    if ((ret = read(fd, coeffs, fsize)) != fsize) {
         close(fd);
         return EAR_READ_ERROR;
     }
@@ -75,13 +73,13 @@ int coeff_gpu_file_read_no_alloc(char *path, coefficient_gpu_t *coeffs, int size
 
 void coeff_print(coefficient_t *coeff)
 {
-    verbose(VTYPE,"ref %lu pstate %lu avail %u A %lf B %lf C %lf D %lf E %lf F %lf",
-    coeff->pstate_ref,coeff->pstate,coeff->available,coeff->A,coeff->B,coeff->C,coeff->D,coeff->E,coeff->F);
+    verbose(VTYPE, "ref %lu pstate %lu avail %u A %lf B %lf C %lf D %lf E %lf F %lf", coeff->pstate_ref, coeff->pstate,
+            coeff->available, coeff->A, coeff->B, coeff->C, coeff->D, coeff->E, coeff->F);
 }
 
 void coeff_reset(coefficient_t *coeff)
 {
-	coeff->available=0;
+    coeff->available = 0;
 }
 
 int coeff_file_read(char *path, coefficient_t **coeffs)
@@ -99,8 +97,7 @@ int coeff_file_read(char *path, coefficient_t **coeffs)
     /* Allocating memory*/
     coeffs_aux = (coefficient_t *) malloc(size);
 
-    if (coeffs_aux == NULL)
-    {
+    if (coeffs_aux == NULL) {
         close(fd);
         return EAR_ALLOC_ERROR;
     }
@@ -108,14 +105,13 @@ int coeff_file_read(char *path, coefficient_t **coeffs)
     /* Reset the memory to zeroes*/
     memset(coeffs_aux, 0, sizeof(coefficient_t));
 
-    if ((ret = read(fd, coeffs_aux, size)) != size)
-    {
+    if ((ret = read(fd, coeffs_aux, size)) != size) {
         close(fd);
         free(coeffs_aux);
         return EAR_READ_ERROR;
     }
     close(fd);
-    
-	*coeffs = coeffs_aux;
+
+    *coeffs = coeffs_aux;
     return (size / sizeof(coefficient_t));
 }

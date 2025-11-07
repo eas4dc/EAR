@@ -44,4 +44,4 @@ state_t mgt_cpufreq_regale_governor_set_mask(ctx_t *c, uint governor, cpu_set_t 
 
 state_t mgt_cpufreq_regale_governor_set_list(ctx_t *c, uint *governors);
 
-#endif //MANAGEMENT_CPUFREQ_ARCHS_REGALE_H
+#endif // MANAGEMENT_CPUFREQ_ARCHS_REGALE_H

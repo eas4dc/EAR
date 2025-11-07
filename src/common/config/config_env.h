@@ -210,6 +210,12 @@
                                // useful in multiprocess applications when you don't know the process-GPU mapping, or
                                // when all processes see all GPU devices.
 
+/* Sets the strategy for computing the application node power consumption. Two possible values:
+ * "node": The node power of the application depends on the node, i.e., it is assigned the whole node power consumption
+ * if it is using it exclusively. "job": The node power condumption of the application depends on the resources the
+ * appication is consuming. */
+#define FLAG_NODE_SHARING_STRATEGY "EARL_NODE_SHARING_STRATEGY"
+
 /** @} */
 
 /**

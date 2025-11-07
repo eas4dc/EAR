@@ -31,4 +31,4 @@ state_t gpu_cupti_enable(ctx_t *c);
 
 state_t gpu_cupti_disable(ctx_t *c);
 
-#endif //METRICS_GPU_CUPTI_H
+#endif // METRICS_GPU_CUPTI_H

@@ -17,4 +17,4 @@ void traces_mpi_call(int global_rank, int local_rank, ulong time, ulong ev, ulon
 
 void traces_mpi_end();
 
-#endif //EAR_TRACER_MPI_H
+#endif // EAR_TRACER_MPI_H

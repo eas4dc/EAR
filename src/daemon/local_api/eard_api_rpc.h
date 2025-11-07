@@ -11,9 +11,9 @@
 #ifndef EARD_LOCAL_API_RPCS_H
 #define EARD_LOCAL_API_RPCS_H
 
-#include <common/types.h>
 #include <common/sizes.h>
 #include <common/states.h>
+#include <common/types.h>
 #include <daemon/local_api/eard_api_conf.h>
 
 // This class is intended to manage RPCs requests and EARD responses. If you
@@ -82,11 +82,11 @@
 #define RPC_MET_TEMP_READ                  1142
 
 struct rpcerr_s {
-	char *answer;
-	char *pending;
+    char *answer;
+    char *pending;
 } Rpcerr __attribute__((weak)) = {
-	.answer = "Error during RPC answer",
-	.pending = "Error during RPC pending data read",
+    .answer  = "Error during RPC answer",
+    .pending = "Error during RPC pending data read",
 };
 
 state_t eard_rpc(uint call, char *data, size_t size, char *recv_data, size_t expc_size);
@@ -100,4 +100,4 @@ state_t eard_rpc_read_pending(int fd, char *recv_data, size_t read_size, size_t 
 
 state_t eard_rpc_clean(int fd, size_t size);
 
-#endif //EARD_LOCAL_API_RPCS_H
+#endif // EARD_LOCAL_API_RPCS_H

@@ -11,11 +11,12 @@
 #ifndef METRICS_GPU_H
 #define METRICS_GPU_H
 
-#include <common/types.h>
-#include <common/states.h>
 #include <common/plugins.h>
+#include <common/states.h>
 #include <common/system/time.h>
+#include <common/types.h>
 #include <metrics/common/apis.h>
+
 // #include <metrics/gpu/archs/dcgmi.h> // TODO: To be removed
 
 typedef struct gpu_devs_s {
@@ -23,31 +24,30 @@ typedef struct gpu_devs_s {
     uint index;
 } gpu_devs_t;
 
-typedef struct gpu_s
-{
-	timestamp_t time;
-	ulong samples;
-	ulong freq_gpu; // khz
-	ulong freq_mem; // khz
-	ulong util_gpu; // percent
-	ulong util_mem; // percent
-	ulong temp_gpu; // celsius
-	ulong temp_mem; // celsius
-	double energy_j;
-	double power_w;
-	uint working;
-	uint correct;
+typedef struct gpu_s {
+    timestamp_t time;
+    ulong samples;
+    ulong freq_gpu; // khz
+    ulong freq_mem; // khz
+    ulong util_gpu; // percent
+    ulong util_mem; // percent
+    ulong temp_gpu; // celsius
+    ulong temp_mem; // celsius
+    double energy_j;
+    double power_w;
+    uint working;
+    uint correct;
 } gpu_t;
 
-typedef struct gpu_ops_s
-{
-    void    (*get_info)            (apinfo_t *info);
-    void    (*get_devices)         (gpu_devs_t **devs, uint *devs_count);
-    state_t (*init)                (ctx_t *c);
-    state_t (*dispose)             (ctx_t *c);
+typedef struct gpu_ops_s {
+    void    (*get_info)    (apinfo_t *info);
+    void    (*get_devices) (gpu_devs_t **devs, uint *devs_count);
+    state_t (*init)        (ctx_t *c);
+    state_t (*dispose)     (ctx_t *c);
     void    (*set_monitoring_mode) (int mode);
-    state_t (*read)                (ctx_t *c, gpu_t *data);
-    state_t (*read_raw)            (ctx_t *c, gpu_t *data);
+    state_t (*read)        (ctx_t *c, gpu_t *data);
+    state_t (*read_raw)    (ctx_t *c, gpu_t *data);
+    void    (*data_diff)   (gpu_t *data2, gpu_t *data1, gpu_t *data_diff);
 } gpu_ops_t;
 
 // Discovers the low level API.
@@ -60,8 +60,7 @@ void gpu_get_api(uint *api);
 void gpu_get_info(apinfo_t *info);
 
 // Count devices by calling get_devices
-#define gpu_count_devices(c, devs_count) \
-    gpu_get_devices(NULL, devs_count)
+#define gpu_count_devices(c, devs_count) gpu_get_devices(NULL, devs_count)
 
 // Information about devices
 void gpu_get_devices(gpu_devs_t **devs, uint *devs_count);

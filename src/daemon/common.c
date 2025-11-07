@@ -8,11 +8,13 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#ifndef _LIBRARY_LOADER_CONSTURCTOR_H_
-#define _LIBRARY_LOADER_CONSTURCTOR_H_
+#include <daemon/common.h>
 
-int module_constructor(char *path_lib_so,char *libhack);
+void build_energy_plugin_path(char *dst_buff, size_t buff_size, cluster_conf_t *cluster_conf, my_node_conf_t *node_conf)
+{
+    if (!dst_buff || !cluster_conf || !node_conf) {
+        return;
+    }
 
-void module_destructor();
-
-#endif // _LIBRARY_LOADER_CONSTURCTOR_H_
+    snprintf(dst_buff, buff_size - 1, "%s/energy/%s", cluster_conf->install.dir_plug, node_conf->energy_plugin);
+}

@@ -10,18 +10,18 @@
 
 #ifndef _EAR_POWERCAP_H
 #define _EAR_POWERCAP_H
-#include <pthread.h>
 #include <common/types/pc_app_info.h>
 #include <daemon/powercap/powercap_status_conf.h>
+#include <pthread.h>
 
-#define PC_MODE_AUTO   1
-#define PC_MODE_MANUAL 2
+#define PC_MODE_AUTO    1
+#define PC_MODE_MANUAL  2
 
 #define DEFAULT_CPU_TDP 150
 
 int powercap_init();
 void powercap_end();
-//void get_powercap_status(powercap_status_t *my_status);
+// void get_powercap_status(powercap_status_t *my_status);
 void powercap_get_status(powercap_status_t *my_status, pmgt_status_t *status, int release_power);
 void powercap_set_opt(powercap_opt_t *opt, int id);
 uint powercap_get_value();
@@ -29,7 +29,7 @@ void print_powercap_opt(powercap_opt_t *opt);
 int powercap_idle_to_run();
 int powercap_run_to_idle();
 int powercap_init();
-int powercap_set_power_per_domain(dom_power_t *pdomain,uint use_earl,ulong eff_f);
+int powercap_set_power_per_domain(dom_power_t *pdomain, uint use_earl, ulong eff_f);
 
 void set_powercapstatus_mode(uint mode);
 

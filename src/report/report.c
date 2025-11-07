@@ -8,32 +8,23 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 // #define SHOW_DEBUGS 1
 
-#include <stdlib.h>
-#include <pthread.h>
 #include <common/config.h>
-#include <report/report.h>
 #include <common/output/debug.h>
 #include <common/output/verbose.h>
 #include <common/system/symplug.h>
 #include <common/types/configuration/cluster_conf.h>
+#include <pthread.h>
+#include <report/report.h>
+#include <stdlib.h>
 
 #define P_NUM   8
 #define S_NUM   7
 #define S_FLAGS RTLD_LOCAL | RTLD_NOW
 
-static const char *names[] =
-{
-    "report_init",
-    "report_dispose",
-    "report_applications",
-    "report_loops",
-    "report_events",
-    "report_periodic_metrics",
-    "report_misc"
-};
+static const char *names[] = {"report_init",   "report_dispose",          "report_applications", "report_loops",
+                              "report_events", "report_periodic_metrics", "report_misc"};
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static report_ops_t ops[P_NUM];
@@ -111,7 +102,7 @@ static void static_load(const char *install_path, const char *_libs)
         }
         debug("Loaded report plugin: %s", lib);
         append(&ops_aux);
-next:
+    next:
         lib = strtok(NULL, ":");
     }
 }
@@ -119,7 +110,8 @@ next:
 state_t report_load(const char *install_path, const char *libs)
 {
     state_t s = EAR_SUCCESS;
-    while (pthread_mutex_trylock(&lock));
+    while (pthread_mutex_trylock(&lock))
+        ;
     if (init != 0) {
         goto leave;
     }
@@ -129,67 +121,57 @@ state_t report_load(const char *install_path, const char *libs)
         init = 1;
     } else {
         state_msg = "No plugins loaded";
-        s = EAR_ERROR;
+        s         = EAR_ERROR;
     }
 leave:
     pthread_mutex_unlock(&lock);
     return_msg(s, state_msg);
 }
 
-state_t report_create_id(report_id_t *id, int local_rank, int global_rank, int master_rank){
-    id->local_rank = local_rank;
+state_t report_create_id(report_id_t *id, int local_rank, int global_rank, int master_rank)
+{
+    id->local_rank  = local_rank;
     id->global_rank = global_rank;
     id->master_rank = master_rank;
-		id->pid         = getpid();
+    id->pid         = getpid();
     debug("created new id - lrank %d - grank %d - master %d", id->local_rank, id->global_rank, id->master_rank);
     return EAR_SUCCESS;
 }
 
+#define call_0(op, void)                                               ops[p].op()
+#define call_1(op, type1, var1)                                        ops[p].op(var1)
+#define call_2(op, type1, var1, type2, var2)                           ops[p].op(var1, var2)
+#define call_3(op, type1, var1, type2, var2, type3, var3)              ops[p].op(var1, var2, var3)
+#define call_4(op, type1, var1, type2, var2, type3, var3, type4, var4) ops[p].op(var1, var2, var3, var4)
 
-#define call_0(op, void) \
-    ops[p]. op ()
-#define call_1(op, type1, var1) \
-    ops[p]. op (var1)
-#define call_2(op, type1, var1, type2, var2) \
-    ops[p]. op (var1, var2)
-#define call_3(op, type1, var1, type2, var2, type3, var3) \
-    ops[p]. op (var1, var2, var3)
-#define call_4(op, type1, var1, type2, var2, type3, var3, type4, var4) \
-    ops[p]. op (var1, var2, var3, var4)
+#define func_0(op, void)                                               state_t op()
+#define func_1(op, type1, var1)                                        state_t op(type1 var1)
+#define func_2(op, type1, var1, type2, var2)                           state_t op(type1 var1, type2 var2)
+#define func_3(op, type1, var1, type2, var2, type3, var3)              state_t op(type1 var1, type2 var2, type3 var3)
+#define func_4(op, type1, var1, type2, var2, type3, var3, type4, var4)                                                 \
+    state_t op(type1 var1, type2 var2, type3 var3, type4 var4)
 
-
-#define func_0(op, void) \
-    state_t op ()
-#define func_1(op, type1, var1) \
-    state_t op (type1 var1)
-#define func_2(op, type1, var1, type2, var2) \
-    state_t op (type1 var1, type2 var2)
-#define func_3(op, type1, var1, type2, var2, type3, var3) \
-    state_t op (type1 var1, type2 var2, type3 var3)
-#define func_4(op, type1, var1, type2, var2, type3, var3, type4, var4) \
-    state_t op (type1 var1, type2 var2, type3 var3, type4 var4)
-
-
-#define define(NARGS, st, op, ...) \
-    func_ ## NARGS (op, __VA_ARGS__) { \
-        state_t sret = st; \
-        int p; \
-        for (p = 0; p < plugins_count; ++p) { \
-            if (ops[p]. op != NULL) { \
-                if (state_ok(call_ ## NARGS(op, __VA_ARGS__))) { \
-                    sret = EAR_SUCCESS; \
-                } \
-            } \
-        } \
-        return sret; \
+#define define(NARGS, st, op, ...)                                                                                     \
+    func_##NARGS(op, __VA_ARGS__)                                                                                      \
+    {                                                                                                                  \
+        state_t sret = st;                                                                                             \
+        int p;                                                                                                         \
+        for (p = 0; p < plugins_count; ++p) {                                                                          \
+            if (ops[p].op != NULL) {                                                                                   \
+                if (state_ok(call_##NARGS(op, __VA_ARGS__))) {                                                         \
+                    sret = EAR_SUCCESS;                                                                                \
+                }                                                                                                      \
+            }                                                                                                          \
+        }                                                                                                              \
+        return sret;                                                                                                   \
     }
 
-define(2, EAR_ERROR,   report_init, report_id_t *, id, cluster_conf_t *, cconf);
+define(2, EAR_ERROR, report_init, report_id_t *, id, cluster_conf_t *, cconf);
 define(1, EAR_SUCCESS, report_dispose, report_id_t *, id);
 define(3, EAR_SUCCESS, report_applications, report_id_t *, id, application_t *, apps, uint, count);
 define(3, EAR_SUCCESS, report_loops, report_id_t *, id, loop_t *, loops, uint, count);
 define(3, EAR_SUCCESS, report_events, report_id_t *, id, ear_event_t *, eves, uint, count);
-define(3, EAR_SUCCESS, report_periodic_metrics,report_id_t *, id, periodic_metric_t *, mets, uint, count);
+define(3, EAR_SUCCESS, report_periodic_metrics, report_id_t *, id, periodic_metric_t *, mets, uint, count);
 define(4, EAR_SUCCESS, report_misc, report_id_t *, id, uint, type, const char *, data, uint, count);
 
 #if TEST
@@ -198,11 +180,11 @@ int main(int argc, char *argv[])
     cluster_conf_t cconf;
     report_id_t id;
     report_load(NULL, "plug_dummy.so:plug_dummy2.so");
-    report_init(&id,&cconf);
-    report_applications(&id,NULL, 0);
-    report_loops(&id,NULL, 0);
-    report_events(&id,NULL, 0);
-    report_periodic_metrics(&id,NULL, 0);
+    report_init(&id, &cconf);
+    report_applications(&id, NULL, 0);
+    report_loops(&id, NULL, 0);
+    report_events(&id, NULL, 0);
+    report_periodic_metrics(&id, NULL, 0);
     report_dispose(&id);
     return 0;
 }

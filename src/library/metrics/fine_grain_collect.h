@@ -8,15 +8,11 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #ifndef _EARL_METRICS_FINE_GRAIN_H
 #define _EARL_METRICS_FINE_GRAIN_H
 
-
 #include <common/states.h>
 
-
 state_t fine_grain_metrics_init();
-
 
 #endif // _EARL_METRICS_FINE_GRAIN_H

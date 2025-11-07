@@ -11,37 +11,37 @@
 #ifndef APP_CLASSIFICATION
 #define APP_CLASSIFICATION
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
 #include <common/config.h>
 #include <common/hardware/topology.h>
-#include <common/types/signature.h>
+#include <common/types/classification_limits.h>
+#include <common/types/event_type.h>
 #include <common/types/medoids.h>
 #include <common/types/roofline.h>
-#include <common/types/event_type.h>
-#include <common/types/classification_limits.h>
+#include <common/types/signature.h>
 #include <daemon/shared_configuration.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 /*DEFINE CLASSIFICATION STRATEGY TYPES*/
-#define ROOFLINE 0
-#define MEDOIDS 1
-#define BASE 2
+#define ROOFLINE          0
+#define MEDOIDS           1
+#define BASE              2
 
 #define EARL_MAX_PHASES   9
 #define EARL_BASIC_PHASES 6
 
-#define DYNAIS_GUIDED 0
-#define TIME_GUIDED	  1
+#define DYNAIS_GUIDED     0
+#define TIME_GUIDED       1
 
-#define USEFUL_COMP  0
-#define BUSY_WAITING 1
+#define USEFUL_COMP       0
+#define BUSY_WAITING      1
 // #define CPI_CPU_BOUND 0.4
 
-//#define FLOPS_CPU_BOUND 100.0
+// #define FLOPS_CPU_BOUND 100.0
 //
 
-#define MAX_GBS_DIFF        30
+#define MAX_GBS_DIFF 30
 
 typedef enum {
     _GPU_NoGPU = 1,
@@ -50,18 +50,17 @@ typedef enum {
     _GPU_Bound = 8,
 } gpu_state_t;
 
-
 typedef struct ear_classify {
-  float cpi_cpu_bound ;
-  float gbs_cpu_bound;
-  float cpi_busy_waiting;
-  float gbs_busy_waiting;
-  float gflops_busy_waiting;
-  float io_th;
-  float mpi_th;
-  float cpi_mem_bound;
-  float gbs_mem_bound;
-  float mpi_bound;
+    float cpi_cpu_bound;
+    float gbs_cpu_bound;
+    float cpi_busy_waiting;
+    float gbs_busy_waiting;
+    float gflops_busy_waiting;
+    float io_th;
+    float mpi_th;
+    float cpi_mem_bound;
+    float gbs_mem_bound;
+    float mpi_bound;
 } ear_classify_t;
 
 #define NODE    0
@@ -84,21 +83,21 @@ state_t gpu_activity_state(signature_t *sig, gpu_state_t *gpu_state);
 /* Checks based on CPI, GBs and GFlops, not normalize */
 state_t is_process_busy_waiting(ssig_t *sig, uint *busy);
 /* Checks CPI and GBs, per node */
-state_t is_cpu_bound(signature_t *sig,uint num_cpus, uint *cbound);
+state_t is_cpu_bound(signature_t *sig, uint num_cpus, uint *cbound);
 /* Default strategy for cpu-bound signatures */
-state_t default_is_cpu_bound(signature_t *sig,uint num_cpus, uint *cbound);
+state_t default_is_cpu_bound(signature_t *sig, uint num_cpus, uint *cbound);
 /* Check CPI and GBS, per node */
-state_t is_mem_bound(signature_t *sig,uint num_cpus, uint *mbound);
+state_t is_mem_bound(signature_t *sig, uint num_cpus, uint *mbound);
 /* Default strategy for mem-bound signatures */
-state_t default_is_mem_bound(signature_t *sig,uint num_cpus, uint *mbound);
+state_t default_is_mem_bound(signature_t *sig, uint num_cpus, uint *mbound);
 /* Based on signature IO_MBS */
 state_t is_io_bound(signature_t *sig, uint num_cpus, uint *iobound);
 /* Based on perc_MPI */
 state_t is_network_bound(signature_t *sig, uint num_cpus, uint *mpibound);
 /* Checks the per-process GBs */
-state_t low_mem_activity(signature_t *sig,uint num_cpus , uint *lowm);
+state_t low_mem_activity(signature_t *sig, uint num_cpus, uint *lowm);
 /* Returns the text associated with the phase */
-char * phase_to_str(uint phase);
+char *phase_to_str(uint phase);
 
 /* Checks Gflops and GBs per node */
 state_t roofline_classify(signature_t *sig, uint num_cpus, uint *cbound, uint *mbound);
@@ -107,6 +106,5 @@ state_t kmedoids_classify(signature_t *sig, uint num_cpus, uint *cbound, uint *m
 /* Checks CPI and GBs, per node */
 
 state_t must_switch_to_time_guide(ulong last_sig_elapsed, uint *ear_guided);
-
 
 #endif // APP_CLASSIFICATION

@@ -54,9 +54,11 @@
 //		serial_copy_elem(&b, (char *) elem2, NULL);
 //
 
+#include <stddef.h>
+
 typedef struct serial_buffer_t {
-	char *data;
-	size_t size; //Allocated size
+    char *data;
+    size_t size; // Allocated size
 } serial_buffer_t;
 
 typedef serial_buffer_t wide_buffer_t; // Old name
@@ -107,10 +109,10 @@ size_t serial_size(serial_buffer_t *b);
 //     serial_dictionary_push_auto(&b, appR->job.id);
 //     serial_dictionary_push_auto(&b, appR->job.step_id);
 
-#define serial_dictionary_push_auto(sp, parameter) \
+#define serial_dictionary_push_auto(sp, parameter)                                                                     \
     serial_dictionary_push(sp, #parameter, (void *) &parameter, sizeof(parameter));
 
-#define serial_dictionary_pop_auto(sp, parameter) \
+#define serial_dictionary_pop_auto(sp, parameter)                                                                      \
     serial_dictionary_pop(sp, #parameter, (void *) &parameter, sizeof(parameter));
 
 void serial_dictionary_push(serial_buffer_t *b, char *tag, char *param, size_t param_size);

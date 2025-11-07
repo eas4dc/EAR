@@ -11,10 +11,10 @@
 #ifndef MANAGEMENT_GPU
 #define MANAGEMENT_GPU
 
-#include <common/types.h>
-#include <common/states.h>
 #include <common/plugins.h>
+#include <common/states.h>
 #include <common/system/time.h>
+#include <common/types.h>
 #include <metrics/gpu/gpu.h>
 
 // The API
@@ -46,29 +46,30 @@
 //		mgt_gpu_dispose(&context);
 
 // Flags
-#define FREQ_TOP	0
-#define FREQ_BOTTOM	1
+#define FREQ_TOP    0
+#define FREQ_BOTTOM 1
+
 // APIs
 
 typedef struct mgt_gpu_ops_s {
 
-    void    (*get_api)                (uint *api);
-    state_t (*init[4])                (ctx_t *c);
-	state_t (*dispose[4])             (ctx_t *c);
-    state_t (*get_devices)            (ctx_t *c, gpu_devs_t **devs, uint *devs_count);
-	state_t (*count_devices)          (ctx_t *c, uint *dev_count);
-	state_t (*alloc_array)            (ctx_t *c, ulong **list, uint *dev_count);
-	state_t (*freq_limit_get_current) (ctx_t *c, ulong *freq_list);
-	state_t (*freq_limit_get_default) (ctx_t *c, ulong *freq_list);
-	state_t (*freq_limit_get_max)     (ctx_t *c, ulong *freq_list);
-	state_t (*freq_limit_reset)       (ctx_t *c);
-	state_t (*freq_limit_set)         (ctx_t *c, ulong *freq_list);
-	state_t (*freq_list)              (ctx_t *c, const ulong ***freq_list, const uint **len_list);
-	state_t (*power_cap_get_current)  (ctx_t *c, ulong *watt_list);
-	state_t (*power_cap_get_default)  (ctx_t *c, ulong *watt_list);
-	state_t (*power_cap_get_rank)     (ctx_t *c, ulong *watt_list_min, ulong *watt_list_max);
-	state_t (*power_cap_reset)        (ctx_t *c);
-	state_t (*power_cap_set)          (ctx_t *c, ulong *watt_list);
+    void (*get_api)(uint *api);
+    state_t (*init[4])(ctx_t *c);
+    state_t (*dispose[4])(ctx_t *c);
+    state_t (*get_devices)(ctx_t *c, gpu_devs_t **devs, uint *devs_count);
+    state_t (*count_devices)(ctx_t *c, uint *dev_count);
+    state_t (*alloc_array)(ctx_t *c, ulong **list, uint *dev_count);
+    state_t (*freq_limit_get_current)(ctx_t *c, ulong *freq_list);
+    state_t (*freq_limit_get_default)(ctx_t *c, ulong *freq_list);
+    state_t (*freq_limit_get_max)(ctx_t *c, ulong *freq_list);
+    state_t (*freq_limit_reset)(ctx_t *c);
+    state_t (*freq_limit_set)(ctx_t *c, ulong *freq_list);
+    state_t (*freq_list)(ctx_t *c, const ulong ***freq_list, const uint **len_list);
+    state_t (*power_cap_get_current)(ctx_t *c, ulong *watt_list);
+    state_t (*power_cap_get_default)(ctx_t *c, ulong *watt_list);
+    state_t (*power_cap_get_rank)(ctx_t *c, ulong *watt_list_min, ulong *watt_list_max);
+    state_t (*power_cap_reset)(ctx_t *c);
+    state_t (*power_cap_set)(ctx_t *c, ulong *watt_list);
 } mgt_gpu_ops_t;
 
 // Discovers the low level API. Returns function pointers, but is not required.

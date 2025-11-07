@@ -4,10 +4,13 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 
 temp_OBJS = \
     msr.o \
-    eard.o \
 	cpu_util.o \
-  linux_powercap.o \
+    eard.o \
+	hwmon.o \
+    linux_powercap.o \
 	perf.o \
+    acpi_power.o \
+    grace_cpu_power.o \
 	dummy.o 
 
 ######## RULES

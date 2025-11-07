@@ -8,18 +8,18 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <stdio.h>
 #include <common/output/debug.h>
 #include <common/system/plugin_manager.h>
 #include <daemon/local_api/eard_api.h>
+#include <stdio.h>
 
 static application_t app;
 
 declr_up_get_tag()
 {
-    *tag = "eard_serialization";
+    *tag       = "eard_serialization";
     *tags_deps = NULL;
 }
 

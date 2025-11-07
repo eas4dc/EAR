@@ -16,6 +16,7 @@
 #include <common/sizes.h>
 #include <common/states.h>
 #include <common/system/file.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -85,7 +86,8 @@ state_t topology_select(topology_t *t, topology_t *s, int component, int group, 
 
 static state_t topology_init_thread(topology_t *topo, uint thread)
 {
-    char buffer[SZ_NAME_LARGE];
+    const size_t buff_size = 28672;
+    char *buffer           = (char *) calloc(buff_size + 1, sizeof(char));
     char path[SZ_NAME_LARGE];
     int aux1 = 0;
     int aux2 = 0;
@@ -97,6 +99,7 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
     topo->cpus[thread].id         = thread;
     topo->cpus[thread].apicid     = -1;
     topo->cpus[thread].socket_id  = -1;
+    topo->cpus[thread].socket_idx = -1;
     topo->cpus[thread].sibling_id = thread;
     topo->cpus[thread].core_id    = thread;
     topo->cpus[thread].is_thread  = 0;
@@ -106,10 +109,11 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
     if ((fd = open(path, F_RD)) >= 0) {
         do {
             // aux2: number of bytes read. aux1: total bytes read.
-            aux2 = pread(fd, (void *) &buffer[aux1], SZ_NAME_LARGE, aux1);
-            aux1 += aux2;
-        } while (aux2 > 0);
+            aux2  = pread(fd, (void *) &buffer[aux1], SZ_NAME_LARGE, aux1);
+            aux1 += ((aux2 > 0) ? aux2 : 0);
+        } while (aux2 > 0 && aux1 < (SZ_NAME_LARGE - 1));
         // Parsing
+        buffer[aux1] = '\0';
         char *tok = strtok(buffer, ",");
         // core_id = thread from argument.
         // sibling_id = detected sibling (we are setting just one)
@@ -135,12 +139,15 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
     sprintf(path, "/sys/devices/system/cpu/cpu%d/topology/physical_package_id", thread);
     aux1 = 0;
     aux2 = 0;
+    memset(buffer, 0, buff_size);
 
     if ((fd = open(path, O_RDONLY)) >= 0) {
         do {
             aux2 = pread(fd, (void *) &buffer[aux1], SZ_NAME_LARGE, aux1);
-            aux1 += aux2;
-        } while (aux2 > 0);
+            aux1 += (aux2 > 0 ? aux2 : 0);
+        } while (aux2 > 0 && aux1 < (SZ_NAME_LARGE - 1));
+        // Parsing
+        buffer[aux1] = '\0';
         topo->cpus[thread].socket_id = atoi(buffer);
         close(fd);
     } else {
@@ -156,12 +163,15 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
         aux1 = 0; // Total bytes
         aux2 = 0; // Returned bytes
         aux3 = 0; // level
+        memset(buffer, 0, buff_size);
+
         // Getting level
         if ((fd = open(path, O_RDONLY)) >= 0) {
             do {
                 aux2 = pread(fd, (void *) &buffer[aux1], SZ_NAME_LARGE, aux1);
-                aux1 += aux2;
-            } while (aux2 > 0);
+                aux1 += (aux2 > 0 ? aux2 : 0);
+            } while (aux2 > 0 && aux1 < (SZ_NAME_LARGE - 1));
+            buffer[aux1] = '\0';
             aux3 = atoi(buffer);
             close(fd);
         } else {
@@ -171,12 +181,14 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
         sprintf(path, "/sys/devices/system/cpu/cpu%d/cache/index%d/id", thread, i);
         aux1 = 0; // Total bytes
         aux2 = 0; // Returned bytes
+        memset(buffer, 0, buff_size);
         // Getting id
         if ((fd = open(path, O_RDONLY)) >= 0) {
             do {
                 aux2 = pread(fd, (void *) &buffer[aux1], SZ_NAME_LARGE, aux1);
-                aux1 += aux2;
-            } while (aux2 > 0);
+                aux1 += (aux2 > 0 ? aux2 : 0);
+            } while (aux2 > 0 && aux1 < (SZ_NAME_LARGE - 1));
+            buffer[aux1] = '\0';
             topo->cpus[thread].l[aux3].id = (atoi(buffer));
             close(fd);
         } else {
@@ -192,6 +204,7 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
         }
         debug("CPU%d L%d id: %d", thread, aux3, topo->cpus[thread].l[aux3].id);
     }
+    free(buffer);
     return EAR_SUCCESS;
 }
 
@@ -325,7 +338,7 @@ state_t topology_init(topology_t *topo)
             }
             topo->socket_count += (j == i);
         }
-// Counting cache banks
+// Macro to count cache banks
 #define cache_count(level, var)                                                                                        \
     for (j = 0; j <= i; ++j) {                                                                                         \
         if (topo->cpus[j].l[level].id != TOPO_UNDEFINED && topo->cpus[j].l[level].id == topo->cpus[i].l[level].id) {   \
@@ -333,9 +346,28 @@ state_t topology_init(topology_t *topo)
         }                                                                                                              \
     }                                                                                                                  \
     var += (j == i);
-
-        cache_count(2, topo->l2_count) cache_count(3, topo->l3_count) cache_count(4, topo->l4_count)
+        // Macro end
+        cache_count(2, topo->l2_count);
+        cache_count(3, topo->l3_count);
+        cache_count(4, topo->l4_count);
     }
+    // Setting socket_index
+    int socket_idx = 0;
+
+    for (i = 0; i < topo->cpu_count; ++i) {
+        for (j = 0; j < i; ++j) {
+            if (topo->cpus[i].socket_id == topo->cpus[j].socket_id) {
+                break;
+            }
+        }
+        if (j < i) {
+            topo->cpus[i].socket_idx = topo->cpus[j].socket_idx;
+        } else {
+            topo->cpus[i].socket_idx = socket_idx++;
+        }
+        debug("CPU%d socket_id/x: %d/%d", i, topo->cpus[i].socket_id, topo->cpus[i].socket_idx);
+    }
+    // Cache
     if (topo->l4_count) {
         topo->cache_last_level = 4;
     } else if (topo->l3_count) {

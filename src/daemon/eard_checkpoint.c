@@ -8,15 +8,15 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <fcntl.h>
-#include <errno.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <common/config.h>
 #include <common/output/verbose.h>
 #include <common/types/generic.h>
 #include <daemon/eard_checkpoint.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 extern char nodename[MAX_PATH_SIZE];
 extern ulong eard_min_pstate;
@@ -44,8 +44,9 @@ void save_eard_conf(eard_dyn_conf_t *eard_dyn_conf)
 
 	umask(old_mask);
 	close(fd);
-	#endif
+#endif
 }
+
 void restore_eard_conf(eard_dyn_conf_t *eard_dyn_conf)
 {
 #if 0

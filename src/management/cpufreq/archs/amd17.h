@@ -50,7 +50,7 @@ state_t mgt_cpufreq_amd17_set_current(ctx_t *c, uint pstate_index, int cpu);
 
 state_t mgt_cpufreq_amd17_reset(ctx_t *c);
 
-//Governors
+// Governors
 state_t mgt_cpufreq_amd17_governor_get(ctx_t *c, uint *governor);
 
 state_t mgt_cpufreq_amd17_governor_get_list(ctx_t *c, uint *governors);
@@ -61,4 +61,4 @@ state_t mgt_cpufreq_amd17_governor_set_mask(ctx_t *c, uint governor, cpu_set_t m
 
 state_t mgt_cpufreq_amd17_governor_set_list(ctx_t *c, uint *governors);
 
-#endif //MANAGEMENT_CPUFREQ_ARCHS_AMD17
+#endif // MANAGEMENT_CPUFREQ_ARCHS_AMD17

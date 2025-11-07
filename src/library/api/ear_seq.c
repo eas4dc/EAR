@@ -9,12 +9,13 @@
  **************************************************************************/
 
 #include <stdio.h>
+
 void ear_init()
 {
-	printf("NO_FUNCIONA\n");
+    printf("NO_FUNCIONA\n");
 }
 
 void ear_finalize()
 {
-	printf("NO_FUNCIONA\n");
+    printf("NO_FUNCIONA\n");
 }

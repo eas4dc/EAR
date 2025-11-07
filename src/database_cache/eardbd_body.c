@@ -10,9 +10,9 @@
 
 #include <database_cache/eardbd.h>
 #include <database_cache/eardbd_body.h>
-#include <database_cache/eardbd_sync.h>
 #include <database_cache/eardbd_signals.h>
 #include <database_cache/eardbd_storage.h>
+#include <database_cache/eardbd_sync.h>
 
 // Configuration
 extern cluster_conf_t conf_clus;
@@ -55,19 +55,19 @@ extern time_t time_recv2[EDB_NTYPES];
 extern time_t time_insert1[EDB_NTYPES];
 extern time_t time_insert2[EDB_NTYPES];
 extern size_t type_sizeof[EDB_NTYPES];
-extern uint   type_alloc_100[EDB_NTYPES];
-extern char  *type_chunk[EDB_NTYPES];
-extern char  *type_name[EDB_NTYPES];
-extern ulong  type_alloc_len[EDB_NTYPES];
-extern ulong  samples_index[EDB_NTYPES];
-extern uint   samples_count[EDB_NTYPES];
+extern uint type_alloc_100[EDB_NTYPES];
+extern char *type_chunk[EDB_NTYPES];
+extern char *type_name[EDB_NTYPES];
+extern ulong type_alloc_len[EDB_NTYPES];
+extern ulong samples_index[EDB_NTYPES];
+extern uint samples_count[EDB_NTYPES];
 
 // Sockets info
-extern uint   sockets_accepted;
-extern uint   sockets_online;
-extern uint   sockets_disconnected;
-extern uint   sockets_unrecognized;
-extern uint   sockets_timeout;
+extern uint sockets_accepted;
+extern uint sockets_online;
+extern uint sockets_disconnected;
+extern uint sockets_unrecognized;
+extern uint sockets_timeout;
 
 // Times (alarms)
 extern struct timeval timeout_insr;
@@ -101,58 +101,58 @@ extern int verbosity;
 
 static void manage_alarms(struct timeval *timeout_slct)
 {
-	if (timeout_slct->tv_sec == 0 && timeout_slct->tv_usec == 0)
-	{
-		time_substract_timeouts();
+    if (timeout_slct->tv_sec == 0 && timeout_slct->tv_usec == 0) {
+        time_substract_timeouts();
 
-		if (timeout_aggr.tv_sec == 0) {
-			if (type_alloc_len[index_aggrs] > 0) {
-				peraggr_t *p = (peraggr_t *) type_chunk[index_aggrs];
-				peraggr_t *q = (peraggr_t *) &p[samples_index[index_aggrs]];
+        if (timeout_aggr.tv_sec == 0) {
+            if (type_alloc_len[index_aggrs] > 0) {
+                peraggr_t *p = (peraggr_t *) type_chunk[index_aggrs];
+                peraggr_t *q = (peraggr_t *) &p[samples_index[index_aggrs]];
 
-				if (q->n_samples > 0) {
+                if (q->n_samples > 0) {
                     if (verbosity >= 2) {
-					    verb_who("completed the aggregation number '%lu' with energy '%lu'",
-					        samples_index[index_aggrs], q->DC_energy);
+                        verb_who("completed the aggregation number '%lu' with energy '%lu'", samples_index[index_aggrs],
+                                 q->DC_energy);
                     }
-					// Aggregation time done, so new aggregation incoming
-					storage_sample_add(NULL, type_alloc_len[index_aggrs], &samples_index[index_aggrs], NULL, 0, EDB_SYNC_TYPE_AGGRS);
-					// Initializing the new element
-					q = (peraggr_t *) &p[samples_index[index_aggrs]];
-					init_periodic_aggregation(q, master_name);
-				}
-			}
-			//
-			time_reset_timeout_aggr();
-		}
+                    // Aggregation time done, so new aggregation incoming
+                    storage_sample_add(NULL, type_alloc_len[index_aggrs], &samples_index[index_aggrs], NULL, 0,
+                                       EDB_SYNC_TYPE_AGGRS);
+                    // Initializing the new element
+                    q = (peraggr_t *) &p[samples_index[index_aggrs]];
+                    init_periodic_aggregation(q, master_name);
+                }
+            }
+            //
+            time_reset_timeout_aggr();
+        }
 
-		if (timeout_insr.tv_sec == 0) {
-			// Synchronizing with the MAIN
-			if (mirror_iam) {
-				sync_answer_t answer;
-				// Asking the question
-				// In case of fail the mirror have to insert the data
-				if(state_fail(sync_question(EDB_SYNC_ALL, veteran, &answer))) {
-					insert_hub(EDB_SYNC_ALL, EDB_INSERT_BY_TIME);
-				// In case I'm veteran and the server is not
-				} else if (!answer.veteran && veteran) {
-					insert_hub(EDB_SYNC_ALL, EDB_INSERT_BY_TIME);
-				// In case of the answer is received just clear the data
-				} else {
-					reset_all();
-				}
-			} else {
-				// Server normal insertion
-				insert_hub(EDB_SYNC_ALL, EDB_INSERT_BY_TIME);
-			}
-			// If server the time reset is do it after the insert
-			time_reset_timeout_insr(0);
-			// I'm a veteran
-			veteran = 1;
-		}
-		//
-		time_reset_timeout_slct();
-	}
+        if (timeout_insr.tv_sec == 0) {
+            // Synchronizing with the MAIN
+            if (mirror_iam) {
+                sync_answer_t answer;
+                // Asking the question
+                // In case of fail the mirror have to insert the data
+                if (state_fail(sync_question(EDB_SYNC_ALL, veteran, &answer))) {
+                    insert_hub(EDB_SYNC_ALL, EDB_INSERT_BY_TIME);
+                    // In case I'm veteran and the server is not
+                } else if (!answer.veteran && veteran) {
+                    insert_hub(EDB_SYNC_ALL, EDB_INSERT_BY_TIME);
+                    // In case of the answer is received just clear the data
+                } else {
+                    reset_all();
+                }
+            } else {
+                // Server normal insertion
+                insert_hub(EDB_SYNC_ALL, EDB_INSERT_BY_TIME);
+            }
+            // If server the time reset is do it after the insert
+            time_reset_timeout_insr(0);
+            // I'm a veteran
+            veteran = 1;
+        }
+        //
+        time_reset_timeout_slct();
+    }
 }
 
 #if 0
@@ -171,146 +171,139 @@ static void manage_sockets()
     int fd_new;
     state_t s;
     long ip;
-	int i;
+    int i;
 
-	// Nothing to be done here
-	if (updating) {
-		return;
-	}
+    // Nothing to be done here
+    if (updating) {
+        return;
+    }
 
-	for(i = fds_active.fd_min; i <= fds_active.fd_max && listening; i++)
-	{
-		if (listening && AFD_ISSET(i, &fds_active)) // we got one!!
-		{
-			// Handle new connections (just for TCP)
-			if (sync_fd_is_new(i))
-			{
-				do {
-					// i      -> listening descriptor
-					// fd_new -> current communications descriptor
-					// fd_old -> previous communications descriptor
-					if (state_fail(s = sockets_accept(i, &fd_new, &addr_new))) {
-						break;
-					}
-					if (verbosity) {
-						sockets_get_hostname(&addr_new, extra_buffer, SZ_BUFFER);
-					}
-					if (!sync_fd_is_mirror(i)) {
-						// Disconnect if previously connected
-						sockets_get_ip(&addr_new, &ip);
+    for (i = fds_active.fd_min; i <= fds_active.fd_max && listening; i++) {
+        if (listening && AFD_ISSET(i, &fds_active)) // we got one!!
+        {
+            // Handle new connections (just for TCP)
+            if (sync_fd_is_new(i)) {
+                do {
+                    // i      -> listening descriptor
+                    // fd_new -> current communications descriptor
+                    // fd_old -> previous communications descriptor
+                    if (state_fail(s = sockets_accept(i, &fd_new, &addr_new))) {
+                        break;
+                    }
+                    if (verbosity) {
+                        sockets_get_hostname(&addr_new, extra_buffer, SZ_BUFFER);
+                    }
+                    if (!sync_fd_is_mirror(i)) {
+                        // Disconnect if previously connected
+                        sockets_get_ip(&addr_new, &ip);
 
-						if (sync_fd_exists(ip, &fd_old)) {
-							//log("multiple connections from host '%s', disconnecting previous", extra_buffer);
-							if (verbosity) {
-								verb_who("disconnecting from host '%s' (host was previously connected)",
-									extra_buffer);
-							}
-							sync_fd_disconnect(fd_old);
-						}
-					}
-					// Test if the maximum number of connection has been reached
-					// (sockets_online >= EDB_MAX_CONNECTIONS), and if fulfills that
-					// condition disconnect inmediately.
-					if (!sync_fd_is_mirror(i) && sockets_online >= EDB_MAX_CONNECTIONS) {
-						if (verbosity) {
-							verb_who("disconnecting from host '%s' (maximum connections reached)",
-								extra_buffer);
-						}
-						sync_fd_disconnect(fd_new);
-					} else {
-						sync_fd_add(fd_new, ip);
-						if (verbosity) {
-							verb_who("accepted fd '%d' from host '%s'", fd_new, extra_buffer);
-						}
-					}
-				} while(state_ok(s));
-				// Handle data transfers
-			} else {
-				if (state_ok(s = __sockets_recv(i, &input_header, input_buffer, sizeof(input_buffer), 0))) {
-					//
-					storage_sample_receive(i, &input_header, input_buffer);
-				} else {
-					if (state_is(s, EAR_SOCK_DISCONNECTED)) {
-						sockets_disconnected += 1;
-					} if (state_is(s, EAR_TIMEOUT)) {
-						sockets_timeout += 1;
-					} else {
-						sockets_unrecognized += 1;
-					}
-					if (verbosity) {
-						sockets_get_hostname_fd(i, extra_buffer, SZ_BUFFER);
-						verb_who("disconnecting from host %s: %s)",
-								extra_buffer, state_msg);
-					}
-					sync_fd_disconnect(i);
-				}
-			}
-		} // FD_ISSET
-	}
+                        if (sync_fd_exists(ip, &fd_old)) {
+                            // log("multiple connections from host '%s', disconnecting previous", extra_buffer);
+                            if (verbosity) {
+                                verb_who("disconnecting from host '%s' (host was previously connected)", extra_buffer);
+                            }
+                            sync_fd_disconnect(fd_old);
+                        }
+                    }
+                    // Test if the maximum number of connection has been reached
+                    // (sockets_online >= EDB_MAX_CONNECTIONS), and if fulfills that
+                    // condition disconnect inmediately.
+                    if (!sync_fd_is_mirror(i) && sockets_online >= EDB_MAX_CONNECTIONS) {
+                        if (verbosity) {
+                            verb_who("disconnecting from host '%s' (maximum connections reached)", extra_buffer);
+                        }
+                        sync_fd_disconnect(fd_new);
+                    } else {
+                        sync_fd_add(fd_new, ip);
+                        if (verbosity) {
+                            verb_who("accepted fd '%d' from host '%s'", fd_new, extra_buffer);
+                        }
+                    }
+                } while (state_ok(s));
+                // Handle data transfers
+            } else {
+                if (state_ok(s = __sockets_recv(i, &input_header, input_buffer, sizeof(input_buffer), 0))) {
+                    //
+                    storage_sample_receive(i, &input_header, input_buffer);
+                } else {
+                    if (state_is(s, EAR_SOCK_DISCONNECTED)) {
+                        sockets_disconnected += 1;
+                    }
+                    if (state_is(s, EAR_TIMEOUT)) {
+                        sockets_timeout += 1;
+                    } else {
+                        sockets_unrecognized += 1;
+                    }
+                    if (verbosity) {
+                        sockets_get_hostname_fd(i, extra_buffer, SZ_BUFFER);
+                        verb_who("disconnecting from host %s: %s)", extra_buffer, state_msg);
+                    }
+                    sync_fd_disconnect(i);
+                }
+            }
+        } // FD_ISSET
+    }
 }
 
 void body()
 {
-	int s;
+    int s;
 
-	while(listening)
-	{
-		if ((s = aselectv(&fds_active, &timeout_slct)) == -1) {
-			if (listening && !updating) {
-				edb_error("during select (%s)", strerror(errno));
-			}
-		}
-		// Checks alarms states
-		manage_alarms(&timeout_slct);
-		// Checks new incoming connections or data
-		manage_sockets();
-		// Update finished
-		updating = 0;
-	}
+    while (listening) {
+        if ((s = aselectv(&fds_active, &timeout_slct)) == -1) {
+            if (listening && !updating) {
+                edb_error("during select (%s)", strerror(errno));
+            }
+        }
+        // Checks alarms states
+        manage_alarms(&timeout_slct);
+        // Checks new incoming connections or data
+        manage_sockets();
+        // Update finished
+        updating = 0;
+    }
 }
 
 void dream()
 {
-	while (dreaming) {
-		sigsuspend(&ear_sigset);
-	}
+    while (dreaming) {
+        sigsuspend(&ear_sigset);
+    }
 }
 
 void release()
 {
-	int i;
+    int i;
 
-	// Socket closing
-	for(i = fds_active.fd_max; i >= fds_active.fd_min && !listening; --i) {
-		close(i);
-	}
-	// Cleaning sockets
-	sockets_dispose(socket_server);
-	sockets_dispose(socket_mirror);
-	sockets_dispose(socket_sync01);
-	sockets_dispose(socket_sync02);
-	//
-	//FD_ZERO(&fds_active);
-	// Freeing data
-	free_cluster_conf(&conf_clus);
+    // Socket closing
+    for (i = fds_active.fd_max; i >= fds_active.fd_min && !listening; --i) {
+        close(i);
+    }
+    // Cleaning sockets
+    sockets_dispose(socket_server);
+    sockets_dispose(socket_mirror);
+    sockets_dispose(socket_sync01);
+    sockets_dispose(socket_sync02);
+    //
+    // FD_ZERO(&fds_active);
+    // Freeing data
+    free_cluster_conf(&conf_clus);
 
-	for (i = 0; i < EDB_NTYPES; ++i)
-	{
-		if (type_chunk[i] != NULL)
-		{
-			free(type_chunk[i]);
-			type_chunk[i] = NULL;
-		}
-	}
-	// Process PID cleaning
-	if (server_iam && server_enabled) {
-		process_pid_file_clean(&proc_server);
-	}
-	if (mirror_iam && mirror_enabled) {
-		process_pid_file_clean(&proc_mirror);
-	}
-	//
-	log_close(-1);
-	// End releasing
-	releasing = 0;
+    for (i = 0; i < EDB_NTYPES; ++i) {
+        if (type_chunk[i] != NULL) {
+            free(type_chunk[i]);
+            type_chunk[i] = NULL;
+        }
+    }
+    // Process PID cleaning
+    if (server_iam && server_enabled) {
+        process_pid_file_clean(&proc_server);
+    }
+    if (mirror_iam && mirror_enabled) {
+        process_pid_file_clean(&proc_mirror);
+    }
+    //
+    log_close(-1);
+    // End releasing
+    releasing = 0;
 }

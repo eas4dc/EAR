@@ -8,19 +8,18 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #include "common/config/config_def.h"
 #include "common/types/generic.h"
 #include "metrics/imcfreq/imcfreq.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <common/utils/stress.h>
-#include <common/utils/special.h>
-#include <common/utils/strtable.h>
-#include <common/utils/strscreen.h>
 #include <common/system/monitor.h>
 #include <common/system/symplug.h>
+#include <common/utils/special.h>
+#include <common/utils/stress.h>
+#include <common/utils/strscreen.h>
+#include <common/utils/strtable.h>
 #include <metrics/metrics.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <metrics/metrics.h>
 
@@ -33,29 +32,29 @@
 #define DEFAULT_PC_PLUGIN_NAME_CPU "cpu_generic"
 
 typedef struct powercap_symbols {
-    state_t (*enable)        (suscription_t *sus);
-    state_t (*disable)       ();
+    state_t (*enable)(suscription_t *sus);
+    state_t (*disable)();
     state_t (*set_powercap_value)(uint pid, uint domain, uint limit, ulong *util);
     state_t (*get_powercap_value)(uint pid, uint *powercap);
-    uint    (*is_powercap_policy_enabled)(uint pid);
-    void    (*set_status)(uint status);
-    void    (*set_pc_mode)(uint mode);
-    uint    (*get_powercap_strategy)();
-    void    (*powercap_to_str)(char *b);
-    void    (*print_powercap_value)(int fd);
-    void    (*set_app_req_freq)(ulong *f);
-    void    (*set_verb_channel)(int fd);    
-    void    (*set_new_utilization)(ulong *util);    
-    uint    (*get_powercap_status)(domain_status_t *status);
+    uint (*is_powercap_policy_enabled)(uint pid);
+    void (*set_status)(uint status);
+    void (*set_pc_mode)(uint mode);
+    uint (*get_powercap_strategy)();
+    void (*powercap_to_str)(char *b);
+    void (*print_powercap_value)(int fd);
+    void (*set_app_req_freq)(ulong *f);
+    void (*set_verb_channel)(int fd);
+    void (*set_new_utilization)(ulong *util);
+    uint (*get_powercap_status)(domain_status_t *status);
     state_t (*reset_powercap_value)();
     state_t (*release_powercap_allocation)(uint decrease);
     state_t (*increase_powercap_allocation)(uint increase);
     state_t (*plugin_set_burst)();
     state_t (*plugin_set_relax)();
-    void 	(*plugin_get_settings)(domain_settings_t *settings);
+    void (*plugin_get_settings)(domain_settings_t *settings);
 } powercapsym_t;
 
-const char     *pcsyms_names[] ={
+const char *pcsyms_names[] = {
     "enable",
     "disable",
     "set_powercap_value",
@@ -66,7 +65,7 @@ const char     *pcsyms_names[] ={
     "get_powercap_strategy",
     "powercap_to_str",
     "print_powercap_value",
-    "set_app_req_freq",    
+    "set_app_req_freq",
     "set_verb_channel",
     "set_new_utilization",
     "get_powercap_status",
@@ -78,9 +77,9 @@ const char     *pcsyms_names[] ={
     "plugin_get_settings",
 };
 
-const int   pcsyms_n = 20;
+const int pcsyms_n = 20;
 
-static topology_t     tp;
+static topology_t tp;
 static metrics_info_t m;
 static metrics_read_t mr1;
 static metrics_read_t mr2;
@@ -90,7 +89,7 @@ static state_t metrics_apis_init(void *whatever)
 {
     topology_init(&tp);
     metrics_load(&m, &tp, "/home/void/ear_install/lib/plugins/energy/energy_cpu_gpu.so", 0);
-    //metrics_init_screen(&m, &tp);
+    // metrics_init_screen(&m, &tp);
     metrics_data_alloc(&mr1, &mr2, &mrD);
     metrics_read(&mr1);
     return EAR_SUCCESS;
@@ -105,7 +104,7 @@ static char *nodepow_data_tostr(ulong avrg, char *buffer, size_t length)
 static char *dram_data_tostr(ullong *diffs, double secs, char *buffer, size_t length)
 {
     double power = 0.0;
-    double mean = 0.0;
+    double mean  = 0.0;
     int i, j;
 
     buffer[0] = '\0';
@@ -121,12 +120,12 @@ static char *dram_data_tostr(ullong *diffs, double secs, char *buffer, size_t le
 static char *cpupow_data_tostr(ullong *diffs, double secs, char *buffer, size_t length)
 {
     double power = 0.0;
-    double mean = 0.0;
+    double mean  = 0.0;
     int i, j;
 
     buffer[0] = '\0';
     for (i = j = 0; i < tp.socket_count; ++i) {
-        power = energy_cpu_compute_power(diffs[tp.socket_count+i], secs);
+        power = energy_cpu_compute_power(diffs[tp.socket_count + i], secs);
         j += sprintf(&buffer[j], "%0.1lf ", power);
         mean += power;
     }
@@ -136,8 +135,7 @@ static char *cpupow_data_tostr(ullong *diffs, double secs, char *buffer, size_t 
 
 static void energy_to_power_tostr(ulong *energy, ulong elapsed_time, char *buffer)
 {
-    sprintf(buffer, "!%.2lf", (float)(*energy)/elapsed_time);
-    
+    sprintf(buffer, "!%.2lf", (float) (*energy) / elapsed_time);
 }
 
 static state_t metrics_apis_update(void *whatever)
@@ -145,7 +143,7 @@ static state_t metrics_apis_update(void *whatever)
     printf(" ====================================== \n");
 
     metrics_read_copy(&mr2, &mr1, &mrD);
-    //metrics_data_print(&mrD, 0);
+    // metrics_data_print(&mrD, 0);
     char tmp[1024];
     cpufreq_data_tostr(mrD.cpu_diff, mrD.cpu_avrg, tmp, sizeof(tmp));
     printf("CPU frequency %s\n", tmp);
@@ -157,8 +155,6 @@ static state_t metrics_apis_update(void *whatever)
     printf("DRAM power %s\n", tmp);
     energy_to_power_tostr(&mrD.nod_avrg, 2000, tmp);
     printf("Node power %s\n", tmp);
-
-
 
     printf(" ====================================== \n");
 
@@ -198,14 +194,14 @@ int main(int argc, char *argv[])
 
     char *time_env = getenv("POWERCAP_TEST_SLEEP");
     uint32_t ttime = 100;
-    if (time_env) { 
+    if (time_env) {
         ttime = atoi(time_env);
     }
 
-    //ear conf
-    char ear_path[256] = { 0 };
-    cluster_conf_t conf = { 0 };
-    if (get_ear_conf_path(ear_path)==EAR_ERROR){
+    // ear conf
+    char ear_path[256]  = {0};
+    cluster_conf_t conf = {0};
+    if (get_ear_conf_path(ear_path) == EAR_ERROR) {
         printf("Error getting ear.conf path\n");
         exit(0);
     }
@@ -213,27 +209,27 @@ int main(int argc, char *argv[])
 
     char *obj_path;
     char basic_path[4098];
-    powercapsym_t pcsym_fun = { 0 };
+    powercapsym_t pcsym_fun = {0};
     state_t ret;
     /* DOMAIN_CPU */
-    obj_path = ear_getenv(EAR_POWERCAP_POLICY_CPU); //environment variable takes priority
-    if (obj_path == NULL){ //if envar is not defined, we try with the ear.conf var
+    obj_path = ear_getenv(EAR_POWERCAP_POLICY_CPU); // environment variable takes priority
+    if (obj_path == NULL) {                         // if envar is not defined, we try with the ear.conf var
         if (obj_path != NULL && strlen(obj_path) > 1) {
-            sprintf(basic_path,"%s/powercap/%s", conf.install.dir_plug,obj_path);
-            obj_path=basic_path;
+            sprintf(basic_path, "%s/powercap/%s", conf.install.dir_plug, obj_path);
+            obj_path = basic_path;
         }
         /* Plugin per domain node defined */
-        else if (strcmp(DEFAULT_PC_PLUGIN_NAME_CPU,"noplugin")){
-            sprintf(basic_path,"%s/powercap/%s.so", conf.install.dir_plug,DEFAULT_PC_PLUGIN_NAME_CPU);
-            obj_path=basic_path;
+        else if (strcmp(DEFAULT_PC_PLUGIN_NAME_CPU, "noplugin")) {
+            sprintf(basic_path, "%s/powercap/%s.so", conf.install.dir_plug, DEFAULT_PC_PLUGIN_NAME_CPU);
+            obj_path = basic_path;
         }
-    } 
-    if (obj_path!=NULL){
-        verbose(VEARD_PC, "Loading %s powercap plugin domain cpu",obj_path);
-        ret=symplug_open(obj_path, (void **)&pcsym_fun, pcsyms_names, pcsyms_n);
-        if (ret==EAR_SUCCESS){ 
+    }
+    if (obj_path != NULL) {
+        verbose(VEARD_PC, "Loading %s powercap plugin domain cpu", obj_path);
+        ret = symplug_open(obj_path, (void **) &pcsym_fun, pcsyms_names, pcsyms_n);
+        if (ret == EAR_SUCCESS) {
             debug("CPU plugin correctly loaded");
-        }else{
+        } else {
             error("Domain CPU not loaded");
             exit(1);
         }
@@ -249,4 +245,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-

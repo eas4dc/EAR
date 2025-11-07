@@ -11,25 +11,24 @@
 #ifndef METRICS_CPUFREQ_H
 #define METRICS_CPUFREQ_H
 
-#include <common/types.h>
-#include <common/states.h>
-#include <common/plugins.h>
 #include <common/hardware/topology.h>
+#include <common/plugins.h>
+#include <common/states.h>
+#include <common/types.h>
 #include <metrics/cpufreq/cpufreq_base.h>
 
-typedef struct cpufreq_s
-{
-	ulong freq_aperf;
-	ulong freq_mperf;
-	uint error;
+typedef struct cpufreq_s {
+    ulong freq_aperf;
+    ulong freq_mperf;
+    uint error;
 } cpufreq_t;
 
 typedef struct cpufreq_ops_s {
-	state_t (*init)          (ctx_t *c);
-	state_t (*dispose)       (ctx_t *c);
-	state_t (*count_devices) (ctx_t *c, uint *cpu_count);
-	state_t (*read)          (ctx_t *c, cpufreq_t *f);
-	state_t (*data_diff)     (cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
+    state_t (*init)(ctx_t *c);
+    state_t (*dispose)(ctx_t *c);
+    state_t (*count_devices)(ctx_t *c, uint *cpu_count);
+    state_t (*read)(ctx_t *c, cpufreq_t *f);
+    state_t (*data_diff)(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
 } cpufreq_ops_t;
 
 state_t cpufreq_load(topology_t *tp, int force_api);
@@ -61,4 +60,4 @@ void cpufreq_data_print(ulong *freqs, ulong average, int fd);
 
 char *cpufreq_data_tostr(ulong *freqs, ulong average, char *buffer, size_t length);
 
-#endif //METRICS_CPUFREQ_H
+#endif // METRICS_CPUFREQ_H

@@ -40,4 +40,4 @@ state_t mgt_imcfreq_dummy_set_current_ranged_list(ctx_t *c, uint *id_min_list, u
 /** */
 state_t mgt_imcfreq_dummy_data_alloc(pstate_t **pstate_list, uint **index_list);
 
-#endif //MANAGEMENT_IMCFREQ_DUMMY_H
+#endif // MANAGEMENT_IMCFREQ_DUMMY_H

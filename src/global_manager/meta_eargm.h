@@ -8,45 +8,42 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#define _XOPEN_SOURCE 700 //to get rid of the warning
-#define _GNU_SOURCE 
+#define _XOPEN_SOURCE 700 // to get rid of the warning
+#define _GNU_SOURCE
 
 #ifndef META_EARGM
 #define META_EARGM
 
-#include <time.h>
+#include <common/config.h>
+#include <common/states.h>
 #include <errno.h>
-#include <stdio.h>
 #include <fcntl.h>
-#include <stdlib.h>
-#include <string.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
-#include <unistd.h>
-#include <signal.h>
-#include <pthread.h>
-#include <sys/types.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
-#include <common/states.h>
-#include <common/config.h>
-//#define SHOW_DEBUGS 0
+#include <time.h>
+#include <unistd.h>
+// #define SHOW_DEBUGS 0
+#include <common/messaging/msg_internals.h>
 #include <common/output/verbose.h>
 #include <common/types/generic.h>
-#include <common/messaging/msg_internals.h>
 #include <daemon/remote_api/eard_rapi.h>
-
 
 extern uint total_nodes;
 extern uint my_port;
 
-typedef struct eargm_table
-{
+typedef struct eargm_table {
     uint num_eargms;
-    int  *ids;
-    int  *eargm_ips;
-    int  *eargm_ports;
-    int  *actions;
+    int *ids;
+    int *eargm_ips;
+    int *eargm_ports;
+    int *actions;
     uint *action_values;
 
 } eargm_table_t;

@@ -8,11 +8,22 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#ifndef _MODULE_COMMON_H
-#define _MODULE_COMMON_H
+#ifndef LIBRARY_LOADER_COMMON_H
+#define LIBRARY_LOADER_COMMON_H
 
-int module_file_exists(char *path);
+#include <library/loader/loader.h>
 
-void module_get_path_libear(char **path_lib, char **hack_lib);
+// Depcrecated, clean.
+int is_cuda_enabled();
+
+// These functions are intended to be used ONLY for the loader
+int is_libear_loaded();
+
+void set_libear_loaded();
+
+// Returns the complete libear path
+void loader_get_path_libear(char **path_lib, char **hack_lib);
+
+int load_libear_nonspec(char *lib_extension, char *syms[], char *libs[]);
 
 #endif

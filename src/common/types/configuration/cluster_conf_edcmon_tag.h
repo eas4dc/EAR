@@ -16,27 +16,25 @@
 #include <common/types/generic.h>
 
 typedef enum {
-    storage     = 0,
-    network     = 1,
-    management  = 2,
-    others      = 3,
+    storage    = 0,
+    network    = 1,
+    management = 2,
+    others     = 3,
 } pdu_t;
 
-#define pdu_type_to_str(t) ((t == storage)?"storage":((t == network)?"network":((t == management)?"management":"others")))
+#define pdu_type_to_str(t)                                                                                             \
+    ((t == storage) ? "storage" : ((t == network) ? "network" : ((t == management) ? "management" : "others")))
 
-typedef struct edcmon
-{
-    char  id[GENERIC_NAME];
-		char  host[GENERIC_NAME];
+typedef struct edcmon {
+    char id[GENERIC_NAME];
+    char host[GENERIC_NAME];
     pdu_t type;
-	  char  sensors_list[1024];
-	  char  pdu_list[1024];
+    char sensors_list[1024];
+    char pdu_list[1024];
 } edcmon_t;
 
 state_t EDCMON_token(char *token);
 state_t EDCMON_parse_token(edcmon_t **edcmon_i, unsigned int *num_edcmon_i, char *line);
 void print_edcmon_tags_conf(edcmon_t *edcmon_tag, uint i);
-
-
 
 #endif

@@ -13,7 +13,7 @@
 
 // General
 #define USE_GPUS              @FEAT_GPUS@
-#define MAX_CPUS_SUPPORTED    384
+#define MAX_CPUS_SUPPORTED    512
 #define MAX_SOCKETS_SUPPORTED 4
 #define MAX_GPUS_SUPPORTED    8
 #define EAR_GUI               1 // When defined, activates dynamic traces on EARL.

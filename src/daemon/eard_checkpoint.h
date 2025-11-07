@@ -14,11 +14,11 @@
 #include <common/types/configuration/cluster_conf.h>
 #include <daemon/power_monitor.h>
 
-typedef struct eard_dyn_conf{
-	cluster_conf_t *cconf;
-	my_node_conf_t *nconf;
-	powermon_app_t *pm_app;
-}eard_dyn_conf_t;
+typedef struct eard_dyn_conf {
+    cluster_conf_t *cconf;
+    my_node_conf_t *nconf;
+    powermon_app_t *pm_app;
+} eard_dyn_conf_t;
 
 void save_eard_conf(eard_dyn_conf_t *eard_dyn_conf);
 void restore_eard_conf(eard_dyn_conf_t *eard_dyn_conf);

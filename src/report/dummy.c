@@ -8,26 +8,24 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
+#include <common/output/verbose.h>
 #include <common/states.h>
 #include <common/types/types.h>
-#include <common/output/verbose.h>
 
 state_t report_init()
 {
-	verbose(0, "dummy report_init");
-	return EAR_SUCCESS;
+    verbose(0, "dummy report_init");
+    return EAR_SUCCESS;
 }
 
 state_t report_applications(application_t *apps, uint count)
 {
-	verbose(0, "dummy report_applications");
-	return EAR_SUCCESS;
+    verbose(0, "dummy report_applications");
+    return EAR_SUCCESS;
 }
-
 
 state_t report_loops(loop_t *loops, uint count)
 {
-	verbose(0, "dummy report_loops");
-	return EAR_SUCCESS;
+    verbose(0, "dummy report_loops");
+    return EAR_SUCCESS;
 }

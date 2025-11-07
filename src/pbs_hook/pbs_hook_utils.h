@@ -8,13 +8,12 @@
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
 
-
 #ifndef _EAR_PBSHOOK_UTILS_H
 #define _EAR_PBSHOOK_UTILS_H
 
 #define _GNU_SOURCE
-#include <sched.h>
 #include <common/types/generic.h>
+#include <sched.h>
 
 uint pbs_util_get_ID(int job_id, int step_id);
 int pbs_util_get_eard_port(char *ear_tmp);

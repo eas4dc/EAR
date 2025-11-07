@@ -33,4 +33,4 @@ state_t mgt_imcfreq_eard_get_current_ranged_list(ctx_t *c, pstate_t *ps_min_list
 
 state_t mgt_imcfreq_eard_set_current_ranged_list(ctx_t *c, uint *id_min_list, uint *id_max_list);
 
-#endif //MANAGEMENT_IMCFREQ_EARD_H
+#endif // MANAGEMENT_IMCFREQ_EARD_H

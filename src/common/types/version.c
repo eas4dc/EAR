@@ -9,12 +9,12 @@
  **************************************************************************/
 
 #include <common/config.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 void version_to_str(char *buff)
 {
-	sprintf(buff,"%s", RELEASE);
+    sprintf(buff, "%s", RELEASE);
 }
 
 void print_version()
@@ -23,4 +23,3 @@ void print_version()
     sprintf(msg, "EAR version %s\n", RELEASE);
     printf("%s", msg);
 }
-

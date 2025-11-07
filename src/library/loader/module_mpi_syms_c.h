@@ -13,8 +13,7 @@
 
 #define MPIC_N 93
 
-const char *mpic_names[] __attribute__((weak, visibility("hidden"))) =
-{
+const char *mpic_names[] __attribute__((weak, visibility("hidden"))) = {
     "MPI_Allgather",
     "MPI_Allgatherv",
     "MPI_Allreduce",
@@ -94,7 +93,7 @@ const char *mpic_names[] __attribute__((weak, visibility("hidden"))) =
     "MPI_Win_post",
     "MPI_Win_start",
     "MPI_Win_wait"
-    //#if MPI_VERSION >= 3
+    // #if MPI_VERSION >= 3
     ,
     "MPI_Iallgather",
     "MPI_Iallgatherv",
@@ -110,7 +109,7 @@ const char *mpic_names[] __attribute__((weak, visibility("hidden"))) =
     "MPI_Iscan",
     "MPI_Iscatter",
     "MPI_Iscatterv",
-    //#endif
+    // #endif
 };
 
-#endif //LIBRARY_LOADER_MPIC_H
+#endif // LIBRARY_LOADER_MPIC_H

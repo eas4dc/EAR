@@ -13,7 +13,8 @@ powercap_BINS = \
     cpu_generic.so \
     gpu_dummy.so \
     gpu.so \
-    gpu_dvfs.so
+    gpu_dvfs.so \
+		grace_hopper.so
 
 powercap_PATH = $(DESTDIR)/lib/plugins/powercap
 powercap_PERM = 0775

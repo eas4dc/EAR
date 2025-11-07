@@ -8,26 +8,25 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+// #define SHOW_DEBUGS 1
 
-//#define SHOW_DEBUGS 1
-
+#include <common/config.h>
+#include <common/math_operations.h>
+#include <common/output/debug.h>
+#include <common/output/verbose.h>
+#include <common/states.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <library/common/externs.h>
+#include <library/common/verbose_lib.h>
+#include <library/policies/common/generic.h>
+#include <library/policies/common/imc_policy_support.h>
+#include <management/cpufreq/frequency.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <math.h>
-#include <common/config.h>
-#include <common/states.h>
-#include <common/math_operations.h>
-#include <common/output/verbose.h>
-#include <common/output/debug.h>
-#include <management/cpufreq/frequency.h>
-#include <library/common/externs.h>
-#include <library/common/verbose_lib.h>
-#include <library/policies/common/imc_policy_support.h>
-#include <library/policies/common/generic.h>
 
 extern volatile uint ear_periodic_mode;
 extern ulong def_imc_max_khz;
@@ -35,41 +34,46 @@ extern ulong def_imc_max_khz;
 #define IMC_STEP 100000
 
 #define DIFF_SIG 0.15
-uint must_start(imc_data_t *my_imc_data,uint cpu_pstate, uint imc_pstate,
-        uint ref_cpu_pstate, uint ref_imc_pstate, signature_t *sig)
+
+uint must_start(imc_data_t *my_imc_data, uint cpu_pstate, uint imc_pstate, uint ref_cpu_pstate, uint ref_imc_pstate,
+                signature_t *sig)
 {
     uint ref_pstate;
-    double CPI,GBS,CPI_ref,GBS_ref, rCPI, rGBS;
+    double CPI, GBS, CPI_ref, GBS_ref, rCPI, rGBS;
     ref_pstate = ref_cpu_pstate;
-    CPI_ref = (double)my_imc_data[ref_pstate*NUM_UNC_FREQ+ref_imc_pstate].cycles
-        / (double)my_imc_data[ref_pstate*NUM_UNC_FREQ+ref_imc_pstate].instructions;
-    GBS_ref = my_imc_data[ref_pstate*NUM_UNC_FREQ+ref_imc_pstate].GBS;
+    CPI_ref    = (double) my_imc_data[ref_pstate * NUM_UNC_FREQ + ref_imc_pstate].cycles /
+              (double) my_imc_data[ref_pstate * NUM_UNC_FREQ + ref_imc_pstate].instructions;
+    GBS_ref = my_imc_data[ref_pstate * NUM_UNC_FREQ + ref_imc_pstate].GBS;
     CPI     = sig->CPI;
-    GBS	    = sig->GBS;
-    if (CPI > CPI_ref) rCPI = (CPI - CPI_ref)/CPI;
-    else               rCPI = (CPI_ref - CPI)/CPI_ref;
-    if (GBS > GBS_ref) rGBS = (GBS - GBS_ref)/GBS;
-    else               rGBS = (GBS_ref - GBS)/GBS_ref;
-    if ((rCPI > DIFF_SIG) || (rGBS > DIFF_SIG)) return 1;
-    else return 0;
+    GBS     = sig->GBS;
+    if (CPI > CPI_ref)
+        rCPI = (CPI - CPI_ref) / CPI;
+    else
+        rCPI = (CPI_ref - CPI) / CPI_ref;
+    if (GBS > GBS_ref)
+        rGBS = (GBS - GBS_ref) / GBS;
+    else
+        rGBS = (GBS_ref - GBS) / GBS_ref;
+    if ((rCPI > DIFF_SIG) || (rGBS > DIFF_SIG))
+        return 1;
+    else
+        return 0;
 }
 
-
-uint must_increase_imc(imc_data_t *my_imc_data, uint cpu_pstate, uint imc_pstate,
-                       uint ref_cpu_pstate, uint ref_imc_pstate, signature_t *sig,
-                       double penalty)
+uint must_increase_imc(imc_data_t *my_imc_data, uint cpu_pstate, uint imc_pstate, uint ref_cpu_pstate,
+                       uint ref_imc_pstate, signature_t *sig, double penalty)
 {
-    double time_ref = my_imc_data[ref_cpu_pstate*NUM_UNC_FREQ+ref_imc_pstate].time;
+    double time_ref  = my_imc_data[ref_cpu_pstate * NUM_UNC_FREQ + ref_imc_pstate].time;
     double time_curr = sig->time;
 
-    double cpi_ref = my_imc_data[ref_cpu_pstate*NUM_UNC_FREQ+ref_imc_pstate].CPI;
+    double cpi_ref  = my_imc_data[ref_cpu_pstate * NUM_UNC_FREQ + ref_imc_pstate].CPI;
     double cpi_curr = sig->CPI;
 
-    double gbs_ref = my_imc_data[ref_cpu_pstate*NUM_UNC_FREQ+ref_imc_pstate].GBS;
+    double gbs_ref  = my_imc_data[ref_cpu_pstate * NUM_UNC_FREQ + ref_imc_pstate].GBS;
     double gbs_curr = sig->GBS;
 
-    debug("TIME ref %lf curr %lf CPI ref %lf curr %lf GBS ref %lf curr %lf PENALTY_TH %lf",
-            time_ref, time_curr, cpi_ref, cpi_curr, gbs_ref, gbs_curr, penalty);
+    debug("TIME ref %lf curr %lf CPI ref %lf curr %lf GBS ref %lf curr %lf PENALTY_TH %lf", time_ref, time_curr,
+          cpi_ref, cpi_curr, gbs_ref, gbs_curr, penalty);
     return above_max_penalty(time_ref, time_curr, cpi_ref, cpi_curr, gbs_ref, gbs_curr, penalty);
 #if 0
     double metric,metric_ref,metric2;
@@ -114,16 +118,16 @@ uint must_increase_imc(imc_data_t *my_imc_data, uint cpu_pstate, uint imc_pstate
 #endif
 }
 
-uint must_decrease_imc(imc_data_t *my_imc_data,uint cpu_pstate,uint my_imc_pstate,
-        uint ref_cpu_pstate,uint ref_imc_pstate,signature_t *sig, double min_eff_gain)
+uint must_decrease_imc(imc_data_t *my_imc_data, uint cpu_pstate, uint my_imc_pstate, uint ref_cpu_pstate,
+                       uint ref_imc_pstate, signature_t *sig, double min_eff_gain)
 {
-    double time_ref = my_imc_data[ref_cpu_pstate*NUM_UNC_FREQ+ref_imc_pstate].time;
+    double time_ref  = my_imc_data[ref_cpu_pstate * NUM_UNC_FREQ + ref_imc_pstate].time;
     double time_curr = sig->time;
 
-    double cpi_ref = my_imc_data[ref_cpu_pstate*NUM_UNC_FREQ+ref_imc_pstate].CPI;
+    double cpi_ref  = my_imc_data[ref_cpu_pstate * NUM_UNC_FREQ + ref_imc_pstate].CPI;
     double cpi_curr = sig->CPI;
 
-    double gbs_ref = my_imc_data[ref_cpu_pstate*NUM_UNC_FREQ+ref_imc_pstate].GBS;
+    double gbs_ref  = my_imc_data[ref_cpu_pstate * NUM_UNC_FREQ + ref_imc_pstate].GBS;
     double gbs_curr = sig->GBS;
 
     // This control checks whether the ref imc_data does not exist, due to "not controlled by ear"
@@ -135,19 +139,19 @@ uint must_decrease_imc(imc_data_t *my_imc_data,uint cpu_pstate,uint my_imc_pstat
     }
 
     ullong ref_imc_freq;
-    if (state_fail(pstate_pstofreq((pstate_t *)imc_pstates, imc_num_pstates, ref_imc_pstate, &ref_imc_freq))){
+    if (state_fail(pstate_pstofreq((pstate_t *) imc_pstates, imc_num_pstates, ref_imc_pstate, &ref_imc_freq))) {
         verbose_master(2, "%sERROR%s IMC pstate invalid: %d", COL_RED, COL_CLR, ref_imc_pstate);
         return 1;
     }
-    double freq_ref = (double)ref_imc_freq;
+    double freq_ref = (double) ref_imc_freq;
     pstate_t ps;
-    pstate_freqtops_upper((pstate_t *)imc_pstates, imc_num_pstates, sig->avg_imc_f, &ps);
-    double freq_curr = (double)imc_pstates[ps.idx].khz;
+    pstate_freqtops_upper((pstate_t *) imc_pstates, imc_num_pstates, sig->avg_imc_f, &ps);
+    double freq_curr = (double) imc_pstates[ps.idx].khz;
 
-    debug("TIME ref %lf curr %lf CPI ref %lf curr %lf GBS ref %lf curr %lf IMC FREQ ref %lf curr %lf EFF_GAIN_TH %lf", 
-            time_ref, time_curr, cpi_ref, cpi_curr, gbs_ref, gbs_curr, freq_ref, freq_curr, min_eff_gain);
-    return below_perf_min_benefit(time_ref, time_curr, cpi_ref, cpi_curr, gbs_ref,
-            gbs_curr, freq_ref, freq_curr, min_eff_gain);
+    debug("TIME ref %lf curr %lf CPI ref %lf curr %lf GBS ref %lf curr %lf IMC FREQ ref %lf curr %lf EFF_GAIN_TH %lf",
+          time_ref, time_curr, cpi_ref, cpi_curr, gbs_ref, gbs_curr, freq_ref, freq_curr, min_eff_gain);
+    return below_perf_min_benefit(time_ref, time_curr, cpi_ref, cpi_curr, gbs_ref, gbs_curr, freq_ref, freq_curr,
+                                  min_eff_gain);
 #if 0
     double metric,metric_ref,metric2;
     double CPI;
@@ -194,43 +198,40 @@ uint must_decrease_imc(imc_data_t *my_imc_data,uint cpu_pstate,uint my_imc_pstat
 #endif
 }
 
-void copy_imc_data_from_signature(imc_data_t *my_imc_data, uint cpu_pstate,
-                                  uint my_imc_pstate, signature_t *s)
+void copy_imc_data_from_signature(imc_data_t *my_imc_data, uint cpu_pstate, uint my_imc_pstate, signature_t *s)
 {
     int i;
-    ullong tfops = 0;
-    my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].time = s->time;
-    my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].power = s->DC_power;
-    my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].GBS = s->GBS;
-    my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].CPI = s->CPI;
-    my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].instructions = s->instructions;
-    my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].cycles = s->cycles;
+    ullong tfops                                                        = 0;
+    my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].time         = s->time;
+    my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].power        = s->DC_power;
+    my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].GBS          = s->GBS;
+    my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].CPI          = s->CPI;
+    my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].instructions = s->instructions;
+    my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].cycles       = s->cycles;
 
-    memcpy(my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].FLOPS,
-           s->FLOPS, sizeof(ull)*FLOPS_EVENTS);
+    memcpy(my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].FLOPS, s->FLOPS, sizeof(ull) * FLOPS_EVENTS);
 
-    for (i=0;i<FLOPS_EVENTS;i++) tfops += s->FLOPS[i];
+    for (i = 0; i < FLOPS_EVENTS; i++)
+        tfops += s->FLOPS[i];
 #if SHOW_DEBUGS
     float flops = 0;
-    flops = (float)tfops/(s->time*1000000000.0);
-    debug("IMC data [CPU %u, IMC %u]: time %.3lf power %2.lf GBS %.2lf I/s %.2f flops %.2f",
-            cpu_pstate, my_imc_pstate,
-            my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].time,
-            my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].power,
-            my_imc_data[cpu_pstate*NUM_UNC_FREQ+my_imc_pstate].GBS,s->instructions/(s->time*1000000000.0),
-            flops);
+    flops       = (float) tfops / (s->time * 1000000000.0);
+    debug("IMC data [CPU %u, IMC %u]: time %.3lf power %2.lf GBS %.2lf I/s %.2f flops %.2f", cpu_pstate, my_imc_pstate,
+          my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].time,
+          my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].power,
+          my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].GBS, s->instructions / (s->time * 1000000000.0),
+          flops);
 #endif
 }
 
-ulong select_imc_freq(ulong max,ulong min,float p)
+ulong select_imc_freq(ulong max, ulong min, float p)
 {
     ulong new;
-    new = max-(float)(max-min)*p;
+    new = max - (float) (max - min) * p;
     return new;
 }
 
-uint select_imc_pstate(int num_pstates,float p)
+uint select_imc_pstate(int num_pstates, float p)
 {
-    return (uint)truncf(num_pstates * p);
+    return (uint) truncf(num_pstates * p);
 }
-

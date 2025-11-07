@@ -11,21 +11,21 @@
 #ifndef METRICS_ENERGY_CPU_LINUX_POWERCAP_H
 #define METRICS_ENERGY_CPU_LINUX_POWERCAP_H
 
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/stat.h>
 #include <common/hardware/topology.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
-state_t linux_powercap_load(topology_t * tp_in);
+state_t linux_powercap_load(topology_t *tp_in);
 
-state_t linux_powercap_get_granularity(ctx_t * c, uint * granularity);
+state_t linux_powercap_get_granularity(ctx_t *c, uint *granularity);
 
-state_t linux_powercap_init(ctx_t * c);
+state_t linux_powercap_init(ctx_t *c);
 
-state_t linux_powercap_dispose(ctx_t * c);
+state_t linux_powercap_dispose(ctx_t *c);
 
-state_t linux_powercap_count_devices(ctx_t * c, uint * devs_count_in);
+state_t linux_powercap_count_devices(ctx_t *c, uint *devs_count_in);
 
-state_t linux_powercap_read(ctx_t * c, ullong * values);
+state_t linux_powercap_read(ctx_t *c, ullong *values);
 
 #endif

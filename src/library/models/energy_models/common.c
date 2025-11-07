@@ -8,10 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
-
 #include <library/models/energy_models/common.h>
-
 
 double em_common_project_cpi(signature_t *signature, coefficient_t *coeff)
 {

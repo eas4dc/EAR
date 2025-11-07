@@ -25,4 +25,4 @@ enum id_types {
     ID_DOUBLE,
 };
 
-#endif //COMMON_TYPES_H
+#endif // COMMON_TYPES_H

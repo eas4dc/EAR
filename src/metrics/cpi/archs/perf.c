@@ -11,91 +11,129 @@
 // #define SHOW_DEBUGS 1
 
 #include <common/output/debug.h>
+#include <metrics/common/offsets.h>
 #include <metrics/common/perf.h>
 #include <metrics/cpi/archs/perf.h>
 
 // Generic
-static ullong gen_ins_ev   = PERF_COUNT_HW_INSTRUCTIONS;
-static ullong gen_cyc_ev   = PERF_COUNT_HW_CPU_CYCLES;
-static uint   gen_ins_tp   = PERF_TYPE_HARDWARE;
-static uint   gen_cyc_tp   = PERF_TYPE_HARDWARE;
-// Since Haswell
-//static ullong hwell_sta_ev = 0x010e;
-//static uint   hwell_sta_tp = PERF_TYPE_RAW;
-//
-static perf_t perf_ins;
-static perf_t perf_cyc;
-static perf_t perf_sta;
-static uint ins_en;
-static uint cyc_en;
-static uint sta_en;
+static perf_t perfs[4];
+static uint perfs_count;
 static uint started;
+static offset_ops_t ofs;
 
-state_t cpi_perf_load(topology_t *tp, cpi_ops_t *ops)
+static void perfs_add(ullong event, uint type, ulong offset_result, const char *event_desc)
 {
-	if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_HASWELL_X) {
-	} else if (tp->vendor == VENDOR_AMD && tp->family >= FAMILY_ZEN) {
-    } else if (tp->vendor == VENDOR_ARM) {
-    } else {
-		return_msg(EAR_ERROR, Generr.api_incompatible);
-	}
-	// Opening events
-	if (state_ok(perf_open(&perf_ins, NULL, 0, gen_ins_tp, gen_ins_ev))) {
-		ins_en = 1;
-	}
-	if (state_ok(perf_open(&perf_cyc, NULL, 0, gen_cyc_tp, gen_cyc_ev))) {
-		cyc_en = 1;
-	}
-    if (!ins_en && !cyc_en) {
-        return EAR_ERROR;
+    offsets_add(&ofs, offset_result, NO_OFFSET, NO_OFFSET, '=');
+    if (state_fail(perf_open(&perfs[perfs_count], NULL, 0, type, event))) {
+        debug("failed: %s", state_msg);
     }
-	replace_ops(ops->init,    cpi_perf_init);
-	replace_ops(ops->dispose, cpi_perf_dispose);
-	replace_ops(ops->read,    cpi_perf_read);
-	return EAR_SUCCESS;
+    strcpy(perfs[perfs_count].event_name, event_desc);
+    ++perfs_count;
 }
 
-state_t cpi_perf_init(ctx_t *c)
+static int perfs_count_opened_fds()
 {
-	if (!started) {
-		if (ins_en) {
-			perf_start(&perf_ins);
-		}
-		if (cyc_en) {
-			perf_start(&perf_cyc);
-		}
-		if (sta_en) {
-			perf_start(&perf_sta);
-		}
-		++started;
-	}
-	return EAR_SUCCESS;
+    int i, counter;
+    for (i = counter = 0; i < perfs_count; ++i) {
+        counter += (perfs[i].fd >= 0);
+    }
+    return counter;
 }
 
-state_t cpi_perf_dispose(ctx_t *c)
-{
-  if (ins_en) perf_close(&perf_ins);
-  if (cyc_en) perf_close(&perf_cyc);
-  if (sta_en) perf_close(&perf_sta);
-  started = 0;
+#define O2(l, v) (((int) offsetof(cpi_t, l)) + ((int) offsetof(stalls_t, v)))
+#define O1(l)    (((int) offsetof(cpi_t, l)))
 
-	return EAR_SUCCESS;
+void cpi_perf_load(topology_t *tp, cpi_ops_t *ops)
+{
+    if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_ICELAKE_X) {
+        perfs_add(PERF_COUNT_HW_CPU_CYCLES, PERF_TYPE_HARDWARE, O1(cycles), "PERF_COUNT_HW_CPU_CYCLES   ");
+        perfs_add(PERF_COUNT_HW_INSTRUCTIONS, PERF_TYPE_HARDWARE, O1(instructions), "PERF_COUNT_HW_INSTRUCTIONS ");
+        perfs_add(0x40004a3, PERF_TYPE_RAW, O2(stalls, memory), "CYCLE_ACTIVITY.STALLS_TOTAL");
+    } else if (tp->vendor == VENDOR_INTEL && tp->model >= MODEL_BROADWELL_X) {
+        perfs_add(PERF_COUNT_HW_CPU_CYCLES, PERF_TYPE_HARDWARE, O1(cycles), "PERF_COUNT_HW_CPU_CYCLES   ");
+        perfs_add(PERF_COUNT_HW_INSTRUCTIONS, PERF_TYPE_HARDWARE, O1(instructions), "PERF_COUNT_HW_INSTRUCTIONS ");
+        perfs_add(0x40004a3, PERF_TYPE_RAW, O2(stalls, memory), "CYCLE_ACTIVITY.STALLS_TOTAL");
+        perfs_add(0x00001a2, PERF_TYPE_RAW, O2(stalls, resources), "RESOURCE_STALLS.ANY        ");
+    } else if (tp->vendor == VENDOR_AMD && tp->family >= FAMILY_ZEN) {
+        // PMCx087 is inherited from Family 15h
+        perfs_add(PERF_COUNT_HW_CPU_CYCLES, PERF_TYPE_HARDWARE, O1(cycles), "PERF_COUNT_HW_CPU_CYCLES     ");
+        perfs_add(PERF_COUNT_HW_INSTRUCTIONS, PERF_TYPE_HARDWARE, O1(instructions), "PERF_COUNT_HW_INSTRUCTIONS   ");
+        perfs_add(0x0000287, PERF_TYPE_RAW, O2(stalls, fetch_decode), "IC_FETCH_STALL.DECODING_QUEUE");
+        perfs_add(0x0000187, PERF_TYPE_RAW, O2(stalls, resources), "IC_FETCH_STALL.BACK_PRESSURE ");
+    } else {
+        perfs_add(PERF_COUNT_HW_CPU_CYCLES, PERF_TYPE_HARDWARE, O1(cycles), "PERF_COUNT_HW_CPU_CYCLES     ");
+        perfs_add(PERF_COUNT_HW_INSTRUCTIONS, PERF_TYPE_HARDWARE, O1(instructions), "PERF_COUNT_HW_INSTRUCTIONS   ");
+        perfs_add(PERF_COUNT_HW_STALLED_CYCLES_FRONTEND, PERF_TYPE_HARDWARE, O2(stalls, fetch_decode),
+                  "PERF_COUNT_HW_STALLS_FRONTEND");
+        perfs_add(PERF_COUNT_HW_STALLED_CYCLES_BACKEND, PERF_TYPE_HARDWARE, O2(stalls, memory),
+                  "PERF_COUNT_HW_STALLS_BACKEND ");
+    }
+    if (!perfs_count_opened_fds()) {
+        debug("All PERFs failed to open");
+        return;
+    }
+    apis_put(ops->get_info, cpi_perf_get_info);
+    apis_put(ops->init, cpi_perf_init);
+    apis_put(ops->dispose, cpi_perf_dispose);
+    apis_put(ops->read, cpi_perf_read);
 }
 
-state_t cpi_perf_read(ctx_t *c, cpi_t *ci)
+void cpi_perf_get_info(apinfo_t *info)
 {
-	memset(ci, 0, sizeof(cpi_t));
-	if (ins_en) {
-		perf_read(&perf_ins, (llong *)&ci->instructions);
-	}
-	if (cyc_en) {
-		perf_read(&perf_cyc, (llong *)&ci->cycles);
-	}
-	if (sta_en) {
-		perf_read(&perf_sta, (llong *)&ci->stalls);
-	}
-	debug("Instructions: %llu", ci->instructions);
-	debug("Cycles: %llu", ci->cycles);
-	debug("Stalls: %llu", ci->stalls);
-	return EAR_SUCCESS;
+    info->api = API_PERF;
+}
+
+state_t cpi_perf_init()
+{
+    int i;
+    if (started) {
+        return EAR_SUCCESS;
+    }
+    for (i = 0; i < perfs_count; ++i) {
+        if (perfs[i].fd >= 0) {
+            perf_start(&perfs[i]);
+        }
+    }
+    ++started;
+    return EAR_SUCCESS;
+}
+
+state_t cpi_perf_dispose()
+{
+    int i;
+    if (started) {
+        for (i = 0; i < perfs_count; ++i) {
+            if (perfs[i].fd >= 0) {
+                perf_close(&perfs[i]);
+            }
+        }
+    }
+    started     = 0;
+    perfs_count = 0;
+    return EAR_SUCCESS;
+}
+
+state_t cpi_perf_read(cpi_t *ci)
+{
+    void *p = (void *) ci;
+    llong value;
+    state_t s;
+    int i;
+    // Cleaning
+    memset(ci, 0, sizeof(cpi_t));
+    // Reading
+    for (i = 0; i < perfs_count; ++i) {
+        if (perfs[i].fd >= 0) {
+            value = 0;
+            if (state_fail(s = perf_read(&perfs[i], &value))) {
+                return s;
+            }
+            offsets_calc_one(&ofs, p, i, value, 0LLU);
+        }
+    }
+    offsets_calc_all(&ofs, p);
+#if SHOW_DEBUGS
+    cpi_data_print(ci, 0.0, fderr);
+#endif
+    return EAR_SUCCESS;
 }

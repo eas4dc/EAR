@@ -11,15 +11,15 @@
 #ifndef EAR_COMMON_TIME_H
 #define EAR_COMMON_TIME_H
 
-#include <time.h>
-#include <sys/time.h>
 #include <common/types/generic.h>
+#include <sys/time.h>
+#include <time.h>
 
 // Time units
-#define TIME_SECS	1000000000
-#define TIME_MSECS	1000000
-#define TIME_USECS	1000
-#define TIME_NSECS	1
+#define TIME_SECS  1000000000
+#define TIME_MSECS 1000000
+#define TIME_USECS 1000
+#define TIME_NSECS 1
 
 typedef struct timespec timestamp;
 typedef struct timespec timestamp_t;
@@ -80,4 +80,4 @@ ullong timeval_convert(struct timeval *ts, ullong time_unit);
 /* Converts a 64 bits time value in `time_unit` units in a timeval. */
 struct timeval timeval_create(ullong time, ullong time_unit);
 
-#endif //EAR_COMMON_TIME_H
+#endif // EAR_COMMON_TIME_H

@@ -13,16 +13,6 @@
 
 #include <metrics/bandwidth/bandwidth.h>
 
-state_t bwidth_perf_load(topology_t *tp, bwidth_ops_t *ops);
-
-state_t bwidth_perf_init(ctx_t *c);
-
-state_t bwidth_perf_dispose(ctx_t *c);
-
-state_t bwidth_perf_count_devices(ctx_t *c, uint *devs_count);
-
-state_t bwidth_perf_get_granularity(ctx_t *c, uint *granularity);
-
-state_t bwidth_perf_read(ctx_t *c, bwidth_t *b);
+BWIDTH_DEFINES(perf);
 
 #endif

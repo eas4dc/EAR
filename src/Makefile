@@ -8,11 +8,11 @@ COMPONENTS = \
      daemon \
      library \
      global_manager \
-     tools \
      slurm_plugin \
      pbs_hook \
      database_cache \
      commands \
+     tools \
      data_center_monitor
 
 ifdef FEAT_ONLY_EAR_CORE
@@ -43,7 +43,7 @@ all: all.components
 post:
 	@ $(MAKE) -C 'metrics'    $@ || exit
 	@ $(MAKE) -C 'management' $@ || exit
-	@ $(MAKE) -C 'library' $@ || exit
+#	@ $(MAKE) -C 'library' $@ || exit
 
 install: install.components
 

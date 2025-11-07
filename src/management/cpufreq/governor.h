@@ -12,10 +12,10 @@
 #define MANAGEMENT_GOVERNOR_H
 
 #define _GNU_SOURCE
-#include <sched.h>
-#include <common/types.h>
-#include <common/states.h>
 #include <common/plugins.h>
+#include <common/states.h>
+#include <common/types.h>
+#include <sched.h>
 
 // Governors
 //
@@ -29,43 +29,43 @@
 //       means the governor set before the API was initialized.
 //
 struct governor_s {
-	uint conservative;
-	uint performance;
+    uint conservative;
+    uint performance;
     uint userspace;
     uint powersave;
     uint ondemand;
     uint unknown;
-	uint last;
+    uint last;
 } Governor __attribute__((weak)) = {
-	.conservative = 0,
-	.performance = 1,
-    .userspace = 2,
-	.powersave = 3,
-	.ondemand = 4,
-	.unknown = 5,
-    .last = 6,
+    .conservative = 0,
+    .performance  = 1,
+    .userspace    = 2,
+    .powersave    = 3,
+    .ondemand     = 4,
+    .unknown      = 5,
+    .last         = 6,
 };
 
 struct goverstr_s {
-	char *conservative;
-	char *performance;
-	char *userspace;
-	char *powersave;
-	char *ondemand;
-	char *unknown;
+    char *conservative;
+    char *performance;
+    char *userspace;
+    char *powersave;
+    char *ondemand;
+    char *unknown;
 } Goverstr __attribute__((weak)) = {
-	.conservative = "conservative",
-	.performance = "performance",
-	.userspace = "userspace",
-	.powersave = "powersave",
-	.ondemand = "ondemand",
-	.unknown = "unknown",
+    .conservative = "conservative",
+    .performance  = "performance",
+    .userspace    = "userspace",
+    .powersave    = "powersave",
+    .ondemand     = "ondemand",
+    .unknown      = "unknown",
 };
 
 // To compile well
-#define mgt_governor_tostr(g, b)       governor_tostr(g, b)
-#define mgt_governor_toint(b, g)       governor_toint(b, g)
-#define mgt_governor_is(b, g)          governor_is(b, g)
+#define mgt_governor_tostr(g, b) governor_tostr(g, b)
+#define mgt_governor_toint(b, g) governor_toint(b, g)
+#define mgt_governor_is(b, g)    governor_is(b, g)
 
 /* Returns a governor name given a governor id. */
 state_t governor_tostr(uint governor, char *buffer);
@@ -74,4 +74,4 @@ state_t governor_toint(char *buffer, uint *governor);
 /* Given a governor name and id, returns true if it is the same. */
 int governor_is(char *buffer, uint governor);
 
-#endif //MANAGEMENT_GOVERNOR_H
+#endif // MANAGEMENT_GOVERNOR_H

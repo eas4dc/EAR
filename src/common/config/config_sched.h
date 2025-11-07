@@ -21,30 +21,30 @@
 
 #include <slurm/slurm.h>
 
-#define BATCH_STEP    ((int) SLURM_BATCH_SCRIPT)
+#define BATCH_STEP ((int) SLURM_BATCH_SCRIPT)
 
 // See EAR's issue #121
-#if SLURM_VERSION_NUMBER >= SLURM_VERSION_NUM(22,11,0)
+#if SLURM_VERSION_NUMBER >= SLURM_VERSION_NUM(22, 11, 0)
 #define INTERACT_STEP ((int) SLURM_INTERACTIVE_STEP)
-#else 
+#else
 #define INTERACT_STEP -6 // Mimic from slurm.h value
-#endif // SLURM_VERSION_NUMBER
+#endif                   // SLURM_VERSION_NUMBER
 
 #endif // SCHED_SLURM
 
 #if SCHED_PBS
-#define BATCH_STEP     NULL_STEPID
+#define BATCH_STEP    NULL_STEPID
 #define INTERACT_STEP -6 // Mimic from slurm.h value
 #endif
 
 #if SCHED_OAR
-#define BATCH_STEP     0
+#define BATCH_STEP    0
 #define INTERACT_STEP -6 // Mimic from slurm.h value
 #endif
 
 #if !SCHED_SLURM && !SCHED_PBS && !SCHED_OAR
-#define BATCH_STEP     NULL_STEPID
+#define BATCH_STEP    NULL_STEPID
 #define INTERACT_STEP -6
 #endif
 
-#endif //COMMON_CONFIG_SCHED_H
+#endif // COMMON_CONFIG_SCHED_H

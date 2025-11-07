@@ -23,4 +23,4 @@ ullong mrs_pmccntr();
 
 ullong mrs_pmccfiltr();
 
-#endif //COMMON_HARDWARE_MRS_H
+#endif // COMMON_HARDWARE_MRS_H

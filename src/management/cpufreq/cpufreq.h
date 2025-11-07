@@ -12,18 +12,18 @@
 #define MANAGEMENT_CPUFREQ_H
 
 #define _GNU_SOURCE
-#include <sched.h>
-#include <common/states.h>
-#include <common/plugins.h>
 #include <common/hardware/topology.h>
+#include <common/plugins.h>
+#include <common/states.h>
+#include <management/cpufreq/frequency.h>
 #include <management/cpufreq/governor.h>
 #include <management/cpufreq/priority.h>
-#include <management/cpufreq/frequency.h>
 #include <metrics/common/pstate.h>
+#include <sched.h>
 
 // The API
-// 
-// This API is designed to set the governor and frequency in the node. The 
+//
+// This API is designed to set the governor and frequency in the node. The
 // procedure is the usual: load, init, get/set and dispose. To check
 // architecture limitations read the headers in archs folder.
 
@@ -34,44 +34,42 @@ typedef struct freq_details_s {
     ullong freq_nominal; // Normally the same than freq_base
 } freq_details_t;
 
-typedef struct mgt_ps_driver_ops_s
-{
-	state_t (*init)                  ();
-    state_t (*dispose)               ();
-    state_t (*reset)                 ();
-    void    (*get_freq_details)      (freq_details_t *details);
-	state_t (*get_available_list)    (const ullong **freq_list, uint *freq_count);
-	state_t (*get_current_list)      (const ullong **freq_list);
-	state_t (*get_boost)             (uint *boost_enabled);
-	state_t (*set_current_list)      (uint *freq_index);
-	state_t (*set_current)           (uint freq_index, int cpu);
-	state_t (*get_governor)          (uint *governor);
-	state_t (*get_governor_list)     (uint *governor);
-	state_t (*set_governor)          (uint governor);
-	state_t (*set_governor_mask)     (uint governor, cpu_set_t mask);
-	state_t (*set_governor_list)     (uint *governor);
-    state_t (*is_governor_available) (uint governor);
+typedef struct mgt_ps_driver_ops_s {
+    state_t (*init)();
+    state_t (*dispose)();
+    state_t (*reset)();
+    void (*get_freq_details)(freq_details_t *details);
+    state_t (*get_available_list)(const ullong **freq_list, uint *freq_count);
+    state_t (*get_current_list)(const ullong **freq_list);
+    state_t (*get_boost)(uint *boost_enabled);
+    state_t (*set_current_list)(uint *freq_index);
+    state_t (*set_current)(uint freq_index, int cpu);
+    state_t (*get_governor)(uint *governor);
+    state_t (*get_governor_list)(uint *governor);
+    state_t (*set_governor)(uint governor);
+    state_t (*set_governor_mask)(uint governor, cpu_set_t mask);
+    state_t (*set_governor_list)(uint *governor);
+    state_t (*is_governor_available)(uint governor);
 } mgt_ps_driver_ops_t;
 
-typedef struct mgt_ps_ops_s
-{
-    void    (*get_info)             (apinfo_t *info);
-	state_t (*init)                 (ctx_t *c);
-	state_t (*dispose)              (ctx_t *c);
-    void    (*get_freq_details)     (freq_details_t *details);
-    state_t (*count_available)      (ctx_t *c, uint *pstate_count);
-    state_t (*get_available_list)   (ctx_t *c, pstate_t *pstate_list);
-	state_t (*get_current_list)     (ctx_t *c, pstate_t *pstate_list);
-	state_t (*get_nominal)          (ctx_t *c, uint *pstate_index);
-	state_t (*get_index)            (ctx_t *c, ullong freq_khz, uint *pstate_index, uint closest);
-	state_t (*set_current_list)     (ctx_t *c, uint *pstate_index);
-	state_t (*set_current)          (ctx_t *c, uint pstate_index, int cpu);
-    state_t (*reset)                (ctx_t *c);
-	state_t (*get_governor)         (ctx_t *c, uint *governor);
-	state_t (*get_governor_list)    (ctx_t *c, uint *governor);
-	state_t (*set_governor)         (ctx_t *c, uint governor);
-	state_t (*set_governor_mask)    (ctx_t *c, uint governor, cpu_set_t mask);
-	state_t (*set_governor_list)    (ctx_t *c, uint *governor);
+typedef struct mgt_ps_ops_s {
+    void (*get_info)(apinfo_t *info);
+    state_t (*init)(ctx_t *c);
+    state_t (*dispose)(ctx_t *c);
+    void (*get_freq_details)(freq_details_t *details);
+    state_t (*count_available)(ctx_t *c, uint *pstate_count);
+    state_t (*get_available_list)(ctx_t *c, pstate_t *pstate_list);
+    state_t (*get_current_list)(ctx_t *c, pstate_t *pstate_list);
+    state_t (*get_nominal)(ctx_t *c, uint *pstate_index);
+    state_t (*get_index)(ctx_t *c, ullong freq_khz, uint *pstate_index, uint closest);
+    state_t (*set_current_list)(ctx_t *c, uint *pstate_index);
+    state_t (*set_current)(ctx_t *c, uint pstate_index, int cpu);
+    state_t (*reset)(ctx_t *c);
+    state_t (*get_governor)(ctx_t *c, uint *governor);
+    state_t (*get_governor_list)(ctx_t *c, uint *governor);
+    state_t (*set_governor)(ctx_t *c, uint governor);
+    state_t (*set_governor_mask)(ctx_t *c, uint governor, cpu_set_t mask);
+    state_t (*set_governor_list)(ctx_t *c, uint *governor);
 } mgt_ps_ops_t;
 
 /** The first function to call, because discovers the system and sets the internal API. */
@@ -143,4 +141,4 @@ state_t mgt_cpufreq_governor_set_list(ctx_t *c, uint *governor);
 /** Gets if governor is available to set. */
 int mgt_cpufreq_governor_is_available(ctx_t *c, uint governor);
 
-#endif //MANAGEMENT_CPUFREQ_H
+#endif // MANAGEMENT_CPUFREQ_H

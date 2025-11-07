@@ -34,4 +34,4 @@ state_t imcfreq_intel63_ext_enable_cpu(int cpu);
 // Reads a 48 bit counter and returns a frequency in KHz.
 state_t imcfreq_intel63_ext_read_cpu(int cpu, ulong *freq);
 
-#endif //METRICS_IMCFREQ_INTEL63_H
+#endif // METRICS_IMCFREQ_INTEL63_H

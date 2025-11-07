@@ -9,22 +9,20 @@
  **************************************************************************/
 
 /**
-*    \file projection.h
-*    \brief Projections are used by time&power models.
-*
-*/
+ *    \file projection.h
+ *    \brief Projections are used by time&power models.
+ *
+ */
 
 #ifndef _EAR_TYPES_PROJECTION
 #define _EAR_TYPES_PROJECTION
 
-#include <common/types/signature.h>
 #include <common/types/coefficient.h>
-
+#include <common/types/signature.h>
 
 /* Basic for compatibility and tools */
-double basic_project_time(signature_t *sign,coefficient_t *coeff);
-double basic_project_cpi(signature_t *sign,coefficient_t *coeff);
-double basic_project_power(signature_t *sign,coefficient_t *coeff);
-
+double basic_project_time(signature_t *sign, coefficient_t *coeff);
+double basic_project_cpi(signature_t *sign, coefficient_t *coeff);
+double basic_project_power(signature_t *sign, coefficient_t *coeff);
 
 #endif

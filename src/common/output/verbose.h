@@ -11,12 +11,12 @@
 #ifndef EAR_VERBOSE_H
 #define EAR_VERBOSE_H
 
+#include <common/output/debug.h>
+#include <common/output/error.h>
+#include <common/output/output_conf.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <common/output/error.h>
-#include <common/output/debug.h>
-#include <common/output/output_conf.h>
 
 // Dependencies:
 //  -------------          -------          -----------
@@ -27,66 +27,61 @@
 // | debug.h |                         --- | error.h |
 //  ---------                               ---------
 
-#define fdout	STDOUT_FILENO
-#define fderr	STDERR_FILENO
+#define fdout STDOUT_FILENO
+#define fderr STDERR_FILENO
 
-int verb_level          __attribute__((weak)) = 0;
-int VCCONF              __attribute__((weak)) = VCCONF_DEF;
-int verb_channel        __attribute__((weak)) = 2;
-int verb_enabled        __attribute__((weak)) = 1;
-int warn_channel        __attribute__((weak)) = 2;
+int verb_level __attribute__((weak))   = 0;
+int verb_channel __attribute__((weak)) = 2;
+int verb_enabled __attribute__((weak)) = 1;
+int warn_channel __attribute__((weak)) = 2;
 
 // Set
-#define WARN_SET_FD(fd)	  warn_channel = fd;
-#define VERB_SET_FD(fd)	  verb_channel = fd;
-#define VERB_SET_EN(en)	  verb_enabled = en;
-#define VERB_SET_LV(lv)	  verb_level   = lv;
-#define VERB_GET_LV()	    (verb_level)
+#define WARN_SET_FD(fd) warn_channel = fd;
+#define VERB_SET_FD(fd) verb_channel = fd;
+#define VERB_SET_EN(en) verb_enabled = en;
+#define VERB_SET_LV(lv) verb_level = lv;
+#define VERB_GET_LV()   (verb_level)
 
-#define verbose(v, ...) \
-	{ \
-	if (verb_enabled && v <= verb_level) \
-	{ \
-		if (!log_bypass) { \
-			timestamp(verb_channel); \
-			dprintf(verb_channel, __VA_ARGS__); \
-			dprintf(verb_channel, "\n"); \
-		} else { \
-			vlog(__VA_ARGS__); \
-		} \
-	} \
-	}
+#define verbose(v, ...)                                                                                                \
+    {                                                                                                                  \
+        if (verb_enabled && v <= verb_level) {                                                                         \
+            if (!log_bypass) {                                                                                         \
+                timestamp(verb_channel);                                                                               \
+                dprintf(verb_channel, __VA_ARGS__);                                                                    \
+                dprintf(verb_channel, "\n");                                                                           \
+            } else {                                                                                                   \
+                vlog(__VA_ARGS__);                                                                                     \
+            }                                                                                                          \
+        }                                                                                                              \
+    }
 
-#define VERB_ON(v) \
-	(verb_enabled && (v <= verb_level))
+#define VERB_ON(v) (verb_enabled && (v <= verb_level))
 
 // No new line version
-#define verbosen(v, ...) \
-	{\
-	if (verb_enabled && v <= verb_level) \
-	{ \
-		if (!log_bypass) { \
-            dprintf(verb_channel, __VA_ARGS__); \
-        } else { \
-			vlog(__VA_ARGS__); \
-		} \
-	}\
-	}
+#define verbosen(v, ...)                                                                                               \
+    {                                                                                                                  \
+        if (verb_enabled && v <= verb_level) {                                                                         \
+            if (!log_bypass) {                                                                                         \
+                dprintf(verb_channel, __VA_ARGS__);                                                                    \
+            } else {                                                                                                   \
+                vlog(__VA_ARGS__);                                                                                     \
+            }                                                                                                          \
+        }                                                                                                              \
+    }
 
 // Warnings
 #if SHOW_WARNINGS
-#define warning(...) \
-	{ \
-		timestamp(warn_channel); \
-		dprintf(warn_channel, COL_YLW "WARNING" COL_CLR ", " __VA_ARGS__); \
-		dprintf(warn_channel, "\n"); \
-	}
+#define warning(...)                                                                                                   \
+    {                                                                                                                  \
+        timestamp(warn_channel);                                                                                       \
+        dprintf(warn_channel, COL_YLW "WARNING" COL_CLR ", " __VA_ARGS__);                                             \
+        dprintf(warn_channel, "\n");                                                                                   \
+    }
 #else
 #define warning(...)
 #endif
 
 // Abbreviations
-#define verb(v, ...) \
-	verbose(v, __VA_ARGS__);
+#define verb(v, ...) verbose(v, __VA_ARGS__);
 
-#endif //EAR_VERBOSE_H
+#endif // EAR_VERBOSE_H

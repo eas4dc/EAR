@@ -10,229 +10,241 @@
 
 // #define SHOW_DEBUGS 1
 
-#include <metrics/common/hsmp.h>
 #include <management/imcfreq/archs/amd17.h>
+#include <metrics/common/hsmp.h>
 
 // Used 7.4 HSMP Functions in Preliminary Processor Programming Reference (PPR)
 // for AMD Family 19h Model 01h, Revision B1 Processors, Volume 2 of 2.
 static char *err1 = "Incorrect result when asking for frequency by HSMP";
 static ullong freqs_khz[4];
 static ullong freqs_mhz[4];
-static uint sockets_count;
-static uint pstate_count;
+static uint   sockets_count;
+static uint   pstate_count;
+static uint   family;
 
 static uint test_ps(uint ps, uint intent)
 {
-	struct timespec ten_ms = { 0, 1000 * 1000 * 30};
-	uint reps[3] = {  0,  0, -1 };
-	uint args[2] = {  0, -1 };
-	state_t s;
-	
+    struct timespec ten_ms = {0, 1000 * 1000 * 30};
+    uint reps[3]           = {0, 0, -1};
+    uint args[2]           = {0, -1};
+    state_t s;
+    uint i;
+
+    // In ZEN5, APBDisable has an output argument
+    if (family >= FAMILY_ZEN ) i = 2;
+    if (family >= FAMILY_ZEN5) i = 1;
     // Arg0 is the P_STATE for the APBDisable function (0x0d).
-	args[0] = ps;
-	// Function APBDisable (0x0d).
-	if (state_fail(s = hsmp_send(0, HSMP_APB_DISABLE, &args[0], &reps[2]))) {
-		debug("error while sending HSMP: %s", state_msg);
-	}
-	// Waiting 10 miliseconds to change the frequency
-	nanosleep(&ten_ms, NULL);
-	//
-	debug("Sending HSMP Mail of PS%d (intent %d)", args[0], intent);
-	// Function ReadCurrentFclkMemclk (0x0f).
-	if (state_fail(s = hsmp_send(0, HSMP_READ_CURRENT_FCLK_MEMCLK, &args[1], &reps[0]))) {
-		debug("error while sending HSMP: %s", state_msg);
-	}
-   
-    return reps[0]; 
+    args[0] = ps;
+    // Function APBDisable (0x0d).
+    if (state_fail(s = hsmp_send(0, HSMP_SET_DF_PSTATE, &args[0], &reps[i]))) {
+        debug("error while sending HSMP: %s", state_msg);
+    }
+    // Waiting 10 miliseconds to change the frequency
+    nanosleep(&ten_ms, NULL);
+    //
+    debug("Sending HSMP Mail of PS%d (intent %d)", args[0], intent);
+    // Function ReadCurrentFclkMemclk (0x0f).
+    if (state_fail(s = hsmp_send(0, HSMP_GET_FCLK_MCLK, &args[1], &reps[0]))) {
+        debug("error while sending HSMP: %s", state_msg);
+    }
+    return reps[0];
 }
 
 state_t mgt_imcfreq_amd17_load(topology_t *tp, mgt_imcfreq_ops_t *ops)
 {
-	state_t s;
-	int i, j;
+    state_t s;
+    int i, j;
 
     debug("Detecting AMD17 HSMP mailboxes.");
-	// Already loaded
-	if (state_fail(s = hsmp_scan(tp))) {
-		return s;
-	}
-	// Getting the list of available frequencies
+    // Already loaded
+    if (state_fail(s = hsmp_open(tp, HSMP_WR))) {
+        return s;
+    }
+    //
+    sockets_count = tp->socket_count;
+    family = tp->family;
+    // Getting the list of available frequencies
+    uint ps_num = 4;
     uint ps1;
     uint ps2;
     uint ps3;
-        
-	for (i = j = 0; i < 4; ++i, ++j) {
+
+    if (family >= FAMILY_ZEN5 || MODEL_IS_ZEN4(tp->model)) {
+        ps_num = 3;
+    }
+    for (i = j = 0; i < ps_num; ++i, ++j) {
         ps1 = test_ps(i, j);
         ps2 = test_ps(i, j);
         ps3 = test_ps(i, j);
-	    debug("Read PS%d: %u %u %u", i, ps1, ps2, ps3);
-    	// Try again until the answer is different
-		if (j >= 10) {
-			// Out of intents
-			break;
-		} else if (i > 0 && (ps1 != ps2 || ps2 != ps3)) {
-			--i;
-		} else {
-			debug("PS%d: answered %u (%u intents)", i, ps1, j);
-			// If its a weird number...
-			if ((ps1 == 0) || (ps1 == -1)) {
-				return_msg(EAR_ERROR, err1);
-			}
-			freqs_mhz[i] = ((ullong) ps1);
-			freqs_khz[i] = freqs_mhz[i] * 1000LLU;
-			j = 0;
-		}
-	}
-	pstate_count = i;
-	// Setting auto
-	uint args[1] = { -1 };
-	uint reps[1] = { -1 };
-	hsmp_send(0, HSMP_APB_ENABLE, &args[0], &reps[0]);
-	//
-	replace_ops(ops->init,             mgt_imcfreq_amd17_init);
-	replace_ops(ops->dispose,          mgt_imcfreq_amd17_dispose);
-	replace_ops(ops->get_available_list, mgt_imcfreq_amd17_get_available_list);
-	replace_ops(ops->get_current_list, mgt_imcfreq_amd17_get_current_list);
-	replace_ops(ops->set_current_list, mgt_imcfreq_amd17_set_current_list);
-	replace_ops(ops->set_current,      mgt_imcfreq_amd17_set_current);
-	replace_ops(ops->set_auto,         mgt_imcfreq_amd17_set_auto);
-	replace_ops(ops->get_current_ranged_list, mgt_imcfreq_amd17_get_current_ranged_list);
+        debug("Read PS%d: %u %u %u", i, ps1, ps2, ps3);
+        // Try again until the answer is different
+        if (j >= 10) {
+            // Out of intents
+            break;
+        } else if (i > 0 && (ps1 != ps2 || ps2 != ps3)) {
+            --i;
+        } else {
+            debug("PS%d: answered %u (%u intents)", i, ps1, j);
+            // If its a weird number...
+            if ((ps1 == 0) || (ps1 == -1)) {
+                return_msg(EAR_ERROR, err1);
+            }
+            freqs_mhz[i] = ((ullong) ps1);
+            freqs_khz[i] = freqs_mhz[i] * 1000LLU;
+            j            = 0;
+        }
+    }
+    pstate_count = i;
+    // Setting auto
+    uint args[1] = {-1};
+    uint reps[1] = {-1};
+    hsmp_send(0, HSMP_SET_AUTO_DF_PSTATE, &args[0], &reps[0]);
+    //
+    replace_ops(ops->init,               mgt_imcfreq_amd17_init);
+    replace_ops(ops->dispose,            mgt_imcfreq_amd17_dispose);
+    replace_ops(ops->get_available_list, mgt_imcfreq_amd17_get_available_list);
+    replace_ops(ops->get_current_list,   mgt_imcfreq_amd17_get_current_list);
+    replace_ops(ops->set_current_list,   mgt_imcfreq_amd17_set_current_list);
+    replace_ops(ops->set_current,        mgt_imcfreq_amd17_set_current);
+    replace_ops(ops->set_auto,           mgt_imcfreq_amd17_set_auto);
+    replace_ops(ops->get_current_ranged_list, mgt_imcfreq_amd17_get_current_ranged_list);
     replace_ops(ops->set_current_ranged_list, mgt_imcfreq_amd17_set_current_ranged_list);
-	// Saving sockets
-	sockets_count = tp->socket_count;
 
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t mgt_imcfreq_amd17_init(ctx_t *c)
 {
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t mgt_imcfreq_amd17_dispose(ctx_t *c)
 {
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t mgt_imcfreq_amd17_get_available_list(ctx_t *c, const pstate_t **list, uint *count)
 {
-	static pstate_t ps[32];
-	uint i;
+    static pstate_t ps[32];
+    uint i;
 
-	for (i = 0; i < pstate_count; ++i) {
-		ps[i].khz = freqs_khz[i];
-		ps[i].idx = i;
-	}
-	*list = ps;
-	if (count != NULL) {
-		*count = pstate_count;
-	}
-	return EAR_SUCCESS;
+    for (i = 0; i < pstate_count; ++i) {
+        ps[i].khz = freqs_khz[i];
+        ps[i].idx = i;
+    }
+    *list = ps;
+    if (count != NULL) {
+        *count = pstate_count;
+    }
+    return EAR_SUCCESS;
 }
 
 static uint find_index(ullong khz)
 {
-	int i;
-	for (i = 0; i < 4; ++i) {
-		if (freqs_khz[i] == khz) {
-			return i;
-		}
-		if (freqs_khz[i] < khz) {
-			return i;
-		}
-	}
-	return 0;
+    int i;
+    for (i = 0; i < 4; ++i) {
+        if (freqs_khz[i] == khz) {
+            return i;
+        }
+        if (freqs_khz[i] < khz) {
+            return i;
+        }
+    }
+    return 0;
 }
 
 state_t mgt_imcfreq_amd17_get_current_list(ctx_t *c, pstate_t *list)
 {
-	uint args[3] = {  0,  0, -1 };
-	ullong freq;
-	state_t s;
-	uint i;
+    uint args[3] = {0, 0, -1};
+    ullong freq;
+    state_t s;
+    uint i;
 
-	for (i = 0; i < sockets_count; ++i) {
-		// Function ReadCurrentFclkMemclk (0x0f). 0 arguments, 2 answers.
-		//args[0] = 0;
-		//args[1] = 0;
-		if (state_fail(s = hsmp_send(i, HSMP_READ_CURRENT_FCLK_MEMCLK, &args[2], &args[0]))) {
-			return s;
-		}
-		if (args[0] == 0 || args[0] == -1) {
-			return_msg(EAR_ERROR, err1);
-		}
-		freq = ((ullong) args[0]) * 1000LLU;
-		list[i].idx = find_index(freq);
-		list[i].khz = freqs_khz[list[i].idx];
-		debug("SOCKET%d: %llu KHz (id %u)", i, list[i].khz, list[i].idx);
-	}
-	return EAR_SUCCESS;
+    for (i = 0; i < sockets_count; ++i) {
+        // Function ReadCurrentFclkMemclk (0x0f). 0 arguments, 2 answers.
+        // args[0] = 0;
+        // args[1] = 0;
+        if (state_fail(s = hsmp_send(i, HSMP_GET_FCLK_MCLK, &args[2], &args[0]))) {
+            return s;
+        }
+        if (args[0] == 0 || args[0] == -1) {
+            return_msg(EAR_ERROR, err1);
+        }
+        freq        = ((ullong) args[0]) * 1000LLU;
+        list[i].idx = find_index(freq);
+        list[i].khz = freqs_khz[list[i].idx];
+        debug("SOCKET%d: %llu KHz (id %u)", i, list[i].khz, list[i].idx);
+    }
+    return EAR_SUCCESS;
 }
 
 static state_t set(uint pstate_index, int socket)
 {
-	uint args[2] = {  0, -1 };
-	uint function, i;
-	state_t s;
+    uint args[2] = { 0, -1 };
+    uint reps[2] = { 0, -1 };
+    uint function, a, r;
+    state_t s;
 
-	if (pstate_index == ps_auto) {
-		// Function APBEnable (0x0e)
-		function = HSMP_APB_ENABLE;
-		i = 1;
-	} else if (pstate_index >= pstate_count) {
-		return_msg(EAR_ERROR, Generr.arg_outbounds);
-	} else {
-		// Function APBDisable (0x0d)
-		function = HSMP_APB_DISABLE;
-		i = 0;
-	}
-	args[0] = pstate_index;
-	debug("Setting P%u (%u) to socket %d", pstate_index, args[0], socket);
-	if (state_fail(s = hsmp_send(socket, function, &args[i], &args[1]))) {
-		debug("Failed while setting IMC frequency set: %s (%d)", state_msg, s);
-		return s;
-	}
-	return EAR_SUCCESS;
+    if (pstate_index == ps_auto) {
+        // Function APBEnable (0x0e)
+        function = HSMP_SET_AUTO_DF_PSTATE;
+        a        = 1;
+        r        = 1;
+    } else if (pstate_index >= pstate_count) {
+        return_msg(EAR_ERROR, Generr.arg_outbounds);
+    } else {
+        // Function APBDisable (0x0d)
+        function = HSMP_SET_DF_PSTATE;
+        a        = 0;
+        r        = (family >= FAMILY_ZEN5) ? 0: 1;
+    }
+    args[0] = pstate_index;
+    debug("Setting P%u (%u) to socket %d", pstate_index, args[0], socket);
+    if (state_fail(s = hsmp_send(socket, function, &args[a], &reps[r]))) {
+        debug("Failed while setting IMC frequency set: %s (%d)", state_msg, s);
+        return s;
+    }
+    return EAR_SUCCESS;
 }
 
 state_t mgt_imcfreq_amd17_set_current_list(ctx_t *c, uint *index_list)
 {
-	state_t s;
-	uint i;
+    state_t s;
+    uint i;
 
-	for (i = 0; i < sockets_count; ++i) {
-		if (index_list[i] == ps_nothing) {
-			continue;
-		}
-		if (state_fail(s = set(index_list[i], i))) {
-			return s;
-		}
-	}
-	return EAR_SUCCESS;
+    for (i = 0; i < sockets_count; ++i) {
+        if (index_list[i] == ps_nothing) {
+            continue;
+        }
+        if (state_fail(s = set(index_list[i], i))) {
+            return s;
+        }
+    }
+    return EAR_SUCCESS;
 }
 
 state_t mgt_imcfreq_amd17_set_current(ctx_t *c, uint pstate_index, int socket)
 {
-	state_t s;
-	uint i;
-	
-	if (pstate_index == ps_nothing) {
-		return EAR_SUCCESS;
-	}
-	for (i = 0; i < sockets_count; ++i) {
-		if (i != socket && socket != all_sockets) {
-			continue;
-		}
-		if (state_fail(s = set(pstate_index, i))) {
-			return s;
-		}
-	}
-	return EAR_SUCCESS;
+    state_t s;
+    uint i;
+
+    if (pstate_index == ps_nothing) {
+        return EAR_SUCCESS;
+    }
+    for (i = 0; i < sockets_count; ++i) {
+        if (i != socket && socket != all_sockets) {
+            continue;
+        }
+        if (state_fail(s = set(pstate_index, i))) {
+            return s;
+        }
+    }
+    return EAR_SUCCESS;
 }
 
 state_t mgt_imcfreq_amd17_set_auto(ctx_t *c)
 {
-	return mgt_imcfreq_amd17_set_current(c, ps_auto, all_sockets);
+    return mgt_imcfreq_amd17_set_current(c, ps_auto, all_sockets);
 }
 
 state_t mgt_imcfreq_amd17_get_current_ranged_list(ctx_t *c, pstate_t *ps_min_list, pstate_t *ps_max_list)
@@ -244,4 +256,3 @@ state_t mgt_imcfreq_amd17_set_current_ranged_list(ctx_t *c, uint *id_min_list, u
 {
     return mgt_imcfreq_amd17_set_current_list(c, id_min_list);
 }
-

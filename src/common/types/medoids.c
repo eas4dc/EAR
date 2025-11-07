@@ -15,10 +15,10 @@
  * and COPYING.EPL files.
  */
 
-#include <unistd.h>
 #include <common/config.h>
-#include <common/types/medoids.h>
 #include <common/output/verbose.h>
+#include <common/types/medoids.h>
+#include <unistd.h>
 
 static void create_filename(char *filename, char *path, char *prefix, char *architecture)
 {
@@ -32,16 +32,16 @@ void medoids_print(medoids_t *phases)
 {
     double *medoid = phases->cpu_bound;
 
-    debug("K-medoids data: cpu-bound medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf",
-           CPU_BOUND, medoid[0], medoid[1], medoid[2], medoid[3]);
+    debug("K-medoids data: cpu-bound medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf", CPU_BOUND,
+          medoid[0], medoid[1], medoid[2], medoid[3]);
 
     medoid = phases->memory_bound;
-    debug("K-medoids data: memory-bound medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf",
-           MEM_BOUND, medoid[0], medoid[1], medoid[2], medoid[3]);
+    debug("K-medoids data: memory-bound medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf", MEM_BOUND,
+          medoid[0], medoid[1], medoid[2], medoid[3]);
 
     medoid = phases->mix;
-    debug("K-medoids data: mix medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf",
-           MIX, medoid[0], medoid[1], medoid[2], medoid[3]);
+    debug("K-medoids data: mix medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf", MIX, medoid[0],
+          medoid[1], medoid[2], medoid[3]);
 }
 
 void extremes_print(extremes_t *extremes)
@@ -61,36 +61,35 @@ void extremes_print(extremes_t *extremes)
 
 state_t load_medoids(char *path, char *architecture, medoids_t *final_medoids)
 {
-	if (!path || !architecture || !final_medoids) {
-		return EAR_ERROR;
-	}
+    if (!path || !architecture || !final_medoids) {
+        return EAR_ERROR;
+    }
     char filename[128] = "";
     create_filename(filename, path, "medoids.", architecture);
     FILE *f = fopen(filename, "rb");
 
     char buff[4096];
-    
-    if (access(filename, F_OK) != 0)
-    {
+
+    if (access(filename, F_OK) != 0) {
         return EAR_ERROR;
     }
-    
-    if (NULL != fgets(buff, sizeof(buff), f))
-    {
+
+    if (NULL != fgets(buff, sizeof(buff), f)) {
         char *val = buff;
         double medoids[N_MEDS * MED_ELEMS];
-        for (int i = 0; i < N_MEDS; i++)
-        {
-            for (int j = 0; j < MED_ELEMS; j++)
-            {
-                val = strtok(val, " \t\n");
+        for (int i = 0; i < N_MEDS; i++) {
+            for (int j = 0; j < MED_ELEMS; j++) {
+                val                        = strtok(val, " \t\n");
                 medoids[i * MED_ELEMS + j] = atof(val);
-                val = NULL;
+                val                        = NULL;
             }
         }
-        medoids_t aux = {{medoids[CPU_BOUND * MED_ELEMS], medoids[CPU_BOUND * MED_ELEMS + 1], medoids[CPU_BOUND * MED_ELEMS + 2], medoids[CPU_BOUND * MED_ELEMS + 3]},
-                         {medoids[MEM_BOUND * MED_ELEMS], medoids[MEM_BOUND * MED_ELEMS + 1], medoids[MEM_BOUND * MED_ELEMS + 2], medoids[MEM_BOUND * MED_ELEMS + 3]},
-                         {medoids[MIX * MED_ELEMS], medoids[MIX * MED_ELEMS + 1], medoids[MIX * MED_ELEMS + 2], medoids[MIX * MED_ELEMS + 3]}};
+        medoids_t aux = {{medoids[CPU_BOUND * MED_ELEMS], medoids[CPU_BOUND * MED_ELEMS + 1],
+                          medoids[CPU_BOUND * MED_ELEMS + 2], medoids[CPU_BOUND * MED_ELEMS + 3]},
+                         {medoids[MEM_BOUND * MED_ELEMS], medoids[MEM_BOUND * MED_ELEMS + 1],
+                          medoids[MEM_BOUND * MED_ELEMS + 2], medoids[MEM_BOUND * MED_ELEMS + 3]},
+                         {medoids[MIX * MED_ELEMS], medoids[MIX * MED_ELEMS + 1], medoids[MIX * MED_ELEMS + 2],
+                          medoids[MIX * MED_ELEMS + 3]}};
         memcpy(final_medoids, &aux, sizeof(aux));
         fclose(f);
         return EAR_SUCCESS;
@@ -100,31 +99,27 @@ state_t load_medoids(char *path, char *architecture, medoids_t *final_medoids)
 
 state_t load_extremes(char *path, char *architecture, extremes_t *final_extremes)
 {
-	if (!path || !architecture || !final_extremes) {
-		return EAR_ERROR;
-	}
+    if (!path || !architecture || !final_extremes) {
+        return EAR_ERROR;
+    }
     char filename[128] = "";
     create_filename(filename, path, "extremes.", architecture);
     FILE *f = fopen(filename, "rb");
 
     char buff[4096];
-    
-    if (access(filename, F_OK) != 0)
-    {
+
+    if (access(filename, F_OK) != 0) {
         return EAR_ERROR;
     }
-    
-    if (NULL != fgets(buff, sizeof(buff), f))
-    {
+
+    if (NULL != fgets(buff, sizeof(buff), f)) {
         char *val = buff;
         double extremes[N_EXTR * 2];
-        for (int i = 0; i < N_EXTR; i++)
-        {
-            for (int j = 0; j < 2; j++)
-            {
-                val = strtok(val, " \t\n");
+        for (int i = 0; i < N_EXTR; i++) {
+            for (int j = 0; j < 2; j++) {
+                val                 = strtok(val, " \t\n");
                 extremes[i * 2 + j] = atof(val);
-                val = NULL;
+                val                 = NULL;
             }
         }
         extremes_t aux = {{extremes[ID_CPI * 2], extremes[ID_CPI * 2 + 1]},

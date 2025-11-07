@@ -39,4 +39,4 @@ state_t mgt_prio_dummy_set_current(uint idx, int cpu);
 
 void mgt_prio_dummy_data_count(uint *prios_count, uint *idxs_count);
 
-#endif //MANAGEMENT_PRIORITY_DUMMY_H
+#endif // MANAGEMENT_PRIORITY_DUMMY_H

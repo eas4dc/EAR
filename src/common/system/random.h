@@ -21,4 +21,4 @@ uint random_get();
  * random_get() internally, so use it carefully. */
 uint random_getrank(uint min, uint offset);
 
-#endif //EAR_COMMON_TIME_H
+#endif // EAR_COMMON_TIME_H

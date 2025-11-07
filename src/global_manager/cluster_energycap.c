@@ -8,16 +8,16 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#include <common/config.h>
+#include <common/states.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <common/config.h>
-#include <common/states.h>
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
-#include <daemon/remote_api/eard_rapi_internals.h>
 #include <daemon/remote_api/eard_rapi.h>
+#include <daemon/remote_api/eard_rapi_internals.h>
 #include <global_manager/cluster_energycap.h>
 
 extern uint last_risk_sent;
@@ -26,91 +26,112 @@ node_info_t *einfo;
 
 int compare_node_info_lower_first(const void *a, const void *b)
 {
-	const node_info_t *na = (const node_info_t *)a;
-	const node_info_t *nb = (const node_info_t *)b;
-	/* Idle is a special case */
-	if ((na->idle) && (nb->idle)) return 0;
-	if (na->idle) return 1;
-	if (nb->idle) return -1;
-	/* Distance is based on the pstate distance with the max_freq*/	
-	if (na->dist_pstate== nb->dist_pstate) return 0;
-	// if (na->dist_pstate<nb->dist_pstate) 1;
-	if (na->dist_pstate<nb->dist_pstate) return 1;
-	return -1;
+    const node_info_t *na = (const node_info_t *) a;
+    const node_info_t *nb = (const node_info_t *) b;
+    /* Idle is a special case */
+    if ((na->idle) && (nb->idle))
+        return 0;
+    if (na->idle)
+        return 1;
+    if (nb->idle)
+        return -1;
+    /* Distance is based on the pstate distance with the max_freq*/
+    if (na->dist_pstate == nb->dist_pstate)
+        return 0;
+    // if (na->dist_pstate<nb->dist_pstate) 1;
+    if (na->dist_pstate < nb->dist_pstate)
+        return 1;
+    return -1;
 }
 
-void print_ordered_node_info(uint numn,node_info_t * einfo)
+void print_ordered_node_info(uint numn, node_info_t *einfo)
 {
-	int i;
-	for (i=0;i<numn;i++){
-		verbose(VGM,"node[%d] ip=%d dist %u power_red %f victim %u idle %u",i,einfo[i].ip,einfo[i].dist_pstate,einfo[i].power_red,einfo[i].victim,einfo[i].idle);
-	}
-}
-void select_victim_nodes(uint numn,node_info_t * einfo,float target)
-{
-	int i=0;
-	float total=0;
-	while((i<numn) && (total<target)){
-		total+=einfo[i].power_red;
-		einfo[i].victim=1;	
-		i++;
-	}
+    int i;
+    for (i = 0; i < numn; i++) {
+        verbose(VGM, "node[%d] ip=%d dist %u power_red %f victim %u idle %u", i, einfo[i].ip, einfo[i].dist_pstate,
+                einfo[i].power_red, einfo[i].victim, einfo[i].idle);
+    }
 }
 
-state_t get_nodes_status(cluster_conf_t my_cluster_conf,uint *nnodes,node_info_t **einfo)
+void select_victim_nodes(uint numn, node_info_t *einfo, float target)
 {
-	int i;
-	float ff;
-	ulong newf,diff_f;
-	node_info_t *cinfo;
-	int num_n;
-	status_t *my_status;
-	num_n = ear_cluster_get_status(&my_cluster_conf,&my_status);
-	if (num_n<=0){
-		*nnodes=0;
-		return EAR_ERROR;
-	}
-	debug("%d nodes have reported their status",num_n);
-	cinfo=(node_info_t *)calloc(num_n,sizeof(node_info_t));
-	if (cinfo==NULL) return EAR_ERROR;
-	for (i=0;i<num_n;i++){
-		// dist_pstate and ip
-		ff=roundf((float)my_status[i].node.avg_freq/100000.0);
-		newf=(ulong)((ff/10.0)*1000000);
-		diff_f=my_status[i].node.max_freq-newf;
-		cinfo[i].dist_pstate=diff_f/100000;
-		cinfo[i].ip=my_status[i].ip;
-		if (cinfo[i].dist_pstate==1) cinfo[i].power_red=0.1/(float)num_n;
-		else cinfo[i].power_red=0.05/(float)num_n;
-		cinfo[i].victim=0;
-		if (my_status[i].app.job_id==0) cinfo[i].idle=1;
-	}	
-	qsort((void *)cinfo,num_n,sizeof(node_info_t),compare_node_info_lower_first);
-
-	/* ES un vector consecutivo ? */
-	free(my_status);
-	*nnodes=num_n;
-	*einfo=cinfo;
-	return EAR_SUCCESS;	
+    int i       = 0;
+    float total = 0;
+    while ((i < numn) && (total < target)) {
+        total += einfo[i].power_red;
+        einfo[i].victim = 1;
+        i++;
+    }
 }
 
-void create_risk(risk_t *my_risk,int wl)
+state_t get_nodes_status(cluster_conf_t my_cluster_conf, uint *nnodes, node_info_t **einfo)
 {
-  *my_risk=0;
-  switch(wl){
-    case EARGM_WARNING1:set_risk(my_risk,WARNING1);last_risk_sent=EARGM_WARNING1;break;
-    case EARGM_WARNING2:set_risk(my_risk,WARNING1);add_risk(my_risk,WARNING2);last_risk_sent=EARGM_WARNING2;break;
-    case EARGM_PANIC:set_risk(my_risk,WARNING1);add_risk(my_risk,WARNING2);add_risk(my_risk,PANIC);last_risk_sent=EARGM_PANIC;break;
-  }
-  verbose(VGM,"EARGM risk level %lu",(ulong)*my_risk);
-  default_state=0;
+    int i;
+    float ff;
+    ulong newf, diff_f;
+    node_info_t *cinfo;
+    int num_n;
+    status_t *my_status;
+    state_t ret = ear_get_status(&my_cluster_conf, &my_status, &num_n, NULL, 0);
+    if (ret != EAR_SUCCESS) {
+        *nnodes = 0;
+        return EAR_ERROR;
+    }
+    debug("%d nodes have reported their status", num_n);
+    cinfo = (node_info_t *) calloc(num_n, sizeof(node_info_t));
+    if (cinfo == NULL)
+        return EAR_ERROR;
+    for (i = 0; i < num_n; i++) {
+        // dist_pstate and ip
+        ff                   = roundf((float) my_status[i].node.avg_freq / 100000.0);
+        newf                 = (ulong) ((ff / 10.0) * 1000000);
+        diff_f               = my_status[i].node.max_freq - newf;
+        cinfo[i].dist_pstate = diff_f / 100000;
+        cinfo[i].ip          = my_status[i].ip;
+        if (cinfo[i].dist_pstate == 1)
+            cinfo[i].power_red = 0.1 / (float) num_n;
+        else
+            cinfo[i].power_red = 0.05 / (float) num_n;
+        cinfo[i].victim = 0;
+        if (my_status[i].app.job_id == 0)
+            cinfo[i].idle = 1;
+    }
+    qsort((void *) cinfo, num_n, sizeof(node_info_t), compare_node_info_lower_first);
+
+    /* ES un vector consecutivo ? */
+    free(my_status);
+    *nnodes = num_n;
+    *einfo  = cinfo;
+    return EAR_SUCCESS;
 }
 
-
-
-void manage_warning(risk_t * risk,uint level,cluster_conf_t my_cluster_conf,float target,uint mode)
+void create_risk(risk_t *my_risk, int wl)
 {
-	#if 0
+    *my_risk = 0;
+    switch (wl) {
+        case EARGM_WARNING1:
+            set_risk(my_risk, WARNING1);
+            last_risk_sent = EARGM_WARNING1;
+            break;
+        case EARGM_WARNING2:
+            set_risk(my_risk, WARNING1);
+            add_risk(my_risk, WARNING2);
+            last_risk_sent = EARGM_WARNING2;
+            break;
+        case EARGM_PANIC:
+            set_risk(my_risk, WARNING1);
+            add_risk(my_risk, WARNING2);
+            add_risk(my_risk, PANIC);
+            last_risk_sent = EARGM_PANIC;
+            break;
+    }
+    verbose(VGM, "EARGM risk level %lu", (ulong) *my_risk);
+    default_state = 0;
+}
+
+void manage_warning(risk_t *risk, uint level, cluster_conf_t my_cluster_conf, float target, uint mode)
+{
+#if 0
 	uint numn;
 	verbose(VGM,"Our target is to reduce %.2f %% of  Watts",target);
 	if (get_nodes_status(my_cluster_conf,&numn,&einfo)!=EAR_SUCCESS){
@@ -119,10 +140,9 @@ void manage_warning(risk_t * risk,uint level,cluster_conf_t my_cluster_conf,floa
 		select_victim_nodes(numn,einfo,target);
 		print_ordered_node_info(numn,einfo);
 	}
-	#endif
-	if (mode){
-		create_risk(risk,level);
-		ear_cluster_set_risk(&my_cluster_conf, *risk, 0);
-	}
+#endif
+    if (mode) {
+        create_risk(risk, level);
+        ear_cluster_set_risk(&my_cluster_conf, *risk, 0);
+    }
 }
-

@@ -10,9 +10,9 @@
 
 #ifndef _CLUSTER_CONF_VERBOSE
 #define _CLUSTER_CONF_VERBOSE
-#include <common/types/configuration/cluster_conf_eargm.h>
 #include <common/types/configuration/cluster_conf_eard.h>
 #include <common/types/configuration/cluster_conf_eardbd.h>
+#include <common/types/configuration/cluster_conf_eargm.h>
 #include <common/types/configuration/cluster_conf_earlib.h>
 #include <common/types/configuration/cluster_conf_etag.h>
 #include <common/types/configuration/cluster_conf_tag.h>
@@ -21,4 +21,3 @@ void print_database_conf(db_conf_t *conf);
 void print_islands_conf(node_island_t *conf);
 void print_tags_conf(tag_t *tag, int i);
 #endif
-

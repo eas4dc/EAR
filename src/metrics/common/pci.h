@@ -11,19 +11,19 @@
 #ifndef EAR_PCI_H
 #define EAR_PCI_H
 
-#include <unistd.h>
-#include <common/types.h>
 #include <common/states.h>
+#include <common/types.h>
+#include <unistd.h>
 
-#define PAGE_SIZE        sysconf(_SC_PAGE_SIZE)
-#define PAGE_MASK(addr)  (addr & ~(PAGE_SIZE - 1))
+#define PAGE_SIZE       sysconf(_SC_PAGE_SIZE)
+#define PAGE_MASK(addr) (addr & ~(PAGE_SIZE - 1))
 
 typedef struct pci_s {
-	off_t  map_addrs[32];
-	void  *map_ptxs[32];
-	char   path[128];
-	mode_t mode;
-	int fd;
+    off_t map_addrs[32];
+    void *map_ptxs[32];
+    char path[128];
+    mode_t mode;
+    int fd;
 } pci_t;
 
 state_t pci_scan(ushort vendor, ushort *ids, char **dfs, mode_t mode, pci_t **pcis, uint *pcis_count);
@@ -41,4 +41,4 @@ state_t pci_mmio_map(addr_t addr, void **p);
 
 state_t pci_mmio_unmap(void *p);
 
-#endif //EAR_PCI_H
+#endif // EAR_PCI_H

@@ -18,8 +18,8 @@
 // in a customized style.
 
 typedef struct dreg_s {
-    char  *buffer;
-    uint   rows;
+    char *buffer;
+    uint rows;
     size_t colsize_full;
     size_t colsize_mix;
     size_t p;

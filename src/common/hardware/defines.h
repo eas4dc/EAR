@@ -34,4 +34,4 @@
 #define __X86_FEATURE_AVX512
 #endif
 
-#endif //HARDWARE_DEFINES_H
+#endif // HARDWARE_DEFINES_H

@@ -9,11 +9,10 @@
  **************************************************************************/
 #ifndef _LOADAVG_H_
 #define _LOADAVG_H_
+#include <common/states.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <common/states.h>
 
-state_t loadavg(float *min,float *Vmin,float *XVmin,uint * runnable,uint *total,uint *lastpid);
+state_t loadavg(float *min, float *Vmin, float *XVmin, uint *runnable, uint *total, uint *lastpid);
 #endif
-

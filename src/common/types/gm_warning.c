@@ -10,11 +10,10 @@
 
 #include <common/config.h>
 
+#include <common/types/generic.h>
 #include <common/types/gm_warning.h>
 #include <string.h>
-#include <common/types/generic.h>
 #define NODE_SIZE 256
-
 
 /** Replicates the periodic_metric in *source to *destiny */
 void copy_gm_warning(gm_warning_t *destiny, gm_warning_t *source)
@@ -30,10 +29,16 @@ void init_gm_warning(gm_warning_t *gmw)
 
 void gm_warning_clean_before_db(gm_warning_t *gmw)
 {
-	if (gmw->level > INT_MAX) gmw->level = INT_MAX;
-	if (gmw->new_p_state > INT_MAX) gmw->new_p_state = INT_MAX;
-	if (gmw->energy_t1 > INT_MAX) gmw->energy_t1 = INT_MAX;
-	if (gmw->energy_t2 > INT_MAX) gmw->energy_t2 = INT_MAX;
-	if (gmw->energy_p1 > INT_MAX) gmw->energy_p1 = INT_MAX;
-	if (gmw->energy_p2 > INT_MAX) gmw->energy_p2 = INT_MAX;
+    if (gmw->level > INT_MAX)
+        gmw->level = INT_MAX;
+    if (gmw->new_p_state > INT_MAX)
+        gmw->new_p_state = INT_MAX;
+    if (gmw->energy_t1 > INT_MAX)
+        gmw->energy_t1 = INT_MAX;
+    if (gmw->energy_t2 > INT_MAX)
+        gmw->energy_t2 = INT_MAX;
+    if (gmw->energy_p1 > INT_MAX)
+        gmw->energy_p1 = INT_MAX;
+    if (gmw->energy_p2 > INT_MAX)
+        gmw->energy_p2 = INT_MAX;
 }

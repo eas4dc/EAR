@@ -25,4 +25,4 @@ void before_finalize();
 
 void after_finalize();
 
-#endif //LIBRARY_EAR_MPI_H
+#endif // LIBRARY_EAR_MPI_H

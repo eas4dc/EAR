@@ -14,18 +14,18 @@
 #include <common/types.h>
 
 typedef struct screen_s {
-    void       *divs;
-    cchar      *title;
-    int         divs_count;
-    char       *buffer; //unprocessed buffer
-    char       *buffer_bench; //working bench buffer
-    char       *buffer_final; //buffer ready to print
-    char      **matrix;
-    char        bckchr;
-    int         height;
-    int         width;
-    int         fd;
-    int         y;
+    void *divs;
+    cchar *title;
+    int divs_count;
+    char *buffer;       // unprocessed buffer
+    char *buffer_bench; // working bench buffer
+    char *buffer_final; // buffer ready to print
+    char **matrix;
+    char bckchr;
+    int height;
+    int width;
+    int fd;
+    int y;
 } strscreen_t;
 
 void scprintf_init(strscreen_t *screen, int height, int width, int fd, char bckchr);
@@ -38,4 +38,4 @@ void scsprintf(strscreen_t *s, int id, int append, int set_title, char *buffer);
 // Returns and writes in the 'fd' output the whole formatted screen.
 char *scprintf(strscreen_t *s);
 
-#endif //COMMON_UTILS_STRSCREEN_H
+#endif // COMMON_UTILS_STRSCREEN_H

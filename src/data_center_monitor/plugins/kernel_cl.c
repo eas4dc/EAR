@@ -8,44 +8,43 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <CL/cl.h>
+#include <common/system/plugin_manager.h>
+#include <common/utils/string.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <common/utils/string.h>
-#include <common/system/plugin_manager.h>
 
-static pthread_t         thread;
-static uint             *devs_running;
-static uint              devs_count;
-static cl_device_id     *devices;
-static uint              is_running;
-static uint              lay_time;
+static pthread_t thread;
+static uint *devs_running;
+static uint devs_count;
+static cl_device_id *devices;
+static uint is_running;
+static uint lay_time;
 static cl_command_queue *command_queue;
 
 declr_up_get_tag()
 {
-    *tag = "kernel_cl";
+    *tag       = "kernel_cl";
     *tags_deps = NULL;
 }
 
-const char *CL_KERNEL =
-"__kernel void cl_kernel(__global int *C)\n"
-"{\n"
-    "int id = get_global_id(0);\n"
-    "unsigned long long i;\n"
-"\n"
-    "C[id] = id;\n"
-    "for (i = 0; i < 1000000000LLU; ++i) {\n"
-        "C[id] += id * ((int) i % 9);\n"
-    "\n}"
-"\n}";
+const char *CL_KERNEL = "__kernel void cl_kernel(__global int *C)\n"
+                        "{\n"
+                        "int id = get_global_id(0);\n"
+                        "unsigned long long i;\n"
+                        "\n"
+                        "C[id] = id;\n"
+                        "for (i = 0; i < 1000000000LLU; ++i) {\n"
+                        "C[id] += id * ((int) i % 9);\n"
+                        "\n}"
+                        "\n}";
 
 int kcl_count_devices()
 {
-    static int init = 0;    
+    static int init = 0;
     cl_platform_id *platforms;
     uint plats_count;
     int p;
@@ -65,46 +64,45 @@ int kcl_count_devices()
         }
         devices = (cl_device_id *) calloc(devs_count, sizeof(cl_device_id));
         clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_GPU, devs_count, devices, NULL);
-        break; 
+        break;
     }
     if (devs_count == 0) {
         goto retdevs;
     }
     command_queue = (cl_command_queue *) calloc(devs_count, sizeof(cl_command_queue));
-    init = 1; 
+    init          = 1;
 retdevs:
     return devs_count;
 }
 
 static void *static_kernel_execute(void *x)
 {
-    size_t            global_size;
-    size_t            local_size;
-    cl_int            err;
-    cl_context        context;
-    cl_program        program;
-    cl_kernel         kernel;
-    cl_mem            r_mem_obj;
-    int              *result;   
-    int               d; 
+    size_t global_size;
+    size_t local_size;
+    cl_int err;
+    cl_context context;
+    cl_program program;
+    cl_kernel kernel;
+    cl_mem r_mem_obj;
+    int *result;
+    int d;
 
-    #define LIST_SIZE         1024
-    #define MAX_SOURCE_SIZE  (0x100000)
-    
+#define LIST_SIZE       1024
+#define MAX_SOURCE_SIZE (0x100000)
+
     // Context -> Program -> Kernel -> CommandQueue
-    result        = (int *) malloc(sizeof(int) * LIST_SIZE);
-    global_size   = LIST_SIZE;
-    local_size    = 64;
-  
-    // Main program 
-    while (is_running)
-    {
-        context       = clCreateContext(NULL, devs_count, devices, NULL, NULL, &err);
-        r_mem_obj     = clCreateBuffer(context, CL_MEM_WRITE_ONLY, LIST_SIZE * sizeof(int), NULL, &err);
-        program       = clCreateProgramWithSource(context, 1, &CL_KERNEL, NULL, &err);
-        err           = clBuildProgram(program, 1, devices, NULL, NULL, NULL);
-        kernel        = clCreateKernel(program, "cl_kernel", &err);
-        err           = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *) &r_mem_obj);
+    result      = (int *) malloc(sizeof(int) * LIST_SIZE);
+    global_size = LIST_SIZE;
+    local_size  = 64;
+
+    // Main program
+    while (is_running) {
+        context   = clCreateContext(NULL, devs_count, devices, NULL, NULL, &err);
+        r_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY, LIST_SIZE * sizeof(int), NULL, &err);
+        program   = clCreateProgramWithSource(context, 1, &CL_KERNEL, NULL, &err);
+        err       = clBuildProgram(program, 1, devices, NULL, NULL, NULL);
+        kernel    = clCreateKernel(program, "cl_kernel", &err);
+        err       = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *) &r_mem_obj);
 
         for (d = 0; d < devs_count; ++d) {
             if (!devs_running[d]) {
@@ -112,7 +110,8 @@ static void *static_kernel_execute(void *x)
             }
             command_queue[d] = clCreateCommandQueue(context, devices[d], 0, &err);
             err = clEnqueueNDRangeKernel(command_queue[d], kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
-            err = clEnqueueReadBuffer(command_queue[d], r_mem_obj, CL_TRUE, 0, LIST_SIZE * sizeof(int), result, 0, NULL, NULL);
+            err = clEnqueueReadBuffer(command_queue[d], r_mem_obj, CL_TRUE, 0, LIST_SIZE * sizeof(int), result, 0, NULL,
+                                      NULL);
             err = clFlush(command_queue[d]);
             err = clFinish(command_queue[d]);
             err = clReleaseCommandQueue(command_queue[d]);
@@ -120,13 +119,13 @@ static void *static_kernel_execute(void *x)
             err = clReleaseProgram(program);
             err = clReleaseMemObject(r_mem_obj);
             err = clReleaseContext(context);
-            #if 1 
+#if 1
             int i;
-            for(i = 0; i < LIST_SIZE; i++) {
+            for (i = 0; i < LIST_SIZE; i++) {
                 printf("R[%d] = %d\n", i, result[i]);
             }
-            #endif
-        } 
+#endif
+        }
         sleep(lay_time);
     }
     // Clean up

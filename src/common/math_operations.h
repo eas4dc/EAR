@@ -11,23 +11,23 @@
 #ifndef COMMON_MATH_OPS_H
 #define COMMON_MATH_OPS_H
 
-#include <stdlib.h>
 #include <limits.h>
+#include <stdlib.h>
 
 #include <common/types/generic.h>
 
-#define B_TO_KB        1E3
-#define B_TO_MB        1E6
-#define B_TO_GB        1E9
-#define KB_TO_MB(n)    (n / 1000)
-#define KB_TO_HB(n)    (n / 100000) //Hundred of megahertz
-#define MB_TO_KB(n)    (n * 1000) 
-#define HB_TO_KB(n)    (n * 100000)
-#define KHZ_TO_MHZ(n)  KB_TO_MB(n)
-#define KHZ_TO_HHZ(n)  KB_TO_HB(n)
-#define MHZ_TO_KHZ(n)  MB_TO_KB(n)
-#define HHZ_TO_KHZ(n)  HB_TO_KB(n)
-#define KHZ_TO_GHZ(n)  (n / 1000000)
+#define B_TO_KB       1E3
+#define B_TO_MB       1E6
+#define B_TO_GB       1E9
+#define KB_TO_MB(n)   (n / 1000)
+#define KB_TO_HB(n)   (n / 100000) // Hundred of megahertz
+#define MB_TO_KB(n)   (n * 1000)
+#define HB_TO_KB(n)   (n * 100000)
+#define KHZ_TO_MHZ(n) KB_TO_MB(n)
+#define KHZ_TO_HHZ(n) KB_TO_HB(n)
+#define MHZ_TO_KHZ(n) MB_TO_KB(n)
+#define HHZ_TO_KHZ(n) HB_TO_KB(n)
+#define KHZ_TO_GHZ(n) (n / 1000000)
 
 /* Overflow functions:
  * 	zeros: returns zero on overflow
@@ -35,16 +35,13 @@
  * 	mixed: like magic but returns zero if v1 isn't over the threshold (MAX >> bits)
  */
 
-#define MAXBITS32      0x00000000FFFFFFFF
-#define MAXBITS48      0x0000FFFFFFFFFFFF
-#define MAXBITS64      0xFFFFFFFFFFFFFFFF
+#define MAXBITS32                    0x00000000FFFFFFFF
+#define MAXBITS48                    0x0000FFFFFFFFFFFF
+#define MAXBITS64                    0xFFFFFFFFFFFFFFFF
 
-#define overflow_zeros(type, suffix) \
-    type overflow_zeros_ ##suffix (type v2, type v1)
-#define overflow_magic(type, suffix) \
-    type overflow_magic_ ##suffix (type v2, type v1, type max)
-#define overflow_mixed(type, suffix) \
-    type overflow_mixed_ ##suffix (type v2, type v1, type max, uint bits)
+#define overflow_zeros(type, suffix) type overflow_zeros_##suffix(type v2, type v1)
+#define overflow_magic(type, suffix) type overflow_magic_##suffix(type v2, type v1, type max)
+#define overflow_mixed(type, suffix) type overflow_mixed_##suffix(type v2, type v1, type max, uint bits)
 
 overflow_zeros(double, f64);
 overflow_zeros(ullong, u64);
@@ -58,29 +55,28 @@ overflow_magic(uint, u32);
  *  floor: pending.
  */
 
-#define ceil_magic(type, suffix) \
-    type ceil_magic_ ##suffix (type value, uint digits)
+#define ceil_magic(type, suffix) type ceil_magic_##suffix(type value, uint digits)
 
 ceil_magic(ullong, u64);
-ceil_magic(  uint, u32);
+ceil_magic(uint, u32);
 
 /** Given two doubles a and b, checks whether they are equal within a margin of th.*/
 uint equal_with_th(double a, double b, double th);
 
-uint equal_with_th_ul(ulong a,ulong b,double th);
+uint equal_with_th_ul(ulong a, ulong b, double th);
 
 /** Given two unsigned long's, one before and one after overflow, returns the
- *   value added to the first to obtain the second. This corrects end-begin when there 
+ *   value added to the first to obtain the second. This corrects end-begin when there
  *   has been an overflow. */
 unsigned long ulong_diff_overflow(unsigned long begin, unsigned long end);
 
 /** Given two unsigned long's, one before and one after overflow, returns the
- *   value added to the first to obtain the second. This corrects end-begin when there 
+ *   value added to the first to obtain the second. This corrects end-begin when there
  *   has been an overflow. */
 unsigned long long ullong_diff_overflow(unsigned long long begin, unsigned long long end);
 
 /** Given two long long's, one before and one after overflow, returns the
- *   value added to the first to obtain the second. 
+ *   value added to the first to obtain the second.
  *   This corrects end-begin when there has been an overflow.
  */
 long long llong_diff_overflow(long long begin, long long end);
@@ -92,7 +88,7 @@ long long llong_diff_overflow(long long begin, long long end);
  * This function will dynamically allocate memory space for the resulting array, so
  * it's recommended to call ear_math_free_gen_arr after using the resulting array.
  */
-void** ear_math_apply(void **arr, size_t len, void* (*fn_ptr)(void*));
+void **ear_math_apply(void **arr, size_t len, void *(*fn_ptr)(void *) );
 
 /** Given two vectors 'a' and 'b' of size 'n', returns its cosine similarity, which is
  *                  A·B

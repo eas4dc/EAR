@@ -9,30 +9,29 @@
  **************************************************************************/
 
 // #define SHOW_DEBUGS 1
+#if !SHOW_DEBUGS
+#define NDEBUG
+#endif
 
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>  
-#include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
-#define NDEBUG
-#include <assert.h>
-#include <limits.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <common/config.h>
-#include <common/system/time.h>
-#include <common/system/file.h>
-#include <common/types/loop.h>
 #include <common/states.h>
-
+#include <common/system/file.h>
+#include <common/system/time.h>
+#include <common/types/loop.h>
 
 #define PERMISSION S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
-#define OPTIONS O_WRONLY | O_CREAT | O_TRUNC | O_APPEND
-
+#define OPTIONS    O_WRONLY | O_CREAT | O_TRUNC | O_APPEND
 
 int create_loop_id(loop_id_t *lid, ulong event, ulong size, ulong level)
 {
@@ -49,8 +48,7 @@ int create_loop_id(loop_id_t *lid, ulong event, ulong size, ulong level)
 
 int create_loop(loop_t *l)
 {
-    if (l != NULL)
-    {
+    if (l != NULL) {
         l->jid              = 0;
         l->step_id          = 0;
         l->total_iterations = 0;
@@ -63,16 +61,19 @@ int create_loop(loop_t *l)
     }
 }
 
-int loop_init(loop_t *loop, ulong job_id, ulong step_id, ulong local_id, const char *node_id, ulong event, ulong size, ulong level)
+int loop_init(loop_t *loop, ulong job_id, ulong step_id, ulong local_id, const char *node_id, ulong event, ulong size,
+              ulong level)
 {
     int ret;
 
-    if ((ret=create_loop(loop)) != EAR_SUCCESS) return ret;
+    if ((ret = create_loop(loop)) != EAR_SUCCESS)
+        return ret;
 
-    if ((ret=create_loop_id(&loop->id, event, size, level)) != EAR_SUCCESS) return ret;
+    if ((ret = create_loop_id(&loop->id, event, size, level)) != EAR_SUCCESS)
+        return ret;
 
-    loop->jid      = job_id;
-    loop->step_id  = step_id;
+    loop->jid     = job_id;
+    loop->step_id = step_id;
 #if WF_SUPPORT
     loop->local_id = local_id;
 #endif
@@ -84,29 +85,31 @@ int loop_init(loop_t *loop, ulong job_id, ulong step_id, ulong local_id, const c
 
 void clean_db_loop(loop_t *loop, double limit)
 {
-    if (loop->id.event > INT_MAX) loop->id.event = INT_MAX;
-    if (loop->id.size > INT_MAX) loop->id.size = INT_MAX; 
-    if (loop->id.level > INT_MAX) loop->id.level = INT_MAX;
+    if (loop->id.event > INT_MAX)
+        loop->id.event = INT_MAX;
+    if (loop->id.size > INT_MAX)
+        loop->id.size = INT_MAX;
+    if (loop->id.level > INT_MAX)
+        loop->id.level = INT_MAX;
     signature_clean_before_db(&loop->signature, limit);
 }
 
 int set_null_loop(loop_t *loop)
 {
     return create_loop(loop);
-
 }
+
 /** Returns true if the loop data is not, return -1 in case of error */
 int is_null(loop_t *loop)
 {
-    if (loop==NULL) return EAR_ERROR;
-    return (loop->total_iterations==0);
+    if (loop == NULL)
+        return EAR_ERROR;
+    return (loop->total_iterations == 0);
 }
 
-
-
-void add_loop_signature(loop_t *loop,  signature_t *sig)
+void add_loop_signature(loop_t *loop, signature_t *sig)
 {
-    memcpy(&loop->signature,sig,sizeof(signature_t));
+    memcpy(&loop->signature, sig, sizeof(signature_t));
 }
 
 void end_loop(loop_t *loop, ulong iterations)
@@ -126,14 +129,14 @@ void print_loop_id_fd(int fd, loop_id_t *loop_id)
 
 void print_loop_fd(int fd, loop_t *loop)
 {
-    dprintf(fd,"%lu;%lu;%lu;", loop->jid, loop->step_id,loop->local_id);
+    dprintf(fd, "%lu;%lu;%lu;", loop->jid, loop->step_id, loop->local_id);
     dprintf(fd, "%s;", loop->node_id);
-    signature_print_fd(fd, &loop->signature, 1, 0 , ' ');
+    signature_print_fd(fd, &loop->signature, 1, 0, ' ');
     print_loop_id_fd(fd, &loop->id);
     dprintf(fd, "%lu\n", loop->total_iterations);
 }
 
-int append_loop_text_file(char *path, loop_t *loop,job_t *job, int add_header, int single_column, char sep)
+int append_loop_text_file(char *path, loop_t *loop, job_t *job, int add_header, int single_column, char sep)
 {
 #if DB_FILES
     if (path == NULL) {
@@ -144,69 +147,76 @@ int append_loop_text_file(char *path, loop_t *loop,job_t *job, int add_header, i
     num_gpus = loop->signature.gpu_sig.num_gpus;
 #endif
 
-	if (add_header) create_loop_header(NULL, path, 0, num_gpus);
+    if (add_header)
+        create_loop_header(NULL, path, 0, num_gpus);
     int fd, ret;
     fd = open(path, O_WRONLY | O_APPEND);
-    if (fd < 0){
-      error("Couldn't open loop file\n");
-      return EAR_ERROR;
+    if (fd < 0) {
+        error("Couldn't open loop file\n");
+        return EAR_ERROR;
     }
 
-    assert(loop!=NULL);
-    assert(loop->node_id!=NULL);
+    assert(loop != NULL);
+    assert(loop->node_id != NULL);
     dprintf(fd, "%s;", loop->node_id);
     print_job_fd(fd, job);
-    signature_print_fd(fd, &loop->signature,1, single_column, sep);
+    signature_print_fd(fd, &loop->signature, 1, single_column, sep);
     print_loop_id_fd(fd, &loop->id);
     dprintf(fd, "%lu\n", loop->total_iterations);
 
     close(fd);
 
-    if (ret < 0) return EAR_ERROR;
+    if (ret < 0)
+        return EAR_ERROR;
 #endif
 
     return EAR_SUCCESS;
 }
 
-int create_loop_header(char * header, char *path, int ts, uint num_gpus, int single_column)
+int create_loop_header(char *header, char *path, int ts, uint num_gpus, int single_column)
 {
 #if WF_SUPPORT
-	char *HEADER_JOB = "JOBID;STEPID;APPID";
+    char *HEADER_JOB = "JOBID;STEPID;APPID";
 #else
-	char *HEADER_JOB = "JOBID;STEPID";
+    char *HEADER_JOB = "JOBID;STEPID";
 #endif // WF_SUPPORT
 
-	char *HEADER_NOTS = ";NODENAME;AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;"\
-											 "ITER_TIME_SEC;CPI;TPI;MEM_GBS;IO_MBS;PERC_MPI;DC_NODE_POWER_W;"\
-											 "DRAM_POWER_W;PCK_POWER_W;CYCLES;INSTRUCTIONS;GFLOPS;CPU_UTIL;L1_MISSES;"\
-											 "L2_MISSES;L3_MISSES;SPOPS_SINGLE;SPOPS_128;SPOPS_256;"\
-											 "SPOPS_512;DPOPS_SINGLE;DPOPS_128;DPOPS_256;DPOPS_512";
+    char *HEADER_NOTS = ";NODENAME;AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;"
+                        "ITER_TIME_SEC;CPI;TPI;MEM_GBS;IO_MBS;PERC_MPI;DC_NODE_POWER_W;"
+                        "DRAM_POWER_W;PCK_POWER_W;CYCLES;INSTRUCTIONS;STALLS_FETCH_DECODE;"
+                        "STALLS_RESOURCES;STALLS_MEMORY;GFLOPS;CPU_UTIL;"
+                        "L1_MISSES;L2_MISSES;L3_MISSES;LL_MISSES;L1_HITS;L2_HITS;L3_HITS;LL_HITS;"
+                        "L1_ACCESSES;L2_ACCESSES;L3_ACCESSES;LL_ACCESSES;"
+                        "L1_MISSRATE;L2_MISSRATE;L3_MISSRATE;LL_MISSRATE;"
+                        "L1_HITRATE;L2_HITRATE;L3_HITRATE;LL_HITRATE;"
+                        "SPOPS_SINGLE;SPOPS_128;SPOPS_256;SPOPS_512;DPOPS_SINGLE;DPOPS_128;"
+                        "DPOPS_256;DPOPS_512";
 #if WF_SUPPORT
-		uint num_sockets = MAX_SOCKETS_SUPPORTED;
-		debug("Creating header for CPU signature with %u sockets", num_sockets);
-		char cpu_sig_hdr[256] = "";
-		for (uint s = 0 ; s < num_sockets ; s++){
-			char temp_hdr[16];
-			snprintf(temp_hdr, sizeof(temp_hdr), ";TEMP%u", s);
-			strcat(cpu_sig_hdr, temp_hdr);
-		}
-	
+    uint num_sockets = MAX_SOCKETS_SUPPORTED;
+    debug("Creating header for CPU signature with %u sockets", num_sockets);
+    char cpu_sig_hdr[256] = "";
+    for (uint s = 0; s < num_sockets; s++) {
+        char temp_hdr[33];
+        snprintf(temp_hdr, sizeof(temp_hdr), ";TEMP%u;CPU_POWER%u;DRAM_POWER%u", s, s, s);
+        strcat(cpu_sig_hdr, temp_hdr);
+    }
+
 #else
-	char *cpu_sig_hdr = "";
+    char *cpu_sig_hdr = "";
 #endif
 
 #if USE_GPUS
     char gpu_header[512];
 #if WF_SUPPORT
-    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"\
-														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS;"\
-														"GPU%d_TEMP;GPU%d_MEMTEMP";
+    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"
+                           "GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS;"
+                           "GPU%d_TEMP;GPU%d_MEMTEMP";
 #else
-    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"\
-														"GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
+    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"
+                           "GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
 #endif // WF_SUPPORT
 #else
-		char HEADER_GPU_SIG[1] = "\0";
+    char HEADER_GPU_SIG[1] = "\0";
 #endif
 
 #if REPORT_TIMESTAMP
@@ -215,44 +225,45 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
     char *HEADER_LOOP = ";LOOPID;LOOP_NEST_LEVEL;LOOP_SIZE;ITERATIONS";
 #endif
 
-		char HEADER_TS[16] = ";ELAPSED;DATE";
+    char HEADER_TS[16] = ";ELAPSED;DATE";
     if (!ts) {
-			memset(HEADER_TS, 0, sizeof(HEADER_TS));
+        memset(HEADER_TS, 0, sizeof(HEADER_TS));
     }
 
-		// Be careful if some day the number of GPUs has more than two digits :) .
-		size_t header_len = strlen(HEADER_JOB) + strlen(HEADER_NOTS) + strlen(HEADER_GPU_SIG) * num_gpus \
-			+ strlen(HEADER_LOOP) + strlen(HEADER_TS) + 1 + strlen(cpu_sig_hdr);
-		if (header)
-		{
-			header_len += strlen(header);
-		}
+    // Be careful if some day the number of GPUs has more than two digits :) .
+    size_t header_len = strlen(HEADER_JOB) + strlen(HEADER_NOTS) + strlen(HEADER_GPU_SIG) * num_gpus +
+                        strlen(HEADER_LOOP) + strlen(HEADER_TS) + 1 + strlen(cpu_sig_hdr);
+    if (header) {
+        header_len += strlen(header);
+    }
 
-		// Allocate exactly what we need
+    // Allocate exactly what we need
     char *HEADER = calloc(header_len, sizeof(char));
 
     if (ear_file_is_regular(path)) {
         debug("%s is a regular file", path);
-				free(HEADER);
+        free(HEADER);
         return EAR_SUCCESS;
     }
 
-    if (header != NULL) strncpy(HEADER, header, header_len - 1);
+    if (header != NULL)
+        strncpy(HEADER, header, header_len - 1);
     strncat(HEADER, HEADER_JOB, header_len - strlen(HEADER) - 1);
     strncat(HEADER, HEADER_NOTS, header_len - strlen(HEADER) - 1);
 
-		/* Temperature */
+    /* Temperature */
     strncat(HEADER, cpu_sig_hdr, header_len - strlen(HEADER) - 1);
 
 #if USE_GPUS
-    if (single_column) num_gpus = ear_min(1, num_gpus);
+    if (single_column)
+        num_gpus = ear_min(1, num_gpus);
     for (uint j = 0; j < num_gpus; ++j) {
 #if WF_SUPPORT
-        sprintf(gpu_header,HEADER_GPU_SIG,j,j,j,j,j,j,j,j);
+        sprintf(gpu_header, HEADER_GPU_SIG, j, j, j, j, j, j, j, j);
 #else
-        sprintf(gpu_header,HEADER_GPU_SIG,j,j,j,j,j);
+        sprintf(gpu_header, HEADER_GPU_SIG, j, j, j, j, j);
 #endif
-        strncat(HEADER, gpu_header,  header_len - strlen(HEADER) - 1);
+        strncat(HEADER, gpu_header, header_len - strlen(HEADER) - 1);
     }
 #endif // USE_GPUS
 
@@ -265,13 +276,13 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
     int fd = open(path, OPTIONS, PERMISSION);
     if (fd < 0) {
         debug("File %s could not be opened: %d", path, errno);
-				free(HEADER);
+        free(HEADER);
         return EAR_ERROR;
     }
 
     int ret = dprintf(fd, "%s\n", HEADER);
 
-		free(HEADER);
+    free(HEADER);
 
     close(fd);
 
@@ -283,22 +294,22 @@ int create_loop_header(char * header, char *path, int ts, uint num_gpus, int sin
     return EAR_SUCCESS;
 }
 
-static int append_loop_text_file_no_job_int(char *path, loop_t *loop, int ts, ullong currtime,
-        int add_header, int single_column, char sep);
+static int append_loop_text_file_no_job_int(char *path, loop_t *loop, int ts, ullong currtime, int add_header,
+                                            int single_column, char sep);
 
-int append_loop_text_file_no_job(char *path, loop_t *loop, int add_header,
-        int single_column, char sep)
+int append_loop_text_file_no_job(char *path, loop_t *loop, int add_header, int single_column, char sep)
 {
-    return append_loop_text_file_no_job_int(path,loop, 1, 0, add_header, single_column, sep);
+    return append_loop_text_file_no_job_int(path, loop, 1, 0, add_header, single_column, sep);
 }
 
-int append_loop_text_file_no_job_with_ts(char *path, loop_t *loop, ullong currtime,
-        int add_header, int single_column, char sep)
+int append_loop_text_file_no_job_with_ts(char *path, loop_t *loop, ullong currtime, int add_header, int single_column,
+                                         char sep)
 {
     return append_loop_text_file_no_job_int(path, loop, 1, currtime, add_header, single_column, sep);
 }
 
-static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts, ullong currtime, int add_header, int single_column, char sep)
+static int append_loop_text_file_no_job_int(char *path, loop_t *loop, int ts, ullong currtime, int add_header,
+                                            int single_column, char sep)
 {
     if (path == NULL) {
         return EAR_ERROR;
@@ -308,7 +319,8 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts, ull
 
 #if USE_GPUS
     num_gpus = MAX_GPUS_SUPPORTED; // loop->signature.gpu_sig.num_gpus;
-    if (single_column) num_gpus = ear_min(num_gpus,1);
+    if (single_column)
+        num_gpus = ear_min(num_gpus, 1);
 #endif
 
     if (add_header) {
@@ -324,30 +336,29 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop,int ts, ull
         return EAR_ERROR;
     }
 
-    assert(loop!=NULL);
-    assert(loop->node_id!=NULL);
+    assert(loop != NULL);
+    assert(loop->node_id != NULL);
 #if WF_SUPPORT
-    dprintf(fd,"%lu;%lu;%lu;",loop->jid,loop->step_id,loop->local_id);
+    dprintf(fd, "%lu;%lu;%lu;", loop->jid, loop->step_id, loop->local_id);
 #else
-    dprintf(fd,"%lu;%lu;",loop->jid,loop->step_id);
+    dprintf(fd, "%lu;%lu;", loop->jid, loop->step_id);
 #endif
     dprintf(fd, "%s;", loop->node_id);
-    signature_print_fd(fd, &loop->signature,1, single_column, sep);
+    signature_print_fd(fd, &loop->signature, 1, single_column, sep);
     print_loop_id_fd(fd, &loop->id);
-    if (ts){
+    if (ts) {
         struct tm *current_t;
         char s[256];
-        current_t = localtime((time_t *)&loop->total_iterations);
+        current_t = localtime((time_t *) &loop->total_iterations);
         strftime(s, 256, "%d-%m-%Y %H:%M:%S", current_t);
 
         dprintf(fd, "%lu;%llu;%s", loop->total_iterations, currtime, s);
-    }else{
+    } else {
         dprintf(fd, "%lu", loop->total_iterations);
     }
-    dprintf(fd,"\n");
+    dprintf(fd, "\n");
 
     close(fd);
-
 
     return EAR_SUCCESS;
 }

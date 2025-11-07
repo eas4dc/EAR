@@ -109,6 +109,8 @@ state_t enable(suscription_t *sus)
     num_cpus = mgt_cpupow_count_devices(CPUPOW_SOCKET);
     num_dram = mgt_cpupow_count_devices(CPUPOW_DRAM);
 
+    debug("num cpus: %u num_dram: %u", num_cpus, num_dram);
+
     cpu_power  = calloc(num_cpus, sizeof(uint32_t));
     dram_power = calloc(num_dram, sizeof(uint32_t));
 
@@ -193,8 +195,8 @@ static state_t _set_single_powercap_value(uint pid, uint32_t limit, uint32_t *cp
         debug("error setting CPU powercap");
         return ret;
     }
-    current_limit = limit; //TODO: not exact, we don't know if dram will succeed.
-    ret = mgt_cpupow_powercap_set(CPUPOW_DRAM, dram_power);
+    current_limit = limit; // TODO: not exact, we don't know if dram will succeed.
+    ret           = mgt_cpupow_powercap_set(CPUPOW_DRAM, dram_power);
     if (ret == EAR_ERROR) {
         debug("error setting DRAM powercap");
     }
@@ -371,7 +373,7 @@ uint get_powercap_status(domain_status_t *status)
     debug("=== Energy Debug Info ===");
     debug("energy_packs: %u", energy_packs);
     double time_diff_ms = timestamp_diff(&curr_time, &last_time, TIME_MSECS);
-    double time_diff_s = time_diff_ms / 1000.0;
+    double time_diff_s  = time_diff_ms / 1000.0;
     debug("Time difference: %.3f ms (%.6f s)", time_diff_ms, time_diff_s);
 
     double energy = 0;
@@ -385,7 +387,6 @@ uint get_powercap_status(domain_status_t *status)
     last_time = curr_time;
 
     debug("Current power: %.2f, current_limit: %u", power, current_limit);
-
 
     /* Running below target settings, requesting more power */
     if (_cmp_curr_pstate_with_target_freq(curr_pstates, c_req_f)) {

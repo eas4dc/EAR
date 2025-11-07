@@ -8,7 +8,6 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 // #define SHOW_DEBUGS 1
 
 #include <common/output/debug.h>
@@ -24,7 +23,7 @@ static state_t update(void *x)
     static uint updated = 0;
     debug("update proc %u", getpid());
 
-    gpuproc_read_diff(no_ctx, data2, data1, dataD); 
+    gpuproc_read_diff(no_ctx, data2, data1, dataD);
 
     gpuproc_data_print(dataD, fderr);
 
@@ -44,14 +43,14 @@ void __main(int argc, char **argv, char **envp)
 {
     static int protected = 0;
     uint api;
-    
+
     if (protected) {
         return;
     }
     protected = 1;
-    
+
     debug("__main");
-    
+
     monitor_init();
 
     gpuproc_load(NO_EARD);
@@ -60,16 +59,16 @@ void __main(int argc, char **argv, char **envp)
     gpuproc_data_alloc(&data1);
     gpuproc_data_alloc(&data2);
     gpuproc_data_alloc(&dataD);
-    gpuproc_read(no_ctx, data1); 
+    gpuproc_read(no_ctx, data1);
     apis_print(api, "API: ");
-  
-	suscription_t *sus = suscription();
-	sus->call_init     = NULL;
-	sus->call_main     = update;
-	sus->time_relax    = 5000;
-	sus->time_burst    = 5000;
-	sus->suscribe(sus);
- 
+
+    suscription_t *sus = suscription();
+    sus->call_init     = NULL;
+    sus->call_main     = update;
+    sus->time_relax    = 5000;
+    sus->time_burst    = 5000;
+    sus->suscribe(sus);
+
     return;
 }
 

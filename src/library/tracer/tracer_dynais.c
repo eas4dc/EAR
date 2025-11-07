@@ -8,69 +8,66 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
+#include <common/config.h>
+#include <common/output/verbose.h>
+#include <common/system/file.h>
+#include <common/system/time.h>
+#include <library/tracer/tracer_dynais.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <common/config.h>
-#include <common/system/file.h>
-#include <common/system/time.h>
-#include <common/output/verbose.h>
-#include <library/tracer/tracer_dynais.h>
-
 
 static char buffer[SZ_PATH];
-static int enabled=0;
+static int enabled = 0;
 static int fd;
 
-void traces_init(char *app,int global_rank, int local_rank, int nodes, int mpis, int ppn)
+void traces_init(char *app, int global_rank, int local_rank, int nodes, int mpis, int ppn)
 {
-	char myhost[128];
-	
-	char *pathname = ear_getenv(ENV_FLAG_PATH_TRACE);
+    char myhost[128];
 
-	if (pathname!=NULL){ 
-		debug("Dynais traces ON. Traces %s",pathname);
-	}
-	else {
-		debug("%s is not defined", ENV_FLAG_PATH_TRACE);
-	}
+    char *pathname = ear_getenv(ENV_FLAG_PATH_TRACE);
 
-	if (enabled || pathname == NULL) {
-		return;
-	}
+    if (pathname != NULL) {
+        debug("Dynais traces ON. Traces %s", pathname);
+    } else {
+        debug("%s is not defined", ENV_FLAG_PATH_TRACE);
+    }
 
-	gethostname(myhost,sizeof(myhost));
-	sprintf(buffer, "%s/%s.%s.%d", pathname,app,myhost,global_rank);
-	debug("saving trace in %s\n", buffer);
+    if (enabled || pathname == NULL) {
+        return;
+    }
 
-	fd = open(buffer, F_WR | F_CR | F_TR, F_UR | F_UW | F_GR | F_GW | F_OR | F_OW);
-	enabled = (fd >= 0);
+    gethostname(myhost, sizeof(myhost));
+    sprintf(buffer, "%s/%s.%s.%d", pathname, app, myhost, global_rank);
+    debug("saving trace in %s\n", buffer);
+
+    fd      = open(buffer, F_WR | F_CR | F_TR, F_UR | F_UW | F_GR | F_GW | F_OR | F_OW);
+    enabled = (fd >= 0);
 }
 
 void traces_mpi_call(int global_rank, int local_rank, ulong ev, ulong a1, ulong a2, ulong a3)
 {
-	unsigned long *b;
-	ssize_t w;
+    unsigned long *b;
+    ssize_t w;
 
-	if (!enabled) {
-		return;
-	}
+    if (!enabled) {
+        return;
+    }
 
-	b = (unsigned long *) buffer;
-	b[0] = ev;
-	b[1] = (ulong) timestamp_getconvert(TIME_USECS);
+    b    = (unsigned long *) buffer;
+    b[0] = ev;
+    b[1] = (ulong) timestamp_getconvert(TIME_USECS);
 
-	write(fd, b, 16);
+    write(fd, b, 16);
 }
 
 void traces_mpi_end()
 {
-	if (!enabled) {
-		return;
-	}
+    if (!enabled) {
+        return;
+    }
 
-	enabled = 0;
+    enabled = 0;
 
-	close(fd);
+    close(fd);
 }

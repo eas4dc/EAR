@@ -11,22 +11,23 @@
 #ifndef _EAR_TYPES_POWERCAP
 #define _EAR_TYPES_POWERCAP
 
-#define PC_STATUS_OK        0
-#define PC_STATUS_GREEDY    1
-#define PC_STATUS_RELEASE   2
-#define PC_STATUS_ASK_DEF   3
-#define PC_STATUS_IDLE      4
-#define PC_STATUS_STOP      5
-#define PC_STATUS_START     6
-#define PC_STATUS_RUN       7
+#define PC_STATUS_OK      0
+#define PC_STATUS_GREEDY  1
+#define PC_STATUS_RELEASE 2
+#define PC_STATUS_ASK_DEF 3
+#define PC_STATUS_IDLE    4
+#define PC_STATUS_STOP    5
+#define PC_STATUS_START   6
+#define PC_STATUS_RUN     7
 
 typedef enum {
-	DRAM0 = 0,
-	DRAM1,
-	CPU0,
-	CPU1,
-	GPUSTART,
-	NUM_DEV_TYPES
+    DRAM0 = 0,
+    DRAM1,
+    CPU0,
+    CPU1,
+    GPUSTART,
+    NUM_DEV_TYPES,
+    NO_TYPE = -1
 } powercap_device_types;
 
 typedef struct pc_device_types_map {

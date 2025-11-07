@@ -8,15 +8,14 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #ifndef METRICS_ENERGY_CPU_UTIL_H
 #define METRICS_ENERGY_CPU_UTIL_H
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <sys/stat.h>
-#include <metrics/common/apis.h>
 #include <common/hardware/topology.h>
+#include <metrics/common/apis.h>
+#include <sys/stat.h>
 
 state_t energy_cpu_util_load(topology_t *tp_in);
 

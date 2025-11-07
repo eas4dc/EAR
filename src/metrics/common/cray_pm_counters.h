@@ -13,6 +13,6 @@
 #include <common/states.h>
 
 state_t cray_pm_init();
-state_t cray_pm_get(char *metric, ulong * value);
+state_t cray_pm_get(char *metric, ulong *value);
 state_t cray_pm_dispose();
 #endif

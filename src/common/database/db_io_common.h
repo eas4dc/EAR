@@ -13,46 +13,43 @@
 #include <common/config.h>
 
 //
-#define EAR_TYPE_APPLICATION    1
-#define EAR_TYPE_LOOP           2
+#define EAR_TYPE_APPLICATION      1
+#define EAR_TYPE_LOOP             2
 
-#define PERIODIC_AGGREGATION_ARGS   4
-#define EAR_EVENTS_ARGS             6
-#define POWER_SIGNATURE_ARGS        9
-#define APPLICATION_ARGS            6
-#define LOOP_ARGS                   9
-#define JOB_ARGS                    17
+#define PERIODIC_AGGREGATION_ARGS 4
+#define EAR_EVENTS_ARGS           6
+#define POWER_SIGNATURE_ARGS      9
+#define APPLICATION_ARGS          6
+#define LOOP_ARGS                 9
+#define JOB_ARGS                  17
 
+#if USE_GPUS
 
+// Signatures
+#define FULL_SIGNATURE_ARGS   30
+#define SIMPLE_SIGNATURE_ARGS 17
 
-#if USE_GPUS 
+// Periodic_metrics
+#define FULL_PERIODIC_METRIC_ARGS   11
+#define SIMPLE_PERIODIC_METRIC_ARGS 6
 
-//Signatures
-#define FULL_SIGNATURE_ARGS              29
-#define SIMPLE_SIGNATURE_ARGS            16
+#else // no USE_GPU
 
-//Periodic_metrics
-#define FULL_PERIODIC_METRIC_ARGS        11
-#define SIMPLE_PERIODIC_METRIC_ARGS       6
+// Signatures
+#define FULL_SIGNATURE_ARGS         28
+#define SIMPLE_SIGNATURE_ARGS       15
 
-#else //no USE_GPU
-      
-//Signatures
-#define FULL_SIGNATURE_ARGS              27
-#define SIMPLE_SIGNATURE_ARGS            14
-
-//Periodic_metrics
-#define FULL_PERIODIC_METRIC_ARGS        10
-#define SIMPLE_PERIODIC_METRIC_ARGS       6
+// Periodic_metrics
+#define FULL_PERIODIC_METRIC_ARGS   10
+#define SIMPLE_PERIODIC_METRIC_ARGS 6
 
 #endif
 
-
-#define FULL_AVG_SIGNATURE_ARGS          25
-#define SIMPLE_AVG_SIGNATURE_ARGS        15
+#define FULL_AVG_SIGNATURE_ARGS   25
+#define SIMPLE_AVG_SIGNATURE_ARGS 15
 
 #if USE_GPUS
-#define GPU_SIGNATURE_ARGS 5
+#define GPU_SIGNATURE_ARGS 6
 #endif
 
 #endif

@@ -8,13 +8,17 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#ifndef LIBRARY_LOADER_ONEAPI_H
-#define LIBRARY_LOADER_ONEAPI_H
+#ifndef METRICS_COMMON_HSMP_ESMI_H
+#define METRICS_COMMON_HSMP_ESMI_H
 
-int module_oneapi_is();
-int module_constructor_oneapi(char *path_lib_so, char *libhack);
-void module_destructor_oneapi();
-int is_oneapi_enabled();
-void ear_oneapi_enabled();
+#include <metrics/common/hsmp.h>
+
+// This class is part of hsmp.h and is not intended to be used alone. This class
+// is not lock protected. It is recommended to use the functions found in hsmp.h.
+state_t hsmp_esmi_open(topology_t *tp, mode_t mode);
+
+state_t hsmp_esmi_close();
+
+state_t hsmp_esmi_send(int socket, uint function, uint *args, uint *reps);
 
 #endif

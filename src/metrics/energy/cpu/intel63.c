@@ -9,44 +9,44 @@
  **************************************************************************/
 
 #include <math.h>
-#include <time.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
+#include <time.h>
 
 #include <common/config.h>
 #include <common/states.h>
-//#define SHOW_DEBUGS 0
+// #define SHOW_DEBUGS 0
 
-#include <common/output/verbose.h>
-#include <common/math_operations.h>
 #include <common/hardware/hardware_info.h>
+#include <common/math_operations.h>
+#include <common/output/verbose.h>
 
-#include <metrics/energy/cpu.h>
 #include <metrics/common/omsr.h>
+#include <metrics/energy/cpu.h>
 
 /** Intel */
-#define MSR_INTEL_RAPL_POWER_UNIT		0x606
+#define MSR_INTEL_RAPL_POWER_UNIT 0x606
 /* PKG RAPL Domain */
-//#define MSR_PKG_RAPL_POWER_LIMIT		0x610
-#define MSR_INTEL_PKG_ENERGY_STATUS		0x611
-//#define MSR_PKG_PERF_STATUS			0x613
-#define MSR_PKG_POWER_INFO			0x614
+// #define MSR_PKG_RAPL_POWER_LIMIT		0x610
+#define MSR_INTEL_PKG_ENERGY_STATUS 0x611
+// #define MSR_PKG_PERF_STATUS			0x613
+#define MSR_PKG_POWER_INFO 0x614
 /* DRAM RAPL Domain */
-//#define MSR_DRAM_POWER_LIMIT			0x618
-#define MSR_INTEL_DRAM_ENERGY_STATUS	0x619
-//#define MSR_DRAM_PERF_STATUS			0x61B
-#define MSR_DRAM_POWER_INFO			0x61C
+// #define MSR_DRAM_POWER_LIMIT			0x618
+#define MSR_INTEL_DRAM_ENERGY_STATUS 0x619
+// #define MSR_DRAM_PERF_STATUS			0x61B
+#define MSR_DRAM_POWER_INFO 0x61C
 /** AMD */
-#define MSR_AMD_RAPL_POWER_UNIT			0xC0010299
-#define MSR_AMD_PKG_ENERGY_STATUS		0xC001029B
-#define MSR_AMD_CORE_ENERGY_STATUS		0xC001029A
+#define MSR_AMD_RAPL_POWER_UNIT    0xC0010299
+#define MSR_AMD_PKG_ENERGY_STATUS  0xC001029B
+#define MSR_AMD_CORE_ENERGY_STATUS 0xC001029A
 
 //
 
 static pthread_mutex_t rapl_msr_lock = PTHREAD_MUTEX_INITIALIZER;
-static int rapl_msr_instances = 0;
+static int rapl_msr_instances        = 0;
 
 static double cpu_energy_units;
 static double power_units;
@@ -55,214 +55,209 @@ static int vendor;
 
 int init_rapl_msr(int *fd_map)
 {
-	int j;
-	ullong result;
+    int j;
+    ullong result;
 
-	/* If it is not initialized, I do it, else, I get the ids */
-	pthread_mutex_lock(&rapl_msr_lock);
+    /* If it is not initialized, I do it, else, I get the ids */
+    pthread_mutex_lock(&rapl_msr_lock);
 
-	topology_t topo;
-	topology_init(&topo);
-	vendor = topo.vendor;
+    topology_t topo;
+    topology_init(&topo);
+    vendor = topo.vendor;
 
-	if (is_msr_initialized() == 0) {
-		if (state_fail(init_msr(fd_map)))
-		{
-			debug("MSR registers init error");
-			pthread_mutex_unlock(&rapl_msr_lock);
-			return EAR_ERROR;
-		}
-	} else {
-		debug("MSR registers already initialized");
-		get_msr_ids(fd_map);
-	}
-	
-	rapl_msr_instances++;
+    if (is_msr_initialized() == 0) {
+        if (state_fail(init_msr(fd_map))) {
+            debug("MSR registers init error");
+            pthread_mutex_unlock(&rapl_msr_lock);
+            return EAR_ERROR;
+        }
+    } else {
+        debug("MSR registers already initialized");
+        get_msr_ids(fd_map);
+    }
 
-	/* Ask for msr info */
-	for (j = 0; j < get_total_packages(); j++)
-	{
-		off_t energy_status;
+    rapl_msr_instances++;
 
-		if (vendor == VENDOR_INTEL) {
-			energy_status = MSR_INTEL_RAPL_POWER_UNIT;
-		} else {
-			energy_status = MSR_AMD_RAPL_POWER_UNIT;
-		}
+    /* Ask for msr info */
+    for (j = 0; j < get_total_packages(); j++) {
+        off_t energy_status;
 
-		if (omsr_read(&fd_map[j], &result, sizeof result, energy_status)) {
-			debug("Error in omsr_read init_rapl_msr");
-			pthread_mutex_unlock(&rapl_msr_lock);
-			return EAR_ERROR;
-		}
+        if (vendor == VENDOR_INTEL) {
+            energy_status = MSR_INTEL_RAPL_POWER_UNIT;
+        } else {
+            energy_status = MSR_AMD_RAPL_POWER_UNIT;
+        }
 
-		power_units = pow(0.5, (double) (result & 0xf));
-		//time_units = pow(0.5, (double) ((result >> 16) & 0xf));
-		
-		cpu_energy_units = pow(0.5, (double) ((result >> 8) & 0x1f));
-		// Take a look to Intel's RAPL test
-		dram_energy_units = pow(0.5, (double) 16);
-		// dram_energy_units = cpu_energy_units;
-	  
-	}
-	pthread_mutex_unlock(&rapl_msr_lock);
-	return EAR_SUCCESS;
+        if (omsr_read(&fd_map[j], &result, sizeof result, energy_status)) {
+            debug("Error in omsr_read init_rapl_msr");
+            pthread_mutex_unlock(&rapl_msr_lock);
+            return EAR_ERROR;
+        }
+
+        power_units = pow(0.5, (double) (result & 0xf));
+        // time_units = pow(0.5, (double) ((result >> 16) & 0xf));
+
+        cpu_energy_units = pow(0.5, (double) ((result >> 8) & 0x1f));
+        // Take a look to Intel's RAPL test
+        dram_energy_units = pow(0.5, (double) 16);
+        // dram_energy_units = cpu_energy_units;
+    }
+    pthread_mutex_unlock(&rapl_msr_lock);
+    return EAR_SUCCESS;
 }
 
 int read_rapl_pck_tdp(int *fd_map, double *tdps)
 {
-	llong result;
-	int nump, j;
-	off_t offset = MSR_PKG_POWER_INFO;
-  nump = get_total_packages();
-	for (j = 0; j < nump; j++)	{
-  	if (omsr_read(&fd_map[j], &result, sizeof result, offset)){
-			debug("Error in omsr_read read_rapl_pck_tdp");
-			return EAR_ERROR;
-		}
-		/* Thermal Spec Power (bits 14:0): The unsigned integer value is the equivalent of thermal specification power
-		* of the package domain. The unit of this field is specified by the “Power Units” field of MSR_RAPL_POWER_UNIT.A*/
-  	tdps[j] = power_units*(double)(result&0x7fff);
-	}
-	return EAR_SUCCESS;
+    llong result;
+    int nump, j;
+    off_t offset = MSR_PKG_POWER_INFO;
+    nump         = get_total_packages();
+    for (j = 0; j < nump; j++) {
+        if (omsr_read(&fd_map[j], &result, sizeof result, offset)) {
+            debug("Error in omsr_read read_rapl_pck_tdp");
+            return EAR_ERROR;
+        }
+        /* Thermal Spec Power (bits 14:0): The unsigned integer value is the equivalent of thermal specification power
+         * of the package domain. The unit of this field is specified by the “Power Units” field of
+         * MSR_RAPL_POWER_UNIT.A*/
+        tdps[j] = power_units * (double) (result & 0x7fff);
+    }
+    return EAR_SUCCESS;
 }
 
 int read_rapl_dram_tdp(int *fd_map, double *tdps)
-{ 
-  llong result;
-  int nump, j; 
-  off_t offset = MSR_DRAM_POWER_INFO;
-  nump = get_total_packages();
-  for (j = 0; j < nump; j++)  {
-    if (omsr_read(&fd_map[j], &result, sizeof result, offset)){
-      debug("Error in omsr_read read_rapl_dram_tdp");
-      return EAR_ERROR;
+{
+    llong result;
+    int nump, j;
+    off_t offset = MSR_DRAM_POWER_INFO;
+    nump         = get_total_packages();
+    for (j = 0; j < nump; j++) {
+        if (omsr_read(&fd_map[j], &result, sizeof result, offset)) {
+            debug("Error in omsr_read read_rapl_dram_tdp");
+            return EAR_ERROR;
+        }
+        /* Thermal Spec Power (bits 14:0): The unsigned integer value is the equivalent of thermal specification power
+         * of the DRAM domain. The unit of this field is specified by the “Power Units” field of MSR_RAPL_POWER_UNIT.*/
+        tdps[j] = power_units * (double) (result & 0x7fff);
     }
-		/* Thermal Spec Power (bits 14:0): The unsigned integer value is the equivalent of thermal specification power
- 	* of the DRAM domain. The unit of this field is specified by the “Power Units” field of MSR_RAPL_POWER_UNIT.*/
-    tdps[j] = power_units*(double)(result&0x7fff);
-  }
-  return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
-
-
-
 
 /* DRAM 0, DRAM 1,..DRAM N, PCK0,PCK1,...PCKN */
 int read_rapl_msr(int *fd_map, ullong *_values)
 {
-	ullong result;
-	int j;
-	int nump;
-	nump = get_total_packages();
+    ullong result;
+    int j;
+    int nump;
+    nump = get_total_packages();
 
-	for (j = 0; j < nump; j++)
-	{
-		off_t offset;
+    for (j = 0; j < nump; j++) {
+        off_t offset;
 
-		/* PKG reading */
-		if (vendor == VENDOR_INTEL) {
-			offset = MSR_INTEL_PKG_ENERGY_STATUS;
-		} else {
-			offset = MSR_AMD_PKG_ENERGY_STATUS;
-		}
+        /* PKG reading */
+        if (vendor == VENDOR_INTEL) {
+            offset = MSR_INTEL_PKG_ENERGY_STATUS;
+        } else {
+            offset = MSR_AMD_PKG_ENERGY_STATUS;
+        }
 
-		if (omsr_read(&fd_map[j], &result, sizeof result, offset)) {
-			debug("Error in omsr_read read_rapl_msr");
-			return EAR_ERROR;
-		}
-		result &= 0xffffffff;
-		_values[nump + j] = (ullong) result * (cpu_energy_units * 1000000000);
+        if (omsr_read(&fd_map[j], &result, sizeof result, offset)) {
+            debug("Error in omsr_read read_rapl_msr");
+            return EAR_ERROR;
+        }
+        result &= 0xffffffff;
+        _values[nump + j] = (ullong) result * (cpu_energy_units * 1000000000);
 
-		/* DRAM reading */
-		if (vendor == VENDOR_INTEL) {
-			offset = MSR_INTEL_DRAM_ENERGY_STATUS;
-		} else {
-			offset = MSR_AMD_CORE_ENERGY_STATUS;
-		}
+        /* DRAM reading */
+        if (vendor == VENDOR_INTEL) {
+            offset = MSR_INTEL_DRAM_ENERGY_STATUS;
+        } else {
+            offset = MSR_AMD_CORE_ENERGY_STATUS;
+        }
 
-		if (omsr_read(&fd_map[j], &result, sizeof result, offset)) {
-			debug("Error in omsr_read read_rapl_msr");
-			return EAR_ERROR;
-		}
-		result &= 0xffffffff;
+        if (omsr_read(&fd_map[j], &result, sizeof result, offset)) {
+            debug("Error in omsr_read read_rapl_msr");
+            return EAR_ERROR;
+        }
+        result &= 0xffffffff;
 
-		if (vendor != VENDOR_AMD) {
-			_values[j] = (ullong) result * (dram_energy_units * 1000000000);
-		} else {
-			_values[j] = 0;
-		}
-	}
-	return EAR_SUCCESS;
+        if (vendor != VENDOR_AMD) {
+            _values[j] = (ullong) result * (dram_energy_units * 1000000000);
+        } else {
+            _values[j] = 0;
+        }
+    }
+    return EAR_SUCCESS;
 }
 
 void dispose_rapl_msr(int *fd_map)
 {
-	int j, tp;
-	pthread_mutex_lock(&rapl_msr_lock);
-	rapl_msr_instances--;
-	if (rapl_msr_instances == 0) {
-		tp = get_total_packages();
-		for (j = 0; j < tp; j++) omsr_close(&fd_map[j]);
-	}
-	pthread_mutex_unlock(&rapl_msr_lock);
+    int j, tp;
+    pthread_mutex_lock(&rapl_msr_lock);
+    rapl_msr_instances--;
+    if (rapl_msr_instances == 0) {
+        tp = get_total_packages();
+        for (j = 0; j < tp; j++)
+            omsr_close(&fd_map[j]);
+    }
+    pthread_mutex_unlock(&rapl_msr_lock);
 }
 
 void diff_rapl_msr_energy(ullong *diff, ullong *end, ullong *init)
 {
-	ullong ret = 0;
+    ullong ret = 0;
     long long tmp_end, tmp_init;
-	int nump, j;
-	nump = get_total_packages();
+    int nump, j;
+    nump = get_total_packages();
 
-	for (j = 0; j < nump * RAPL_ENERGY_EV; j++) {
-        tmp_end = (long long) end[j];
+    for (j = 0; j < nump * RAPL_ENERGY_EV; j++) {
+        tmp_end  = (long long) end[j];
         tmp_init = (long long) init[j];
-		if (tmp_end >= tmp_init) {
-			ret = tmp_end - tmp_init;
-		} else {
-			ret = ullong_diff_overflow(tmp_init, tmp_end);
-		}
-		diff[j] = ret;
-	}
+        if (tmp_end >= tmp_init) {
+            ret = tmp_end - tmp_init;
+        } else {
+            ret = ullong_diff_overflow(tmp_init, tmp_end);
+        }
+        diff[j] = ret;
+    }
 }
 
 ullong acum_rapl_energy(ullong *values)
 {
-	ullong ret = 0;
-	int nump, j;
-	nump = get_total_packages();
-	for (j = 0; j < nump * RAPL_ENERGY_EV; j++) {
-		ret = ret + values[j];
-	}
-	return ret;
+    ullong ret = 0;
+    int nump, j;
+    nump = get_total_packages();
+    for (j = 0; j < nump * RAPL_ENERGY_EV; j++) {
+        ret = ret + values[j];
+    }
+    return ret;
 }
 
 void rapl_msr_energy_to_str(char *b, ullong *values)
 {
-	int nump, j;
-	char baux[512];
-	nump = get_total_packages();
+    int nump, j;
+    char baux[512];
+    nump = get_total_packages();
 
-	sprintf(baux, ", CPU (");
-	for (j = 0; j < nump; j++) {
-		if (j < (nump - 1)) {
-			sprintf(b, "%llu,", values[nump * RAPL_PCK_EV + j]);
-		} else {
-			sprintf(b, "%llu)", values[nump * RAPL_PCK_EV + j]);
-		}
-		strcat(baux, b);
-	}
+    sprintf(baux, ", CPU (");
+    for (j = 0; j < nump; j++) {
+        if (j < (nump - 1)) {
+            sprintf(b, "%llu,", values[nump * RAPL_PCK_EV + j]);
+        } else {
+            sprintf(b, "%llu)", values[nump * RAPL_PCK_EV + j]);
+        }
+        strcat(baux, b);
+    }
 
-	sprintf(b, ", DRAM (");
-	strcat(baux, b);
-	for (j = 0; j < nump; j++) {
-		if (j < (nump - 1)) {
-			sprintf(b, "%llu,", values[nump * RAPL_DRAM_EV + j]);
-		} else {
-			sprintf(b, "%llu)", values[nump * RAPL_DRAM_EV + j]);
-		}
-		strcat(baux, b);
-	}
-	strcpy(b, baux);
+    sprintf(b, ", DRAM (");
+    strcat(baux, b);
+    for (j = 0; j < nump; j++) {
+        if (j < (nump - 1)) {
+            sprintf(b, "%llu,", values[nump * RAPL_DRAM_EV + j]);
+        } else {
+            sprintf(b, "%llu)", values[nump * RAPL_DRAM_EV + j]);
+        }
+        strcat(baux, b);
+    }
+    strcpy(b, baux);
 }

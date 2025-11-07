@@ -8,21 +8,21 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <stdio.h>
 #include <common/output/debug.h>
 #include <common/system/plugin_manager.h>
 #include <daemon/local_api/eard_api.h>
+#include <stdio.h>
 
 declr_up_get_tag()
 {
-    *tag = "eardcon";
+    *tag       = "eardcon";
     *tags_deps = NULL;
 }
 
 declr_up_action_init(_eardcon)
 {
     eards_connection();
-    return rsprintf("EARD connection state: %s", eards_connected() ? "CONNECTED": "NOT CONNECTED");
+    return rsprintf("EARD connection state: %s", eards_connected() ? "CONNECTED" : "NOT CONNECTED");
 }

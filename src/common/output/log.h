@@ -11,38 +11,35 @@
 #ifndef EAR_LOG_H
 #define EAR_LOG_H
 
-#include <syslog.h>
 #include <common/output/timestamp.h>
+#include <syslog.h>
 
 int log_bypass __attribute__((weak)) = 0;
 
 #define USE_SYSLOG 0
 
-#define vlog(...) \
-		syslog(LOG_DAEMON|LOG_ERR, __VA_ARGS__);
+#define vlog(...)  syslog(LOG_DAEMON | LOG_ERR, __VA_ARGS__);
 
 #if !USE_SYSLOG
-	#define create_log(path, service_name, fd) \
-        { \
-		fd = log_open(path, service_name); \
-        }
+#define create_log(path, service_name, fd)                                                                             \
+    {                                                                                                                  \
+        fd = log_open(path, service_name);                                                                             \
+    }
 #else
-	#define create_log(path, service_name, fd) \
-        { \
-		openlog(service_name, LOG_PID | LOG_PERROR, LOG_DAEMON); \
-		log_bypass = 1; \
-        fd = -1; \
-        }
+#define create_log(path, service_name, fd)                                                                             \
+    {                                                                                                                  \
+        openlog(service_name, LOG_PID | LOG_PERROR, LOG_DAEMON);                                                       \
+        log_bypass = 1;                                                                                                \
+        fd         = -1;                                                                                               \
+    }
 #endif
 
 #if !USE_SYSLOG
-	#define log_close(fd) \
-        close(fd);
+#define log_close(fd) close(fd);
 #else
-	#define log_close(fd) \
-		closelog();
+#define log_close(fd) closelog();
 #endif
 
 int log_open(char *path, char *service_name);
 
-#endif //EAR_LOG_H
+#endif // EAR_LOG_H

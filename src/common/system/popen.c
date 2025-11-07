@@ -10,33 +10,31 @@
 
 // #define SHOW_DEBUGS 1
 
-#define _GNU_SOURCE             /* See feature_test_macros(7) */
-#include <fcntl.h>              /* Definition of O_* constants */
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include <sched.h>
-#include <sys/mman.h>
+#define _GNU_SOURCE /* See feature_test_macros(7) */
 #include <common/output/debug.h>
 #include <common/system/popen.h>
+#include <errno.h>
+#include <fcntl.h> /* Definition of O_* constants */
+#include <fcntl.h>
+#include <sched.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
-#define MAX_ROWS          512
-#define MAX_COLS          16
-#define MAX_BUFFER        32768
+#define MAX_ROWS   512
+#define MAX_COLS   16
+#define MAX_BUFFER 32768
 
-#define STACK_SIZE (1024*1024) // The stack size of the child process created via clone(2)
+#define STACK_SIZE (1024 * 1024) // The stack size of the child process created via clone(2)
 
-
-typedef struct child_fn_args_s
-{
-	int *fd_pair;
-	char *command;
+typedef struct child_fn_args_s {
+    int *fd_pair;
+    char *command;
 } child_fn_args_t;
 
 static char no_string = '\0';
@@ -65,63 +63,56 @@ state_t popen_open(char *command, int escape_lines, int one_shot, popen_t *p)
 
     // System
 
-		// Create the pipe
-		int fd_pair[2]; // 0: read, 1: write
+    // Create the pipe
+    int fd_pair[2]; // 0: read, 1: write
 
-		if (pipe(fd_pair) < 0)
-		{
-			debug("pipe error %s", strerror(errno));
-			return_msg(EAR_ERROR, strerror(errno));
-		}
+    if (pipe(fd_pair) < 0) {
+        debug("pipe error %s", strerror(errno));
+        return_msg(EAR_ERROR, strerror(errno));
+    }
 
-		// clone
-		if (stack_top_ptr == NULL)
-		{
-			// Allocate memory for the child process
-			char *stack = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE,
-												 MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
-			if (stack == MAP_FAILED)
-			{
-				debug("mmap error: %s", strerror(errno));
-				return_msg(EAR_ERROR, strerror(errno));
-			}
+    // clone
+    if (stack_top_ptr == NULL) {
+        // Allocate memory for the child process
+        char *stack = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+        if (stack == MAP_FAILED) {
+            debug("mmap error: %s", strerror(errno));
+            return_msg(EAR_ERROR, strerror(errno));
+        }
 
-			stack_top_ptr = stack + STACK_SIZE; // Assume stack grows downward
-		}
+        stack_top_ptr = stack + STACK_SIZE; // Assume stack grows downward
+    }
 
-		child_fn_args_t args = {.fd_pair = fd_pair, .command = command};
+    child_fn_args_t args = {.fd_pair = fd_pair, .command = command};
 
-		pid_t pid = clone(child_function, stack_top_ptr, SIGCHLD, (void *) &args);
-		if (pid < 0)
-		{
-			debug("clone error: %s", strerror(errno));
-      return_msg(EAR_ERROR, strerror(errno));
-		}
+    pid_t pid = clone(child_function, stack_top_ptr, SIGCHLD, (void *) &args);
+    if (pid < 0) {
+        debug("clone error: %s", strerror(errno));
+        return_msg(EAR_ERROR, strerror(errno));
+    }
 
-		// Parent process
+    // Parent process
 
-		close(fd_pair[1]); // Close the write-end of the pipe
+    close(fd_pair[1]); // Close the write-end of the pipe
 
-		p->pid = pid; // Save the PID of the child process
+    p->pid = pid; // Save the PID of the child process
 
-		// Check whether child process didn't exit
+    // Check whether child process didn't exit
 
-		int child_status;
-		if (waitpid(pid, &child_status, WNOHANG) > 0)
-		{
-			if (WIFEXITED(child_status))
-			{
-				debug("execl error: %d", WEXITSTATUS(child_status));
-				return_msg(EAR_ERROR, "execl error");
-			}
-		}
+    int child_status;
+    if (waitpid(pid, &child_status, WNOHANG) > 0) {
+        if (WIFEXITED(child_status)) {
+            debug("execl error: %d", WEXITSTATUS(child_status));
+            return_msg(EAR_ERROR, "execl error");
+        }
+    }
 
-		// Fill other attributes
-		p->file = fdopen(fd_pair[0], "r");
-    p->opened = 1;
-    p->fd = fd_pair[0]; // Read end of the pipe
+    // Fill other attributes
+    p->file        = fdopen(fd_pair[0], "r");
+    p->opened      = 1;
+    p->fd          = fd_pair[0]; // Read end of the pipe
     p->rows_escape = escape_lines;
-    p->one_shot = one_shot;
+    p->one_shot    = one_shot;
     if (!one_shot) {
         fcntl(p->fd, F_SETFL, O_NONBLOCK);
     }
@@ -130,24 +121,25 @@ state_t popen_open(char *command, int escape_lines, int one_shot, popen_t *p)
 
 void popen_close(popen_t *p)
 {
-	if (p && p->opened) {
-		debug("killing %d", p->pid);
+    if (p && p->opened) {
+        debug("killing %d", p->pid);
 
-		// SIGKILL might be too aggressive but it can not be blocked.
-		kill(p->pid, SIGKILL);
+        // SIGKILL might be too aggressive but it can not be blocked.
+        kill(p->pid, SIGKILL);
 
-		fclose(p->file);
+        fclose(p->file);
 
-		waitpid(p->pid, NULL, 0);
+        waitpid(p->pid, NULL, 0);
 
-		// p->opened = 0;
-		memset(p, 0, sizeof(popen_t));
-	}
+        // p->opened = 0;
+        memset(p, 0, sizeof(popen_t));
+    }
 }
 
 static void static_flush(popen_t *p, char *buffer)
 {
-    while (fread(buffer, sizeof(char), MAX_BUFFER, p->file) > 0);
+    while (fread(buffer, sizeof(char), MAX_BUFFER, p->file) > 0)
+        ;
 }
 
 static int static_read(popen_t *p, char *buffer)
@@ -159,19 +151,19 @@ static int static_read(popen_t *p, char *buffer)
         do {
             // If one shot, we are reading one by one and spaces ' ' will be compressed
             buffer[len_acum] = (char) getc(p->file);
-            len_acum = len_acum + 1;
+            len_acum         = len_acum + 1;
             if (len_acum > 1) {
-                if (buffer[len_acum-1] == ' ' && buffer[len_acum-2] == ' ') {
+                if (buffer[len_acum - 1] == ' ' && buffer[len_acum - 2] == ' ') {
                     len_acum = len_acum - 1;
                 }
             }
-        } while(buffer[len_acum-1] != EOF);
+        } while (buffer[len_acum - 1] != EOF);
     } else {
         do {
             // If not one shot, we are reading a bulk of bytes (less overhead)
-            len_read = fread(&buffer[len_acum], sizeof(char), MAX_BUFFER-len_acum, p->file);
+            len_read = fread(&buffer[len_acum], sizeof(char), MAX_BUFFER - len_acum, p->file);
             len_acum = len_acum + len_read;
-        } while(len_read > 0);
+        } while (len_read > 0);
     }
     debug("read %lu bytes: %s", len_acum, buffer);
     // Too much data
@@ -199,13 +191,13 @@ static void static_parse(popen_t *p, char *buffer, char separator)
     p->rows_index = 0;
     // Cleaning table
     memset(p->table, 0, sizeof(p->table));
-    for (c = 0; c < strlen(buffer)+1; ++c) {
+    for (c = 0; c < strlen(buffer) + 1; ++c) {
         if (buffer[c] == separator || buffer[c] == '\t' || buffer[c] == '\n' || buffer[c] == '\0') {
             word_count += (char_count > 0);
             char_count = 0;
         } else {
-            p->table[p->rows_count][word_count][char_count+0] = buffer[c];
-            p->table[p->rows_count][word_count][char_count+1] = '\0';
+            p->table[p->rows_count][word_count][char_count + 0] = buffer[c];
+            p->table[p->rows_count][word_count][char_count + 1] = '\0';
             char_count += 1;
         }
         if (buffer[c] == '\n') {
@@ -224,7 +216,7 @@ static void static_parse(popen_t *p, char *buffer, char separator)
             break;
         }
     }
-    #if SHOW_DEBUGS
+#if SHOW_DEBUGS
     int r;
     for (r = 0; r < p->rows_count; ++r) {
         for (c = 0; c < p->cols_count; ++c) {
@@ -233,7 +225,7 @@ static void static_parse(popen_t *p, char *buffer, char separator)
             }
         }
     }
-    #endif
+#endif
 }
 
 static int popen_pending(popen_t *p)
@@ -246,7 +238,7 @@ static int popen_eof(popen_t *p)
     return p->eof;
 }
 
-int popen_read2(popen_t *p, char separator, const char* f, ...)
+int popen_read2(popen_t *p, char separator, const char *f, ...)
 {
     va_list args;
     int was_pending;
@@ -277,15 +269,14 @@ int popen_read2(popen_t *p, char separator, const char* f, ...)
 
     // Variadic part
     va_start(args, f);
-    while (*f != '\0')
-    {
+    while (*f != '\0') {
         if (*f == 'a') {
             // Avoid, do nothing
         }
         // If string
         if (*f == 's') {
             char **s = va_arg(args, char **);
-            s[0] = &no_string;
+            s[0]     = &no_string;
             if (was_pending) {
                 s[0] = p->table[r][c];
             }
@@ -293,7 +284,7 @@ int popen_read2(popen_t *p, char separator, const char* f, ...)
         // If string vector
         if (*f == 'S') {
             char **S = va_arg(args, char **);
-            while(c < p->cols_count) {
+            while (c < p->cols_count) {
                 *S = &no_string;
                 if (was_pending) {
                     *S = p->table[r][c];
@@ -314,7 +305,7 @@ int popen_read2(popen_t *p, char separator, const char* f, ...)
         // If signed integer vector
         if (*f == 'I') {
             int *I = va_arg(args, int *);
-            while(c < p->cols_count) {
+            while (c < p->cols_count) {
                 if (was_pending) {
                     *I = atoi(p->table[r][c]);
                 } else {
@@ -337,7 +328,7 @@ int popen_read2(popen_t *p, char separator, const char* f, ...)
         // If double vector
         if (*f == 'D') {
             double *D = va_arg(args, double *);
-            while(c < p->cols_count) {
+            while (c < p->cols_count) {
                 if (was_pending) {
                     *D = atof(p->table[r][c]);
                 } else {
@@ -373,103 +364,98 @@ uint popen_count_pending(popen_t *p)
     return (uint) (p->rows_count - p->rows_index);
 }
 
-
 static int child_function(void *arg)
 {
-	/* Unblock all signals for this subprocess. */
-	sigset_t sigset;
-	sigfillset(&sigset);
-	sigprocmask(SIG_UNBLOCK, &sigset, NULL);
+    /* Unblock all signals for this subprocess. */
+    sigset_t sigset;
+    sigfillset(&sigset);
+    sigprocmask(SIG_UNBLOCK, &sigset, NULL);
 
-	child_fn_args_t args = *((child_fn_args_t *) arg);
-	int *fd_pair = args.fd_pair;
-	char *command = args.command;
+    child_fn_args_t args = *((child_fn_args_t *) arg);
+    int *fd_pair         = args.fd_pair;
+    char *command        = args.command;
 
-	/* Manage file descriptors */
-	close(fd_pair[0]); // Close the read-end of the pipe
+    /* Manage file descriptors */
+    close(fd_pair[0]); // Close the read-end of the pipe
 
-	dup2(fd_pair[1], STDOUT_FILENO); // Copy the write-end of the pipe to the stdout
+    dup2(fd_pair[1], STDOUT_FILENO); // Copy the write-end of the pipe to the stdout
 
-	close(fd_pair[1]); // The write end of the pipe is not used any more.
+    close(fd_pair[1]); // The write end of the pipe is not used any more.
 
-	/* Change the image of the process */
-	execlp("/bin/sh", "sh", "-c", command, (char *) NULL); // Run a shell to execute the command
+    /* Change the image of the process */
+    execlp("/bin/sh", "sh", "-c", command, (char *) NULL); // Run a shell to execute the command
 
-	// Error handling in the case execlp returns
-	perror("execlp");
-	return -1;
+    // Error handling in the case execlp returns
+    perror("execlp");
+    return -1;
 }
 
 #if TEST1 || TEST2 || TEST3
 int main(int argc, char *argv[])
 {
-	popen_t p;
+    popen_t p;
 #if TEST1
-	double f1, f2;
-	char *s1;
-	int gpu;
+    double f1, f2;
+    char *s1;
+    int gpu;
 
-	popen_open
-	    ("for i in 0 1 2 3; do echo GPU $i 10.0 20.0 some_text && sleep 1; done",
-	     0, 0, &p);
-	// The while(1) is here because read functions are non-blocking if init
-	// function isn't called with one_shot parameter enabled, which would block
-	// the readings. If the reading is non-blocking you will read nothing most
-	// of the time, having to repeat the readings.
-	while (1) {
-		while (popen_read2(&p, ' ', "aidds", &gpu, &f1, &f2, &s1)) {
-			printf("%d %f %f %s\n", gpu, f1, f2, s1);
-			if (gpu == 3) {
-				return 0;
-			}
-		}
-	}
+    popen_open("for i in 0 1 2 3; do echo GPU $i 10.0 20.0 some_text && sleep 1; done", 0, 0, &p);
+    // The while(1) is here because read functions are non-blocking if init
+    // function isn't called with one_shot parameter enabled, which would block
+    // the readings. If the reading is non-blocking you will read nothing most
+    // of the time, having to repeat the readings.
+    while (1) {
+        while (popen_read2(&p, ' ', "aidds", &gpu, &f1, &f2, &s1)) {
+            printf("%d %f %f %s\n", gpu, f1, f2, s1);
+            if (gpu == 3) {
+                return 0;
+            }
+        }
+    }
 #elif TEST2
-	char *s1[3];
-	int i1;
-	popen_open
-	    ("for i in 0 1 2 3; do echo $i text1 text2 text3 && sleep 1; done",
-	     0, 0, &p);
-	while (1) {
-		while (popen_read2(&p, ' ', "iS", &i1, s1)) {
-			// As you can see the capital S is for vector. But the vectors have
-			// to be final letters because POPEN doesn't know the expected
-			// length. Maybe in the future we can implement a format like SN, DN
-			// or IN to specify the number of elements in advance.
-			printf("%d %s %s %s\n", i1, s1[0], s1[1], s1[2]);
-			if (i1 == 3) {
-				return 0;
-			}
-		}
-	}
+    char *s1[3];
+    int i1;
+    popen_open("for i in 0 1 2 3; do echo $i text1 text2 text3 && sleep 1; done", 0, 0, &p);
+    while (1) {
+        while (popen_read2(&p, ' ', "iS", &i1, s1)) {
+            // As you can see the capital S is for vector. But the vectors have
+            // to be final letters because POPEN doesn't know the expected
+            // length. Maybe in the future we can implement a format like SN, DN
+            // or IN to specify the number of elements in advance.
+            printf("%d %s %s %s\n", i1, s1[0], s1[1], s1[2]);
+            if (i1 == 3) {
+                return 0;
+            }
+        }
+    }
 #else
-	if (state_fail(popen_open("dcgmi profile -l", 3, 1, &p))) {
-		printf("Error popen_open: %s\n", state_msg);
-		return EXIT_FAILURE;
-	}
-	char *event_name;
-	int event_id;
-	if (!popen_read(&p, "aaaiasa", &event_id, &event_name)) {
-		printf("Error popen_read: %s\n", state_msg);
-		popen_close(&p);
-		return EXIT_FAILURE;
-	}
+    if (state_fail(popen_open("dcgmi profile -l", 3, 1, &p))) {
+        printf("Error popen_open: %s\n", state_msg);
+        return EXIT_FAILURE;
+    }
+    char *event_name;
+    int event_id;
+    if (!popen_read(&p, "aaaiasa", &event_id, &event_name)) {
+        printf("Error popen_read: %s\n", state_msg);
+        popen_close(&p);
+        return EXIT_FAILURE;
+    }
 
-	int events_count;
-	if ((events_count = popen_count_read(&p)) == 0) {
-		printf("No events found\n");
-		popen_close(&p);
-		return EXIT_FAILURE;
-	}
-	printf("Events count: %d\n", events_count);
+    int events_count;
+    if ((events_count = popen_count_read(&p)) == 0) {
+        printf("No events found\n");
+        popen_close(&p);
+        return EXIT_FAILURE;
+    }
+    printf("Events count: %d\n", events_count);
 
-	do {
-		printf("Event name: %s, event id: %d\n", event_name, event_id);
-	} while (popen_read(&p, "aaaiasa", &event_id, &event_name) && event_id != 0);
+    do {
+        printf("Event name: %s, event id: %d\n", event_name, event_id);
+    } while (popen_read(&p, "aaaiasa", &event_id, &event_name) && event_id != 0);
 
-	printf("Bye\n");
-	return EXIT_SUCCESS;
+    printf("Bye\n");
+    return EXIT_SUCCESS;
 #endif
-	return 0;
+    return 0;
 }
 #endif

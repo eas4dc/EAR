@@ -20,4 +20,6 @@ void dtools_set_address(void *address);
 
 char *dtools_get_backtrace_library(char *buffer, int calls_count);
 
+int dtools_is_ldd_library(char *library);
+
 #endif

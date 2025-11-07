@@ -12,9 +12,9 @@
 #define EAR_PRIVATE_SPANK_INTERPOSER_H
 
 #ifndef ERUN
+#include <common/config/config_sched.h>
 #include <slurm/slurm.h>
 #include <slurm/spank.h>
-#include <common/config/config_sched.h>
 #else
 #endif
 
@@ -44,22 +44,22 @@
 
 #ifdef ERUN
 struct action_s {
-	int error;
-	int init;
-	int exit;
+    int error;
+    int init;
+    int exit;
 } Action __attribute__((weak)) = {
-	.error = 0,
-	.init  = 1,
-	.exit  = 2,
+    .error = 0,
+    .init  = 1,
+    .exit  = 2,
 };
 
 typedef int spank_t;
 
 enum erun_context {
-	S_CTX_ERROR,
-	S_CTX_LOCAL,
-	S_CTX_REMOTE,
-	S_CTX_ALLOCATOR,
+    S_CTX_ERROR,
+    S_CTX_LOCAL,
+    S_CTX_REMOTE,
+    S_CTX_ALLOCATOR,
 };
 
 typedef int spank_context_t;
@@ -85,29 +85,29 @@ enum spank_item {
     S_STEP_ALLOC_CORES,
     S_JOB_ALLOC_MEM,
     S_SLURM_RESTART_COUNT,
-	S_TASK_EXIT_STATUS,
+    S_TASK_EXIT_STATUS,
 };
 
 typedef enum spank_item spank_item_t;
 
 enum spank_err {
-	ESPANK_SUCCESS     = 0,
-	ESPANK_ERROR       = 1,
-	ESPANK_BAD_ARG     = 2,
-	ESPANK_NOSPACE     = 6,
+    ESPANK_SUCCESS = 0,
+    ESPANK_ERROR   = 1,
+    ESPANK_BAD_ARG = 2,
+    ESPANK_NOSPACE = 6,
 };
 
 typedef enum spank_err spank_err_t;
 
-typedef int (*spank_opt_cb_f) (int val, const char *optarg, int remote);
+typedef int (*spank_opt_cb_f)(int val, const char *optarg, int remote);
 
 struct spank_option {
-	char *name;
-	char *arginfo;
-	char *usage;
-	int has_arg;
-	int val;
-	spank_opt_cb_f cb;
+    char *name;
+    char *arginfo;
+    char *usage;
+    int has_arg;
+    int val;
+    spank_opt_cb_f cb;
 };
 
 typedef char *hostlist_t;
@@ -130,28 +130,28 @@ int slurm_spank_exit(spank_t sp, int ac, char *argv[]);
 #endif
 
 #ifdef ERUN
-spank_context_t  spank_context (void);
-spank_err_t      spank_getenv (spank_t spank, const char *var, char *buf, int len);
-spank_err_t      spank_setenv (spank_t spank, const char *var, const char *val, int overwrite);
-spank_err_t      spank_unsetenv (spank_t spank, const char *var);
-spank_err_t      spank_get_item (spank_t spank, spank_item_t item, int *p);
-spank_err_t      spank_option_register_print(spank_t sp, struct spank_option *opt);
-spank_err_t      spank_option_register_call(int argc, char *argv[], spank_t sp, struct spank_option *opt);
-spank_err_t      spank_option_register(spank_t sp, struct spank_option *opt);
-char			*slurm_hostlist_shift (hostlist_t host_list);
-hostlist_t       slurm_hostlist_create (char *node_list);
+spank_context_t spank_context(void);
+spank_err_t spank_getenv(spank_t spank, const char *var, char *buf, int len);
+spank_err_t spank_setenv(spank_t spank, const char *var, const char *val, int overwrite);
+spank_err_t spank_unsetenv(spank_t spank, const char *var);
+spank_err_t spank_get_item(spank_t spank, spank_item_t item, int *p);
+spank_err_t spank_option_register_print(spank_t sp, struct spank_option *opt);
+spank_err_t spank_option_register_call(int argc, char *argv[], spank_t sp, struct spank_option *opt);
+spank_err_t spank_option_register(spank_t sp, struct spank_option *opt);
+char *slurm_hostlist_shift(hostlist_t host_list);
+hostlist_t slurm_hostlist_create(char *node_list);
 #endif
 
 #ifdef ERUN
 struct strctx_s {
-	char *srun;
-	char *sbatch;
-	char *remote;
+    char *srun;
+    char *sbatch;
+    char *remote;
     char *other;
 } Strctx __attribute__((weak)) = {
-	.srun   = "erun(srun)",
-	.sbatch = "erun(sbatch)",
-	.remote = "erun(remote)",
+    .srun   = "erun(srun)",
+    .sbatch = "erun(sbatch)",
+    .remote = "erun(remote)",
     .other  = "erun",
 };
 #else
@@ -168,4 +168,4 @@ struct strctx_s {
 };
 #endif
 
-#endif //EAR_PRIVATE_SPANK_INTERPOSER_H
+#endif // EAR_PRIVATE_SPANK_INTERPOSER_H

@@ -5,16 +5,12 @@ CFLAGS = -fPIC -I$(SRCDIR) $(CC_FLAGS) $(MPI_CFLAGS)
 load_OBJS = \
     loader.o \
     module_common.o \
-    module_cuda.o \
-    module_mpi.o \
-    module_openmp.o \
-    module_oneapi.o \
-    module_default.o
+    module_mpi.o
 
 ifeq ($(FEAT_MPI_LOADER), 1)
 load_OBJS += \
-    module_mpic.o \
-    module_mpif.o
+    module_mpi_syms_c.o \
+    module_mpi_syms_f.o
 
 load_DEFS = -DFEAT_MPI_LOADER=1
 endif

@@ -14,14 +14,14 @@
 #include <daemon/shared_configuration.h>
 
 void eard_exit(uint restart);
-static void configure_new_values(cluster_conf_t *cluster,my_node_conf_t *node);
+static void configure_new_values(cluster_conf_t *cluster, my_node_conf_t *node);
 static void init_frequency_list();
 static void set_global_eard_variables();
 static int read_coefficients();
 static void signal_catcher();
 static void Usage(char *app);
 static void eard_restart();
-static void  create_tmp(char *tmp_dir);
+static void create_tmp(char *tmp_dir);
 
 #else
 #endif

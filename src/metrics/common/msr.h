@@ -11,18 +11,17 @@
 #ifndef EAR_MSR_H
 #define EAR_MSR_H
 
-#include <fcntl.h>
-#include <unistd.h>
-#include <common/types.h>
-#include <common/states.h>
 #include <common/hardware/topology.h>
+#include <common/states.h>
+#include <common/types.h>
+#include <fcntl.h>
 #include <metrics/common/apis.h>
+#include <unistd.h>
 
-#define MSR_RD O_RDONLY
-#define MSR_WR O_RDWR
+#define MSR_RD        O_RDONLY
+#define MSR_WR        O_RDWR
 
-#define msr_clean(fd) \
-	*fd = -1
+#define msr_clean(fd) *fd = -1
 
 /** Tests if the MSR register is available and readable. */
 state_t msr_test(topology_t *tp, mode_t mode);
@@ -48,4 +47,4 @@ void msr_inspect(topology_t *tp, int cpu, off_t *offsets, int fd);
 /** Looks for already used registers. */
 state_t msr_scan(topology_t *tp, off_t *regs, uint regs_count, ullong andval, off_t *offs);
 
-#endif //EAR_MSR_H
+#endif // EAR_MSR_H

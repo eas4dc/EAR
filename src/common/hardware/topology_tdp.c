@@ -8,31 +8,31 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <stdlib.h>
 #include <common/config/config_env.h>
 #include <common/environment_common.h>
 #include <common/hardware/topology_tdp.h>
+#include <stdlib.h>
 
-#define tdpb_impl(comp, v, m, t) \
-    if (topo->vendor == v && comp == m) { \
-        topo->tdp = t; \
-        return; \
-    } 
+#define tdpb_impl(comp, v, m, t)                                                                                       \
+    if (topo->vendor == v && comp == m) {                                                                              \
+        topo->tdp = t;                                                                                                 \
+        return;                                                                                                        \
+    }
 #define tdpbi_impl(v, m, t) tdpb_impl(topo->model, v, m, t)
 #define tdpba_impl(v, m, t) tdpb_impl(topo->family, v, m, t)
 
-#define tdpei_impl(v, m, b, t) \
-    if (topo->vendor == v && topo->model == m && !strcmp(topo->brand, b)) { \
-        topo->tdp = t; \
-        return; \
-    } 
+#define tdpei_impl(v, m, b, t)                                                                                         \
+    if (topo->vendor == v && topo->model == m && !strcmp(topo->brand, b)) {                                            \
+        topo->tdp = t;                                                                                                 \
+        return;                                                                                                        \
+    }
 
 // b = base, e = specific
 // i = intel, a = amd
 #define unpack(macro, args) macro args
-#define tdpbi(...) unpack(tdpbi_impl, (__VA_ARGS__))
-#define tdpba(...) unpack(tdpba_impl, (__VA_ARGS__))
-#define tdpei(...) unpack(tdpei_impl, (__VA_ARGS__))
+#define tdpbi(...)          unpack(tdpbi_impl, (__VA_ARGS__))
+#define tdpba(...)          unpack(tdpba_impl, (__VA_ARGS__))
+#define tdpei(...)          unpack(tdpei_impl, (__VA_ARGS__))
 
 void topology_tdp(topology_t *topo)
 {

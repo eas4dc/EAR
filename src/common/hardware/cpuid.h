@@ -20,11 +20,11 @@ typedef struct cpuid_regs {
     unsigned int edx;
 } cpuid_regs_t;
 
-#define CPUID(t, EAX, ECX) \
-    t.eax = EAX;           \
-    t.ebx = 0;             \
-    t.ecx = ECX;           \
-    t.edx = 0;             \
+#define CPUID(t, EAX, ECX)                                                                                             \
+    t.eax = EAX;                                                                                                       \
+    t.ebx = 0;                                                                                                         \
+    t.ecx = ECX;                                                                                                       \
+    t.edx = 0;                                                                                                         \
     cpuid_native(&t.eax, &t.ebx, &t.ecx, &t.edx);
 
 void cpuid_native(uint *eax, uint *ebx, uint *ecx, uint *edx);
@@ -33,4 +33,4 @@ uint cpuid_getbits(uint reg, int left_bit, int right_bit);
 
 uint cpuid_isleaf(uint leaf);
 
-#endif //COMMON_HARDWARE_CPUID_H
+#endif // COMMON_HARDWARE_CPUID_H

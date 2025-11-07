@@ -15,47 +15,47 @@
 #include <string.h>
 
 #ifndef DEBUG_ENABLED
-#define DEBUG_ENABLED     0
+// #define DEBUG_ENABLED     1
 #endif
 int  debug_channel	       __attribute__((weak)) = 2;
 int adebug_enabled         __attribute__((weak)) = 0;
 
 // Set
-#define  DEBUG_SET_FD(fd)  debug_channel = fd;
+#define DEBUG_SET_FD(fd)  debug_channel = fd;
 #define ADEBUG_SET_EN(en) adebug_enabled = en;
 
 // Long format
 #if 1
-#define _debug(...) \
-    do { \
-      dprintf(debug_channel, "%s:%s:%d: ", __FILE__, __FUNCTION__, __LINE__); \
-      dprintf(debug_channel, __VA_ARGS__); \
-      dprintf(debug_channel, "\n"); \
-    } while(0);
+#define _debug(...)                                                                                                    \
+    do {                                                                                                               \
+        dprintf(debug_channel, "%s:%s:%d: ", __FILE__, __FUNCTION__, __LINE__);                                        \
+        dprintf(debug_channel, __VA_ARGS__);                                                                           \
+        dprintf(debug_channel, "\n");                                                                                  \
+    } while (0);
 #else
 // Short format
-#define _debug(...) \
-    dprintf(debug_channel, __VA_ARGS__); \
+#define _debug(...)                                                                                                    \
+    dprintf(debug_channel, __VA_ARGS__);                                                                               \
     dprintf(debug_channel, "\n");
 #endif
 
 // Traditional debug
 #if SHOW_DEBUGS && DEBUG_ENABLED
-#define debug(...) \
-{ \
-    _debug(__VA_ARGS__); \
-}
+#define debug(...)                                                                                                     \
+    {                                                                                                                  \
+        _debug(__VA_ARGS__);                                                                                           \
+    }
 #else
 #define debug(...)
 #endif
 
 // Active debug
-#define adebug(...) \
-{ \
-    if (adebug_enabled) { \
-        dprintf(debug_channel, __VA_ARGS__); \
-        dprintf(debug_channel, "\n"); \
-    } \
-}
+#define adebug(...)                                                                                                    \
+    {                                                                                                                  \
+        if (adebug_enabled) {                                                                                          \
+            dprintf(debug_channel, __VA_ARGS__);                                                                       \
+            dprintf(debug_channel, "\n");                                                                              \
+        }                                                                                                              \
+    }
 
-#endif //EAR_DEBUG_H
+#endif // EAR_DEBUG_H

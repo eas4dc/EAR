@@ -13,7 +13,7 @@
 #include <common/states.h>
 #include <daemon/powercap/powercap_status_conf.h>
 
-typedef void * pwr_mgt_t;
+typedef void *pwr_mgt_t;
 
 /* Initialization sequence
  *
@@ -26,32 +26,31 @@ typedef void * pwr_mgt_t;
  pmgt_new_job(pmgr);
 
  - Requested frqeuency needs to be set -
- 
+
  pmgt_set_app_req_freq(pmgr,&finfo);
  */
-
 
 state_t pmgt_init();
 state_t pmgt_enable(pwr_mgt_t *phandler);
 state_t pmgt_disable(pwr_mgt_t *phandler);
 state_t pmgt_handler_alloc(pwr_mgt_t **phandler);
-state_t pmgt_disable_policy(pwr_mgt_t *phandler,uint pid);
+state_t pmgt_disable_policy(pwr_mgt_t *phandler, uint pid);
 state_t pmgt_disable_policies(pwr_mgt_t *phandler);
-state_t pmgt_set_powercap_value(pwr_mgt_t *phandler,uint pid,uint domain,ulong limit);
+state_t pmgt_set_powercap_value(pwr_mgt_t *phandler, uint pid, uint domain, ulong limit);
 
 void pmgt_process_message(char *domain, int32_t num_values, int32_t values[num_values]);
 
 /* Sets in powercap the powercap per domain : 3 domains in CPU only systems and 4 in CPU+GPU */
-state_t pmgt_get_powercap_value(pwr_mgt_t *phandler,uint pid,ulong *powercap);
-uint pmgt_is_powercap_enabled(pwr_mgt_t *phandler,uint pid);
-void pmgt_print_powercap_value(pwr_mgt_t *phandler,int fd);
-void pmgt_powercap_to_str(pwr_mgt_t *phandler,char *b);
-void pmgt_set_status(pwr_mgt_t *phandler,uint status);
+state_t pmgt_get_powercap_value(pwr_mgt_t *phandler, uint pid, ulong *powercap);
+uint pmgt_is_powercap_enabled(pwr_mgt_t *phandler, uint pid);
+void pmgt_print_powercap_value(pwr_mgt_t *phandler, int fd);
+void pmgt_powercap_to_str(pwr_mgt_t *phandler, char *b);
+void pmgt_set_status(pwr_mgt_t *phandler, uint status);
 uint pmgt_get_powercap_cpu_strategy(pwr_mgt_t *phandler);
 uint pmgt_get_powercap_gpu_strategy(pwr_mgt_t *phandler);
-void pmgt_set_pc_mode(pwr_mgt_t *phandler,uint mode);
+void pmgt_set_pc_mode(pwr_mgt_t *phandler, uint mode);
 /* Based on the current power consumption per domain and the status (idle/run) distributes the power accross domains */
-void pmgt_set_power_per_domain(pwr_mgt_t *phandler,dom_power_t *pdomain,uint st);
+void pmgt_set_power_per_domain(pwr_mgt_t *phandler, dom_power_t *pdomain, uint st);
 /* Gets the requested frequency */
 void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size);
 /* Sets the requested frequency */
@@ -63,7 +62,8 @@ void pmgt_end_job(pwr_mgt_t *phandler);
 void pmgt_idle_to_run(pwr_mgt_t *phandler);
 /* Notifies the pwr_mgt the node goes from run to idle */
 void pmgt_run_to_idle(pwr_mgt_t *phandler);
-/* When the measured utilization changes, this funcion re-distributes the power based on that, only internally, it doesn't change the powercap allocated to each component */
+/* When the measured utilization changes, this funcion re-distributes the power based on that, only internally, it
+ * doesn't change the powercap allocated to each component */
 void pmgt_powercap_node_reallocation();
 
 /* Returns the current node status using its domains status */

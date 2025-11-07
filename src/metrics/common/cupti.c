@@ -8,28 +8,28 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <stdlib.h>
-#include <pthread.h>
+#include <common/environment_common.h>
 #include <common/output/debug.h>
 #include <common/system/symplug.h>
-#include <common/environment_common.h>
 #include <metrics/common/cupti.h>
+#include <pthread.h>
+#include <stdlib.h>
 
 // Provisional
 #define HACK_CUDA_FILE  "HACK_CUDA_FILE"
 #define HACK_CUPTI_FILE "HACK_CUPTI_FILE"
 
 #ifndef CUPTI_BASE
-#define CUPTI_PATH   ""
+#define CUPTI_PATH ""
 #else
-#define CUPTI_PATH   CUPTI_BASE
+#define CUPTI_PATH CUPTI_BASE
 #endif
-#define CUPTI_N      20
-#define CUDA_N       4
-#define CUDA_LIB     "libcuda.so"
-#define CUPTI_LIB    "libcupti.so"
+#define CUPTI_N   20
+#define CUDA_N    4
+#define CUDA_LIB  "libcuda.so"
+#define CUPTI_LIB "libcupti.so"
 
 static const char *cuda_names[] = {
     "cuInit",
@@ -62,20 +62,20 @@ static const char *cupti_names[] = {
 };
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static uint            devs_count;
-static cupti_t         cupti;
-static cuda_t          cu;
-static uint            ok;
+static uint devs_count;
+static cupti_t cupti;
+static cuda_t cu;
+static uint ok;
 
 static state_t static_open_cuda()
 {
-    #define _open_test_cuda(path) \
-    debug("Openning %s", (char *) path); \
-    if (state_ok(plug_open(path, (void **) &cu, cuda_names, CUDA_N, RTLD_NOW | RTLD_LOCAL))) { \
-        return EAR_SUCCESS; \
+#define _open_test_cuda(path)                                                                                          \
+    debug("Openning %s", (char *) path);                                                                               \
+    if (state_ok(plug_open(path, (void **) &cu, cuda_names, CUDA_N, RTLD_NOW | RTLD_LOCAL))) {                         \
+        return EAR_SUCCESS;                                                                                            \
     }
-    #define open_test_cuda(path) \
-    _open_test_cuda(path CUDA_LIB); \
+#define open_test_cuda(path)                                                                                           \
+    _open_test_cuda(path CUDA_LIB);                                                                                    \
     _open_test_cuda(path CUDA_LIB ".1");
 
     _open_test_cuda(NULL);
@@ -87,13 +87,13 @@ static state_t static_open_cuda()
 
 static state_t static_open_cupti()
 {
-    #define _open_test(path) \
-    debug("Openning %s", path); \
-    if (state_ok(plug_open(path, (void **) &cupti, cupti_names, CUPTI_N, RTLD_NOW | RTLD_LOCAL))) { \
-        return EAR_SUCCESS; \
+#define _open_test(path)                                                                                               \
+    debug("Openning %s", path);                                                                                        \
+    if (state_ok(plug_open(path, (void **) &cupti, cupti_names, CUPTI_N, RTLD_NOW | RTLD_LOCAL))) {                    \
+        return EAR_SUCCESS;                                                                                            \
     }
-    #define open_test(path) \
-    _open_test(path CUPTI_LIB); \
+#define open_test(path)                                                                                                \
+    _open_test(path CUPTI_LIB);                                                                                        \
     _open_test(path CUPTI_LIB ".1");
 
     // Looking for cupti library in tipical paths.
@@ -146,10 +146,11 @@ static state_t static_init()
 state_t cupti_open(cupti_t *cupti_in, cuda_t *cu_in)
 {
     state_t s = EAR_SUCCESS;
-    #ifndef CUPTI_BASE
+#ifndef CUPTI_BASE
     return EAR_ERROR;
-    #endif
-    while (pthread_mutex_trylock(&lock));
+#endif
+    while (pthread_mutex_trylock(&lock))
+        ;
     if (ok) {
         goto fini;
     }
@@ -158,7 +159,7 @@ state_t cupti_open(cupti_t *cupti_in, cuda_t *cu_in)
             ok = 1;
         }
     }
-    fini:
+fini:
     pthread_mutex_unlock(&lock);
     if (ok && cupti_in != NULL) {
         memcpy(cupti_in, &cupti, sizeof(cupti_t));

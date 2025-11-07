@@ -31,4 +31,6 @@ state_t gpu_oneapi_read(ctx_t *c, gpu_t *data);
 
 state_t gpu_oneapi_read_raw(ctx_t *c, gpu_t *data);
 
+void gpu_oneapi_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff);
+
 #endif

@@ -8,64 +8,106 @@
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <common/system/time.h>
 #include <common/output/debug.h>
-#include <metrics/common/perf.h>
+#include <common/system/time.h>
 #include <metrics/bandwidth/archs/perf.h>
+#include <metrics/common/perf.h>
+#include <stdlib.h>
 
-typedef struct meta_s {
-    perf_t perf;
-    cchar  *desc;
-} meta_t;
+static uint started;
+static perf_t *perfs;
+static uint perfs_alloc_count;
+static uint perfs_count;
+static double castob; // cas to bytes
 
-static uint        counter;
-static uint        started;
-static meta_t      meta[5];
-
-void set_event(ullong event, uint type, cchar *desc)
+static void set_alloc(uint new_count)
 {
-    if (state_fail(perf_open(&meta[counter].perf, &meta[0].perf, 0, type, event))) {
+    if (new_count <= perfs_alloc_count) {
+        return;
+    }
+    if (perfs_alloc_count != 0) {
+        perfs = realloc(perfs, new_count * sizeof(perf_t));
+        memset(&perfs[perfs_alloc_count], 0, (new_count - perfs_alloc_count) * sizeof(perf_t));
+    } else {
+        perfs = calloc(new_count, sizeof(perf_t));
+    }
+    perfs_alloc_count = new_count;
+}
+
+static void set_event(ullong event, uint type, cchar *event_name)
+{
+    if (state_fail(perf_open(&perfs[perfs_count], NULL, 0, type, event))) {
         debug("perf_open returned: %s", state_msg);
         return;
     }
-    counter++;
+    sprintf(perfs[perfs_count].event_name, "%s", event_name);
+    perfs_count++;
 }
 
-state_t bwidth_perf_load(topology_t *tp, bwidth_ops_t *ops)
+void bwidth_perf_load(topology_t *tp, bwidth_ops_t *ops)
 {
-    if (tp->vendor == VENDOR_ARM) {
-        set_event(0x19, PERF_TYPE_RAW, "BUS_ACCESS");
+    // Common configuration
+    castob = tp->cache_line_size;
+    if (tp->vendor == VENDOR_INTEL) {
+        // In Sapphire Rapids (4 IMCs and 2 channels per IMC per socket), we
+        // found the event files cas_count_read and cas_count_write. But
+        // instead of opening two different events per pmu (uncore_imc_0...),
+        // which is possible because there are 4 counters per pmu, we set the
+        // read+write event which we know it is 0xff05.
+        if (tp->model >= MODEL_SAPPHIRE_RAPIDS) {
+            if (state_fail(perf_open_files(&perfs, "uncore_imc_%d", "0xff05", &perfs_count))) {
+            }
+        }
+        // Ice Lake type. 4 IMCs and 2 Channels per IMC. In case of two sockets,
+        // you will see 4 IMCs only, and two CPUs in cpumask. But, Free Running
+        // Counters are per socket, so you can read the total data transferred
+        // just reading a Free Running Counter.
+        else if (tp->model >= MODEL_ICELAKE_X) {
+            if (state_fail(perf_open_files(&perfs, "uncore_imc_free_running_0", "0x10ff", &perfs_count))) {
+                if (state_fail(perf_open_files(&perfs, "uncore_imc_free_running_0", "data_total", &perfs_count))) {
+                }
+            }
+        }
+    } else if (tp->vendor == VENDOR_ARM) {
+        if (tp->model == MODEL_NEOVERSE_V2) {
+            if (state_ok(
+                    perf_open_files(&perfs, "nvidia_scf_pmu_%d", "cmem_rd_data,cmem_wr_total_bytes", &perfs_count))) {
+                perf_set_scale(perfs, perfs_count, "cmem_wr_total_bytes", 1.0 / 32.0);
+                castob = 32.0;
+            }
+        } else {
+            set_alloc(1);
+            set_event(0x19, PERF_TYPE_RAW, "BUS_ACCESS");
+        }
     }
-    if (!counter) {
-        return EAR_ERROR;
+    if (perfs_count == 0) {
+        return;
     }
-    apis_put(ops->count_devices,   bwidth_perf_count_devices);
-    apis_put(ops->get_granularity, bwidth_perf_get_granularity);
-    apis_put(ops->init,            bwidth_perf_init);
-    apis_put(ops->dispose,         bwidth_perf_dispose);
-    apis_put(ops->read,            bwidth_perf_read);
+    apis_put(ops->get_info, bwidth_perf_get_info);
+    apis_put(ops->init, bwidth_perf_init);
+    apis_put(ops->dispose, bwidth_perf_dispose);
+    apis_put(ops->read, bwidth_perf_read);
+    apis_put(ops->castob, bwidth_perf_castob);
     debug("Loaded PERF")
-    return EAR_SUCCESS;
 }
 
-state_t bwidth_perf_count_devices(ctx_t *c, uint *devs_count)
+BWIDTH_F_GET_INFO(bwidth_perf_get_info)
 {
-    *devs_count = 1+1;
-    return EAR_SUCCESS;
-}
-
-state_t bwidth_perf_get_granularity(ctx_t *c, uint *granularity)
-{
-    *granularity = GRANULARITY_CORE;
-    return EAR_SUCCESS;
+    info->api         = API_PERF;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_IMC;
+    info->devs_count  = perfs_count + 1;
 }
 
 state_t bwidth_perf_init(ctx_t *c)
 {
+    int i;
     if (!started) {
-        perf_start(&meta[0].perf);
+        for (i = 0; i < perfs_count; ++i) {
+            perf_start(&perfs[i]);
+        }
         ++started;
     }
     return EAR_SUCCESS;
@@ -78,19 +120,26 @@ state_t bwidth_perf_dispose(ctx_t *c)
 
 state_t bwidth_perf_read(ctx_t *c, bwidth_t *bw)
 {
-    ullong values[5];
-    state_t s;
+    llong value;
     int i;
     // Cleaning
-    memset(bw, 0, sizeof(bwidth_t));
+    memset(bw, 0, perfs_count * sizeof(bwidth_t));
     // Reading
-    timestamp_get(&bw[1].time);
-    if (state_fail(s = perf_read(&meta[0].perf, (llong *) values))) {
-        return s;
-    }
-    for (i = 0; i < counter; ++i) {
-        bw[i].cas = values[i];
-        debug("values[%d]: %llu (%s)", i, values[i], meta[i].desc);
+    timestamp_get(&bw[perfs_count].time);
+    for (i = 0; i < perfs_count; ++i) {
+        if (state_ok(perf_read(&perfs[i], &value))) {
+            if (perfs[i].scale != 1.0) {
+                bw[i].cas = (ullong) (((double) value) * perfs[i].scale);
+            } else {
+                bw[i].cas = value;
+            }
+            debug("CAS: %llu", bw[i].cas);
+        }
     }
     return EAR_SUCCESS;
+}
+
+BWIDTH_F_CASTOB(bwidth_perf_castob)
+{
+    return ((double) cas) * castob;
 }

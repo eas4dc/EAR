@@ -16,8 +16,8 @@
  */
 
 #include <common/config.h>
-#include <common/types/roofline.h>
 #include <common/output/verbose.h>
+#include <common/types/roofline.h>
 
 static void create_filename(char *filename, char *path, char *prefix, char *architecture)
 {
@@ -29,36 +29,35 @@ static void create_filename(char *filename, char *path, char *prefix, char *arch
 
 void roofline_print(roofline_t *roofline)
 {
-    debug("Roofline data: peak bandwidth -> %lf; peak gflops -> %lf; treshold -> %lf", roofline->peak_bandwidth, roofline->peak_gflops, roofline->threshold);
+    debug("Roofline data: peak bandwidth -> %lf; peak gflops -> %lf; treshold -> %lf", roofline->peak_bandwidth,
+          roofline->peak_gflops, roofline->threshold);
 }
 
 state_t load_roofline(char *path, char *architecture, roofline_t *final_roofline)
 {
-	if (!path || !architecture || !final_roofline) {
-		return EAR_ERROR;
-	}
+    if (!path || !architecture || !final_roofline) {
+        return EAR_ERROR;
+    }
 
     char filename[128] = "";
     create_filename(filename, path, "roofline.", architecture);
     FILE *f = fopen(filename, "rb");
 
     char buff[1024];
-    
-    if (access(filename, F_OK) != 0)
-    {
+
+    if (access(filename, F_OK) != 0) {
         return EAR_ERROR;
     }
 
-    if (NULL != fgets(buff, sizeof(buff), f))
-    {
+    if (NULL != fgets(buff, sizeof(buff), f)) {
         char *val = buff;
         double gflops, gbs;
-        val = strtok(val, " \t\n");
-        gbs = atof(val);
-        val = NULL;
-        val = strtok(val, " \t\n");
-        gflops = atof(val);
-        val = NULL;
+        val            = strtok(val, " \t\n");
+        gbs            = atof(val);
+        val            = NULL;
+        val            = strtok(val, " \t\n");
+        gflops         = atof(val);
+        val            = NULL;
         roofline_t aux = {gbs, gflops, gflops / gbs};
         memcpy(final_roofline, &aux, sizeof(roofline_t));
         fclose(f);

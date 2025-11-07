@@ -15,7 +15,7 @@
 int create_app_connection();
 
 /** Returns the energy in mJ and the time in ms  */
-int ear_energy(ulong *energy_mj,ulong *time_ms);
+int ear_energy(ulong *energy_mj, ulong *time_ms);
 
 /** Releases resources to connect with applications */
 int dispose_app_connection();

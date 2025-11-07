@@ -8,8 +8,8 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <metrics/common/isst.h>
 #include <management/cpufreq/archs/prio_isst.h>
+#include <metrics/common/isst.h>
 
 void mgt_prio_isst_load(topology_t *tp, mgt_prio_ops_t *ops)
 {
@@ -17,18 +17,18 @@ void mgt_prio_isst_load(topology_t *tp, mgt_prio_ops_t *ops)
     if (state_fail(isst_init(tp))) {
         return;
     }
-    apis_put(ops->get_api,            mgt_prio_isst_get_api);
-    apis_put(ops->init,               mgt_prio_isst_init);
-    apis_put(ops->dispose,            mgt_prio_isst_dispose);
-    apis_put(ops->enable,             mgt_prio_isst_enable);
-    apis_put(ops->disable,            mgt_prio_isst_disable);
-    apis_put(ops->is_enabled,         mgt_prio_isst_is_enabled);
+    apis_put(ops->get_api, mgt_prio_isst_get_api);
+    apis_put(ops->init, mgt_prio_isst_init);
+    apis_put(ops->dispose, mgt_prio_isst_dispose);
+    apis_put(ops->enable, mgt_prio_isst_enable);
+    apis_put(ops->disable, mgt_prio_isst_disable);
+    apis_put(ops->is_enabled, mgt_prio_isst_is_enabled);
     apis_put(ops->get_available_list, mgt_prio_isst_get_available_list);
     apis_put(ops->set_available_list, mgt_prio_isst_set_available_list);
-    apis_put(ops->get_current_list,   mgt_prio_isst_get_current_list);
-    apis_put(ops->set_current_list,   mgt_prio_isst_set_current_list);
-    apis_put(ops->set_current,        mgt_prio_isst_set_current);
-    apis_put(ops->data_count,         mgt_prio_isst_data_count);
+    apis_put(ops->get_current_list, mgt_prio_isst_get_current_list);
+    apis_put(ops->set_current_list, mgt_prio_isst_set_current_list);
+    apis_put(ops->set_current, mgt_prio_isst_set_current);
+    apis_put(ops->data_count, mgt_prio_isst_data_count);
 }
 
 void mgt_prio_isst_get_api(uint *api)

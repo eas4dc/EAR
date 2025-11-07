@@ -8,22 +8,22 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <common/output/debug.h>
 #include <data_center_monitor/plugins/conf.h>
 #include <data_center_monitor/plugins/metrics.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-static mets_t     m;
-static conf_t    *conf;
-static char      *np_path; //Node power
-static char       buffer[4096];
+static mets_t m;
+static conf_t *conf;
+static char *np_path; // Node power
+static char buffer[4096];
 
 declr_up_get_tag()
 {
-    *tag = "metrics";
+    *tag       = "metrics";
     *tags_deps = "!conf";
 }
 
@@ -40,7 +40,7 @@ declr_up_action_init(_metrics)
     *data_alloc = &m;
     metrics_load(&m.mi, &conf->tp, np_path, atoull(getenv("MFLAGS")));
     metrics_data_alloc(&m.mr, NULL, NULL);
-    return rsprintf("Metrics plugin initialized correctly %s", (!np_path) ? "(missing np library)": "");
+    return rsprintf("Metrics plugin initialized correctly %s", (!np_path) ? "(missing np library)" : "");
 }
 
 declr_up_action_periodic(_metrics)

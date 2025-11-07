@@ -43,7 +43,6 @@
 #include <library/common/library_shared_data.h>
 #include <library/common/utils.h>
 #include <library/common/verbose_lib.h>
-#include <library/loader/module_cuda.h>
 #include <library/loader/module_mpi.h>
 #include <library/metrics/energy_node_lib.h>
 #include <library/metrics/metrics.h>
@@ -337,6 +336,8 @@ static uint validation_new_gpu = 0;
 /** Private function to perfom last operations before returning from dispose call. */
 static void metrics_static_dispose();
 
+static void cache_sig_from_cache_t(cache_signature_t *cache_sig, cache_t *cache_src);
+
 const metrics_t *metrics_get(uint api)
 {
     switch (api) {
@@ -477,6 +478,16 @@ void metrics_lib_reset()
     cache_dispose(no_ctx);
 }
 
+static uint api_mode(uint master, uint eard, uint per_process)
+{
+	// If connected, return what's already selected
+	if (eards_connected() || !EARL_LIGHT) return eard;
+	// API_EARD means I'm master
+	if ((eard == API_EARD) && !eards_connected()) return API_FREE;
+	if ((eard == NO_EARD) && (per_process)) return API_FREE;
+	if ((eard == NO_EARD) && (!per_process)) return API_DUMMY;
+}
+
 static void metrics_static_init(topology_t *tp)
 {
     char buffer[SZ_BUFFER_EXTRA];
@@ -496,7 +507,7 @@ static void metrics_static_init(topology_t *tp)
     sa(temp_load(tp, eard));
 
     debug("energy_cpu_load");
-    sa(energy_cpu_load(tp, eard));
+    sa(energy_cpu_load(tp, api_mode(master, eard, 0)));
 
     debug("cpufreq_load");
     sa(cpufreq_load(tp, eard));
@@ -567,6 +578,7 @@ static void metrics_static_init(topology_t *tp)
     sa(cpi_get_api(&met_cpi.api));
     sa(mgt_cpuprio_get_api(&mgt_cpuprio.api));
     flops_get_info(&met_flops);
+    debug("CPU APIs ready");
 
     if (met_cpufreq.api == API_DUMMY)
         estimate_met_cpuf = 1;
@@ -577,6 +589,8 @@ static void metrics_static_init(topology_t *tp)
         validate_cpu_busy = 0;
 
 #if USE_GPUS
+    debug("Asking for GPU apis");
+    debug("mgt_gpu_get_api");
     mgt_gpu_get_api(&mgt_gpu.api);
     gpu_get_api(&met_gpu.api);
 #if USE_CUPTI
@@ -618,6 +632,7 @@ static void metrics_static_init(topology_t *tp)
 #if DCGMI
     /* Just the master loads DCGMI module. */
     if (master && met_gpu.ok) {
+        debug("Loading DCGMI");
         state_t ret_st = dcgmi_lib_load();
         if (state_is(ret_st, EAR_WARNING)) {
             // The warning is not relevant for a normal user
@@ -1637,9 +1652,13 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
 #endif
 
     /* Cache misses */
-    metrics->L1_misses = cache_diff[sign_app_loop_idx].l1d_misses;
-    metrics->L2_misses = cache_diff[sign_app_loop_idx].l2_misses;
-    metrics->L3_misses = cache_diff[sign_app_loop_idx].l3_misses;
+    // TODO: To be removed when using just cache_signature_t attribute
+    metrics->L1_misses = cache_diff[sign_app_loop_idx].l1d.misses;
+    metrics->L2_misses = cache_diff[sign_app_loop_idx].l2.misses;
+    metrics->L3_misses = cache_diff[sign_app_loop_idx].l3.misses;
+
+    /* New cache metrics */
+    cache_sig_from_cache_t(&metrics->cache, &cache_diff[sign_app_loop_idx]);
 
 #if USE_GPUS & DCGMI
     if (master && dcgmi_lib_is_enabled() && (sig_ext->dcgmis.set_cnt == 0)) {
@@ -1663,6 +1682,12 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
     metrics->cycles = cpi_diff[sign_app_loop_idx].cycles * num_th;
     ;
     metrics->instructions = ear_max(cpi_diff[sign_app_loop_idx].instructions, 1) * num_th;
+    ;
+    metrics->stalls.fetch_decode = cpi_diff[sign_app_loop_idx].stalls.fetch_decode * num_th;
+    ;
+    metrics->stalls.resources = cpi_diff[sign_app_loop_idx].stalls.resources * num_th;
+    ;
+    metrics->stalls.memory = cpi_diff[sign_app_loop_idx].stalls.memory * num_th;
     ;
     metrics->CPI = cpi_avrg[sign_app_loop_idx];
 
@@ -1800,9 +1825,17 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
         for (int p = 0; p < num_packs; p++) {
             double rapl_dram    = (double) metrics_rapl[sign_app_loop_idx][p];
             metrics->DRAM_power = metrics->DRAM_power + rapl_dram;
+#if WF_SUPPORT
+            metrics->cpu_sig.dram_power[p] = energy_cpu_compute_power(rapl_dram, time_s);
+#endif
 
             double rapl_pck    = (double) metrics_rapl[sign_app_loop_idx][num_packs + p];
             metrics->PCK_power = metrics->PCK_power + rapl_pck;
+#if WF_SUPPORT
+            metrics->cpu_sig.cpu_power[p] = energy_cpu_compute_power(rapl_pck, time_s);
+#endif
+            verbose_info2_master("computing dram[%d] power = %lf", p, metrics->cpu_sig.dram_power[p]);
+            verbose_info2_master("computing cpu[%d]  power = %lf", p, metrics->cpu_sig.cpu_power[p]);
         }
 
         metrics->PCK_power  = energy_cpu_compute_power(metrics->PCK_power, time_s);
@@ -1963,9 +1996,31 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
         app_energy_saving.event = POWER_SAVING_AVG;
         app_energy_saving.value = (llong) avg_psaving;
         report_events(&rep_id, &app_energy_saving, 1);
-#if 0
-		/* Not yet reported */
-		app_energy_saving.event = PERF_PENALTY;
+        app_energy_saving.event = PERF_PENALTY_AVG;
+        app_energy_saving.value = (llong) avg_tpenalty;
+        report_events(&rep_id, &app_energy_saving, 1);
+
+#if USE_GPU
+        float avg_gpu_esaving  = sig_ext->gpu_saving / sig_ext->telapsed;
+        float avg_gpu_psaving  = sig_ext->gpu_psaving / sig_ext->telapsed;
+        float avg_gpu_tpenalty = sig_ext->gpu_tpenalty / sig_ext->telapsed;
+        verbose_master(ENERGY_EFF_VERB,
+                       "GPU Policy savins[%s]. MR[%d] Average estimated GPU energy savings %.2f. Average GPU Power "
+                       "reduction %.2f. Time penalty %.2f. Elapsed %.2f",
+                       node_name, masters_info.my_master_rank, avg_gpu_esaving, avg_gpu_psaving, avg_gpu_tpenalty,
+                       sig_ext->telapsed);
+
+        app_energy_saving.event = GPU_ENERGY_SAVING_AVG;
+        app_energy_saving.value = (llong) avg_gpu_esaving;
+        report_events(&rep_id, &app_energy_saving, 1);
+
+        app_energy_saving.event = GPU_POWER_SAVING_AVG;
+        app_energy_saving.value = (llong) avg_gpu_psaving;
+        report_events(&rep_id, &app_energy_saving, 1);
+
+        app_energy_saving.event = GPU_PERF_PENALTY_AVG;
+        app_energy_saving.value = (llong) avg_gpu_tpenalty;
+        report_events(&rep_id, &app_energy_saving, 1);
 #endif
     }
 
@@ -2201,7 +2256,7 @@ int metrics_load(topology_t *topo)
 
 #define MAX_SYNCHO_TIME 100
 
-void metrics_dispose(signature_t *metrics, ulong procs)
+void metrics_dispose(signature_t *metrics, ulong procs, uint job_node_ratio)
 {
     sig_ext_t *se;
     signature_t job_node_sig;
@@ -2322,9 +2377,13 @@ void metrics_dispose(signature_t *metrics, ulong procs)
 
         se = (sig_ext_t *) metrics->sig_ext;
 
-        if (!exclusive) {
+        if (!exclusive || job_node_ratio) {
+            verbose_info_master(
+                "Application sharing the node or job ratio strategy requested. Computing the application node "
+                "signature.");
             metrics_app_node_signature(metrics, &job_node_sig);
         } else {
+            verbose_info_master("Application running in exclusive mode and job ratio not requested.");
             metrics_job_signature(&lib_shared_region->job_signature, &job_node_sig);
         }
 
@@ -2494,10 +2553,13 @@ void metrics_app_node_signature(signature_t *master, signature_t *ns)
     if (se != NULL)
         memcpy(ns->sig_ext, se, sizeof(sig_ext_t));
 
-    debug(" metrics_app_node_signature");
+    debug("metrics_app_node_signature");
 
     compute_job_node_instructions(sig_shared_region, lib_shared_region->num_processes, &inst);
     compute_job_node_cycles(sig_shared_region, lib_shared_region->num_processes, &cycles);
+    compute_job_node_stalls_fetch_decode(sig_shared_region, lib_shared_region->num_processes, &ns->stalls.fetch_decode);
+    compute_job_node_stalls_resources(sig_shared_region, lib_shared_region->num_processes, &ns->stalls.resources);
+    compute_job_node_stalls_memory(sig_shared_region, lib_shared_region->num_processes, &ns->stalls.memory);
     compute_job_node_io_mbs(sig_shared_region, lib_shared_region->num_processes, &io_mbs);
 
     ns->CPI    = (inst ? (double) cycles / (double) inst : 1);
@@ -2508,6 +2570,7 @@ void metrics_app_node_signature(signature_t *master, signature_t *ns)
     compute_job_node_L1_misses(sig_shared_region, lib_shared_region->num_processes, &L1);
     compute_job_node_L2_misses(sig_shared_region, lib_shared_region->num_processes, &L2);
     compute_job_node_L3_misses(sig_shared_region, lib_shared_region->num_processes, &L3);
+    compute_job_node_cache_metrics(sig_shared_region, lib_shared_region->num_processes, &ns->cache);
 
     for (i = 0; i < FLOPS_EVENTS; i++) {
         ns->FLOPS[i] = FLOPS[i];
@@ -2572,6 +2635,7 @@ void metrics_job_signature(const signature_t *master, signature_t *dst)
     ullong cycles;
     ullong FLOPS[FLOPS_EVENTS];
     ullong L1, L2, L3;
+    ullong fetch_decode, resources, memory;
 
     signature_copy(dst, master);
 
@@ -2587,6 +2651,23 @@ void metrics_job_signature(const signature_t *master, signature_t *dst)
 
         assert(inst != 0);
         dst->CPI = (double) cycles / (double) inst;
+    }
+    if (state_fail(
+            compute_job_node_stalls_fetch_decode(sig_shared_region, lib_shared_region->num_processes, &fetch_decode))) {
+        verbose_warning("Error on computing job's node stalls' fetch decode: %s", state_msg);
+    } else {
+        dst->stalls.fetch_decode = fetch_decode;
+    }
+    if (state_fail(
+            compute_job_node_stalls_resources(sig_shared_region, lib_shared_region->num_processes, &resources))) {
+        verbose_warning("Error on computing job's node stalls' resources: %s", state_msg);
+    } else {
+        dst->stalls.resources = resources;
+    }
+    if (state_fail(compute_job_node_stalls_memory(sig_shared_region, lib_shared_region->num_processes, &memory))) {
+        verbose_warning("Error on computing job's node stalls' memory: %s", state_msg);
+    } else {
+        dst->stalls.memory = memory;
     }
 
     if (state_fail(compute_job_node_flops(sig_shared_region, lib_shared_region->num_processes, FLOPS))) {
@@ -2606,6 +2687,7 @@ void metrics_job_signature(const signature_t *master, signature_t *dst)
     compute_job_node_L1_misses(sig_shared_region, lib_shared_region->num_processes, &L1);
     compute_job_node_L2_misses(sig_shared_region, lib_shared_region->num_processes, &L2);
     compute_job_node_L3_misses(sig_shared_region, lib_shared_region->num_processes, &L3);
+    compute_job_node_cache_metrics(sig_shared_region, lib_shared_region->num_processes, &dst->cache);
 
     dst->L1_misses = L1;
     dst->L2_misses = L2;
@@ -2966,4 +3048,32 @@ int ear_get_num_threads()
     }
     verbose(VERB_NUMTH, "Task[%d] %d threads detected", getpid(), num_th);
     return num_th;
+}
+
+static void cache_sig_from_cache_t(cache_signature_t *cache_sig, cache_t *cache_src)
+{
+    cache_sig->l1d_misses = cache_src->l1d.misses;
+    cache_sig->l2_misses  = cache_src->l2.misses;
+    cache_sig->l3_misses  = cache_src->l3.misses;
+    cache_sig->ll_misses  = cache_src->ll->misses;
+
+    cache_sig->l1d_hits = cache_src->l1d.hits;
+    cache_sig->l2_hits  = cache_src->l2.hits;
+    cache_sig->l3_hits  = cache_src->l3.hits;
+    cache_sig->ll_hits  = cache_src->ll->hits;
+
+    cache_sig->l1d_accesses = cache_src->l1d.accesses;
+    cache_sig->l2_accesses  = cache_src->l2.accesses;
+    cache_sig->l3_accesses  = cache_src->l3.accesses;
+    cache_sig->ll_accesses  = cache_src->ll->accesses;
+
+    cache_sig->l1d_miss_rate = cache_src->l1d.miss_rate;
+    cache_sig->l2_miss_rate  = cache_src->l2.miss_rate;
+    cache_sig->l3_miss_rate  = cache_src->l3.miss_rate;
+    cache_sig->ll_miss_rate  = cache_src->ll->miss_rate;
+
+    cache_sig->l1d_hit_rate = cache_src->l1d.hit_rate;
+    cache_sig->l2_hit_rate  = cache_src->l2.hit_rate;
+    cache_sig->l3_hit_rate  = cache_src->l3.hit_rate;
+    cache_sig->ll_hit_rate  = cache_src->ll->hit_rate;
 }

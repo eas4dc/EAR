@@ -10,27 +10,27 @@
 
 // #define SHOW_DEBUGS 1
 
-#include <math.h>
-#include <stdlib.h>
-#include <pthread.h>
+#include <common/math_operations.h>
 #include <common/output/debug.h>
-#include <common/utils/string.h>
 #include <common/system/monitor.h>
 #include <common/system/time.h>
-#include <common/math_operations.h>
+#include <common/utils/string.h>
+#include <math.h>
 #include <metrics/common/nvml.h>
 #include <metrics/gpu/archs/gpuprof_nvml.h>
+#include <pthread.h>
+#include <stdlib.h>
 
-static pthread_mutex_t      lock = PTHREAD_MUTEX_INITIALIZER;
-static nvmlGpmMetricsGet_t *gpms; //N devices
-static gpuprof_evs_t       *events;
-static uint                 events_count;
-static gpuprof_t           *pool;
-static uint                 pooling;
-static nvml_t               nvml;
-static uint			        devs_count;
-static nvmlDevice_t        *devs;
-static suscription_t       *sus;
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static nvmlGpmMetricsGet_t *gpms; // N devices
+static gpuprof_evs_t *events;
+static uint events_count;
+static gpuprof_t *pool;
+static uint pooling;
+static nvml_t nvml;
+static uint devs_count;
+static nvmlDevice_t *devs;
+static suscription_t *sus;
 
 // Why this class uses the pooling instead multiple nvmlGpmMetricsGet_t?
 //
@@ -42,7 +42,7 @@ static suscription_t       *sus;
 //     is related. But is not recommended to change the design just because one
 //     intern API is different. Pooling solves that because internally we use
 //     just one nvmlGpmMetricsGet_t.
-//  2) If someone changes the events through events_set, the nvmlGpmMetricsGet_t 
+//  2) If someone changes the events through events_set, the nvmlGpmMetricsGet_t
 //     will become invalid.
 //
 
@@ -53,10 +53,10 @@ static int support_test()
     static nvmlGpmSupport_t support;
     nvmlReturn_t r;
 
-    #ifndef NVML_GPM_SUPPORT_VERSION
+#ifndef NVML_GPM_SUPPORT_VERSION
     // Compiled without GPM header
     return 0;
-    #endif
+#endif
     support.version = NVML_GPM_METRICS_GET_VERSION;
     if (nvml.GpmQueryDeviceSupport == NULL || nvml.GpmMetricsGet == NULL) {
         debug("GPM symbols not found");
@@ -67,18 +67,20 @@ static int support_test()
         return 0;
     }
 
-		return (support.isSupportedDevice) ? 1 : 0;
+    return (support.isSupportedDevice) ? 1 : 0;
 }
 
 static int samples_alloc(nvmlGpmMetricsGet_t *sev)
 {
     nvmlReturn_t r;
-    
+
     sev->version = NVML_GPM_METRICS_GET_VERSION;
+    debug("Allocation sample1");
     if ((r = nvml.GpmSampleAlloc(&sev->sample1)) != NVML_SUCCESS) {
         debug("Error while allocating sample1: %s", nvml.ErrorString(r));
         return 0;
     }
+    debug("Allocation sample2");
     if ((r = nvml.GpmSampleAlloc(&sev->sample2)) != NVML_SUCCESS) {
         debug("Error while allocating sample2: %s", nvml.ErrorString(r));
         return 0;
@@ -101,10 +103,10 @@ static int events_fill(nvmlGpmMetricsGet_t *sev, int i)
     }
     // Cleaning metric
     memset(&sev->metrics[0], 0, sizeof(nvmlGpmMetric_t));
-    // 
+    //
     sev->numMetrics          = 1;
     sev->metrics[0].metricId = i;
-    
+
     if ((r = nvml.GpmMetricsGet(sev)) != NVML_SUCCESS) {
         debug("Error while loading NVML metrics: %s", nvml.ErrorString(r));
         return 1;
@@ -122,7 +124,7 @@ static int events_fill(nvmlGpmMetricsGet_t *sev, int i)
 GPUPROF_F_LOAD(gpuprof_nvml_load)
 {
     int i = 0;
-
+    debug("gpuprof_nvml_load");
     if (apis_loaded(ops)) {
         return;
     }
@@ -130,20 +132,24 @@ GPUPROF_F_LOAD(gpuprof_nvml_load)
         debug("nvml_open failed: %s", state_msg);
         return;
     }
+    debug("gpuprof_nvml_load get devices");
     if (state_fail(nvml_get_devices(&devs, &devs_count))) {
         debug("nvml_get_devices failed: %s", state_msg);
         return;
     }
+    debug("NVML_dcgmi: %d devices detected", devs_count);
     if (!support_test()) {
         debug("Unsupported NVML profiling functions");
         return;
     }
+    debug("Allocating %d bytes for %d devices in dcgmi ", sizeof(nvmlGpmMetricsGet_t) * (devs_count + 1), devs_count);
     // Allocating space for NVML metrics for all devices + additional for testing
     gpms = calloc(devs_count + 1, sizeof(nvmlGpmMetricsGet_t));
     // Allocating space for our own event list (events)
+    debug("Allocating events %d event bytes %d", NVML_GPM_METRIC_MAX, sizeof(gpuprof_evs_t) * NVML_GPM_METRIC_MAX);
     events = calloc(NVML_GPM_METRIC_MAX, sizeof(gpuprof_evs_t));
     // Allocating samples
-    while (i < (devs_count+1)) {
+    while (i < (devs_count + 1)) {
         if (!samples_alloc(&gpms[i])) {
             return;
         }
@@ -153,17 +159,19 @@ GPUPROF_F_LOAD(gpuprof_nvml_load)
     gpuprof_nvml_data_alloc(&pool);
     // Getting event names and ids
     i = 1;
-		while(events_fill(&gpms[devs_count], i++));
-		apis_put(ops->init,							gpuprof_nvml_init);
-		apis_put(ops->get_info,         gpuprof_nvml_get_info);
-		apis_put(ops->events_get,       gpuprof_nvml_events_get);
-		apis_put(ops->events_set,       gpuprof_nvml_events_set);
-		apis_put(ops->events_unset,     gpuprof_nvml_events_unset);
-		apis_put(ops->read,             gpuprof_nvml_read);
-		apis_put(ops->read_raw,         gpuprof_nvml_read_raw);
-		apis_put(ops->data_diff,        gpuprof_nvml_data_diff);
-		apis_put(ops->data_alloc,       gpuprof_nvml_data_alloc);
-		apis_put(ops->data_copy,        gpuprof_nvml_data_copy);
+    debug("filling events");
+    while (events_fill(&gpms[devs_count], i++))
+        ;
+    apis_put(ops->init, gpuprof_nvml_init);
+    apis_put(ops->get_info, gpuprof_nvml_get_info);
+    apis_put(ops->events_get, gpuprof_nvml_events_get);
+    apis_put(ops->events_set, gpuprof_nvml_events_set);
+    apis_put(ops->events_unset, gpuprof_nvml_events_unset);
+    apis_put(ops->read, gpuprof_nvml_read);
+    apis_put(ops->read_raw, gpuprof_nvml_read_raw);
+    apis_put(ops->data_diff, gpuprof_nvml_data_diff);
+    apis_put(ops->data_alloc, gpuprof_nvml_data_alloc);
+    apis_put(ops->data_copy, gpuprof_nvml_data_copy);
     debug("Loaded NVML");
 }
 
@@ -173,15 +181,15 @@ GPUPROF_F_INIT(gpuprof_nvml_init)
         return EAR_SUCCESS;
     }
 
-		debug("gpuprof_nvml_init");
+    debug("gpuprof_nvml_init");
 
     // Creating pooling thread
-    sus = suscription();
+    sus             = suscription();
     sus->call_main  = gpuprof_nvml_pool;
     sus->time_relax = 2000;
     sus->time_burst = 2000;
     sus->suscribe(sus);
-		monitor_register(sus);
+    monitor_register(sus);
     pooling = 1;
 
     return EAR_SUCCESS;
@@ -195,7 +203,6 @@ GPUPROF_F_DISPOSE(gpuprof_nvml_dispose)
     }
 }
 
-
 GPUPROF_F_GET_INFO(gpuprof_nvml_get_info)
 {
     info->api         = API_NVML;
@@ -206,7 +213,7 @@ GPUPROF_F_GET_INFO(gpuprof_nvml_get_info)
 
 GPUPROF_F_EVENTS_GET(gpuprof_nvml_events_get)
 {
-    *evs = events;
+    *evs       = events;
     *evs_count = events_count;
 }
 
@@ -216,7 +223,8 @@ static state_t gpuprof_nvml_pool(void *p)
     int d, m;
 
     // nvmlGpmMetricsGet and nvmlGpmSampleGet overhead was measured between 0 and 3 ms.
-    while (pthread_mutex_trylock(&lock));
+    while (pthread_mutex_trylock(&lock))
+        ;
     for (d = 0; d < devs_count; ++d) {
         // Reference is a pointer to the events list
         if (pool[d].hash == NULL) {
@@ -236,14 +244,13 @@ static state_t gpuprof_nvml_pool(void *p)
             if (!isnan(gpms[d].metrics[m].value)) {
                 pool[d].values[m] += gpms[d].metrics[m].value;
             }
-            debug("%s: %lf.[%d][%d] += %lf %s (nvmlReturn %d: %s)",
-                gpms[d].metrics[m].metricInfo.longName, pool[d].values[m], d, m,
-                gpms[d].metrics[m].value, gpms[d].metrics[m].metricInfo.unit,
-                gpms[d].metrics[m].nvmlReturn, nvml.ErrorString(gpms[d].metrics[m].nvmlReturn));
+            debug("%s: %lf.[%d][%d] += %lf %s (nvmlReturn %d: %s)", gpms[d].metrics[m].metricInfo.longName,
+                  pool[d].values[m], d, m, gpms[d].metrics[m].value, gpms[d].metrics[m].metricInfo.unit,
+                  gpms[d].metrics[m].nvmlReturn, nvml.ErrorString(gpms[d].metrics[m].nvmlReturn));
         }
         pool[d].samples_count += 1.0;
         // Getting sample 1
-        //memcpy(gpms[d].sample1, gpms[d].sample2, sizeof(nvmlGpmSample_t));
+        // memcpy(gpms[d].sample1, gpms[d].sample2, sizeof(nvmlGpmSample_t));
         if ((r = nvml.GpmSampleGet(devs[d], gpms[d].sample1)) != NVML_SUCCESS) {
             debug("Error while loading NVML sample: %s", nvml.ErrorString(r));
             continue;
@@ -258,7 +265,7 @@ static void invalidate(gpuprof_t *data, int dev)
     data[dev].hash          = NULL;
     data[dev].samples_count = 1.0;
     data[dev].values_count  = 0U;
-    memset(data[dev].values , 0, NVML_GPM_METRIC_MAX*sizeof(double));
+    memset(data[dev].values, 0, NVML_GPM_METRIC_MAX * sizeof(double));
 }
 
 static void unset(int dev)
@@ -293,8 +300,8 @@ static int set(int dev, char *evs, uint *ids, uint ids_count)
     i = 0;
     while (i < ids_count) {
         if (gpms[dev].metrics[i].nvmlReturn == NVML_ERROR_INVALID_ARGUMENT) {
-						debug("nvmlReturn INVALID_ARGUMENT");
-             return 0;
+            debug("nvmlReturn INVALID_ARGUMENT");
+            return 0;
         }
         ++i;
     }
@@ -303,7 +310,7 @@ static int set(int dev, char *evs, uint *ids, uint ids_count)
         return 0;
     }
     // Changing pool values
-    pool[dev].hash = evs;
+    pool[dev].hash         = evs;
     pool[dev].values_count = ids_count;
     return 1;
 }
@@ -320,7 +327,8 @@ GPUPROF_F_EVENTS_SET(gpuprof_nvml_events_set)
     // String treatment (is a NULL terminated list)
     ids = (uint *) strtoat(evs, ',', NULL, &ids_count, ID_UINT);
     //
-    while (pthread_mutex_trylock(&lock));
+    while (pthread_mutex_trylock(&lock))
+        ;
     if (dev == all_devs) {
         for (d = 0; d < devs_count; ++d) {
             if (!set(d, evs, ids, ids_count)) {
@@ -339,7 +347,8 @@ GPUPROF_F_EVENTS_SET(gpuprof_nvml_events_set)
 GPUPROF_F_EVENTS_UNSET(gpuprof_nvml_events_unset)
 {
     int d;
-    while (pthread_mutex_trylock(&lock));
+    while (pthread_mutex_trylock(&lock))
+        ;
     if (dev == all_devs) {
         for (d = 0; d < devs_count; ++d) {
             unset(d);
@@ -352,18 +361,18 @@ GPUPROF_F_EVENTS_UNSET(gpuprof_nvml_events_unset)
 
 GPUPROF_F_READ(gpuprof_nvml_read)
 {
-	// gpuprof_nvml_pool(NULL);
-	while (pthread_mutex_trylock(&lock));
+    // gpuprof_nvml_pool(NULL);
+    while (pthread_mutex_trylock(&lock))
+        ;
 
-	gpuprof_nvml_data_copy(data, pool);
-	timestamp_getfast(&data[0].time);
-	for (int i = 1; i < devs_count; i++)
-	{
-		data[i].time = data[0].time;
-	}
+    gpuprof_nvml_data_copy(data, pool);
+    timestamp_getfast(&data[0].time);
+    for (int i = 1; i < devs_count; i++) {
+        data[i].time = data[0].time;
+    }
 
-	pthread_mutex_unlock(&lock);
-	return EAR_SUCCESS;
+    pthread_mutex_unlock(&lock);
+    return EAR_SUCCESS;
 }
 
 GPUPROF_F_READ_RAW(gpuprof_nvml_read_raw)
@@ -382,16 +391,16 @@ GPUPROF_F_DATA_DIFF(gpuprof_nvml_data_diff)
             continue;
         }
         // Copying relevant data
-        dataD[dev].hash          = data2[dev].hash;
-        dataD[dev].values_count  = data2[dev].values_count;
+        dataD[dev].hash         = data2[dev].hash;
+        dataD[dev].values_count = data2[dev].values_count;
         // Cleaning values
-        memset(dataD[dev].values, 0, NVML_GPM_METRIC_MAX*sizeof(double));
+        memset(dataD[dev].values, 0, NVML_GPM_METRIC_MAX * sizeof(double));
         // Computing values
         if (data2[dev].samples_count > data1[dev].samples_count) {
             dataD[dev].samples_count = data2[dev].samples_count - data1[dev].samples_count;
             for (m = 0; m < gpms[dev].numMetrics; ++m) {
-                dataD[dev].values[m]     = overflow_zeros_f64(data2[dev].values[m], data1[dev].values[m]);
-                dataD[dev].values[m]     = dataD[dev].values[m] / dataD[dev].samples_count;
+                dataD[dev].values[m] = overflow_zeros_f64(data2[dev].values[m], data1[dev].values[m]);
+                dataD[dev].values[m] = dataD[dev].values[m] / dataD[dev].samples_count;
             }
         }
     }
@@ -401,12 +410,13 @@ GPUPROF_F_DATA_ALLOC(gpuprof_nvml_data_alloc)
 {
     gpuprof_t *aux;
     int d;
+    debug("gpuprof_nvml_data_alloc");
     aux = calloc(devs_count, sizeof(gpuprof_t));
     // We allocate all values contiguously
-    aux[0].values = calloc(devs_count*NVML_GPM_METRIC_MAX, sizeof(double));
+    aux[0].values = calloc(devs_count * NVML_GPM_METRIC_MAX, sizeof(double));
     // Setting pointers
     for (d = 0; d < devs_count; ++d) {
-        aux[d].values = &aux[0].values[d*NVML_GPM_METRIC_MAX];
+        aux[d].values = &aux[0].values[d * NVML_GPM_METRIC_MAX];
     }
     *data = aux;
 }
@@ -416,7 +426,7 @@ GPUPROF_F_DATA_COPY(gpuprof_nvml_data_copy)
     int dev;
 
     // The data[0] can access to all the allocated values
-    memcpy(dataD[0].values,  dataS[0].values, devs_count*NVML_GPM_METRIC_MAX*sizeof(double));
+    memcpy(dataD[0].values, dataS[0].values, devs_count * NVML_GPM_METRIC_MAX * sizeof(double));
     // Copying index by index
     for (dev = 0; dev < devs_count; ++dev) {
         dataD[dev].samples_count = dataS[dev].samples_count;

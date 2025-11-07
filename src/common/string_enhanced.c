@@ -8,12 +8,12 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#include <common/sizes.h>
+#include <common/string_enhanced.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <common/sizes.h>
-#include <common/string_enhanced.h>
 
 char *strtolow(char *string)
 {
@@ -38,7 +38,7 @@ int strinlist(const char *list, const char *separator, const char *element)
     char buffer[SZ_PATH];
     char *e;
 
-    strcpy(buffer, list);	
+    strcpy(buffer, list);
     e = strtok(buffer, separator);
     while (e != NULL) {
         // An extra parameter would be needed to switch between strcmp and strncmp.
@@ -54,39 +54,38 @@ int strinargs(int argc, char *argv[], const char *opt, char *value)
 {
     int expected;
     int result;
-	int auxind;
-	int auxerr;
-	size_t len;
+    int auxind;
+    int auxerr;
+    size_t len;
     // Saving opt globals, and setting to 0 to prevent prints
-	auxind = optind;
-	auxerr = opterr;
+    auxind = optind;
+    auxerr = opterr;
     optind = 1;
     opterr = 0;
-	// If the option argument is long
-    if ((len = strlen(opt)) > 2)
-    {
-    	struct option long_options[2];
-    	int has_arg = 2;
+    // If the option argument is long
+    if ((len = strlen(opt)) > 2) {
+        struct option long_options[2];
+        int has_arg = 2;
         //
         memset(long_options, 0, sizeof(struct option) * 2);
         // has_value is 2 by default because means optional, if not
         // has_value is 1, which means the argument is required.
-		if (opt[len-1] == ':') {
+        if (opt[len - 1] == ':') {
             has_arg = 1;
-		}
+        }
         // Filling long_options structure to return 2.
         long_options[0].name    = opt;
         long_options[0].has_arg = has_arg;
         long_options[0].flag    = NULL;
         long_options[0].val     = 2;
-        // This function is for '-long' or '--long' type arguments, 
+        // This function is for '-long' or '--long' type arguments,
         // and returns 2 as we specified.
-    do { 
-        result = getopt_long (argc, argv, "", long_options, NULL);
-    } while (result != 2 && result != -1);
+        do {
+            result = getopt_long(argc, argv, "", long_options, NULL);
+        } while (result != 2 && result != -1);
         // Expected result
         expected = 2;
-        //int result2 = getopt_long (argc, argv, "", long_options, NULL);
+        // int result2 = getopt_long (argc, argv, "", long_options, NULL);
     } else {
         // This function is for '-i' type parameters.
         result = getopt(argc, argv, opt);
@@ -96,7 +95,7 @@ int strinargs(int argc, char *argv[], const char *opt, char *value)
     // Recovering opterr default value.
     opterr = auxerr;
     optind = auxind;
-    // Copying option argument in value buffer. 
+    // Copying option argument in value buffer.
     if (value != NULL) {
         value[0] = '\0';
         if (optarg != NULL) {
@@ -107,10 +106,11 @@ int strinargs(int argc, char *argv[], const char *opt, char *value)
     return (result == expected);
 }
 
-char* strclean(char *string, char chr)
+char *strclean(char *string, char chr)
 {
     char *index = strchr(string, chr);
-    if (index == NULL) return NULL;
+    if (index == NULL)
+        return NULL;
     string[index - string] = '\0';
     return index;
 }
@@ -119,38 +119,58 @@ void remove_chars(char *s, char c)
 {
     int writer = 0, reader = 0;
 
-    while (s[reader])
-    {
-        if (s[reader]!=c) 
+    while (s[reader]) {
+        if (s[reader] != c)
             s[writer++] = s[reader];
-        
-        reader++;       
+
+        reader++;
     }
 
-    s[writer]=0;
+    s[writer] = 0;
+}
+
+void remove_chars_list(char *s, char *removable)
+{
+    int writer = 0, reader = 0;
+
+    while (s[reader]) {
+        if (strchr(removable, s[reader]) == NULL) // if the current char is not in the list, we keep it
+            s[writer++] = s[reader];
+
+        reader++;
+    }
+
+    s[writer] = 0;
+}
+
+void replace_char(char *string, char old_char, char new_char)
+{
+    while (*string) {
+        if (*string == old_char)
+            *string = new_char;
+        string++;
+    }
 }
 
 void str_cut_list(char *src, char ***elements, int *num_elements, char *separator)
 {
     if (src == NULL) {
-        *elements = NULL;
+        *elements     = NULL;
         *num_elements = 0;
         return;
     }
-    int tmp_num = 0;
+    int tmp_num         = 0;
     char **tmp_elements = calloc(1, sizeof(char *));
-    tmp_elements[0] = strtok(src, separator);
+    tmp_elements[0]     = strtok(src, separator);
     tmp_num++;
     char *token;
-    
-    while((token = strtok(NULL, separator)) != NULL)
-    {
-        tmp_elements = realloc(tmp_elements, sizeof(char *)*(tmp_num + 1));
+
+    while ((token = strtok(NULL, separator)) != NULL) {
+        tmp_elements          = realloc(tmp_elements, sizeof(char *) * (tmp_num + 1));
         tmp_elements[tmp_num] = token;
         tmp_num++;
     }
 
-    *elements = tmp_elements;
+    *elements     = tmp_elements;
     *num_elements = tmp_num;
-
 }

@@ -37,4 +37,4 @@ int sync_question(uint sync_option, int veteran, sync_answer_t *answer);
 
 int sync_answer(int fd, int veteran);
 
-#endif //EAR_EARDBD_SYNC_H
+#endif // EAR_EARDBD_SYNC_H

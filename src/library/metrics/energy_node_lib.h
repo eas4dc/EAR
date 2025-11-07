@@ -22,12 +22,11 @@ state_t energy_node_load(char *path, int eard);
 void energy_node_dispose();
 state_t energy_datasize(size_t *size);
 state_t energy_frequency(ulong *freq_us);
-state_t energy_data_accumulated(unsigned long *e,edata_t init,edata_t end);
-state_t energy_data_to_str(char *str,edata_t e);
-state_t energy_data_copy(edata_t dst,edata_t src);
+state_t energy_data_accumulated(unsigned long *e, edata_t init, edata_t end);
+state_t energy_data_to_str(char *str, edata_t e);
+state_t energy_data_copy(edata_t dst, edata_t src);
 state_t energy_data_alloc(edata_t *data);
 state_t energy_read(void *ctx, edata_t e);
 uint energy_data_is_null(edata_t e);
 
-
-#endif //EAR_ENERGY_H
+#endif // EAR_ENERGY_H

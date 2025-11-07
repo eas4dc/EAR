@@ -11,17 +11,16 @@
 #ifndef COMMON_SYSTEM_POLL
 #define COMMON_SYSTEM_POLL
 
-#define _GNU_SOURCE
-#include <poll.h>
-#include <sys/stat.h>
 #include <common/states.h>
 #include <common/system/time.h>
-//#include <common/output/verbose.h>
+#include <poll.h>
+#include <sys/stat.h>
+// #include <common/output/verbose.h>
 
-#define AFD_MAX        4096
-#define AFD_TAG        64
-#define AFD_INFINITE  -1 // Infinite timeout
-#define AFD_DEBUG      0
+#define AFD_MAX      4096
+#define AFD_TAG      64
+#define AFD_INFINITE -1 // Infinite timeout
+#define AFD_DEBUG    0
 
 typedef struct afd_set_s {
     struct pollfd fds[AFD_MAX];
@@ -53,40 +52,30 @@ void afd_debug(int fd, afd_set_t *set, const char *prefix);
 /* POLLRDHUP is included to be able to detect when the peer has closed the connection
  * but POLLHUP has not been triggered or ignored. */
 #if AFD_DEBUG
-#define AFD_SETT(fd, set, ...) \
-    if (afd_set(fd, set, POLLIN | POLLRDHUP)) { \
-        snprintf((set)->tags[fd], AFD_TAG, __VA_ARGS__); \
-        afd_debug(fd, set, "AFD_SET"); \
+#define AFD_SETT(fd, set, ...)                                                                                         \
+    if (afd_set(fd, set, POLLIN | POLLRDHUP)) {                                                                        \
+        snprintf((set)->tags[fd], AFD_TAG, __VA_ARGS__);                                                               \
+        afd_debug(fd, set, "AFD_SET");                                                                                 \
     }
 #else
-#define AFD_SETT(fd, set, ...) \
-    afd_set(fd, set, POLLIN | POLLRDHUP)
+#define AFD_SETT(fd, set, ...) afd_set(fd, set, POLLIN | POLLRDHUP)
 #endif
 
-#define AFD_SET(fd, set) \
-    afd_set(fd, set, POLLIN | POLLRDHUP)
+#define AFD_SET(fd, set)    afd_set(fd, set, POLLIN | POLLRDHUP)
 
-#define AFD_SETW(fd, set) \
-    afd_set(fd, set, POLLOUT | POLLRDHUP)
+#define AFD_SETW(fd, set)   afd_set(fd, set, POLLOUT | POLLRDHUP)
 
-#define AFD_ISSET(fd, set) \
-    afd_isset(fd, set, POLLIN | POLLOUT)
+#define AFD_ISSET(fd, set)  afd_isset(fd, set, POLLIN | POLLOUT)
 
-#define AFD_ISSETW(fd, set) \
-    afd_isset(fd, set, POLLOUT)
+#define AFD_ISSETW(fd, set) afd_isset(fd, set, POLLOUT)
 
-#define AFD_ISHUP(fd, set) \
-    afd_ishup(fd, set)
+#define AFD_ISHUP(fd, set)  afd_ishup(fd, set)
 
-#define AFD_CLR(fd, set) \
-    afd_clear(fd, set)
+#define AFD_CLR(fd, set)    afd_clear(fd, set)
 
-#define AFD_STAT(fd, stat) \
-    afd_stat(fd, stat)
+#define AFD_STAT(fd, stat)  afd_stat(fd, stat)
 
-#define AFD_ZERO(set) \
-    afd_init(set)
-
+#define AFD_ZERO(set)       afd_init(set)
 
 /* New select based in poll. Time values are in milliseconds. */
 int aselect(afd_set_t *set, ullong timeout, ullong *time_left);
@@ -98,4 +87,4 @@ int aselectv(afd_set_t *set, struct timeval *timeout);
  * to see if the FD is valid AND the peer is still connected. */
 void afd_check_sockets(afd_set_t *fdlist);
 
-#endif //COMMON_SYSTEM_POLL
+#endif // COMMON_SYSTEM_POLL

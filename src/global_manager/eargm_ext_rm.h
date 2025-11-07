@@ -8,8 +8,4 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 void *eargm_server_api(void *p);
-
-
-

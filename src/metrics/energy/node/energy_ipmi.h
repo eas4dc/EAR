@@ -8,11 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#ifndef METRICS_TEMPERATURE_ARCHS_AMD17
-#define METRICS_TEMPERATURE_ARCHS_AMD17
+#ifndef METRICS_ENERGY_NODE_IPMI_H
+#define METRICS_ENERGY_NODE_IPMI_H
 
-#include <metrics/temperature/temperature.h>
-
-TEMP_DEFINES(amd17);
-
-#endif //METRICS_TEMPERATURE_ARCHS_AMD17
+#endif // METRICS_ENERGY_NODE_IPMI_H

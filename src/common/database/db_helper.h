@@ -8,15 +8,15 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <common/types/periodic_aggregation.h>
-#include <common/types/power_signature.h>
-#include <common/types/periodic_metric.h>
-#include <common/types/configuration/cluster_conf.h>
-#include <common/types/application.h>
-#include <common/types/gm_warning.h>
-#include <common/types/loop.h>
-#include <common/types/log.h>
 #include <common/config.h>
+#include <common/types/application.h>
+#include <common/types/configuration/cluster_conf.h>
+#include <common/types/gm_warning.h>
+#include <common/types/log.h>
+#include <common/types/loop.h>
+#include <common/types/periodic_aggregation.h>
+#include <common/types/periodic_metric.h>
+#include <common/types/power_signature.h>
 #if DB_MYSQL
 #include <mysql/mysql.h>
 #elif DB_PSQL
@@ -32,18 +32,18 @@ static PGconn *postgresql_create_connection();
 #endif
 #endif
 
-#define _MAX(X,Y)			(X > Y ? X : Y)
-#define _MMAAXX(W,X,Y,Z) 	(_MAX(W,X) > _MAX(Y,Z) ? _MAX(W,X) : _MAX(Y,Z))
-#define _BULK_ELMS(V)		USHRT_MAX / V
-#define _BULK_SETS(T,V)		T / V
-#define APP_VARS	        APPLICATION_ARGS
-#define PSI_VARS	        POWER_SIGNATURE_ARGS
-#define NSI_VARS	        SIMPLE_SIGNATURE_ARGS
-#define JOB_VARS	        JOB_ARGS
-#define PER_VARS	        SIMPLE_PERIODIC_METRIC_ARGS
-#define LOO_VARS			LOOP_ARGS
-#define AGG_VARS			PERIODIC_AGGREGATION_ARGS
-#define EVE_VARS			EAR_EVENTS_ARGS
+#define _MAX(X, Y)          (X > Y ? X : Y)
+#define _MMAAXX(W, X, Y, Z) (_MAX(W, X) > _MAX(Y, Z) ? _MAX(W, X) : _MAX(Y, Z))
+#define _BULK_ELMS(V)       USHRT_MAX / V
+#define _BULK_SETS(T, V)    T / V
+#define APP_VARS            APPLICATION_ARGS
+#define PSI_VARS            POWER_SIGNATURE_ARGS
+#define NSI_VARS            SIMPLE_SIGNATURE_ARGS
+#define JOB_VARS            JOB_ARGS
+#define PER_VARS            SIMPLE_PERIODIC_METRIC_ARGS
+#define LOO_VARS            LOOP_ARGS
+#define AGG_VARS            PERIODIC_AGGREGATION_ARGS
+#define EVE_VARS            EAR_EVENTS_ARGS
 
 #if DB_MYSQL || DB_PSQL
 
@@ -79,17 +79,19 @@ int db_batch_insert_applications_no_mpi(application_t *applications, int num_app
 int db_batch_insert_loops(loop_t *loops, int num_loops);
 
 /** Returns the accumulated energy (units depend on divisor, divisor=1 means mJ) for a given period.
-*   The is_aggregated parameter indicates if the data is to be retrieved from the aggregated table 
-*   or the individual one.*/
-int db_select_acum_energy(int start_time, int end_time, ulong  divisor, char is_aggregated, uint *last_index, ulong *energy);
+ *   The is_aggregated parameter indicates if the data is to be retrieved from the aggregated table
+ *   or the individual one.*/
+int db_select_acum_energy(int start_time, int end_time, ulong divisor, char is_aggregated, uint *last_index,
+                          ulong *energy);
 
 int db_select_acum_energy_idx(ulong divisor, char is_aggregated, uint *last_index, ulong *energy);
 
-int db_select_acum_energy_nodes(int start_time, int end_time, ulong divisor, uint *last_index, ulong *energy, long num_nodes, char **nodes);
+int db_select_acum_energy_nodes(int start_time, int end_time, ulong divisor, uint *last_index, ulong *energy,
+                                long num_nodes, char **nodes);
 
-/** Reads applications from the normal DB or the learning DB depending on is_learning. It allocates 
-*   memory for apps. Returns the number of applications readed */
-int db_read_applications(application_t **apps,uint is_learning, int max_apps, char *node_name);
+/** Reads applications from the normal DB or the learning DB depending on is_learning. It allocates
+ *   memory for apps. Returns the number of applications readed */
+int db_read_applications(application_t **apps, uint is_learning, int max_apps, char *node_name);
 
 /** Reads from DB the number of applications that can be found in the corresponding tables. */
 ulong get_num_applications(char is_learning, char *node_name);
@@ -114,6 +116,7 @@ int get_num_columns(char *query);
 int db_read_applications_query(application_t **apps, char *query);
 
 int db_read_loops_query(loop_t **loops, char *query);
+int db_read_jobs_query(job_t **jobs, char *query);
 
 void db_reset_counters();
 
@@ -122,9 +125,8 @@ void db_reset_counters();
  * and unsets them if they are set. Returns true if any of them was found, and false if none was set */
 bool check_and_unset_environment_variables();
 
-
 /** Runs the received query to database, and stores the results as a string in results.
- *  the number of columns in each row is stored in num_columns, and the number of 
+ *  the number of columns in each row is stored in num_columns, and the number of
  *  rows in num_rows. Returns EAR_SUCCESS on completion, or EAR_ERROR if anything fails. */
 int db_run_query_string_results(char *query, char ****results, int *num_columns, int *num_rows);
 

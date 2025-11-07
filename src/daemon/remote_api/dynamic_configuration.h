@@ -9,20 +9,22 @@
  **************************************************************************/
 
 /**
-*    \file dynamic_configurarion.h
-*    \brief exports the API to control the dynamic reconfiguration of EARlib arguments (at this moment frequency and min_tim eth)
-*
-*/
+ *    \file dynamic_configurarion.h
+ *    \brief exports the API to control the dynamic reconfiguration of EARlib arguments (at this moment frequency and
+ * min_tim eth)
+ *
+ */
 
 #ifndef _DYN_CONF_H
 #define _DYN_CONF_H
 
-/** Creates a socket to accept remote commands for dynamic EAR configuration. It is dessigned to be executed in the context of a new thread
-*/
+/** Creates a socket to accept remote commands for dynamic EAR configuration. It is dessigned to be executed in the
+ * context of a new thread
+ */
 void *eard_dynamic_configuration(void *no_args);
 
 /** Returns the frequency defined dynamically
-*/
+ */
 ulong max_dyn_freq();
 
 #endif

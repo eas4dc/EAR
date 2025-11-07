@@ -14,4 +14,3 @@ int new_service(char *service);
 
 /** Releases the /var/run/service.pid file */
 void end_service(char *name);
-

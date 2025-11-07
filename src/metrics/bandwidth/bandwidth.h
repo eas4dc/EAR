@@ -11,43 +11,46 @@
 #ifndef METRICS_BANDWIDTH_H
 #define METRICS_BANDWIDTH_H
 
+#include <common/hardware/topology.h>
+#include <common/plugins.h>
 #include <common/sizes.h>
 #include <common/states.h>
-#include <common/plugins.h>
 #include <common/system/time.h>
 #include <common/types/generic.h>
-#include <common/hardware/topology.h>
 #include <metrics/common/apis.h>
 
 // The last device is used as a timer for computing the GB/s
 typedef struct bwidth_s {
-	union {
-		timestamp_t time;
+    union {
+        timestamp_t time;
         double secs;
-		ullong cas;
-	};
+        ullong cas;
+    };
 } bwidth_t;
 
 // API building scheme
-#define BWIDTH_F_LOAD(name)      void name (topology_t *tpo, bwidth_ops_t *ops)
-#define BWIDTH_F_GET_INFO(name)  void name (apinfo_t *info)
-#define BWIDTH_F_INIT(name)      state_t name (ctx_t *c)
-#define BWIDTH_F_DISPOSE(name)   state_t name (ctx_t *c)
-#define BWIDTH_F_READ(name)      state_t name (ctx_t *c, bwidth_t *bws)
+#define BWIDTH_F_LOAD(name)     void name(topology_t *tpo, bwidth_ops_t *ops)
+#define BWIDTH_F_GET_INFO(name) void name(apinfo_t *info)
+#define BWIDTH_F_INIT(name)     state_t name(ctx_t *c)
+#define BWIDTH_F_DISPOSE(name)  state_t name(ctx_t *c)
+#define BWIDTH_F_READ(name)     state_t name(ctx_t *c, bwidth_t *bws)
+#define BWIDTH_F_CASTOB(name)   double name(double cas)
 
-#define BWIDTH_DEFINES(name) \
-BWIDTH_F_LOAD     (bwidth_ ##name ##_load); \
-BWIDTH_F_GET_INFO (bwidth_ ##name ##_get_info); \
-BWIDTH_F_INIT     (bwidth_ ##name ##_init); \
-BWIDTH_F_DISPOSE  (bwidth_ ##name ##_dispose); \
-BWIDTH_F_READ     (bwidth_ ##name ##_read);
+#define BWIDTH_DEFINES(name)                                                                                           \
+    BWIDTH_F_LOAD(bwidth_##name##_load);                                                                               \
+    BWIDTH_F_GET_INFO(bwidth_##name##_get_info);                                                                       \
+    BWIDTH_F_INIT(bwidth_##name##_init);                                                                               \
+    BWIDTH_F_DISPOSE(bwidth_##name##_dispose);                                                                         \
+    BWIDTH_F_READ(bwidth_##name##_read);                                                                               \
+    BWIDTH_F_CASTOB(bwidth_##name##_castob);
 
 typedef struct bwidth_ops_s {
-    state_t (*count_devices)   (ctx_t *c, uint *dev_count); // Obsolete
+    state_t (*count_devices)(ctx_t *c, uint *dev_count); // Obsolete
     BWIDTH_F_GET_INFO((*get_info));
-    BWIDTH_F_INIT    ((*init));
-    BWIDTH_F_DISPOSE ((*dispose));
-    BWIDTH_F_READ    ((*read));
+    BWIDTH_F_INIT((*init));
+    BWIDTH_F_DISPOSE((*dispose));
+    BWIDTH_F_READ((*read));
+    BWIDTH_F_CASTOB((*castob));
 } bwidth_ops_t;
 
 void bwidth_load(topology_t *tp, int force_api);

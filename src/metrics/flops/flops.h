@@ -11,10 +11,10 @@
 #ifndef METRICS_FLOPS_H
 #define METRICS_FLOPS_H
 
-#include <common/states.h>
-#include <common/plugins.h>
-#include <common/system/time.h>
 #include <common/hardware/topology.h>
+#include <common/plugins.h>
+#include <common/states.h>
+#include <common/system/time.h>
 
 // The API
 //
@@ -46,15 +46,15 @@
 #define INDEX_512F   3
 #define INDEX_512D   7
 #ifdef __ARCH_ARM
-#define WEIGHT_256F  1
-#define WEIGHT_256D  1
-#define WEIGHT_512F  1
-#define WEIGHT_512D  1
+#define WEIGHT_256F 1
+#define WEIGHT_256D 1
+#define WEIGHT_512F 1
+#define WEIGHT_512D 1
 #else
-#define WEIGHT_256F  8
-#define WEIGHT_256D  4
+#define WEIGHT_256F 8
+#define WEIGHT_256D 4
 #define WEIGHT_512F 16
-#define WEIGHT_512D  8
+#define WEIGHT_512D 8
 #endif
 
 typedef struct flops_s {
@@ -67,6 +67,7 @@ typedef struct flops_s {
     ullong f512; // 512 field is also used as MAX VECTOR LENGTH flops,
     ullong d512; // i.e. the ARM's SVE. But in the future maybe union could be.
     double gflops;
+
     union {
         timestamp_t time;
         double secs;
@@ -74,12 +75,12 @@ typedef struct flops_s {
 } flops_t;
 
 typedef struct flops_ops_s {
-    void    (*get_info)        (apinfo_t *info);
-    state_t (*init)            ();
-    state_t (*dispose)         ();
-    state_t (*read)            (flops_t *fl);
-    void    (*data_diff)       (flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
-    void    (*internals_tostr) (char *buffer, int length);
+    void (*get_info)(apinfo_t *info);
+    state_t (*init)();
+    state_t (*dispose)();
+    state_t (*read)(flops_t *fl);
+    void (*data_diff)(flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
+    void (*internals_tostr)(char *buffer, int length);
 } flops_ops_t;
 
 void flops_load(topology_t *tp, int force_api);

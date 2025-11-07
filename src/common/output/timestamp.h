@@ -11,24 +11,23 @@
 #ifndef EAR_TIMESTAMP_H
 #define EAR_TIMESTAMP_H
 
-#include <time.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
-int time_enabled 	__attribute__ ((weak, unused)) = 0;
-struct tm *tm_log	__attribute__ ((weak, unused));
-time_t time_log		__attribute__ ((weak, unused));
-char s_log[64]		__attribute__ ((weak, unused));
+int time_enabled __attribute__((weak, unused)) = 0;
+struct tm *tm_log __attribute__((weak, unused));
+time_t time_log __attribute__((weak, unused));
+char s_log[64] __attribute__((weak, unused));
 
 #define TIMESTAMP_SET_EN(en) time_enabled = en;
 
-#define timestamp(channel) \
-	if (time_enabled) \
-	{ \
-		time(&time_log); \
-		tm_log = localtime(&time_log); \
-		strftime(s_log, sizeof(s_log), "%c", tm_log); \
-		dprintf(channel, "[%s] ", s_log); \
-	}
+#define timestamp(channel)                                                                                             \
+    if (time_enabled) {                                                                                                \
+        time(&time_log);                                                                                               \
+        tm_log = localtime(&time_log);                                                                                 \
+        strftime(s_log, sizeof(s_log), "%c", tm_log);                                                                  \
+        dprintf(channel, "[%s] ", s_log);                                                                              \
+    }
 
-#endif //EAR_VERBOSE_H
+#endif // EAR_VERBOSE_H

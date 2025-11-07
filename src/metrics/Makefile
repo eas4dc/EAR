@@ -7,12 +7,21 @@ mets_OBJS = \
     $(SRCDIR)/metrics/common/cupti.o \
     $(SRCDIR)/metrics/common/file.o \
     $(SRCDIR)/metrics/common/hsmp.o \
+    $(SRCDIR)/metrics/common/hsmp_driver.o \
+    $(SRCDIR)/metrics/common/hsmp_esmi.o \
+    $(SRCDIR)/metrics/common/hsmp_pci.o \
     $(SRCDIR)/metrics/common/hwmon.o \
+    $(SRCDIR)/metrics/common/hwmon_old.o \
     $(SRCDIR)/metrics/common/isst.o \
+    $(SRCDIR)/metrics/common/ipmi.o \
+    $(SRCDIR)/metrics/common/ipmi_driver.o \
+    $(SRCDIR)/metrics/common/ipmi_driver_frusdr.o \
+    $(SRCDIR)/metrics/common/ipmi_driver_parsing.o \
     $(SRCDIR)/metrics/common/likwid.o \
     $(SRCDIR)/metrics/common/nvml.o \
     $(SRCDIR)/metrics/common/pci.o \
     $(SRCDIR)/metrics/common/msr.o \
+    $(SRCDIR)/metrics/common/offsets.o \
     $(SRCDIR)/metrics/common/omsr.o \
     $(SRCDIR)/metrics/common/oneapi.o \
     $(SRCDIR)/metrics/common/perf.o \
@@ -31,6 +40,7 @@ mets_OBJS = \
     $(SRCDIR)/metrics/bandwidth/archs/intel106.o \
     $(SRCDIR)/metrics/bandwidth/archs/intel143.o \
     $(SRCDIR)/metrics/bandwidth/archs/likwid.o \
+    $(SRCDIR)/metrics/bandwidth/archs/perf.o \
     $(SRCDIR)/metrics/cache/cache.o \
     $(SRCDIR)/metrics/cache/archs/dummy.o \
     $(SRCDIR)/metrics/cache/archs/perf.o \
@@ -41,11 +51,13 @@ mets_OBJS = \
     $(SRCDIR)/metrics/energy/energy_node.o \
     $(SRCDIR)/metrics/energy/cpu/intel63.o \
     $(SRCDIR)/metrics/energy_cpu/energy_cpu.o \
+    $(SRCDIR)/metrics/energy_cpu/archs/acpi_power.o \
     $(SRCDIR)/metrics/energy_cpu/archs/cpu_util.o \
-    $(SRCDIR)/metrics/energy_cpu/archs/linux_powercap.o \
     $(SRCDIR)/metrics/energy_cpu/archs/dummy.o \
-    $(SRCDIR)/metrics/energy_cpu/archs/linux_powercap.o \
     $(SRCDIR)/metrics/energy_cpu/archs/eard.o \
+    $(SRCDIR)/metrics/energy_cpu/archs/grace_cpu_power.o \
+    $(SRCDIR)/metrics/energy_cpu/archs/hwmon.o \
+    $(SRCDIR)/metrics/energy_cpu/archs/linux_powercap.o \
     $(SRCDIR)/metrics/energy_cpu/archs/msr.o \
     $(SRCDIR)/metrics/energy_cpu/archs/perf.o \
     $(SRCDIR)/metrics/flops/flops.o \
@@ -77,8 +89,8 @@ mets_OBJS = \
     $(SRCDIR)/metrics/gpu/archs/gpuprof_dcgmi.o \
     $(SRCDIR)/metrics/gpu/archs/gpuprof_dummy.o \
     $(SRCDIR)/metrics/temperature/temperature.o \
-    $(SRCDIR)/metrics/temperature/archs/amd17.o \
     $(SRCDIR)/metrics/temperature/archs/eard.o \
+    $(SRCDIR)/metrics/temperature/archs/hwmon.o \
     $(SRCDIR)/metrics/temperature/archs/intel63.o \
     $(SRCDIR)/metrics/temperature/archs/dummy.o \
     $(SRCDIR)/metrics/io/io.o
@@ -99,7 +111,6 @@ libmetrics.a: metrics.o $(mets_OBJS)
 
 test: metrics.c
 	$(CC) -I $(SRCDIR) -DTEST=1 -fPIC -o $@ $^ libmetrics.a ../daemon/local_api/libeard.a ../common/libcommon.a -lm -lpthread -ldl
-
 
 ######## OPTIONS
 

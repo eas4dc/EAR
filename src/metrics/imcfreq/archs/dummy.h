@@ -39,4 +39,4 @@ void imcfreq_dummy_data_print(ulong *freq_list, ulong *average, int fd);
 
 char *imcfreq_dummy_data_tostr(ulong *freq_list, ulong *average, char *buffer, size_t length);
 
-#endif //METRICS_IMCFREQ_DUMMY_H
+#endif // METRICS_IMCFREQ_DUMMY_H

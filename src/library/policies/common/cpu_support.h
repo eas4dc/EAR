@@ -13,10 +13,11 @@
 
 #include <library/metrics/metrics.h>
 #include <library/models/energy_model.h>
+#include <library/policies/policy_ctx.h>
 
-#define DOM_CPU 0
-#define DOM_MEM 1
-#define DOM_GPU 2
+#define DOM_CPU     0
+#define DOM_MEM     1
+#define DOM_GPU     2
 #define DOM_GPU_MEM 3
 
 #ifdef EARL_RESEARCH
@@ -27,16 +28,21 @@ extern unsigned long ext_def_freq;
 #endif
 
 /** Compute reference metrics used before applying any policy projection/decision. */
-state_t compute_reference(signature_t *signature, energy_model_t energy_model, ulong *curr_freq, ulong *def_freq, ulong *freq_ref, double *time_ref, double *power_ref);
+state_t compute_reference(signature_t *signature, energy_model_t energy_model, ulong *curr_freq, ulong *def_freq,
+                          ulong *freq_ref, double *time_ref, double *power_ref);
 
 /* This function implements min_energy_to_solution policy.
  * Read wiki for more info about policies. */
-state_t compute_cpu_freq_min_energy(signature_t *signature, energy_model_t energy_model, ulong freq_ref, double time_ref, double power_ref, double penalty, ulong curr_pstate, ulong minp, ulong maxp, ulong *newf);
+state_t compute_cpu_freq_min_energy(signature_t *signature, energy_model_t energy_model, ulong freq_ref,
+                                    double time_ref, double power_ref, double penalty, ulong curr_pstate, ulong minp,
+                                    ulong maxp, ulong *newf);
 
 /**
  * This function selects a new cpu freq based on min_time_to_solution policy.
  * Read wiki for more info about policies. */
-state_t compute_cpu_freq_min_time(signature_t *signature, energy_model_t energy_model, int min_pstate, double time_ref, double min_eff_gain, ulong curr_pstate, ulong best_pstate, ulong best_freq, ulong def_freq, ulong *newf);
+state_t compute_cpu_freq_min_time(signature_t *signature, energy_model_t energy_model, int min_pstate, double time_ref,
+                                  double min_eff_gain, ulong curr_pstate, ulong best_pstate, ulong best_freq,
+                                  ulong def_freq, ulong *newf);
 
 /* This function compares signatures with a given margin p. Comparison is done based on CPI and GBS
  * TODO: This function is also used in states.c, we may put it on a higher level of the library*/
@@ -44,8 +50,8 @@ int default_signatures_different(signature_t *s1, signature_t *s2, float p);
 /* Implementation of the new criterion of differentiation between signatures */
 int signatures_different(signature_t *s1, signature_t *s2, char *policy, energy_model_t *energy_model, int min_pstate);
 
-/*  This functions checks whether the current process 'nproc' belongs to critical path and  set it turbo freq and returns 1.
- *  Returns 0 otherwise.*/
+/*  This functions checks whether the current process 'nproc' belongs to critical path and  set it turbo freq and
+ * returns 1. Returns 0 otherwise.*/
 uint cpu_supp_try_boost_cpu_freq(int nproc, uint *critical_path, ulong *freqs, int min_pstate);
 
 /* This function compares current freqs with default freqs

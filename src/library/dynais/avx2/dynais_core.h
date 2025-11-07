@@ -16,4 +16,4 @@
 void avx2_dynais_core_n(uint sample, uint size, uint level);
 void avx2_dynais_core_0(uint sample, uint size, uint level);
 
-#endif //DYNAIS_AVX2_CORE_H
+#endif // DYNAIS_AVX2_CORE_H

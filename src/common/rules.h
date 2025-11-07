@@ -8,9 +8,9 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <time.h>
 #include <common/config.h>
 #include <common/types/generic.h>
+#include <time.h>
 
 enum domain {
     NODE,
@@ -33,15 +33,15 @@ enum action_type {
 };
 
 union trigger_value {
-    time_t   timestamp;
+    time_t timestamp;
     uint64_t long_val;
-    double   double_val;
+    double double_val;
 };
 
 struct policy_action_data {
-    char     name[GENERIC_NAME];
+    char name[GENERIC_NAME];
     uint64_t def_pstate;
-    double   settings;
+    double settings;
 };
 
 union action_data {
@@ -49,15 +49,13 @@ union action_data {
     uint64_t powercap_value;
 };
 
-
 typedef struct rule {
-    uint32_t            rule_id;
-    enum domain         domain;
-    char                domain_id[GENERIC_NAME];
-    enum trigger_by     trigger_by;
+    uint32_t rule_id;
+    enum domain domain;
+    char domain_id[GENERIC_NAME];
+    enum trigger_by trigger_by;
     union trigger_value trigger_value;
-    enum action_type    action_type;
-    union action_data   action_data;
+    enum action_type action_type;
+    union action_data action_data;
 
 } rule_t;
-

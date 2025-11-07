@@ -52,4 +52,4 @@ int mgt_intel_pstate_read_cpuinfo(int max, ullong *khz);
 
 int mgt_intel_pstate_read_scaling(int max, ullong *khz);
 
-#endif //MANAGEMENT_DRIVERS_INTEL_PSTATE_H
+#endif // MANAGEMENT_DRIVERS_INTEL_PSTATE_H

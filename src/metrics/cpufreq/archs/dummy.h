@@ -25,4 +25,4 @@ state_t cpufreq_dummy_read(ctx_t *c, cpufreq_t *f);
 
 state_t cpufreq_dummy_data_diff(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
 
-#endif //METRICS_CPUFREQ_DUMMY_H
+#endif // METRICS_CPUFREQ_DUMMY_H

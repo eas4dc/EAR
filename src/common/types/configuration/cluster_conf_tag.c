@@ -8,33 +8,32 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#define _GNU_SOURCE 
+#define _GNU_SOURCE
 
+#include <common/config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <common/config.h>
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 #include <common/output/verbose.h>
 #include <common/states.h>
 #include <common/string_enhanced.h>
-#include <common/types/generic.h>
 #include <common/types/configuration/cluster_conf_etag.h>
 #include <common/types/configuration/cluster_conf_generic.h>
-
-
+#include <common/types/generic.h>
 
 state_t TAG_token(char *token)
 {
-	if (strcasestr(token,"TAG") != NULL) return EAR_SUCCESS;
-	return EAR_ERROR;
+    if (strcasestr(token, "TAG") != NULL)
+        return EAR_SUCCESS;
+    return EAR_ERROR;
 }
 
 state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
 {
-    char *buffer_ptr, *second_ptr; //auxiliary pointers
-    char *token; //group token
-    char *key, *value; //main tokens
+    char *buffer_ptr, *second_ptr; // auxiliary pointers
+    char *token;                   // group token
+    char *key, *value;             // main tokens
 
     state_t found = EAR_ERROR;
 
@@ -42,221 +41,176 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
     int idx = -1;
 
     // initial value assignement
-    tag_t *tags = *tags_i;
+    tag_t *tags  = *tags_i;
     int num_tags = *num_tags_i;
 
     if (num_tags == 0)
         tags = NULL;
 
-
     token = strtok_r(line, " ", &buffer_ptr);
 
-    while (token != NULL)
-    {
-        key = strtok_r(token, "=", &second_ptr); 
+    while (token != NULL) {
+        key   = strtok_r(token, "=", &second_ptr);
         value = strtok_r(NULL, "=", &second_ptr);
 
-        if (key == NULL || value == NULL || !strlen(key) || !strlen(value))
-        {
+        if (key == NULL || value == NULL || !strlen(key) || !strlen(value)) {
             token = strtok_r(NULL, " ", &buffer_ptr);
-            //verbose(0, "Error while parsing tags, continuing to next line\n");
+            // verbose(0, "Error while parsing tags, continuing to next line\n");
             continue;
         }
 
         strclean(value, '\n');
         strtoup(key);
 
-        if (!strcmp(key, "TAG"))
-        {
+        if (!strcmp(key, "TAG")) {
             found = EAR_SUCCESS;
             for (i = 0; i < num_tags; i++)
-                if (!strcmp(tags[i].id, value)) idx = i;
+                if (!strcmp(tags[i].id, value))
+                    idx = i;
 
-
-            if (idx < 0)
-            {
+            if (idx < 0) {
                 tags = realloc(tags, sizeof(tag_t) * (num_tags + 1));
-                idx = num_tags;
+                idx  = num_tags;
                 num_tags++;
                 memset(&tags[idx], 0, sizeof(tag_t));
                 set_default_tag_values(&tags[idx]);
                 strcpy(tags[idx].id, value);
             }
         }
-        //SIMPLE VALUES
-        else if (!strcmp(key, "MAX_AVX512"))
-        {
-            //If there is a comma or the value is less than 10, we assume the freq is specified in GHz
+        // SIMPLE VALUES
+        else if (!strcmp(key, "MAX_AVX512")) {
+            // If there is a comma or the value is less than 10, we assume the freq is specified in GHz
             if (strchr(value, '.') != NULL || atol(value) < 10)
-                tags[idx].max_avx512_freq = (ulong)(atof(value) * 1000000);
+                tags[idx].max_avx512_freq = (ulong) (atof(value) * 1000000);
             else
                 tags[idx].max_avx512_freq = (atol(value));
-        }
-        else if (!strcmp(key, "MAX_AVX2"))
-        {
-            //If there is a comma or the value is less than 10, we assume the freq is specified in GHz
+        } else if (!strcmp(key, "MAX_AVX2")) {
+            // If there is a comma or the value is less than 10, we assume the freq is specified in GHz
             if (strchr(value, '.') != NULL || atol(value) < 10)
-                tags[idx].max_avx2_freq = (ulong)(atof(value) * 1000000);
+                tags[idx].max_avx2_freq = (ulong) (atof(value) * 1000000);
             else
                 tags[idx].max_avx2_freq = (atol(value));
-        }
-        else if (!strcmp(key, "MAX_POWER"))
-        {
+        } else if (!strcmp(key, "MAX_POWER")) {
             tags[idx].max_power = atol(value);
-        }
-        else if (!strcmp(key, "MIN_POWER"))
-        {
+        } else if (!strcmp(key, "MIN_POWER")) {
             tags[idx].min_power = atol(value);
-        }
-        else if (!strcmp(key, "ERROR_POWER"))
-        {
+        } else if (!strcmp(key, "ERROR_POWER")) {
             tags[idx].error_power = atol(value);
-        }
-				else if (!strcmp(key, "MAX_TEMP"))
-				{ 
-						tags[idx].max_temp = atol(value);
-				}
-				else if (!strcmp(key, "CPU_TEMP_CAP"))
-				{ 
-						tags[idx].cpu_temp_cap = atol(value);
-				}
-				else if (!strcmp(key, "GPU_TEMP_CAP"))
-				{ 
-						tags[idx].gpu_temp_cap = atol(value);
-				}
-        else if (!strcmp(key, "POWERCAP"))
-        {
+        } else if (!strcmp(key, "MAX_TEMP")) {
+            tags[idx].max_temp = atol(value);
+        } else if (!strcmp(key, "CPU_TEMP_CAP")) {
+            tags[idx].cpu_temp_cap = atol(value);
+        } else if (!strcmp(key, "GPU_TEMP_CAP")) {
+            tags[idx].gpu_temp_cap = atol(value);
+        } else if (!strcmp(key, "POWERCAP")) {
             tags[idx].powercap = atol(value);
-        }
-        else if (!strcmp(key, "MAX_POWERCAP"))
-        {
+        } else if (!strcmp(key, "MAX_POWERCAP")) {
             tags[idx].max_powercap = atol(value);
-        }
-        else if (!strcmp(key, "GPU_DEF_FREQ"))
-        {
+        } else if (!strcmp(key, "GPU_DEF_FREQ")) {
             tags[idx].gpu_def_freq = atol(value);
-        }
-        else if (!strcmp(key, "CPU_MAX_PSTATE"))
-        {
+        } else if (!strcmp(key, "CPU_MAX_PSTATE")) {
             tags[idx].cpu_max_pstate = atol(value);
-        }
-        else if (!strcmp(key, "IMC_MAX_PSTATE"))
-        {
+        } else if (!strcmp(key, "IMC_MAX_PSTATE")) {
             tags[idx].imc_max_pstate = atol(value);
-        }
-		else if (!strcmp(key, "IDLE_PSTATE"))
-		{
+        } else if (!strcmp(key, "IDLE_PSTATE")) {
             tags[idx].idle_pstate = atol(value);
-		}
-		else if (!strcmp(key, "IMC_MAX_FREQ"))
-		{
-			tags[idx].imc_max_freq = (ulong)atol(value);
-		}
-		else if (!strcmp(key, "IMC_MIN_FREQ"))
-		{
-			tags[idx].imc_min_freq = (ulong)atol(value);
-		}
-        //MODELS
-        else if (!strcmp(key, "ENERGY_MODEL"))
-        {
+        } else if (!strcmp(key, "IMC_MAX_FREQ")) {
+            tags[idx].imc_max_freq = (ulong) atol(value);
+        } else if (!strcmp(key, "IMC_MIN_FREQ")) {
+            tags[idx].imc_min_freq = (ulong) atol(value);
+        }
+        // MODELS
+        else if (!strcmp(key, "ENERGY_MODEL")) {
             strcpy(tags[idx].energy_model, value);
-        }
-        else if (!strcmp(key, "ENERGY_PLUGIN"))
-        {
+        } else if (!strcmp(key, "ENERGY_PLUGIN")) {
             strcpy(tags[idx].energy_plugin, value);
-        }
-        else if (!strcmp(key, "POWERCAP_PLUGIN"))
-        {
+        } else if (!strcmp(key, "POWERCAP_PLUGIN")) {
             strcpy(tags[idx].powercap_plugin, value);
+        } else if (!strcmp(key, "NODE_POWERCAP_PLUGIN")) {
+            strcpy(tags[idx].powercap_node_plugin, value);
         }
-        else if (!strcmp(key, "GPU_POWERCAP_PLUGIN"))
-        {
+
+        else if (!strcmp(key, "GPU_POWERCAP_PLUGIN")) {
             strcpy(tags[idx].powercap_gpu_plugin, value);
-        }
-		else if (!strcmp(key, "IDLE_GOVERNOR")) 
-		{
+        } else if (!strcmp(key, "IDLE_GOVERNOR")) {
             strcpy(tags[idx].idle_governor, value);
-		}
-        else if (!strcmp(key, "COEFFS"))
-        {
+        } else if (!strcmp(key, "COEFFS")) {
             strcpy(tags[idx].coeffs, value);
         }
 
-        //TYPE OF POWERCAP AND TAGS -> pending
-        else if (!strcmp(key, "DEFAULT"))
-        {
+        // TYPE OF POWERCAP AND TAGS -> pending
+        else if (!strcmp(key, "DEFAULT")) {
             strtoup(value);
             if (!strcmp(value, "YES") || !strcmp(value, "Y"))
                 tags[idx].is_default = 1;
             else
                 tags[idx].is_default = 0;
-        }
-        else if (!strcmp(key, "TYPE"))
-        {
+        } else if (!strcmp(key, "TYPE")) {
             strtoup(value);
             if (!strcmp(value, "ARCH"))
                 tags[idx].type = TAG_TYPE_ARCH;
-        }
-        else if (!strcmp(key, "POWERCAP_TYPE"))
-        {
+        } else if (!strcmp(key, "POWERCAP_TYPE")) {
             strtoup(value);
             if (!strcmp(value, "APP") || !strcmp(value, "APPLICATION"))
                 tags[idx].powercap_type = POWERCAP_TYPE_APP;
             if (!strcmp(value, "NODE"))
                 tags[idx].powercap_type = POWERCAP_TYPE_NODE;
+        } else if (!strcmp(key, "POLICY")) {
+            strcpy(tags[idx].default_policy, value);
         }
-				else if (!strcmp(key, "POLICY"))
-				{
-					strcpy(tags[idx].default_policy, value);					
-				}
-
 
         token = strtok_r(NULL, " ", &buffer_ptr);
-    }            
-    
-    *tags_i = tags;
+    }
+
+    *tags_i     = tags;
     *num_tags_i = num_tags;
     return found;
 }
 
 void power2str(ulong power, char *str)
 {
-  if (power == POWER_CAP_UNLIMITED){ 
-    strcpy(str,"unlimited");
+    if (power == POWER_CAP_UNLIMITED) {
+        strcpy(str, "unlimited");
+        return;
+    }
+    if (power == 0) {
+        strcpy(str, "disabled");
+        return;
+    }
+    sprintf(str, "%lu", power);
     return;
-  }
-  if (power == 0){
-    strcpy(str,"disabled");
-    return;
-  }
-  sprintf(str,"%lu",power);
-  return;
 }
 
 void print_tags_conf(tag_t *tag, int i)
 {
-  char buffer[64];
-    verbosen(VCCONF, "Tag[%d]: %s\ttype: %d\tdefault: %d\t policy: '%s'\t powercap_type: %d\n", i, tag->id, tag->type, tag->is_default, tag->default_policy, tag->powercap_type);
-    verbosen(VCCONF, "\t\tavx512_freq: %lu\tavx2_freq: %lu\tmax_power: %lu\tmin_power: %lu\terror_power: %lu\t \n", 
-                     tag->max_avx512_freq, tag->max_avx2_freq, tag->max_power, tag->min_power, tag->error_power);
-	verbosen(VCCONF, "\t\tgpu_def_freq %lu / cpu_max_pstate %d / imc_max_pstate %d\n", tag->gpu_def_freq, tag->cpu_max_pstate, tag->imc_max_pstate);
-	verbosen(VCCONF, "\t\timc_max_freq %lu imc_min_freq %lu\n", tag->imc_max_freq, tag->imc_min_freq);
+    char buffer[64];
+    verbosen(VCCONF, "Tag[%d]: %s\ttype: %d\tdefault: %d\t policy: '%s'\t powercap_type: %d\n", i, tag->id, tag->type,
+             tag->is_default, tag->default_policy, tag->powercap_type);
+    verbosen(VCCONF, "\t\tavx512_freq: %lu\tavx2_freq: %lu\tmax_power: %lu\tmin_power: %lu\terror_power: %lu\t \n",
+             tag->max_avx512_freq, tag->max_avx2_freq, tag->max_power, tag->min_power, tag->error_power);
+    verbosen(VCCONF, "\t\tgpu_def_freq %lu / cpu_max_pstate %d / imc_max_pstate %d\n", tag->gpu_def_freq,
+             tag->cpu_max_pstate, tag->imc_max_pstate);
+    verbosen(VCCONF, "\t\timc_max_freq %lu imc_min_freq %lu\n", tag->imc_max_freq, tag->imc_min_freq);
     verbosen(VCCONF, "\t\tidle_governor: %s\tidle_pstate: %d\n", tag->idle_governor, tag->idle_pstate);
-    verbosen(VCCONF, "\t\tenergy_model: %s\tenergy_plugin: %s\tpowercap_plugin: %s", tag->energy_model, tag->energy_plugin, tag->powercap_plugin);
-		if (tag->powercap == DEF_POWER_CAP){
-			verbosen(VCCONF,"\t\t powercap set_def\n");
+    verbosen(VCCONF, "\t\tenergy_model: %s\tenergy_plugin: %s\tpowercap_plugin: %s", tag->energy_model,
+             tag->energy_plugin, tag->powercap_plugin);
+    verbosen(VCCONF, "\t\tpowercap_node_plugin: %s\tpowercap_gpu_plugin: %s", tag->powercap_node_plugin,
+             tag->powercap_gpu_plugin);
+    if (tag->powercap == DEF_POWER_CAP) {
+        verbosen(VCCONF, "\t\t powercap set_def\n");
     }
     power2str(tag->powercap, buffer);
-    verbosen(VCCONF,"\t\t powercap %s\n",buffer);
+    verbosen(VCCONF, "\t\t powercap %s\n", buffer);
     power2str(tag->max_powercap, buffer);
-    verbosen(VCCONF,"\t\t max_powercap %s\n",buffer);
-		if ((tag->cpu_temp_cap == TEMP_CAP_UNLIMITED) && (tag->gpu_temp_cap == TEMP_CAP_UNLIMITED)){
-			verbosen(VCCONF,"\t\tTemperature cap disabled\n");
-		}else{
-			char cpu_tcap[64], gpu_tcap[64];
-			snprintf(cpu_tcap,sizeof(cpu_tcap),"%lu", tag->cpu_temp_cap);
-			snprintf(gpu_tcap,sizeof(gpu_tcap),"%lu", tag->gpu_temp_cap);
-			verbosen(VCCONF,"\t\tTemperature cap enabled: CPU %s / GPU %s\n", (tag->cpu_temp_cap == TEMP_CAP_UNLIMITED)?"ulimited":cpu_tcap, (tag->gpu_temp_cap == TEMP_CAP_UNLIMITED)?"unlimited":gpu_tcap);
-		}
+    verbosen(VCCONF, "\t\t max_powercap %s\n", buffer);
+    if ((tag->cpu_temp_cap == TEMP_CAP_UNLIMITED) && (tag->gpu_temp_cap == TEMP_CAP_UNLIMITED)) {
+        verbosen(VCCONF, "\t\tTemperature cap disabled\n");
+    } else {
+        char cpu_tcap[64], gpu_tcap[64];
+        snprintf(cpu_tcap, sizeof(cpu_tcap), "%lu", tag->cpu_temp_cap);
+        snprintf(gpu_tcap, sizeof(gpu_tcap), "%lu", tag->gpu_temp_cap);
+        verbosen(VCCONF, "\t\tTemperature cap enabled: CPU %s / GPU %s\n",
+                 (tag->cpu_temp_cap == TEMP_CAP_UNLIMITED) ? "ulimited" : cpu_tcap,
+                 (tag->gpu_temp_cap == TEMP_CAP_UNLIMITED) ? "unlimited" : gpu_tcap);
+    }
 }
-

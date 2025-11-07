@@ -8,372 +8,361 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #define _GNU_SOURCE
 #include <sched.h>
 
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <math.h>
 
 // #define SHOW_DEBUGS 1
 #include <common/config.h>
-#include <common/states.h>
+#include <common/hardware/topology.h>
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
-#include <common/hardware/topology.h>
+#include <common/states.h>
 
 #include <management/cpufreq/frequency.h>
 
+#include <library/api/clasify.h>
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
-#include <library/api/clasify.h>
-#include <library/policies/policy_ctx.h>
 #include <library/policies/common/cpu_support.h>
-#include <library/policies/common/mpi_stats_support.h>
 #include <library/policies/common/imc_policy_support.h>
+#include <library/policies/common/mpi_stats_support.h>
+#include <library/policies/policy_ctx.h>
 
 extern uint dyn_unc;
 extern polctx_t my_pol_ctx;
 extern ear_classify_t phases_limits;
 extern settings_conf_t *system_conf;
 
-state_t compute_reference(signature_t *signature, energy_model_t energy_model, ulong *curr_freq, ulong *def_freq, ulong *freq_ref, double *time_ref, double *power_ref)
+state_t compute_reference(signature_t *signature, energy_model_t energy_model, ulong *curr_freq, ulong *def_freq,
+                          ulong *freq_ref, double *time_ref, double *power_ref)
 {
-  ulong def_pstate = frequency_closest_pstate(def_freq[0]);
-  ulong curr_pstate = frequency_closest_pstate(curr_freq[0]);
-  if (curr_freq[0] != def_freq[0]) // Use configuration when available
-  {
-    debug("curr_freq[0] != def_freq[0] %lu != %lu", curr_freq[0], def_freq[0]);
-    if (energy_model_projection_available(energy_model, curr_pstate, def_pstate))
+    ulong def_pstate  = frequency_closest_pstate(def_freq[0]);
+    ulong curr_pstate = frequency_closest_pstate(curr_freq[0]);
+    if (curr_freq[0] != def_freq[0]) // Use configuration when available
     {
-      verbose_master(3, "Using projections for references");
+        debug("curr_freq[0] != def_freq[0] %lu != %lu", curr_freq[0], def_freq[0]);
+        if (energy_model_projection_available(energy_model, curr_pstate, def_pstate)) {
+            verbose_master(3, "Using projections for references");
 
-      // If energy_model is invalid, the above condition is false, so we don't need to check
-      // the correctness of the below calls.
-      energy_model_project_power(energy_model, signature, curr_pstate, def_pstate, power_ref);
-      energy_model_project_time(energy_model, signature, curr_pstate, def_pstate, time_ref);
+            // If energy_model is invalid, the above condition is false, so we don't need to check
+            // the correctness of the below calls.
+            energy_model_project_power(energy_model, signature, curr_pstate, def_pstate, power_ref);
+            energy_model_project_time(energy_model, signature, curr_pstate, def_pstate, time_ref);
 
-      freq_ref[0] = def_freq[0];
+            freq_ref[0] = def_freq[0];
+        } else {
+            *time_ref   = signature->time;
+            *power_ref  = signature->DC_power;
+            freq_ref[0] = curr_freq[0];
+        }
+    } else {
+        // And we are running at the nominal freq.
+        *time_ref   = signature->time;
+        *power_ref  = signature->DC_power;
+        freq_ref[0] = curr_freq[0];
     }
-    else
-    {
-      *time_ref = signature->time;
-      *power_ref = signature->DC_power;
-      freq_ref[0] = curr_freq[0];
-    }
-  }
-  else
-  {
-    // And we are running at the nominal freq.
-    *time_ref = signature->time;
-    *power_ref = signature->DC_power;
-    freq_ref[0] = curr_freq[0];
-  }
 
-  return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
-state_t compute_cpu_freq_min_energy(signature_t *signature, energy_model_t energy_model, ulong freq_ref, double time_ref, double power_ref, double penalty, ulong curr_pstate, ulong minp, ulong maxp, ulong *newf)
+state_t compute_cpu_freq_min_energy(signature_t *signature, energy_model_t energy_model, ulong freq_ref,
+                                    double time_ref, double power_ref, double penalty, ulong curr_pstate, ulong minp,
+                                    ulong maxp, ulong *newf)
 {
-  double vpi;
-  double energy_ref, best_solution, time_max;
-  double power_proj, time_proj, energy_proj;
-  ulong i, from;
+    double vpi;
+    double energy_ref, best_solution, time_max;
+    double power_proj, time_proj, energy_proj;
+    ulong i, from;
+    uint proj_av = 0;
 
-  ulong best_freq = freq_ref;
+    ulong best_freq = freq_ref;
 
-  energy_ref = power_ref * time_ref;
-  best_solution = energy_ref;
-  time_max = time_ref + (time_ref * penalty);
-  from = curr_pstate;
+    energy_ref    = power_ref * time_ref;
+    best_solution = energy_ref;
+    time_max      = time_ref + (time_ref * penalty);
+    from          = curr_pstate;
 
-  compute_sig_vpi(&vpi, signature);
-  verbose_master(3, "CPUfreq algorithm for min_energy timeref %lf powerref %lf energy %lf F=%lu VPI %lf. Pstates %lu...%lu", time_ref, power_ref, energy_ref, best_freq, vpi, minp, maxp);
+    compute_sig_vpi(&vpi, signature);
+    verbose_master(
+        3, "CPUfreq algorithm for min_energy timeref %lf powerref %lf energy %lf F=%lu VPI %lf. Pstates %lu...%lu",
+        time_ref, power_ref, energy_ref, best_freq, vpi, minp, maxp);
 
-  verbose_master(3, "CPUfreq algorithm for min_energy, projecting from pstate %lu to %lu", minp, maxp);
-  if (from == minp)
-    minp++;
-  for (i = minp; i < maxp; i++)
-  {
+    verbose_master(2, "CPUfreq algorithm for min_energy, projecting from pstate %lu to %lu", minp, maxp);
+    if (from == minp)
+        minp++;
+    for (i = minp; i < maxp; i++) {
 
-    verbose_master(3, "CPUfreq algorithm testing pstate %lu", i);
-    if (energy_model_projection_available(energy_model, from, i))
-    {
-      // If energy_model is invalid, the above condition is false, so we don't need to check
-      // the correctness of the below calls.
-      energy_model_project_power(energy_model, signature, from, i, &power_proj);
-      energy_model_project_time(energy_model, signature, from, i, &time_proj);
+        verbose_master(3, "CPUfreq algorithm testing pstate %lu", i);
+        if (energy_model_projection_available(energy_model, from, i)) {
+            proj_av++;
+            // If energy_model is invalid, the above condition is false, so we don't need to check
+            // the correctness of the below calls.
+            energy_model_project_power(energy_model, signature, from, i, &power_proj);
+            energy_model_project_time(energy_model, signature, from, i, &time_proj);
 
-      energy_proj = power_proj * time_proj;
+            energy_proj = power_proj * time_proj;
 
-      verbose_master(3, "projected from %lu to %lu\t time: %.2lf\t power: %.2lf energy: %.2lf",
-                     from, i, time_proj, power_proj, energy_proj);
+            verbose_master(3, "projected from %lu to %lu\t time: %.2lf\t power: %.2lf energy: %.2lf", from, i,
+                           time_proj, power_proj, energy_proj);
 
-      if ((energy_proj < best_solution) && (time_proj < time_max))
-      {
-        best_freq = frequency_pstate_to_freq(i);
-        verbose(3, "new best solution found %lu", best_freq);
-        best_solution = energy_proj;
-      }
+            if ((energy_proj < best_solution) && (time_proj < time_max)) {
+                best_freq = frequency_pstate_to_freq(i);
+                verbose_master(2, "Min_energy: new best solution found %lu [time %.2lf Power %.2lf Energy (KJ) %.2lf ",
+                               best_freq, time_proj, power_proj, energy_proj / 1000);
+                best_solution = energy_proj;
+            } else {
+                verbose_master(3, " Min_energy: freq %lu not selected becuase of penalty %.3lf",
+                               frequency_pstate_to_freq(i), ((time_proj - time_ref) / time_ref) * 100.0);
+            }
+        } else {
+            verbose_master(3, "Min_energy: CPUfreq  %lu projection not available", frequency_pstate_to_freq(i));
+        }
     }
-    else
-    {
-      verbose_master(3, "CPUfreq algorithm pstate %lu projection not available", i);
-    }
-  }
-  *newf = best_freq;
-  return EAR_SUCCESS;
+    if (!proj_av)
+        verbose_master(2, " Min_energy: no frequencies evaluated");
+    *newf = best_freq;
+    return EAR_SUCCESS;
 }
 
-state_t compute_cpu_freq_min_time(signature_t *signature, energy_model_t energy_model, int min_pstate, double time_ref, double min_eff_gain, ulong curr_pstate, ulong best_pstate, ulong best_freq, ulong def_freq, ulong *newf)
+state_t compute_cpu_freq_min_time(signature_t *signature, energy_model_t energy_model, int min_pstate, double time_ref,
+                                  double min_eff_gain, ulong curr_pstate, ulong best_pstate, ulong best_freq,
+                                  ulong def_freq, ulong *newf)
 {
-  int i;
-  uint try_next;
-  double time_current, power_proj, time_proj, freq_gain, perf_gain, vpi;
-  ulong freq_ref;
+    int i;
+    uint try_next;
+    double time_current, power_proj, time_proj, freq_gain, perf_gain, vpi;
+    ulong freq_ref;
 
-  compute_sig_vpi(&vpi, signature);
-  // error al compilar con verbose_master :( error: identifier "masters_info" is undefined
-  verbose_master(3, "CPUfreq algorithm for min_time. timeref %lf; pstate %lu; F %lu; deffreq %lu; VPI %lf", time_ref, curr_pstate, best_freq, def_freq, vpi);
+    compute_sig_vpi(&vpi, signature);
+    // error al compilar con verbose_master :( error: identifier "masters_info" is undefined
+    verbose_master(3, "CPUfreq algorithm for min_time. timeref %lf; pstate %lu; F %lu; deffreq %lu; VPI %lf", time_ref,
+                   curr_pstate, best_freq, def_freq, vpi);
 
-  try_next = 1;
-  i = best_pstate - 1;
-  time_current = time_ref;
-  while (try_next && i >= min_pstate)
-  {
-    if (energy_model_projection_available(energy_model, curr_pstate, i))
-    {
-      verbose_master(3, "Looking for pstate %d", i);
+    try_next     = 1;
+    i            = best_pstate - 1;
+    time_current = time_ref;
+    while (try_next && i >= min_pstate) {
+        if (energy_model_projection_available(energy_model, curr_pstate, i)) {
+            verbose_master(3, "Looking for pstate %d", i);
 
-      // If energy_model is invalid, the above condition is false, so we don't need to check
-      // the correctness of the below calls.
-      energy_model_project_power(energy_model, signature, curr_pstate, i, &power_proj);
-      energy_model_project_time(energy_model, signature, curr_pstate, i, &time_proj);
+            // If energy_model is invalid, the above condition is false, so we don't need to check
+            // the correctness of the below calls.
+            energy_model_project_power(energy_model, signature, curr_pstate, i, &power_proj);
+            energy_model_project_time(energy_model, signature, curr_pstate, i, &time_proj);
 
-      freq_ref = frequency_pstate_to_freq(i);
-      freq_gain = min_eff_gain * (double)(freq_ref - best_freq) / (double)best_freq;
-      perf_gain = (time_current - time_proj) / time_current;
+            freq_ref  = frequency_pstate_to_freq(i);
+            freq_gain = min_eff_gain * (double) (freq_ref - best_freq) / (double) best_freq;
+            perf_gain = (time_current - time_proj) / time_current;
 
-      if (min_eff_gain < 0.5)
-      {
-        verbose_master(3, "%lu to %d time %lf proj time %lf freq gain %lf perf_gain %lf", curr_pstate, i, signature->time, time_proj,
-                       freq_gain, perf_gain);
-      }
-      else
-      {
-        verbose_master(3, "%lu to %d time %lf proj time %lf freq gain %lf perf_gain %lf", curr_pstate, i, signature->time, time_proj,
-                       freq_gain, perf_gain);
-      }
-      // OK
-      if (perf_gain >= freq_gain)
-      {
-        verbose(3, "New best solution found: Best freq: %lu; Best pstate: %d; Current time ref: %lf",
-                freq_ref, i, time_proj);
-        best_freq = freq_ref;
-        best_pstate = i;
-        time_current = time_proj;
-        // i--;
-      }
+            if (min_eff_gain < 0.5) {
+                verbose_master(3, "%lu to %d time %lf proj time %lf freq gain %lf perf_gain %lf", curr_pstate, i,
+                               signature->time, time_proj, freq_gain, perf_gain);
+            } else {
+                verbose_master(3, "%lu to %d time %lf proj time %lf freq gain %lf perf_gain %lf", curr_pstate, i,
+                               signature->time, time_proj, freq_gain, perf_gain);
+            }
+            // OK
+            if (perf_gain >= freq_gain) {
+                verbose(3, "New best solution found: Best freq: %lu; Best pstate: %d; Current time ref: %lf", freq_ref,
+                        i, time_proj);
+                best_freq    = freq_ref;
+                best_pstate  = i;
+                time_current = time_proj;
+                // i--;
+            }
 #if 0
       else
       {
         try_next = 0;
       }
 #endif
-    } // Projections available
-    else
-    {
-      try_next = 0;
+        } // Projections available
+        else {
+            try_next = 0;
+        }
+        i--;
     }
-    i--;
-  }
-  /* Controlar la freq por power cap, si capado poner GREEDY, gestionar req-f */
-  if (best_freq < def_freq)
-    best_freq = def_freq;
-  *newf = best_freq;
-  verbose_master(3, "*new_freq=%lu", *newf);
+    /* Controlar la freq por power cap, si capado poner GREEDY, gestionar req-f */
+    if (best_freq < def_freq)
+        best_freq = def_freq;
+    *newf = best_freq;
+    verbose_master(3, "*new_freq=%lu", *newf);
 
-  return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 uint cpu_supp_try_boost_cpu_freq(int nproc, uint *critical_path, ulong *freqs, int min_pstate)
 {
-  uint belongs_to_cp = critical_path[nproc];
-  int pstate = frequency_closest_pstate(freqs[nproc]);
-  verbosen_master(2, "Checking for boost process %d: Critical path ? %u | pstate ? %d | min_pstate ? %d ",
-                  nproc, belongs_to_cp, pstate, min_pstate);
-  if (belongs_to_cp && pstate == min_pstate)
-  {
-    freqs[nproc] = frequency_pstate_to_freq(0);
-    verbose_master(2, "%sOK%s", COL_GRE, COL_CLR);
-    return 1;
-  }
-  verbose_master(2, "%sFALSE%s", COL_RED, COL_CLR);
-  return 0;
+    uint belongs_to_cp = critical_path[nproc];
+    int pstate         = frequency_closest_pstate(freqs[nproc]);
+    verbosen_master(2, "Checking for boost process %d: Critical path ? %u | pstate ? %d | min_pstate ? %d ", nproc,
+                    belongs_to_cp, pstate, min_pstate);
+    if (belongs_to_cp && pstate == min_pstate) {
+        freqs[nproc] = frequency_pstate_to_freq(0);
+        verbose_master(2, "%sOK%s", COL_GRE, COL_CLR);
+        return 1;
+    }
+    verbose_master(2, "%sFALSE%s", COL_RED, COL_CLR);
+    return 0;
 }
 
 int default_signatures_different(signature_t *s1, signature_t *s2, float p)
 {
 
-  if (s1->CPI == 0 || s2->CPI == 0 || s1->GBS == 0 || s2->GBS == 0)
-  {
-    verbose_master(2, "%sWARNING%s some signature have a 0 value CPI (%.2lfvs%.2lf) GBS (%.2lfvs%.2lf)",
-                   COL_RED, COL_CLR, s1->CPI, s2->CPI, s1->GBS, s2->GBS);
-    return 0;
-  }
+    if (s1->CPI == 0 || s2->CPI == 0 || s1->GBS == 0 || s2->GBS == 0) {
+        verbose_master(2, "%sWARNING%s some signature have a 0 value CPI (%.2lfvs%.2lf) GBS (%.2lfvs%.2lf)", COL_RED,
+                       COL_CLR, s1->CPI, s2->CPI, s1->GBS, s2->GBS);
+        return 0;
+    }
 
 #if FAKE_SIGNATURES_DIFFERENT
-  verbose_master(2, "Signatures different fakely forced.");
-  return 1;
+    verbose_master(2, "Signatures different fakely forced.");
+    return 1;
 #endif
 
-  /* If one of them is doing some computation, we check. */
-  if ((s1->GBS > phases_limits.gbs_busy_waiting) || (s2->GBS > phases_limits.gbs_busy_waiting))
-  {
-    /* If the CPI is different we check if the classification is also different */
-    if (!equal_with_th(s1->CPI, s2->CPI, p))
-    {
-      uint s1_cbound, s2_cbound;
-      is_cpu_bound(s1, lib_shared_region->num_cpus, &s1_cbound);
-      is_cpu_bound(s2, lib_shared_region->num_cpus, &s2_cbound);
-      if (s1_cbound != s2_cbound)
-      {
-        verbose_master(2, "CPI (%.2lfvs%.2lf) and cpu bound phase changed from %u to %u",
-                       s1->CPI, s2->CPI, s1_cbound, s2_cbound);
-        return 1;
-      }
-      verbose_master(2, "CPIs different (%.2lfvs%.2lf) but same cpu behaviour (%uvs%u)",
-                     s1->CPI, s2->CPI, s1_cbound, s2_cbound);
-    }
-    /* If Mem. Band is different, we double check */
-    /* Compare if one is GBS_BUSY_WAITING and not the other */
-    uint s1_mbound, s2_mbound;
-    s1_mbound = s1->GBS < phases_limits.gbs_busy_waiting;
-    s2_mbound = s2->GBS < phases_limits.gbs_busy_waiting;
+    /* If one of them is doing some computation, we check. */
+    if ((s1->GBS > phases_limits.gbs_busy_waiting) || (s2->GBS > phases_limits.gbs_busy_waiting)) {
+        /* If the CPI is different we check if the classification is also different */
+        if (!equal_with_th(s1->CPI, s2->CPI, p)) {
+            uint s1_cbound, s2_cbound;
+            is_cpu_bound(s1, lib_shared_region->num_cpus, &s1_cbound);
+            is_cpu_bound(s2, lib_shared_region->num_cpus, &s2_cbound);
+            if (s1_cbound != s2_cbound) {
+                verbose_master(2, "CPI (%.2lfvs%.2lf) and cpu bound phase changed from %u to %u", s1->CPI, s2->CPI,
+                               s1_cbound, s2_cbound);
+                return 1;
+            }
+            verbose_master(2, "CPIs different (%.2lfvs%.2lf) but same cpu behaviour (%uvs%u)", s1->CPI, s2->CPI,
+                           s1_cbound, s2_cbound);
+        }
+        /* If Mem. Band is different, we double check */
+        /* Compare if one is GBS_BUSY_WAITING and not the other */
+        uint s1_mbound, s2_mbound;
+        s1_mbound = s1->GBS < phases_limits.gbs_busy_waiting;
+        s2_mbound = s2->GBS < phases_limits.gbs_busy_waiting;
 
-    if (s1_mbound != s2_mbound)
-    {
-      verbose_master(2, "One signature has memory bandwidth below busy waiting threshold (%f GB/s) %f/%f",
-                     phases_limits.gbs_busy_waiting, s1->GBS, s2->GBS);
+        if (s1_mbound != s2_mbound) {
+            verbose_master(2, "One signature has memory bandwidth below busy waiting threshold (%f GB/s) %f/%f",
+                           phases_limits.gbs_busy_waiting, s1->GBS, s2->GBS);
 
-      return 1;
-    }
+            return 1;
+        }
 
-    /* If one is MEM bound and not the other they are not the same */
-    is_mem_bound(s1, lib_shared_region->num_cpus, &s1_mbound); /* Node */
-    is_mem_bound(s2, lib_shared_region->num_cpus, &s2_mbound);
-    if (s1_mbound != s2_mbound)
-    {
-      verbose_master(2, "One signature is memory bound (GB/s) %f/%f (CPI) %f/%f",
-                     s1->GBS, s2->GBS, s1->CPI, s2->CPI);
-      return 1;
-    }
+        /* If one is MEM bound and not the other they are not the same */
+        is_mem_bound(s1, lib_shared_region->num_cpus, &s1_mbound); /* Node */
+        is_mem_bound(s2, lib_shared_region->num_cpus, &s2_mbound);
+        if (s1_mbound != s2_mbound) {
+            verbose_master(2, "One signature is memory bound (GB/s) %f/%f (CPI) %f/%f", s1->GBS, s2->GBS, s1->CPI,
+                           s2->CPI);
+            return 1;
+        }
 
-    /* Compare the absolute value */
-    if (abs((int)s1->GBS - (int)s2->GBS) > MAX_GBS_DIFF)
-    {
-      verbose_master(2, "Memory bandwidth differ more far than %d GB/s: %f/%f",
-                     MAX_GBS_DIFF, s1->GBS, s2->GBS);
-      return 1;
+        /* Compare the absolute value */
+        if (abs((int) s1->GBS - (int) s2->GBS) > MAX_GBS_DIFF) {
+            verbose_master(2, "Memory bandwidth differ more far than %d GB/s: %f/%f", MAX_GBS_DIFF, s1->GBS, s2->GBS);
+            return 1;
+        }
     }
-  }
 
 #if USE_GPUS
-  for (int i = 0; i < s1->gpu_sig.num_gpus; i++)
-  {
-    // if (!equal_with_th_ul(s1->gpu_sig.gpu_data[i].GPU_util, s2->gpu_sig.gpu_data[i].GPU_util,p)){
-    if (abs((int)s1->gpu_sig.gpu_data[i].GPU_util - (int)s2->gpu_sig.gpu_data[i].GPU_util) > 10)
-    {
-      verbose_master(2, "GPU util[%d] %lu/%lu", i, s1->gpu_sig.gpu_data[i].GPU_util, s2->gpu_sig.gpu_data[i].GPU_util);
-      return 1;
+    for (int i = 0; i < s1->gpu_sig.num_gpus; i++) {
+        // if (!equal_with_th_ul(s1->gpu_sig.gpu_data[i].GPU_util, s2->gpu_sig.gpu_data[i].GPU_util,p)){
+        if (abs((int) s1->gpu_sig.gpu_data[i].GPU_util - (int) s2->gpu_sig.gpu_data[i].GPU_util) > 10) {
+            verbose_master(2, "GPU util[%d] %lu/%lu", i, s1->gpu_sig.gpu_data[i].GPU_util,
+                           s2->gpu_sig.gpu_data[i].GPU_util);
+            return 1;
+        }
+        // if (!equal_with_th_ul(s1->gpu_sig.gpu_data[i].GPU_mem_util, s2->gpu_sig.gpu_data[i].GPU_mem_util,p)){
+        if (abs((int) s1->gpu_sig.gpu_data[i].GPU_mem_util - (int) s2->gpu_sig.gpu_data[i].GPU_mem_util) > 10) {
+            verbose_master(2, "GPU mem util[%d] %lu/%lu", i, s1->gpu_sig.gpu_data[i].GPU_mem_util,
+                           s2->gpu_sig.gpu_data[i].GPU_mem_util);
+            return 1;
+        }
     }
-    // if (!equal_with_th_ul(s1->gpu_sig.gpu_data[i].GPU_mem_util, s2->gpu_sig.gpu_data[i].GPU_mem_util,p)){
-    if (abs((int)s1->gpu_sig.gpu_data[i].GPU_mem_util - (int)s2->gpu_sig.gpu_data[i].GPU_mem_util) > 10)
-    {
-      verbose_master(2, "GPU mem util[%d] %lu/%lu", i, s1->gpu_sig.gpu_data[i].GPU_mem_util, s2->gpu_sig.gpu_data[i].GPU_mem_util);
-      return 1;
-    }
-  }
 #endif
-  return 0;
+    return 0;
 }
+
 // s1 -> curr_sig; s2 -> last_sig
 // min_eff_gain: extracted from c->app->settings[0]
-int signatures_different(signature_t *s1, signature_t *s2, char *policy, energy_model_t *energy_model, int min_pstate /*, double min_eff_gain*/)
+int signatures_different(signature_t *s1, signature_t *s2, char *policy, energy_model_t *energy_model,
+                         int min_pstate /*, double min_eff_gain*/)
 {
-  ulong best_freq, best_pstate;
-  ulong* new_freq = malloc(sizeof(ulong));
-  double power_ref, time_ref, factor;
+    ulong best_freq, best_pstate;
+    ulong *new_freq = malloc(sizeof(ulong));
+    double power_ref, time_ref, factor;
 
-  double eff_gain = my_pol_ctx.app->settings[0];
+    double eff_gain = my_pol_ctx.app->settings[0];
 
-  /* The default actions are the ones applied in min_time/min_energy policies */
-  ulong curr_freq = s1->def_f;
-  ulong curr_pstate = frequency_closest_pstate(curr_freq);
+    /* The default actions are the ones applied in min_time/min_energy policies */
+    ulong curr_freq   = s1->def_f;
+    ulong curr_pstate = frequency_closest_pstate(curr_freq);
 
-  // ulong def_freq = curr_freq;
-  // ulong def_pstate = curr_pstate;
+    // ulong def_freq = curr_freq;
+    // ulong def_pstate = curr_pstate;
 
+    ulong def_freq   = system_conf->def_freq;
+    ulong def_pstate = frequency_closest_pstate(def_freq);
+    verbose_master(2, "Computing signatures_different for policy %s ref_pstate %lu ", policy, def_pstate);
 
-  ulong def_freq = system_conf->def_freq;
-  ulong def_pstate = frequency_closest_pstate(def_freq);
-  verbose_master(2,"Computing signatures_different for policy %s ref_pstate %lu ", policy, def_pstate);
-
-
-
-  #if 0
+#if 0
   // But if the policy is min_time_energy, we change the def_freq/def_pstate values
   if (strcmp(policy, "min_time_energy") == 0)
   {
     def_freq = s2->def_f;
     def_pstate = frequency_closest_pstate(def_freq);
   }
-  #endif
+#endif
 
-  compute_reference(s1, *energy_model, &curr_freq, &def_freq, &best_freq, &time_ref, &power_ref);
-  best_pstate = frequency_closest_pstate(best_freq);
-  // verbose_master(3, "Time ref %lf Power ref %lf Freq ref %lu", time_ref, power_ref, best_freq);
-  if (strcmp(policy, "min_time") == 0)
-    compute_cpu_freq_min_time(s1, *energy_model, min_pstate, time_ref, eff_gain, curr_pstate, best_pstate, best_freq, def_freq, new_freq);
-  else if (strcmp(policy, "min_energy") == 0){
-    verbose_master(3,"Selecting estimated CPU freq to evaluate signature different");
-    compute_cpu_freq_min_energy(s1, *energy_model, best_freq, time_ref, power_ref, eff_gain, curr_pstate, min_pstate, my_pol_ctx.num_pstates /*c->num_pstates*/, new_freq);
-  }else
-  {
-    if (curr_freq > def_freq)
-      compute_cpu_freq_min_time(s1, *energy_model, min_pstate, time_ref, eff_gain, curr_pstate, best_pstate, best_freq, def_freq, new_freq);
-    else
-      compute_cpu_freq_min_energy(s1, *energy_model, best_freq, time_ref, power_ref, eff_gain, curr_pstate, min_pstate, my_pol_ctx.num_pstates /*c->num_pstates*/, new_freq);
-  }
-  best_pstate = frequency_closest_pstate(*new_freq);
-  //verbose_master(2, "%scurr pstate %lu | new pstate %lu ~ def freq %lu | new freq %lu ~ time ref %f%s", COL_RED, curr_pstate, best_pstate, curr_freq, *new_freq, time_ref, COL_CLR);
-  return best_pstate != curr_pstate;
+    compute_reference(s1, *energy_model, &curr_freq, &def_freq, &best_freq, &time_ref, &power_ref);
+    best_pstate = frequency_closest_pstate(best_freq);
+    // verbose_master(3, "Time ref %lf Power ref %lf Freq ref %lu", time_ref, power_ref, best_freq);
+    if (strcmp(policy, "min_time") == 0)
+        compute_cpu_freq_min_time(s1, *energy_model, min_pstate, time_ref, eff_gain, curr_pstate, best_pstate,
+                                  best_freq, def_freq, new_freq);
+    else if (strcmp(policy, "min_energy") == 0) {
+        verbose_master(3, "Selecting estimated CPU freq to evaluate signature different");
+        compute_cpu_freq_min_energy(s1, *energy_model, best_freq, time_ref, power_ref, eff_gain, curr_pstate,
+                                    min_pstate, my_pol_ctx.num_pstates /*c->num_pstates*/, new_freq);
+    } else {
+        if (curr_freq > def_freq)
+            compute_cpu_freq_min_time(s1, *energy_model, min_pstate, time_ref, eff_gain, curr_pstate, best_pstate,
+                                      best_freq, def_freq, new_freq);
+        else
+            compute_cpu_freq_min_energy(s1, *energy_model, best_freq, time_ref, power_ref, eff_gain, curr_pstate,
+                                        min_pstate, my_pol_ctx.num_pstates /*c->num_pstates*/, new_freq);
+    }
+    best_pstate = frequency_closest_pstate(*new_freq);
+    // verbose_master(2, "%scurr pstate %lu | new pstate %lu ~ def freq %lu | new freq %lu ~ time ref %f%s", COL_RED,
+    // curr_pstate, best_pstate, curr_freq, *new_freq, time_ref, COL_CLR);
+    return best_pstate != curr_pstate;
 }
 
 int are_default_settings(node_freqs_t *freqs, node_freqs_t *def)
 {
-  int i, sid = 0;
-  i = 0;
-  int num_processes = lib_shared_region->num_processes;
-  while ((i < num_processes) && (freqs->cpu_freq[i] == def->cpu_freq[i]))
-    i++;
-  if (i < num_processes)
-    return 0;
-  if (dyn_unc)
-  {
-    for (sid = 0; sid < arch_desc.top.socket_count; sid++)
-    {
-      if (freqs->imc_freq[sid * IMC_VAL + IMC_MAX] != def->imc_freq[sid * IMC_VAL + IMC_MAX])
+    int i, sid = 0;
+    i                 = 0;
+    int num_processes = lib_shared_region->num_processes;
+    while ((i < num_processes) && (freqs->cpu_freq[i] == def->cpu_freq[i]))
+        i++;
+    if (i < num_processes)
         return 0;
-      if (freqs->imc_freq[sid * IMC_VAL + IMC_MIN] != def->imc_freq[sid * IMC_VAL + IMC_MIN])
-        return 0;
+    if (dyn_unc) {
+        for (sid = 0; sid < arch_desc.top.socket_count; sid++) {
+            if (freqs->imc_freq[sid * IMC_VAL + IMC_MAX] != def->imc_freq[sid * IMC_VAL + IMC_MAX])
+                return 0;
+            if (freqs->imc_freq[sid * IMC_VAL + IMC_MIN] != def->imc_freq[sid * IMC_VAL + IMC_MIN])
+                return 0;
+        }
     }
-  }
 /* GPU freqs are ignored for now since they are set explicitly at each policy execution based on utilization */
 #if 0
 #if USE_GPUS
@@ -385,129 +374,122 @@ int are_default_settings(node_freqs_t *freqs, node_freqs_t *def)
     }
 #endif
 #endif
-  return 1;
+    return 1;
 }
 
 void set_default_settings(node_freqs_t *freqs, node_freqs_t *def)
 {
-  int i, sid = 0;
-  int num_processes = lib_shared_region->num_processes;
-  freqs->cpu_freq[0] = def->cpu_freq[0];
-  for (i = 1; i < num_processes; i++)
-    freqs->cpu_freq[i] = freqs->cpu_freq[0];
-  if (dyn_unc)
-  {
-    for (sid = 0; sid < arch_desc.top.socket_count; sid++)
-    {
-      freqs->imc_freq[sid * IMC_VAL + IMC_MAX] = def->imc_freq[sid * IMC_VAL + IMC_MAX];
-      freqs->imc_freq[sid * IMC_VAL + IMC_MIN] = def->imc_freq[sid * IMC_VAL + IMC_MIN];
+    int i, sid = 0;
+    int num_processes  = lib_shared_region->num_processes;
+    freqs->cpu_freq[0] = def->cpu_freq[0];
+    for (i = 1; i < num_processes; i++)
+        freqs->cpu_freq[i] = freqs->cpu_freq[0];
+    if (dyn_unc) {
+        for (sid = 0; sid < arch_desc.top.socket_count; sid++) {
+            freqs->imc_freq[sid * IMC_VAL + IMC_MAX] = def->imc_freq[sid * IMC_VAL + IMC_MAX];
+            freqs->imc_freq[sid * IMC_VAL + IMC_MIN] = def->imc_freq[sid * IMC_VAL + IMC_MIN];
+        }
     }
-  }
-  /* GPU freqs are ignored for now since they are set explicitly at each policy execution based on utilization */
+    /* GPU freqs are ignored for now since they are set explicitly at each policy execution based on utilization */
 }
 
 void verbose_node_freqs(int vl, node_freqs_t *freqs)
 {
-  int i;
-  int sid = 0;
-  if (freqs == NULL)
-    return;
-  int num_processes = lib_shared_region->num_processes;
-  for (i = 0; i < num_processes; i++)
-  {
-    verbosen_master(vl, "CPU[%d] = %.2f ", i, (float)freqs->cpu_freq[i] / 1000000.0);
-  }
-  for (sid = 0; sid < arch_desc.top.socket_count; sid++)
-  {
-    verbose_master(vl, "\n IMC %d (%lu-%lu)", sid, freqs->imc_freq[sid * IMC_VAL + IMC_MAX], freqs->imc_freq[sid * IMC_VAL + IMC_MIN]);
-  }
+    int i;
+    int sid = 0;
+    if (freqs == NULL)
+        return;
+    int num_processes = lib_shared_region->num_processes;
+    for (i = 0; i < num_processes; i++) {
+        verbosen_master(vl, "CPU[%d] = %.2f ", i, (float) freqs->cpu_freq[i] / 1000000.0);
+    }
+    for (sid = 0; sid < arch_desc.top.socket_count; sid++) {
+        verbose_master(vl, "\n IMC %d (%lu-%lu)", sid, freqs->imc_freq[sid * IMC_VAL + IMC_MAX],
+                       freqs->imc_freq[sid * IMC_VAL + IMC_MIN]);
+    }
 #if USE_GPUS
-  for (i = 0; i < my_pol_ctx.num_gpus; i++)
-  {
-    verbosen_master(vl, "GPU[%d] = %.2f ", i, (float)freqs->gpu_freq[i] / 1000000.0);
-  }
-  verbose_master(vl, " ");
+    for (i = 0; i < my_pol_ctx.num_gpus; i++) {
+        verbosen_master(vl, "GPU[%d] = %.2f ", i, (float) freqs->gpu_freq[i] / 1000000.0);
+    }
+    verbose_master(vl, " ");
 #endif
 }
 
 void node_freqs_alloc(node_freqs_t *node_freq)
 {
-		// Frequency in KHz
-    node_freq->cpu_freq = calloc(MAX_CPUS_SUPPORTED,sizeof(ulong));
-		// Pstates
-    node_freq->imc_freq = calloc(MAX_SOCKETS_SUPPORTED*IMC_VAL,sizeof(ulong));
+    // Frequency in KHz
+    node_freq->cpu_freq = calloc(MAX_CPUS_SUPPORTED, sizeof(ulong));
+    // Pstates
+    node_freq->imc_freq = calloc(MAX_SOCKETS_SUPPORTED * IMC_VAL, sizeof(ulong));
 #if USE_GPUS
-		// Frequency in KHz (to be verified)
-    node_freq->gpu_freq = calloc(MAX_GPUS_SUPPORTED,sizeof(ulong));
-    node_freq->gpu_mem_freq = calloc(MAX_GPUS_SUPPORTED,sizeof(ulong));
+    // Frequency in KHz (to be verified)
+    node_freq->gpu_freq     = calloc(MAX_GPUS_SUPPORTED, sizeof(ulong));
+    node_freq->gpu_mem_freq = calloc(MAX_GPUS_SUPPORTED, sizeof(ulong));
 #endif
 }
 
 void node_freqs_free(node_freqs_t *node_freq)
 {
-  free(node_freq->cpu_freq);
-  free(node_freq->imc_freq);
+    free(node_freq->cpu_freq);
+    free(node_freq->imc_freq);
 #if USE_GPUS
-  free(node_freq->gpu_freq);
-  free(node_freq->gpu_mem_freq);
+    free(node_freq->gpu_freq);
+    free(node_freq->gpu_mem_freq);
 #endif
 }
 
 void node_freqs_copy(node_freqs_t *dst, node_freqs_t *src)
 {
-  if ((dst == NULL) || (src == NULL))
-    return;
-  if ((dst->cpu_freq == NULL) || (src->cpu_freq == NULL))
-    return;
-  memcpy(dst->cpu_freq, src->cpu_freq, sizeof(ulong) * MAX_CPUS_SUPPORTED);
-  if ((dst->imc_freq == NULL) || (src->imc_freq == NULL))
-    return;
-  memcpy(dst->imc_freq, src->imc_freq, MAX_SOCKETS_SUPPORTED * IMC_VAL * sizeof(ulong));
+    if ((dst == NULL) || (src == NULL))
+        return;
+    if ((dst->cpu_freq == NULL) || (src->cpu_freq == NULL))
+        return;
+    memcpy(dst->cpu_freq, src->cpu_freq, sizeof(ulong) * MAX_CPUS_SUPPORTED);
+    if ((dst->imc_freq == NULL) || (src->imc_freq == NULL))
+        return;
+    memcpy(dst->imc_freq, src->imc_freq, MAX_SOCKETS_SUPPORTED * IMC_VAL * sizeof(ulong));
 #if USE_GPUS
-  memcpy(dst->gpu_freq, src->gpu_freq, MAX_GPUS_SUPPORTED * sizeof(ulong));
-  memcpy(dst->gpu_mem_freq, src->gpu_mem_freq, MAX_GPUS_SUPPORTED * sizeof(ulong));
+    memcpy(dst->gpu_freq, src->gpu_freq, MAX_GPUS_SUPPORTED * sizeof(ulong));
+    memcpy(dst->gpu_mem_freq, src->gpu_mem_freq, MAX_GPUS_SUPPORTED * sizeof(ulong));
 #endif
 }
 
 state_t set_all_cores(ulong *freqs, int len, ulong freq_val)
 {
-  verbose_master(3, "Setting %lu freq. value to %d cores...", freq_val, len);
-  for (int i = 0; i < len; i++)
-  {
-    freqs[i] = freq_val;
-  }
-  return EAR_SUCCESS;
+    verbose_master(3, "Setting %lu freq. value to %d cores...", freq_val, len);
+    for (int i = 0; i < len; i++) {
+        freqs[i] = freq_val;
+    }
+    return EAR_SUCCESS;
 }
 
 state_t copy_cpufreq_sel(ulong *to, ulong *from, size_t size)
 {
-  memcpy(to, from, size);
-  return EAR_SUCCESS;
+    memcpy(to, from, size);
+    return EAR_SUCCESS;
 }
 
 ulong node_freqs_avgcpufreq(ulong *f)
 {
-  ulong ftotal = 0;
-  ulong ctotal = 0;
-  ulong flocal;
-  ulong ccount = ccount = arch_desc.top.cpu_count;
-  for (uint p = 0; p < lib_shared_region->num_processes; p++)
-  {
-    flocal = f[p];
-    cpu_set_t m = sig_shared_region[p].cpu_mask;
-    for (uint i = 0; i < ccount; i++)
-    {
-      if (CPU_ISSET(i, &m))
-      {
-        // verbosen_master(2,"cpu[%d]=%lu ",i,flocal);
-        ctotal++;
-        ftotal += flocal;
-      }
+    ulong ftotal = 0;
+    ulong ctotal = 0;
+    ulong flocal;
+    ulong ccount = ccount = arch_desc.top.cpu_count;
+    for (uint p = 0; p < lib_shared_region->num_processes; p++) {
+        flocal      = f[p];
+        cpu_set_t m = sig_shared_region[p].cpu_mask;
+        for (uint i = 0; i < ccount; i++) {
+            if (CPU_ISSET(i, &m)) {
+                // verbosen_master(2,"cpu[%d]=%lu ",i,flocal);
+                ctotal++;
+                ftotal += flocal;
+            }
+        }
     }
-  }
-  // verbose_master(2,"Computing a total of %lu cpus and f = %lu, avg %lu",ctotal,ftotal, ftotal/ctotal);
-  return ftotal / ctotal;
+    // verbose_master(2,"Computing a total of %lu cpus and f = %lu, avg %lu",ctotal,ftotal, ftotal/ctotal);
+    return ftotal / ctotal;
 }
+
 /*
  *   ulong *cpu_freq;
  *     ulong *imc_freq;
@@ -517,44 +499,43 @@ ulong node_freqs_avgcpufreq(ulong *f)
 
 static uint node_dom_freqs_are_diff(ulong *v1, ulong *v2, uint l)
 {
-  uint i = 0;
-  while ((i < l) && (v1[i] == v2[i]))
-    i++;
-  if (i < l)
-    return 1;
-  return 0;
+    uint i = 0;
+    while ((i < l) && (v1[i] == v2[i]))
+        i++;
+    if (i < l)
+        return 1;
+    return 0;
 }
 
 uint node_freqs_are_diff(uint flag, node_freqs_t *nf1, node_freqs_t *nf2)
 {
-  switch (flag)
-  {
-  case DOM_CPU:
-    return node_dom_freqs_are_diff(nf1->cpu_freq, nf2->cpu_freq, MAX_CPUS_SUPPORTED);
-    break;
-  case DOM_MEM:
-    return node_dom_freqs_are_diff(nf1->imc_freq, nf2->imc_freq, MAX_SOCKETS_SUPPORTED);
-    break;
+    switch (flag) {
+        case DOM_CPU:
+            return node_dom_freqs_are_diff(nf1->cpu_freq, nf2->cpu_freq, MAX_CPUS_SUPPORTED);
+            break;
+        case DOM_MEM:
+            return node_dom_freqs_are_diff(nf1->imc_freq, nf2->imc_freq, MAX_SOCKETS_SUPPORTED);
+            break;
 #if USE_GPUS
-  case DOM_GPU:
-    return 1;
-    break;
-  case DOM_GPU_MEM:
-    return 0;
-    break;
+        case DOM_GPU:
+            return 1;
+            break;
+        case DOM_GPU_MEM:
+            return 0;
+            break;
 #endif
-  default:
+        default:
+            return 0;
+    }
     return 0;
-  }
-  return 0;
 }
 
 ulong avg_to_khz(ulong freq_khz)
 {
-  ulong newf;
-  float ff;
+    ulong newf;
+    float ff;
 
-  ff = roundf((float)freq_khz / 100000.0);
-  newf = (ulong)((ff / 10.0) * 1000000);
-  return newf;
+    ff   = roundf((float) freq_khz / 100000.0);
+    newf = (ulong) ((ff / 10.0) * 1000000);
+    return newf;
 }

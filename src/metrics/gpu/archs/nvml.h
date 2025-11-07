@@ -30,4 +30,4 @@ state_t gpu_nvml_read(ctx_t *c, gpu_t *data);
 /* Reads the data directly from the GPU API (not preprocessed data). */
 state_t gpu_nvml_read_raw(ctx_t *c, gpu_t *data);
 
-#endif //METRICS_GPU_NVML_H
+#endif // METRICS_GPU_NVML_H

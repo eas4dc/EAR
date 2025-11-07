@@ -10,18 +10,16 @@
 
 #ifndef MODEL_API_H
 #define MODEL_API_H
+#include <common/hardware/architecture.h>
 #include <common/states.h>
 #include <common/types/signature.h>
-#include <common/hardware/architecture.h>
-
 
 /* This function loads any information needed by the energy model */
-state_t model_init(char *etc,char *tmp,architecture_t * arch_desc);
+state_t model_init(char *etc, char *tmp, architecture_t *arch_desc);
 
-state_t model_project_time(signature_t *sign,ulong from,ulong to,double *ptime);
+state_t model_project_time(signature_t *sign, ulong from, ulong to, double *ptime);
 
-state_t model_project_power(signature_t *sign, ulong from,ulong to,double *ppower);
+state_t model_project_power(signature_t *sign, ulong from, ulong to, double *ppower);
 
-state_t model_projection_available(ulong from,ulong to);
+state_t model_projection_available(ulong from, ulong to);
 #endif
-

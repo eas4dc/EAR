@@ -13,10 +13,10 @@
 
 #include <signal.h>
 
-#define edb_error(...) \
-	print_line(0); \
-	verbose(0, "ERROR, " __VA_ARGS__); \
-	error_handler();
+#define edb_error(...)                                                                                                 \
+    print_line(0);                                                                                                     \
+    verbose(0, "ERROR, " __VA_ARGS__);                                                                                 \
+    error_handler();
 
 void log_handler(cluster_conf_t *conf_clus, uint close_previous);
 
@@ -24,4 +24,4 @@ void signal_handler(int signal, siginfo_t *info, void *context);
 
 void error_handler();
 
-#endif //EAR_EARDBD_SIGNALS_H
+#endif // EAR_EARDBD_SIGNALS_H

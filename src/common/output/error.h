@@ -11,16 +11,16 @@
 #ifndef EAR_ERROR_H
 #define EAR_ERROR_H
 
+#include <common/colors.h>
+#include <common/output/log.h>
+#include <common/output/output_conf.h>
+#include <common/output/timestamp.h>
 #include <stdio.h>
 #include <string.h>
 #include <syslog.h>
-#include <common/colors.h>
-#include <common/output/log.h>
-#include <common/output/timestamp.h>
-#include <common/output/output_conf.h>
 
-int error_channel	__attribute__((weak)) = 2;
-int error_enabled	__attribute__((weak)) = 1;
+int error_channel __attribute__((weak)) = 2;
+int error_enabled __attribute__((weak)) = 1;
 
 // Set
 #define ERROR_SET_FD(fd) error_channel = fd;
@@ -28,19 +28,18 @@ int error_enabled	__attribute__((weak)) = 1;
 
 //
 #if SHOW_ERRORS
-#define error(...) \
-	if (error_enabled) \
-	{ \
-		if (!log_bypass) { \
-			timestamp(error_channel); \
-			dprintf(error_channel, COL_RED "Error:" COL_CLR " " __VA_ARGS__); \
-			dprintf(error_channel, "\n"); \
-		} else { \
-			vlog(__VA_ARGS__); \
-		} \
-	}
+#define error(...)                                                                                                     \
+    if (error_enabled) {                                                                                               \
+        if (!log_bypass) {                                                                                             \
+            timestamp(error_channel);                                                                                  \
+            dprintf(error_channel, COL_RED "Error:" COL_CLR " " __VA_ARGS__);                                          \
+            dprintf(error_channel, "\n");                                                                              \
+        } else {                                                                                                       \
+            vlog(__VA_ARGS__);                                                                                         \
+        }                                                                                                              \
+    }
 #else
 #define error(...)
 #endif
 
-#endif //EAR_ERROR_H
+#endif // EAR_ERROR_H

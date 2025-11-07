@@ -8,10 +8,8 @@
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
 
-
 #ifndef _DCGMI_LIB_H_
 #define _DCGMI_LIB_H_
-
 
 #include <common/states.h>
 #include <common/types.h>
@@ -29,66 +27,53 @@
 // in the set that a particular event belongs to.
 #define event_info_pos 1
 
-
 /** A signature type which contains GPU gpuprof metrics. */
-typedef struct dcgmi_sig
-{
-	uint			set_cnt;								/**< The total number of sets. */
-	uint			gpu_cnt;								/**< The number of GPUs supported by DCGMI module. */
-	uint			*set_instances_cnt;			/**< The number of instances for each set. */
-	float			*gpu_gflops;						/**< The GFLOPS rate for each GPU. */
-	gpuprof_t	**event_metrics_sets;		/**< For each set, and for each GPU, the event metrics list. */
+typedef struct dcgmi_sig {
+    uint set_cnt;                   /**< The total number of sets. */
+    uint gpu_cnt;                   /**< The number of GPUs supported by DCGMI module. */
+    uint *set_instances_cnt;        /**< The number of instances for each set. */
+    float *gpu_gflops;              /**< The GFLOPS rate for each GPU. */
+    gpuprof_t **event_metrics_sets; /**< For each set, and for each GPU, the event metrics list. */
 } dcgmi_sig_t;
 
-typedef enum dcgm_event_id
-{
-	gr_engine_active,
-	sm_active,
-	sm_occupancy,
-	tensor_active,
-	dram_active,
-	fp64_active,
-	fp32_active,
-	fp16_active,
-	pcie_tx_bytes,
-	pcie_rx_bytes,
-	nvlink_tx_bytes,
-	nvlink_rx_bytes,
-	event_id_max // error control
+typedef enum dcgm_event_id {
+    gr_engine_active,
+    sm_active,
+    sm_occupancy,
+    tensor_active,
+    dram_active,
+    fp64_active,
+    fp32_active,
+    fp16_active,
+    pcie_tx_bytes,
+    pcie_rx_bytes,
+    nvlink_tx_bytes,
+    nvlink_rx_bytes,
+    event_id_max // error control
 } dcgm_event_idx_t;
-
 
 /** Loads this module. */
 state_t dcgmi_lib_load();
 
-
 /** Returns whether this module is enabled. */
 uint dcgmi_lib_is_enabled();
 
-
 // TODO: An analogous dispose should be implemented.
 void dcgmi_lib_dcgmi_sig_init(dcgmi_sig_t *dcgmi_sig);
-
 
 /** Fills \p buffer with a semi-colon separated header
  *	of the DCGMI data capable to report this module. */
 state_t dcgmi_lib_dcgmi_sig_csv_header(char *buffer, size_t buff_size);
 
-
 state_t dcgmi_lib_dcgmi_sig_to_csv(dcgmi_sig_t *dcgmi_sig, char *buffer, size_t buff_size);
-
 
 state_t dcgmi_lib_get_current_metrics(dcgmi_sig_t *dcgmi_sig);
 
-
 state_t dcgmi_lib_get_global_metrics(dcgmi_sig_t *dcgmi_sig);
-
 
 void dcgmi_lib_reset_instances(dcgmi_sig_t *dcgmi_sig);
 
-
 void dcgmi_lib_compute_gpu_gflops(dcgmi_sig_t *dcgmi_sig, signature_t *metrics);
-
 
 /** Fills memory pointed by \ref event_info_dst with the
  * set and position indices that \ref event_id belongs to.
@@ -108,7 +93,6 @@ void dcgmi_lib_compute_gpu_gflops(dcgmi_sig_t *dcgmi_sig, signature_t *metrics);
  * \return EAR_SUCCESS Otherwise.
  */
 state_t dcgmi_lib_get_event_info(dcgm_event_idx_t event_id, int (*event_info_dst)[2]);
-
 
 float gflops_cycle(dcgmi_sig_t *dcgmi_sig, uint gpu_idx);
 

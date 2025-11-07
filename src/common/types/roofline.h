@@ -18,14 +18,13 @@
 #ifndef _EAR_TYPES_ROOFLINE
 #define _EAR_TYPES_ROOFLINE
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <common/config.h>
 #include <common/states.h>
 #include <common/types/generic.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-typedef struct roofline
-{
+typedef struct roofline {
     double peak_bandwidth;
     double peak_gflops;
     double threshold;

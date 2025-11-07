@@ -9,7 +9,7 @@
  **************************************************************************/
 
 #define _GNU_SOURCE
-#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <assert.h>
 #include <errno.h>
@@ -474,7 +474,11 @@ state_t pmgt_init()
     char *obj_path = ear_getenv(EAR_POWERCAP_POLICY_NODE);
     if (obj_path == NULL) {
         /* Plugin per domain node defined */
-        if (strcmp(DEFAULT_PC_PLUGIN_NAME_NODE, "noplugin")) {
+        obj_path = my_node_conf->powercap_node_plugin;
+        if (obj_path != NULL && strlen(obj_path) > 1) {
+            sprintf(basic_path, "%s/powercap/%s", my_cluster_conf.install.dir_plug, obj_path);
+            obj_path = basic_path;
+        } else if (strcmp(DEFAULT_PC_PLUGIN_NAME_NODE, "noplugin")) {
             sprintf(basic_path, "%s/powercap/%s.so", my_cluster_conf.install.dir_plug, DEFAULT_PC_PLUGIN_NAME_NODE);
             obj_path = basic_path;
         }

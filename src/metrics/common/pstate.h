@@ -12,16 +12,16 @@
 #define METRICS_COMMON_PSTATE_H
 
 #define _GNU_SOURCE
-#include <sched.h>
-#include <common/types.h>
 #include <common/states.h>
+#include <common/types.h>
+#include <sched.h>
 
-#define ps_nothing (uint) -1
-#define ps_auto    (uint) -2
+#define ps_nothing (uint) - 1
+#define ps_auto    (uint) - 2
 
 typedef struct pstate_s {
-	uint   idx; // P_STATE index
-	ullong khz; // P_STATE frequency (in KHz)
+    uint idx;   // P_STATE index
+    ullong khz; // P_STATE frequency (in KHz)
 } pstate_t;
 
 #define MODE_UPPER 1
@@ -42,4 +42,4 @@ void pstate_print(pstate_t *pstate_list, uint pstate_count, int fd);
 
 char *pstate_tostr(pstate_t *pstate_list, uint pstate_count, char *buffer, int length);
 
-#endif //METRICS_COMMON_PSTATE_H
+#endif // METRICS_COMMON_PSTATE_H

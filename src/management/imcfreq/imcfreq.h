@@ -11,11 +11,11 @@
 #ifndef MANAGEMENT_IMCFREQ_H
 #define MANAGEMENT_IMCFREQ_H
 
-#include <common/types.h>
-#include <common/states.h>
-#include <common/plugins.h>
-#include <common/types/configuration/cluster_conf.h>
 #include <common/hardware/topology.h>
+#include <common/plugins.h>
+#include <common/states.h>
+#include <common/types.h>
+#include <common/types/configuration/cluster_conf.h>
 #include <metrics/common/pstate.h>
 
 // The API
@@ -42,19 +42,18 @@
 
 #define all_sockets all_devs
 
-typedef struct mgt_imcfreq_ops_s
-{
-	state_t (*init)               (ctx_t *c);
-	state_t (*dispose)            (ctx_t *c);
-	state_t (*count_devices)      (ctx_t *c, uint *devs_count);
-	state_t (*get_available_list) (ctx_t *c, const pstate_t **pstate_list, uint *pstate_count);
-	state_t (*get_current_list)   (ctx_t *c, pstate_t *pstate_list);
-	state_t (*set_current_list)   (ctx_t *c, uint *index_list);
-	state_t (*set_current)        (ctx_t *c, uint pstate_index, int socket);
-	state_t (*set_auto)           (ctx_t *c);
-	state_t (*get_current_ranged_list) (ctx_t *c, pstate_t *ps_max_list, pstate_t *ps_min_list);
-	state_t (*set_current_ranged_list) (ctx_t *c, uint *id_max_list, uint *id_min_list);
-	state_t (*data_alloc)         (pstate_t **pstate_list, uint **index_list);
+typedef struct mgt_imcfreq_ops_s {
+    state_t (*init)(ctx_t *c);
+    state_t (*dispose)(ctx_t *c);
+    state_t (*count_devices)(ctx_t *c, uint *devs_count);
+    state_t (*get_available_list)(ctx_t *c, const pstate_t **pstate_list, uint *pstate_count);
+    state_t (*get_current_list)(ctx_t *c, pstate_t *pstate_list);
+    state_t (*set_current_list)(ctx_t *c, uint *index_list);
+    state_t (*set_current)(ctx_t *c, uint pstate_index, int socket);
+    state_t (*set_auto)(ctx_t *c);
+    state_t (*get_current_ranged_list)(ctx_t *c, pstate_t *ps_max_list, pstate_t *ps_min_list);
+    state_t (*set_current_ranged_list)(ctx_t *c, uint *id_max_list, uint *id_min_list);
+    state_t (*data_alloc)(pstate_t **pstate_list, uint **index_list);
 } mgt_imcfreq_ops_t;
 
 /** */
@@ -88,4 +87,4 @@ void mgt_imcfreq_data_print(pstate_t *ps_list, uint ps_count, int fd);
 /** */
 char *mgt_imcfreq_data_tostr(pstate_t *ps_list, uint ps_count, char *buffer, int length);
 
-#endif //MANAGEMENT_IMCFREQ_H
+#endif // MANAGEMENT_IMCFREQ_H

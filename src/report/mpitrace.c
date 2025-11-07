@@ -8,13 +8,11 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
-
-#include <common/includes.h>
 #include <common/config.h>
+#include <common/includes.h>
 
-#include <library/metrics/metrics.h>
 #include <library/common/library_shared_data.h>
+#include <library/metrics/metrics.h>
 
 #include <report/report.h>
 
@@ -70,28 +68,25 @@ static state_t append_data(report_id_t *id, shsignature_t *data)
         return EAR_ERROR;
     }
 
-
     if (!report_file_created) {
         char header[] = "JOBID;STEPID;NODENAME;L_RANK;G_RANK;MPI_CALLS;TIME_USECS;TIME_MPI;"
-            "BLOCK;T_BLOCK;SYNC;T_SYNC;COLLEC;T_COLLEC;GFLOPS;CPI;L3_MISS;GBS";
-        if (fprintf(fd, "%s\n", header) < 0)
-        {
+                        "BLOCK;T_BLOCK;SYNC;T_SYNC;COLLEC;T_COLLEC;GFLOPS;CPI;L3_MISS;GBS";
+        if (fprintf(fd, "%s\n", header) < 0) {
             fclose(fd);
             return EAR_ERROR;
         }
         report_file_created = 1;
     }
 
-    mpi_information_t *mpi_info = &data->mpi_info;
+    mpi_information_t *mpi_info  = &data->mpi_info;
     mpi_calls_types_t *mpi_types = &data->mpi_types_info;
-    ssig_t            *sig       = &data->sig;
+    ssig_t *sig                  = &data->sig;
 
-    fprintf(fd, "%s;%d;%s;%d;%d;%llu;%llu;%llu;%lu;%lu;%lu;%lu;%lu;%lu;%f;%f;%llu;%f\n",
-            jobid, 0, nodename, id->local_rank, id->global_rank,
-            mpi_info->total_mpi_calls, mpi_info->exec_time, mpi_info->mpi_time,
-            mpi_types->mpi_block_call_cnt, mpi_types->mpi_block_call_time,
-            mpi_types->mpi_sync_call_cnt, mpi_types->mpi_sync_call_time, mpi_types->mpi_collec_call_cnt,
-            mpi_types->mpi_collec_call_time, sig->Gflops, sig->CPI, sig->L3_misses,sig->GBS);
+    fprintf(fd, "%s;%d;%s;%d;%d;%llu;%llu;%llu;%lu;%lu;%lu;%lu;%lu;%lu;%f;%f;%llu;%f\n", jobid, 0, nodename,
+            id->local_rank, id->global_rank, mpi_info->total_mpi_calls, mpi_info->exec_time, mpi_info->mpi_time,
+            mpi_types->mpi_block_call_cnt, mpi_types->mpi_block_call_time, mpi_types->mpi_sync_call_cnt,
+            mpi_types->mpi_sync_call_time, mpi_types->mpi_collec_call_cnt, mpi_types->mpi_collec_call_time, sig->Gflops,
+            sig->CPI, sig->L3_misses, sig->GBS);
 
     fclose(fd);
 

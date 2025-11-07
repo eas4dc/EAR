@@ -11,14 +11,14 @@
 #ifndef _EAR_GLOBAL_H
 #define _EAR_GLOBAL_H
 
-#include <common/sizes.h>
-#include <common/types/loop.h>
-#include <common/system/time.h>
 #include <common/hardware/architecture.h>
+#include <common/sizes.h>
+#include <common/system/time.h>
 #include <common/types/application.h>
+#include <common/types/loop.h>
+#include <daemon/shared_configuration.h>
 #include <library/common/global_comm.h>
 #include <library/common/library_shared_data.h>
-#include <daemon/shared_configuration.h>
 
 extern application_t application;
 extern settings_conf_t *system_conf;
@@ -26,7 +26,6 @@ extern resched_t *resched_conf;
 extern char system_conf_path[SZ_PATH];
 extern char resched_conf_path[SZ_PATH];
 extern char node_name[SZ_NAME_MEDIUM];
-
 
 extern char loop_summary_path[SZ_PATH];
 extern char app_summary_path[SZ_PATH];
@@ -42,7 +41,7 @@ extern int ear_use_turbo;
 extern int ear_whole_app;
 extern int ear_my_rank;
 extern int eard_ok;
-//extern int my_master_rank;
+// extern int my_master_rank;
 extern int my_job_id;
 extern int my_step_id;
 extern char my_account[GENERIC_NAME];
@@ -64,7 +63,6 @@ extern masters_info_t masters_info;
 extern cpu_set_t ear_process_mask;
 extern int ear_affinity_is_set;
 extern architecture_t arch_desc;
-
 
 extern uint sh_sig_per_node;
 extern uint sh_sig_per_proces;

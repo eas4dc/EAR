@@ -11,11 +11,11 @@
 #ifndef COMMON_STRING_ENHANCED_H
 #define COMMON_STRING_ENHANCED_H
 
-#include <getopt.h>
 #include <common/utils/strtable.h>
+#include <getopt.h>
 
 /** Cleans the character pointed by 'chr', adding an '\0' in its position. */
-char* strclean(char *string, char chr);
+char *strclean(char *string, char chr);
 
 /** Converts a string to lower case. */
 char *strtolow(char *string);
@@ -32,7 +32,14 @@ int strinargs(int argc, char *argv[], const char *opt, char *value);
 /** Removes characters c from string s. */
 void remove_chars(char *s, char c);
 
+/** Removes any character found in removable from string s. */
+void remove_chars_list(char *s, char *removable);
+
 /** Parses src into a list of char* elements with n num_elements separated by separator in src. */
 void str_cut_list(char *src, char ***elements, int *num_elements, char *separator);
+
+/** Replaces all the occurences of old_char in *string by new_char.
+ * For example, replace_char("hello world", 'l', 'm') generates "hemmo wormd". */
+void replace_char(char *string, char old_char, char new_char);
 
 #endif

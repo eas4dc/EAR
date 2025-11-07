@@ -11,8 +11,8 @@
 #ifndef EAR_EARDBD_API_H
 #define EAR_EARDBD_API_H
 
-#include <common/types/types.h>
 #include <common/system/sockets.h>
+#include <common/types/types.h>
 #include <database_cache/eardbd.h>
 
 /** Tests the state of an EARDBD process in a specific node. */
@@ -32,4 +32,4 @@ state_t eardbd_send_loop(loop_t *loop);
 
 state_t eardbd_send_event(ear_event_t *eve);
 
-#endif //EAR_EARDBD_API_H
+#endif // EAR_EARDBD_API_H

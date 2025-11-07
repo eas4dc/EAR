@@ -8,40 +8,44 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <stdlib.h>
+#include <common/hardware/bithack.h>
+#include <common/math_operations.h>
 #include <common/output/debug.h>
 #include <common/system/monitor.h>
-#include <common/math_operations.h>
-#include <common/hardware/bithack.h>
-#include <metrics/common/msr.h>
 #include <metrics/bandwidth/archs/amd17df.h>
+#include <metrics/common/msr.h>
+#include <stdlib.h>
 
 // In a 32 cores and 64 threads CPU (ZEN3@7773X):
 // 007:047 are excited by CPUs 00-15
 // 087:0c7 are excited by CPUs 16-31
 // 107:147 are excited by CPUs 32-47
 // 187:1c7 are excited by CPUs 48-63
-static topology_t      tp;
-static uint            devs_count;
-static bwidth_t       *pool;
-static suscription_t  *sus;
-static uint            imcs[8];
-static off_t           ctls[4] = { 0xc0010240, 0xc0010242, 0xc0010244, 0xc0010246 };
-static off_t           ctrs[4] = { 0xc0010241, 0xc0010243, 0xc0010245, 0xc0010247 };
-static ullong          cmds[8] = { 0x0000000000403807, 0x0000000000403887, 0x0000000100403807, 0x0000000100403887,
-                                   0x0000000000403847, 0x00000000004038c7, 0x0000000100403847, 0x00000001004038c7 };
+static topology_t     tp;
+static uint           devs_count;
+static bwidth_t      *pool;
+static suscription_t *sus;
+static uint           imcs[8];
+static off_t          ctls[4] = { 0xc0010240, 0xc0010242, 0xc0010244, 0xc0010246 }; // DF_PERF_CTL
+static off_t          ctrs[4] = { 0xc0010241, 0xc0010243, 0xc0010245, 0xc0010247 }; // DF_PERF_CTR
+static ullong         cmds[8] = { 0x0000000000403807, 0x0000000000403887, // F17 M31
+                                  0x0000000100403807, 0x0000000100403887, // Pending for ZEN3/4/5
+                                  0x0000000000403847, 0x00000000004038c7,
+                                  0x0000000100403847, 0x00000001004038c7 };
 
 BWIDTH_F_LOAD(bwidth_amd17df_load)
 {
     int i;
-    if (tpo->vendor != VENDOR_AMD || tpo->family < FAMILY_ZEN) {
-	    debug("%s", Generr.api_incompatible);
+    // If not ZEN, ZEN+ and ZEN2, return. ZEN 3 have the registers but different
+    // formats and this class have to be updated to be compatible.
+    if (tpo->vendor != VENDOR_AMD || tpo->family != FAMILY_ZEN) {
+        debug("%s", Generr.api_incompatible);
         return_msg(, Generr.api_incompatible);
     }
     if (state_fail(msr_test(tpo, MSR_WR))) {
-	    debug("msr_test(): %s", state_msg);
+        debug("msr_test(): %s", state_msg);
         return;
     }
     // Getting the L3 groups
@@ -51,17 +55,15 @@ BWIDTH_F_LOAD(bwidth_amd17df_load)
     debug("CPUS %d", tp.cpu_count);
     // Saving numbers and allocating
     for (i = 0; i < 8; ++i) {
-        imcs[i] = (getbits64(cmds[i], 60, 59) <<  6) |
-                  (getbits64(cmds[i], 35, 32) <<  2) |
-                  (getbits64(cmds[i],  7,  6)      );
+        imcs[i] = (getbits64(cmds[i], 60, 59) << 6) | (getbits64(cmds[i], 35, 32) << 2) | (getbits64(cmds[i], 7, 6));
     }
     devs_count = tp.cpu_count * 4;
-    pool = calloc(devs_count+1, sizeof(bwidth_t));
+    pool       = calloc(devs_count + 1, sizeof(bwidth_t));
     //
     apis_put(ops->get_info, bwidth_amd17df_get_info);
-    apis_put(ops->init,     bwidth_amd17df_init);
-    apis_put(ops->dispose,  bwidth_amd17df_dispose);
-    apis_put(ops->read,     bwidth_amd17df_read);
+    apis_put(ops->init    , bwidth_amd17df_init);
+    apis_put(ops->dispose , bwidth_amd17df_dispose);
+    apis_put(ops->read    , bwidth_amd17df_read);
     debug("Loaded AMD17DF");
 }
 
@@ -70,7 +72,7 @@ BWIDTH_F_GET_INFO(bwidth_amd17df_get_info)
     info->api         = API_AMD17;
     info->scope       = SCOPE_NODE;
     info->granularity = GRANULARITY_IMC;
-    info->devs_count  = devs_count+1;
+    info->devs_count  = devs_count + 1;
 }
 
 static state_t multiplex(void *something)
@@ -83,8 +85,7 @@ static state_t multiplex(void *something)
     // Flip-flopping the controllers and cleaning the counters
     for (sock = 0; sock < tp.cpu_count; ++sock) {
         for (i = 0, j = flip * 4; i < 4; ++i, ++j) {
-            debug("SOCK%d_REG%d: multiplexing to IMC%d 0x%09llx)",
-                sock, i, imcs[j], cmds[j]);
+            debug("SOCK%d_REG%d: multiplexing to IMC%d 0x%09llx)", sock, i, imcs[j], cmds[j]);
             msr_write(tp.cpus[sock].id, (void *) &cmds[j], sizeof(ullong), ctls[i]);
         }
     }
@@ -146,7 +147,7 @@ BWIDTH_F_READ(bwidth_amd17df_read)
             // We are not cleaning the register, because although we are
             // setting another event when multiplexing, the value remains
             // in the counter, then the following = is the correct operator.
-            bws[(sock*4)+i].cas = value;
+            bws[(sock * 4) + i].cas = value;
         }
     }
     return EAR_SUCCESS;

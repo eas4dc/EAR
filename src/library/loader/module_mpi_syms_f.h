@@ -13,8 +13,7 @@
 
 #define MPIF_N 93
 
-const char *mpif_names[] __attribute__((weak, visibility("hidden"))) =
-{
+const char *mpif_names[] __attribute__((weak, visibility("hidden"))) = {
     "mpi_allgather",
     "mpi_allgatherv",
     "mpi_allreduce",
@@ -94,7 +93,7 @@ const char *mpif_names[] __attribute__((weak, visibility("hidden"))) =
     "mpi_win_post",
     "mpi_win_start",
     "mpi_win_wait"
-    //#if MPI_VERSION >= 3
+    // #if MPI_VERSION >= 3
     ,
     "mpi_iallgather",
     "mpi_iallgatherv",
@@ -110,11 +109,10 @@ const char *mpif_names[] __attribute__((weak, visibility("hidden"))) =
     "mpi_iscan",
     "mpi_iscatter",
     "mpi_iscatterv"
-    //#endif
+    // #endif
 };
 
-const char *mpif_names_[] __attribute__((weak, visibility("hidden"))) =
-{
+const char *mpif_names_[] __attribute__((weak, visibility("hidden"))) = {
     "mpi_allgather_",
     "mpi_allgatherv_",
     "mpi_allreduce_",
@@ -194,7 +192,7 @@ const char *mpif_names_[] __attribute__((weak, visibility("hidden"))) =
     "mpi_win_post_",
     "mpi_win_start_",
     "mpi_win_wait"
-    //#if MPI_VERSION >= 3
+    // #if MPI_VERSION >= 3
     ,
     "mpi_iallgather_",
     "mpi_iallgatherv_",
@@ -210,7 +208,7 @@ const char *mpif_names_[] __attribute__((weak, visibility("hidden"))) =
     "mpi_iscan_",
     "mpi_iscatter_",
     "mpi_iscatterv_"
-    //#endif
+    // #endif
 };
 
-#endif //LIBRARY_LOADER_MPIF_H
+#endif // LIBRARY_LOADER_MPIF_H

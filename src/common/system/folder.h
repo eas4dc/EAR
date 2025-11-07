@@ -11,14 +11,14 @@
 #ifndef EAR_PRIVATE_FOLDER_H
 #define EAR_PRIVATE_FOLDER_H
 
-#include <dirent.h>
-#include <sys/types.h>
 #include <common/sizes.h>
 #include <common/states.h>
+#include <dirent.h>
+#include <sys/types.h>
 
 typedef struct folder {
-	char file_name[SZ_NAME_LARGE];
-	DIR *dir;
+    char file_name[SZ_NAME_LARGE];
+    DIR *dir;
 } folder_t;
 
 state_t folder_open(folder_t *folder, char *path);
@@ -36,4 +36,4 @@ state_t folder_remove(char *path);
 
 state_t folder_rename(char *oldp, char *newp);
 
-#endif //EAR_PRIVATE_FOLDER_H
+#endif // EAR_PRIVATE_FOLDER_H

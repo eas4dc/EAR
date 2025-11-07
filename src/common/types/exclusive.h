@@ -11,4 +11,4 @@
 #ifndef EAR_EXCLUSIVE_H
 #define EAR_EXCLUSIVE_H
 
-#endif //EAR_EXCLUSIVE_H
+#endif // EAR_EXCLUSIVE_H

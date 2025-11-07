@@ -11,11 +11,14 @@
 #ifndef LIBRARY_LOADER_MPI_H
 #define LIBRARY_LOADER_MPI_H
 
-int module_mpi(char *path_lib_so, char *libhack);
+#include <library/loader/loader.h>
 
-int load_mpi_and_ear(char *libmpi_path);
+int load_libear_mpi();
 
-void module_mpi_destructor();
+int load_libear_mpi_given_libmpi(char *libmpi_path);
+
+// 'module' names are obsolete. It doesn't reflect the module where it belongs,
+// in this case the loader.
 
 // It returns if MPI is detected.
 int module_mpi_is_enabled();
@@ -23,4 +26,4 @@ int module_mpi_is_enabled();
 // It returns if the MPI version is OpenMPI.
 int module_mpi_is_open();
 
-#endif //LIBRARY_LOADER_MPI_H
+#endif // LIBRARY_LOADER_MPI_H

@@ -15,23 +15,19 @@
 #include <common/states.h>
 #include <common/types/generic.h>
 
-
-typedef struct energy_tag
-{
-	char tag[USER];
-	uint p_state;
-	char **users;
-	uint num_users;
-	char **groups;
-	uint num_groups;
-	char **accounts;
-	uint num_accounts;
+typedef struct energy_tag {
+    char tag[USER];
+    uint p_state;
+    char **users;
+    uint num_users;
+    char **groups;
+    uint num_groups;
+    char **accounts;
+    uint num_accounts;
 } energy_tag_t;
 
-
 state_t ETAG_token(char *token);
-state_t ETAG_parse_token(unsigned int *num_etagsp, energy_tag_t **e_tagsl,char *line);
+state_t ETAG_parse_token(unsigned int *num_etagsp, energy_tag_t **e_tagsl, char *line);
 void print_energy_tag(energy_tag_t *etag);
-
 
 #endif

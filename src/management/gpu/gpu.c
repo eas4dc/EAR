@@ -8,19 +8,19 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 #include <common/output/debug.h>
-#include <management/gpu/gpu.h>
-#include <management/gpu/archs/eard.h>
-#include <management/gpu/archs/nvml.h>
 #include <management/gpu/archs/dummy.h>
-#include <management/gpu/archs/oneapi.h>
+#include <management/gpu/archs/eard.h>
 #include <management/gpu/archs/mgt_pvc_power_hwmon.h>
+#include <management/gpu/archs/nvml.h>
+#include <management/gpu/archs/oneapi.h>
 #include <management/gpu/archs/rsmi.h>
+#include <management/gpu/gpu.h>
 
 #ifndef USE_PVC_HWMON
 #warning "USE_PVC_HWMON not defined! Defining it to 0..."
@@ -28,27 +28,32 @@
 #endif
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static mgt_gpu_ops_t   ops;
-static uint            loaded;
-static ulong          *generic_list;
-static uint            devs_count;
+static mgt_gpu_ops_t ops;
+static uint loaded;
+static ulong *generic_list;
+static uint devs_count;
 
 __attribute__((used)) void mgt_gpu_load(int force_api)
 {
-    while (pthread_mutex_trylock(&lock));
+    while (pthread_mutex_trylock(&lock))
+        ;
     if (loaded) {
         goto unlock_load;
+    }
+    if (API_IS(force_api, API_DUMMY)) {
+        goto dummy;
     }
     // NVML and ONEAPI can be partially loaded.
     // EARD then can be partially loaded.
     mgt_gpu_nvml_load(&ops);
     mgt_gpu_rsmi_load(&ops);
-		if (USE_PVC_HWMON) {
-			mgt_gpu_pvc_hwmon_load(&ops);
-		} else {
-			mgt_gpu_oneapi_load(&ops);
-		}
+    if (USE_PVC_HWMON) {
+        mgt_gpu_pvc_hwmon_load(&ops);
+    } else {
+        mgt_gpu_oneapi_load(&ops);
+    }
     mgt_gpu_eard_load(&ops, API_IS(force_api, API_EARD));
+dummy:
     mgt_gpu_dummy_load(&ops);
     loaded = 1;
 unlock_load:
@@ -76,32 +81,32 @@ __attribute__((used)) state_t mgt_gpu_dispose(ctx_t *c)
 
 state_t mgt_gpu_get_devices(ctx_t *c, gpu_devs_t **devs, uint *devs_count)
 {
-    preturn (ops.get_devices, c, devs, devs_count);
+    preturn(ops.get_devices, c, devs, devs_count);
 }
 
 __attribute__((used)) state_t mgt_gpu_count_devices(ctx_t *c, uint *dev_count)
 {
-	preturn (ops.count_devices, c, dev_count);
+    preturn(ops.count_devices, c, dev_count);
 }
 
 state_t mgt_gpu_freq_limit_get_current(ctx_t *c, ulong *khz)
 {
-	preturn (ops.freq_limit_get_current, c, khz);
+    preturn(ops.freq_limit_get_current, c, khz);
 }
 
 state_t mgt_gpu_freq_limit_get_default(ctx_t *c, ulong *khz)
 {
-	preturn (ops.freq_limit_get_default, c, khz);
+    preturn(ops.freq_limit_get_default, c, khz);
 }
 
 state_t mgt_gpu_freq_limit_get_max(ctx_t *c, ulong *khz)
 {
-	preturn (ops.freq_limit_get_max, c, khz);
+    preturn(ops.freq_limit_get_max, c, khz);
 }
 
 state_t mgt_gpu_freq_limit_reset(ctx_t *c)
 {
-	preturn (ops.freq_limit_reset, c);
+    preturn(ops.freq_limit_reset, c);
 }
 
 state_t mgt_gpu_freq_limit_reset_dev(ctx_t *c, int gpu)
@@ -115,7 +120,7 @@ state_t mgt_gpu_freq_limit_reset_dev(ctx_t *c, int gpu)
 
 state_t mgt_gpu_freq_limit_set(ctx_t *c, ulong *khz)
 {
-	preturn (ops.freq_limit_set, c, khz);
+    preturn(ops.freq_limit_set, c, khz);
 }
 
 state_t mgt_gpu_freq_limit_set_dev(ctx_t *c, ulong freq, int gpu)
@@ -131,119 +136,117 @@ state_t mgt_gpu_freq_limit_set_dev(ctx_t *c, ulong freq, int gpu)
 
 state_t mgt_gpu_freq_get_valid(ctx_t *c, uint dev, ulong freq_ref, ulong *freq_near)
 {
-	const uint   *freqs_alldevs_count;
-	const ulong **freqs_alldevs;
-	const ulong  *freqs_dev;
-	uint          freqs_dev_count;
-	ulong         freq_floor;
-	ulong         freq_ceil;
-	state_t       s;
-	uint          i;
+    const uint *freqs_alldevs_count;
+    const ulong **freqs_alldevs;
+    const ulong *freqs_dev;
+    uint freqs_dev_count;
+    ulong freq_floor;
+    ulong freq_ceil;
+    state_t s;
+    uint i;
 
-	if (state_fail(s = mgt_gpu_freq_list(c, &freqs_alldevs, &freqs_alldevs_count))) {
-		return s;
-	}
-	// Indexing
-	freqs_dev_count = freqs_alldevs_count[dev];
-	freqs_dev = freqs_alldevs[dev];
-	//
-	if (freq_ref > freqs_dev[0]) {
-		*freq_near = freqs_dev[0];
-		return EAR_SUCCESS;
-	}
-	for (i = 0; i < freqs_dev_count-1; ++i)
-	{
-		freq_ceil  = freqs_dev[i+0];
-		freq_floor = freqs_dev[i+1];
+    if (state_fail(s = mgt_gpu_freq_list(c, &freqs_alldevs, &freqs_alldevs_count))) {
+        return s;
+    }
+    // Indexing
+    freqs_dev_count = freqs_alldevs_count[dev];
+    freqs_dev       = freqs_alldevs[dev];
+    //
+    if (freq_ref > freqs_dev[0]) {
+        *freq_near = freqs_dev[0];
+        return EAR_SUCCESS;
+    }
+    for (i = 0; i < freqs_dev_count - 1; ++i) {
+        freq_ceil  = freqs_dev[i + 0];
+        freq_floor = freqs_dev[i + 1];
 
-		if (freq_ref <= freq_ceil && freq_ref >= freq_floor) {
-			if ((freq_ceil - freq_ref) <= (freq_ref - freq_floor)) {
-				*freq_near = freq_ceil;
-			} else {
-				*freq_near = freq_floor;
-			}
-			return EAR_SUCCESS;
-		}
-	}
-	*freq_near = freqs_dev[i];
+        if (freq_ref <= freq_ceil && freq_ref >= freq_floor) {
+            if ((freq_ceil - freq_ref) <= (freq_ref - freq_floor)) {
+                *freq_near = freq_ceil;
+            } else {
+                *freq_near = freq_floor;
+            }
+            return EAR_SUCCESS;
+        }
+    }
+    *freq_near = freqs_dev[i];
 
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 state_t mgt_gpu_freq_get_next(ctx_t *c, uint dev, ulong freq_ref, uint *freq_idx, uint flag)
 {
-  debug("mgt_gpu_freq_get_next IN: dev %d freq_ref %lu flag %d FREQ_TOP %d", dev, freq_ref, flag, FREQ_TOP);
-	const uint   *freqs_alldevs_count;
-	const ulong **freqs_alldevs;
-	const ulong  *freqs_dev;
-	uint          freqs_dev_count;
-	ulong         freq_floor;
-	ulong         freq_ceil;
-	state_t       s;
-	uint          i;
+    debug("mgt_gpu_freq_get_next IN: dev %d freq_ref %lu flag %d FREQ_TOP %d", dev, freq_ref, flag, FREQ_TOP);
+    const uint *freqs_alldevs_count;
+    const ulong **freqs_alldevs;
+    const ulong *freqs_dev;
+    uint freqs_dev_count;
+    ulong freq_floor;
+    ulong freq_ceil;
+    state_t s;
+    uint i;
 
-	if (state_fail(s = mgt_gpu_freq_get_available(c, &freqs_alldevs, &freqs_alldevs_count))) {
-		return s;
-	}
-	// Indexing
-	freqs_dev_count = freqs_alldevs_count[dev];
-	freqs_dev = freqs_alldevs[dev];
-	//
-	if (freq_ref >= freqs_dev[0]) {
-		if (flag == FREQ_TOP) {
-			*freq_idx = 0;
-		} else {
-			*freq_idx = 1;
-		}
-		return EAR_SUCCESS;
-	}
-	for (i = 1; i < freqs_dev_count-1; ++i)
-	{
-		freq_ceil  = freqs_dev[i+0];
-		freq_floor = freqs_dev[i+1];
-    debug("i: %d freq_ref %lu freq_ceil %lu freq_floor %lu", i, freq_ref, freq_ceil, freq_floor);
-		//
-		if (freq_ref == freq_ceil || (freq_ref < freq_ceil && freq_ref > freq_floor)) {
-			if (flag == FREQ_TOP) {
-				//*freq_idx = i-1;
-				*freq_idx = i;
-			} else {
-				*freq_idx = i+1;
-			}
-			return EAR_SUCCESS;
-		}
-	}
-	if (flag == FREQ_TOP) {
-		*freq_idx = i-1;
-	} else {
-		*freq_idx = i;
-	}
-	return EAR_SUCCESS;
+    if (state_fail(s = mgt_gpu_freq_get_available(c, &freqs_alldevs, &freqs_alldevs_count))) {
+        return s;
+    }
+    // Indexing
+    freqs_dev_count = freqs_alldevs_count[dev];
+    freqs_dev       = freqs_alldevs[dev];
+    //
+    if (freq_ref >= freqs_dev[0]) {
+        if (flag == FREQ_TOP) {
+            *freq_idx = 0;
+        } else {
+            *freq_idx = 1;
+        }
+        return EAR_SUCCESS;
+    }
+    for (i = 1; i < freqs_dev_count - 1; ++i) {
+        freq_ceil  = freqs_dev[i + 0];
+        freq_floor = freqs_dev[i + 1];
+        debug("i: %d freq_ref %lu freq_ceil %lu freq_floor %lu", i, freq_ref, freq_ceil, freq_floor);
+        //
+        if (freq_ref == freq_ceil || (freq_ref < freq_ceil && freq_ref > freq_floor)) {
+            if (flag == FREQ_TOP) {
+                //*freq_idx = i-1;
+                *freq_idx = i;
+            } else {
+                *freq_idx = i + 1;
+            }
+            return EAR_SUCCESS;
+        }
+    }
+    if (flag == FREQ_TOP) {
+        *freq_idx = i - 1;
+    } else {
+        *freq_idx = i;
+    }
+    return EAR_SUCCESS;
 }
 
 state_t mgt_gpu_freq_get_available(ctx_t *c, const ulong ***list_khz, const uint **list_len)
 {
-	preturn (ops.freq_list, c, list_khz, list_len);
+    preturn(ops.freq_list, c, list_khz, list_len);
 }
 
 state_t mgt_gpu_power_cap_get_current(ctx_t *c, ulong *watts)
 {
-	preturn (ops.power_cap_get_current, c, watts);
+    preturn(ops.power_cap_get_current, c, watts);
 }
 
 state_t mgt_gpu_power_cap_get_default(ctx_t *c, ulong *watts)
 {
-	preturn (ops.power_cap_get_default, c, watts);
+    preturn(ops.power_cap_get_default, c, watts);
 }
 
 state_t mgt_gpu_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts_max)
 {
-	preturn (ops.power_cap_get_rank, c, watts_min, watts_max);
+    preturn(ops.power_cap_get_rank, c, watts_min, watts_max);
 }
 
 state_t mgt_gpu_power_cap_reset(ctx_t *c)
 {
-	preturn (ops.power_cap_reset, c);
+    preturn(ops.power_cap_reset, c);
 }
 
 state_t mgt_gpu_power_cap_reset_dev(ctx_t *c, int gpu)
@@ -257,7 +260,7 @@ state_t mgt_gpu_power_cap_reset_dev(ctx_t *c, int gpu)
 
 state_t mgt_gpu_power_cap_set(ctx_t *c, ulong *watts)
 {
-	preturn (ops.power_cap_set, c, watts);
+    preturn(ops.power_cap_set, c, watts);
 }
 
 state_t mgt_gpu_power_cap_set_dev(ctx_t *c, ulong watts, int gpu)
@@ -314,7 +317,7 @@ char *mgt_gpu_features_tostr(char *buffer, size_t length)
 
     mgt_gpu_freq_get_available(no_ctx, &list, &count);
     for (i = 0; i < devs_count; ++i) {
-        j += sprintf(&buffer[j], "GPU%d: %4lu to %4lu MHz\n", i, list[i][0], list[i][count[i]-1]);
+        j += sprintf(&buffer[j], "GPU%d: %4lu to %4lu MHz\n", i, list[i][0], list[i][count[i] - 1]);
     }
     mgt_gpu_power_cap_get_rank(no_ctx, list_min, list_max);
     for (i = 0; i < devs_count; ++i) {

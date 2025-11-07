@@ -8,27 +8,27 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
+#include <common/external/ear_external.h>
+#include <common/output/debug.h>
+#include <common/system/shared_areas.h>
+#include <common/types/application.h>
+#include <common/types/types.h>
 #include <fcntl.h>
 #include <stddef.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <common/output/debug.h>
-#include <common/types/types.h>
-#include <common/types/application.h>
-#include <common/system/shared_areas.h>
-#include <common/external/ear_external.h>
-
+#include <sys/types.h>
 
 static int fd_resched = -1;
 static char path[256];
 
 int get_ear_external_path(char *tmp, uint ID, char *path)
 {
-	if ((tmp==NULL) || (path==NULL)) return EAR_ERROR;
-	sprintf(path,"%s/%u/.ear_resched_affinity",tmp, ID);
-	return EAR_SUCCESS;	
+    if ((tmp == NULL) || (path == NULL))
+        return EAR_ERROR;
+    sprintf(path, "%s/%u/.ear_resched_affinity", tmp, ID);
+    return EAR_SUCCESS;
 }
 
 ear_mgt_t *create_ear_external_shared_area(char *path)
@@ -58,23 +58,24 @@ void dipose_ear_external_shared_area(char *path)
     dispose_shared_area(path, fd_resched);
 }
 
-ear_mgt_t *ear_connect() 
+ear_mgt_t *ear_connect()
 {
 
-    //get the path
+    // get the path
     char *tmp = getenv("EAR_TMP");
     char *jid = getenv("SLURM_JOB_ID");
     char *sid = getenv("SLURM_STEP_ID");
-    if ((jid == NULL) || (sid == NULL)) return NULL;
-    
-    int jobid = atoi(jid);
+    if ((jid == NULL) || (sid == NULL))
+        return NULL;
+
+    int jobid  = atoi(jid);
     int stepid = atoi(sid);
-    uint id = create_ID(jobid, stepid); // jobid i stepid es poden treure de la variable d'entorn de slurm
-    if (get_ear_external_path(tmp, id, path) != EAR_SUCCESS) return NULL;
+    uint id    = create_ID(jobid, stepid); // jobid i stepid es poden treure de la variable d'entorn de slurm
+    if (get_ear_external_path(tmp, id, path) != EAR_SUCCESS)
+        return NULL;
 
     return attach_ear_external_shared_area(path);
 }
-
 
 state_t ear_disconnect()
 {
@@ -82,4 +83,3 @@ state_t ear_disconnect()
 
     return EAR_SUCCESS;
 }
-

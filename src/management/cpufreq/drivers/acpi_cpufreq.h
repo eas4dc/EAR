@@ -57,4 +57,4 @@ state_t mgt_acpi_cpufreq_governor_set_list(uint *governors);
 
 int mgt_acpi_cpufreq_governor_is_available(uint governor);
 
-#endif //MANAGEMENT_DRIVERS_ACPI_CPUFREQ_H
+#endif // MANAGEMENT_DRIVERS_ACPI_CPUFREQ_H

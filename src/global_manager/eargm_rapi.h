@@ -9,27 +9,23 @@
  **************************************************************************/
 
 /**
-*    \file remote_daemon_client.h
-*    \brief This file defines the client side of the remote EAR API
-*
-* 	 Note:Specific functions could be substituted by a generic function passing a local_config_t
-*/
-
+ *    \file remote_daemon_client.h
+ *    \brief This file defines the client side of the remote EAR API
+ *
+ * 	 Note:Specific functions could be substituted by a generic function passing a local_config_t
+ */
 
 #ifndef _EARGM_API_H
 #define _EARGM_API_H
 
 #include <global_manager/meta_eargm.h>
 
-
-
-
 /** Notifies the EARGM a new job using N nodes will start. It is supposed to be used by the EAR slurm plugin
-*/
+ */
 int eargm_new_job(uint num_nodes);
 
 /** Notifies the EARGM  a job using N nodes is finishing
-*/
+ */
 int eargm_end_job(uint num_nodes);
 
 /* Increases the EARGM's powercap allocation by increase*/
@@ -45,7 +41,7 @@ int eargm_reset_powercap();
 int eargm_send_set_powerlimit(uint limit);
 
 /** Disconnect from the previously connected EARGM
-*/
+ */
 int eargm_disconnect();
 
 /** Given a fd, sends a request for an eargm_status and reads it. Returns the number of eargm_status retrieved */
@@ -60,14 +56,14 @@ int eargm_get_all_status(cluster_conf_t *conf, eargm_status_t **status, int earg
 /** Gets all the EARGM status in the cluster */
 int eargm_cluster_get_status(cluster_conf_t *conf, eargm_status_t **status);
 
-/** If hosts is not NULL, gets all the EARGM status of the hostnames in hosts. Otherwise it gets all the EARGMs status 
+/** If hosts is not NULL, gets all the EARGM status of the hostnames in hosts. Otherwise it gets all the EARGMs status
  *  in the cluster*/
 int eargm_get_status(cluster_conf_t *conf, eargm_status_t **status, char **hosts, int num_hosts);
 
 /** Gets all the EARGM status running in hosts*/
 int eargm_nodelist_get_status(cluster_conf_t *conf, eargm_status_t **status, char **hosts, int num_hosts);
 
-/* Sets the all the EARGMs powercap allocation to limit if hosts is NULL, if not it sets it only for the EARGM 
+/* Sets the all the EARGMs powercap allocation to limit if hosts is NULL, if not it sets it only for the EARGM
  * in hosts. */
 void eargm_set_powerlimit(cluster_conf_t *conf, uint limit, char **hosts, int num_hosts);
 

@@ -19,4 +19,4 @@ int avx2_dynais(uint sample, uint *size, uint *level);
 
 void avx2_dynais_dispose();
 
-#endif //DYNAIS_AVX2_H
+#endif // DYNAIS_AVX2_H

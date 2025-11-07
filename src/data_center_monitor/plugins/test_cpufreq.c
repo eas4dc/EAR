@@ -8,20 +8,20 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <string.h>
-#include <common/states.h>
 #include <common/output/debug.h>
+#include <common/states.h>
 #include <data_center_monitor/plugins/keyboard.h>
 #include <data_center_monitor/plugins/management.h>
+#include <string.h>
 
 static manages_info_t *m;
 static char buffer[4096];
 
 declr_up_get_tag()
 {
-    *tag = "test_cpufreq";
+    *tag       = "test_cpufreq";
     *tags_deps = "<!management,!keyboard";
 }
 
@@ -43,7 +43,7 @@ static void governors_print(char **params)
     for (g = 0; g < m->cpu.devs_count; ++g) {
         governor_tostr(govs[g], buffer);
         printf("%12s ", buffer);
-        if (g != 0 && ((g+1) % 4) == 0) {
+        if (g != 0 && ((g + 1) % 4) == 0) {
             printf("\n");
         }
     }

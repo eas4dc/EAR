@@ -15,9 +15,7 @@
 #include <common/states.h>
 #include <common/types/generic.h>
 
-
-typedef struct db_conf
-{
+typedef struct db_conf {
     char ip[USER];
     char sec_ip[USER];
     char user[USER];
@@ -26,20 +24,16 @@ typedef struct db_conf
     char pass_commands[USER];
     char database[USER];
     uint port;
-	uint max_connections;
-	uint report_node_detail;
-	uint report_sig_detail;
-	uint report_loops;
+    uint max_connections;
+    uint report_node_detail;
+    uint report_sig_detail;
+    uint report_loops;
 } db_conf_t;
 
-
-
 state_t DB_token(char *token);
-state_t DB_parse_token(db_conf_t *conf,char *token);
+state_t DB_parse_token(db_conf_t *conf, char *token);
 void print_database_conf(db_conf_t *conf);
 void set_default_db_conf(db_conf_t *db_conf);
-void copy_eardb_conf(db_conf_t *dest,db_conf_t *src);
-
-
+void copy_eardb_conf(db_conf_t *dest, db_conf_t *src);
 
 #endif

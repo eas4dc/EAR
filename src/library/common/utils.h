@@ -22,8 +22,7 @@
  * \return EAR_ERROR An input argument is NULL.
  * \return EAR_SUCCESS Otherwise.
  */
-state_t utils_create_plugin_path(char *result_path, char *install_path,
-				 char *custom_path, int authorized_user);
+state_t utils_create_plugin_path(char *result_path, char *install_path, char *custom_path, int authorized_user);
 
 /** This function builds a complete plug-in path and checks for its existance.
  *
@@ -44,10 +43,8 @@ state_t utils_create_plugin_path(char *result_path, char *install_path,
  *
  * \return EAR_ERROR Some input argument is NULL or the plug-in wasn't found.
  */
-state_t utils_build_valid_plugin_path(char *result_path, size_t result_path_s,
-				      const char *plug_endpt,
-				      const char *plug_name,
-				      settings_conf_t * sconf);
+state_t utils_build_valid_plugin_path(char *result_path, size_t result_path_s, const char *plug_endpt,
+                                      const char *plug_name, settings_conf_t *sconf);
 
 /** Returns the maximum value between the batch scheduler provided number of nodes
  * of the active job (SLURM tested) and 1. It formally calls SCHED_STEP_NUM_NODES env var.

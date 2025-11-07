@@ -11,21 +11,21 @@
 #ifndef EAR_INCLUDES_H
 #define EAR_INCLUDES_H
 
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/resource.h>
+#include <common/config.h>
+#include <common/output/verbose.h>
+#include <common/plugins.h>
 #include <common/sizes.h>
 #include <common/states.h>
-#include <common/config.h>
-#include <common/plugins.h>
-#include <common/output/verbose.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#endif //EAR_INCLUDES_H
+#endif // EAR_INCLUDES_H

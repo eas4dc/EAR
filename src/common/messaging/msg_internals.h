@@ -8,44 +8,46 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
-
 /**
-*    \file remote_daemon_client.h
-*    \brief This file defines the client side of the remote EARD API
-*
-* 	 Note:All these funcions applies to a single node . Global commands must be applying by sending commands to all nodes. 
-*/
+ *    \file remote_daemon_client.h
+ *    \brief This file defines the client side of the remote EARD API
+ *
+ * 	 Note:All these funcions applies to a single node . Global commands must be applying by sending commands to all
+ * nodes.
+ */
 
 #ifndef _REMOTE_CLIENT_API_COMMON_INTERNALS_H
 #define _REMOTE_CLIENT_API_COMMON_INTERNALS_H
 
 #include <netdb.h>
-#include <stdbool.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <stdbool.h>
+#include <sys/select.h>
+#include <sys/socket.h>
 
 #include <common/config.h>
-#include <common/types/risk.h>
+#include <common/messaging/msg_conf.h>
 #include <common/types/application.h>
 #include <common/types/configuration/cluster_conf.h>
-#include <common/messaging/msg_conf.h>
+#include <common/types/risk.h>
 
 /** Non-blocking version of write*/
 int _write(int fd, void *data, size_t ssize);
 
-/** Connects with the EARD running in the given nodename. The current implementation supports a single command per connection
-*	The sequence must be : connect +  command + disconnect
-* 	@param the nodename to connect with
-*/
-int remote_connect(char *nodename,uint port);
+/** Connects with the EARD running in the given nodename. The current implementation supports a single command per
+ *connection The sequence must be : connect +  command + disconnect
+ * 	@param the nodename to connect with
+ */
+int remote_connect(char *nodename, uint port);
 
-/** Disconnect from the previously connected socket 
-*/
+/** Disconnect from the previously connected socket
+ */
 int remote_disconnect();
+
+/** Disconnect from the connected socket fd
+ */
+int remote_disconnect_fd(int32_t fd);
 
 /** Sends the command to the currently connected fd */
 int send_command(request_t *command);
@@ -87,12 +89,11 @@ request_header_t process_data(request_header_t data_head, char **temp_data_ptr, 
 
 request_header_t data_all_nodes(request_t *command, cluster_conf_t *my_cluster_conf, void **data);
 
-
 /* Server API internals */
 int create_server_socket(uint port);
-int wait_for_client(int sockfd,struct sockaddr_in *client);
+int wait_for_client(int sockfd, struct sockaddr_in *client);
 void close_server_socket(int sock);
 
-int read_command(int s,request_t *command);
-void send_answer(int s,long *ack);
+int read_command(int s, request_t *command);
+void send_answer(int s, long *ack);
 #endif

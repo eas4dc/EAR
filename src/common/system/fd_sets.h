@@ -11,9 +11,8 @@
 #ifndef _EAR_FD_SETS_H_
 #define _EAR_FD_SETS_H_
 #include <common/states.h>
-void clean_fd_set(fd_set *set,int *total);
-state_t new_fd(fd_set *set,int fd,int *max,int *total);
-state_t clean_fd(fd_set *set,int fd,int *max,int *total);
-state_t check_fd(fd_set *set,int fd);
+void clean_fd_set(fd_set *set, int *total);
+state_t new_fd(fd_set *set, int fd, int *max, int *total);
+state_t clean_fd(fd_set *set, int fd, int *max, int *total);
+state_t check_fd(fd_set *set, int fd);
 #endif
-

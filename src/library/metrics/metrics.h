@@ -8,22 +8,20 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #ifndef EAR_EAR_METRICS_H
 #define EAR_EAR_METRICS_H
 
 #include <common/config.h>
 #include <common/hardware/topology.h>
+#include <library/api/clasify.h>
+#include <library/common/library_shared_data.h>
+#include <library/metrics/dcgmi_lib.h>
 #include <metrics/common/apis.h>
 #include <metrics/io/io.h>
-#include <library/common/library_shared_data.h>
 #include <metrics/proc/stat.h>
-#include <library/api/clasify.h>
-#include <library/metrics/dcgmi_lib.h>
 #if DLB_SUPPORT
 #include <library/metrics/dlb_talp_lib.h>
 #endif
-
 
 #define MGT_CPUFREQ 1
 #define MGT_IMCFREQ 2
@@ -37,30 +35,30 @@
 #define MET_GPU     10
 #define MET_TEMP    11
 
-
 /** For each phase */
 typedef struct phase_info {
-  ullong elapsed;
+    ullong elapsed;
 } phase_info_t;
 
-
-typedef struct sig_ext
-{
-    io_data_t          iod;
+typedef struct sig_ext {
+    io_data_t iod;
     mpi_information_t *mpi_stats;
     mpi_calls_types_t *mpi_types;
-    float              max_mpi, min_mpi;
-    float              elapsed;
-    float              telapsed;
-    float              saving;
-    float              psaving;
-    float              tpenalty;
-    phase_info_t       earl_phase[EARL_MAX_PHASES];
-    dcgmi_sig_t        dcgmis;
+    float max_mpi, min_mpi;
+    float elapsed;
+    float telapsed;
+    float saving;
+    float psaving;
+    float tpenalty;
+    float gpu_saving;
+    float gpu_psaving;
+    float gpu_tpenalty;
+    phase_info_t earl_phase[EARL_MAX_PHASES];
+    dcgmi_sig_t dcgmis;
 #if DLB_SUPPORT
-		earl_talp_t				 earl_talp_data;
+    earl_talp_t earl_talp_data;
 #endif
-		ulong              sel_mem_freq_khz;
+    ulong sel_mem_freq_khz;
 } sig_ext_t;
 
 /** New metrics **/
@@ -80,13 +78,14 @@ long long metrics_usecs_diff(long long end, long long init);
 int metrics_load(topology_t *topo);
 
 /** Stops metrics collection and computes the accumulated data*/
-void metrics_dispose(signature_t *metrics, ulong procs);
+void metrics_dispose(signature_t *metrics, ulong procs, uint job_node_ratio);
 
 /** Restarts the current metrics and recomputes the signature */
 void metrics_compute_signature_begin();
 
 /** */
-state_t metrics_compute_signature_finish(signature_t *metrics, uint iterations, ulong min_time_us, ulong procs, llong *passed_time);
+state_t metrics_compute_signature_finish(signature_t *metrics, uint iterations, ulong min_time_us, ulong procs,
+                                         llong *passed_time);
 
 /** Estimates whether the current time running the loops is enough to compute the signature */
 int time_ready_signature(ulong min_time_us);
@@ -98,7 +97,7 @@ unsigned long long metrics_vec_inst(signature_t *metrics);
 void metrics_job_signature(const signature_t *master, signature_t *dst);
 
 /** Computes the node signature at app end */
-void metrics_app_node_signature(signature_t *master,signature_t *ns);
+void metrics_app_node_signature(signature_t *master, signature_t *ns);
 
 /** Computes the per-process and per-job metrics using power models for node sharing. */
 void compute_per_process_and_job_metrics(signature_t *sig);
@@ -115,7 +114,6 @@ void metrics_start_cpupower();
 void metrics_read_cpupower();
 #endif
 
-
 #if DCGMI
 uint metrics_dcgmi_enabled();
 #endif
@@ -123,7 +121,6 @@ uint metrics_dcgmi_enabled();
 /* Returns the number of iterations per second in the last computed signature */
 float metrics_iter_per_second();
 
-
 uint metrics_CPU_phase_ok();
 
-#endif //EAR_EAR_METRICS_H
+#endif // EAR_EAR_METRICS_H

@@ -7,13 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- development Added flops to ZEN5.
+
+### Changed
+- development Updated AMD with changes for ZEN3, ZEN4 and ZEN5.
+
+## v6.0 - 2025-10-29
+
+### Added
 - v6.0 GPU GFLOPS field added in the EAR Database.
 - v6.0 Added quality of life functions to management/cpupow API.
 - v6.0 New API for reading metrics through Linux hwmon.
-- v6.0 NVIDIA Grace Hopper devices support.
+- v6.0 NVIDIA Grace Hopper and Grace Grace devices support.
 - v6.0 Added AdminUsers to provide more privileges than AuthorizedUsers.
-- v6.0 Added --force option to the SLURM Plugin.
-- v6.0 Added a mechanism to dynamically increase the timeout window in msg_internals when a node connects but does not return data.
+- v6.0 Added --force option to the erun command.
+- v6.0 Added a mechanism to dynamically increase the timeout window in msg\_internals when a node connects but does not return data.
 - v6.0 Added stall cycles to CPI API.
 - v6.0 Application CPU usage field added in the EAR Database.
 - v6.0 Temperature readings through Linux hwmon.
@@ -22,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 New command enodectl.
 - v6.0 Added HSMP opening mode control.
 - v6.0 Added an option to ereport to query by user\_group.
+- v6.0 IPMI API
+- v6.0 Non-interactive version of the edb\_create command.
+- v6.0 Now the topology module stores a socket index.
+- v6.0 Node sharing strategy added.
+- v6.0 Added non-computational power support to soft powercap.
 
 ### Changed
 - v6.0 Renamed DBIP and DBSECIP in ear.conf to EARDBD\_IP and EARDBD\_MIRROR\_IP to better reflect what it is.
@@ -30,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 Bandwidth, cache and flops APIs improved.
 - v6.0 Create a fallback mechanism for failed inserts to DB.
 - v6.0 Added pointer recalculation in cache\_data\_copy.
+- v6.0 Changed eacct's energy field from Joules to KWh.
+- v6.0 eacct's -n flag now just counts for jobs.
+- v6.0 EAR source code follows clang-format style.
+- v6.0 GPU energy savings are reported if a GPU optimization policy is being used.
 
 ### Fixed
 - v6.0 A heap-buffer overflow when opening perf files is fixed.
@@ -41,7 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 Fixed compilation errors when using PostgreSQL.
 - v6.0 Several minor fixes in IMCFreq amd19 management API.
 - v6.0 Fixed errors with ereport's -G option.
-
+- v6.0 Small bug fixes in the CPU power models:
+  - Do not check DRAM power since it is not available on AMD.
+  - Initialize all arrays before using them.
+- v6.0 Improving earl-eard connect to avoid blocking.
+- v6.0 Fixed socket count in acpi\_power.
 
 ## 5.2.2 - 2025-10-23
 

@@ -8,23 +8,21 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#include <common/states.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <common/states.h>
 
-state_t loadavg(float *min,float *Vmin,float *XVmin,uint * runnable,uint *total,uint *lastpid)
+state_t loadavg(float *min, float *Vmin, float *XVmin, uint *runnable, uint *total, uint *lastpid)
 {
-  FILE *f;
-  f = fopen("/proc/loadavg","r");
-  if (f == NULL)
-  {
-		return EAR_ERROR;
-  }
-  if (fscanf(f,"%f %f %f %u/%u %u",min,Vmin,XVmin,runnable,total,lastpid)) {
-      // Just for warning purposes
-  }
-  fclose(f);
-  return EAR_SUCCESS;
+    FILE *f;
+    f = fopen("/proc/loadavg", "r");
+    if (f == NULL) {
+        return EAR_ERROR;
+    }
+    if (fscanf(f, "%f %f %f %u/%u %u", min, Vmin, XVmin, runnable, total, lastpid)) {
+        // Just for warning purposes
+    }
+    fclose(f);
+    return EAR_SUCCESS;
 }
-

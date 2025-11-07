@@ -8,248 +8,216 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <fcntl.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <common/sizes.h>
 #include <common/output/debug.h>
-#include <common/hardware/topology.h>
-#include <metrics/common/pci.h>
+#include <common/utils/strtable.h>
 #include <metrics/common/hsmp.h>
+#include <metrics/common/hsmp_driver.h>
+#include <metrics/common/hsmp_esmi.h>
+#include <metrics/common/hsmp_pci.h>
+#include <pthread.h>
+#include <sys/types.h>
 
-#define HSMP_NOT_READY   0x00
-#define HSMP_OK          0x01
-#define HSMP_INVALID_ID  0xFE
-#define HSMP_INVALID_ARG 0xFF
+#define HSMP_API_FAILED -1
+#define HSMP_API_NONE   0
+#define HSMP_API_DRIVER 1
+#define HSMP_API_ESMI   2
+#define HSMP_API_PCI    3
 
-struct smn_s {
-	off_t index;
-	off_t data;
-} smn = { .index = 0xC4, .data = 0xC8 };
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static int api;
+static mode_t api_mode;
 
-typedef struct mailopt_s {
-	off_t address;
-	size_t size;
-	char *name;
-} mailopt_t;
-
-typedef struct mailbox_s {
-	mailopt_t function;
-	mailopt_t response;
-	mailopt_t arg0; // +4 per arg
-} mailbox_t;
-
-static mailbox_t zen2_mailbox = {
-	.function.address = 0x3B10534, .function.size = 4, .function.name = "function",
-	.response.address = 0x3B10980, .response.size = 1, .response.name = "response",
-	    .arg0.address = 0x3B109E0,     .arg0.size = 4,     .arg0.name = "argument",
-};
-
-// lspci -d 0x1022:0x1480
-static ushort  amd_vendor        = 0x1022; // AMD
-static char   *zen2_pci_dfs[2]   = { "00.0", NULL };
-static ushort  zen2_pci_ids[6]   = { 0x1450, 0x15d0, 0x1480, 0x1630, 0x14b5, 0x00 };
-static ushort  zen3_pci_ids[8]   = { 0x14a4, 0x14b5, 0x14d8, 0x14e8, 0x1480, 0x153a, 0x1507, 0x00 };
-static uint    zen2_nbios_count  = 4;
-static char  **mist_pci_dfs;
-static ushort *mist_pci_ids;
-static uint    mist_nbios_count;
-
-//
-static pthread_mutex_t lock0 = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t lock  = PTHREAD_MUTEX_INITIALIZER;
-static mailbox_t *mail;
-static uint       sockets_count;
-static uint       pcis_count;
-static pci_t     *pcis;
-static uint       hsmp_failed;
-
-static state_t unlock_msg0(state_t s, char *msg)
+char *mode_str(mode_t mode)
 {
-    debug("Exitting because: %s", msg);
-    hsmp_failed = state_fail(s);
-	pthread_mutex_unlock(&lock0);
-	return_msg(s, msg);
+    if (mode == O_RDWR)
+        return "O_RDWR";
+    return "O_RDONLY";
 }
 
-static state_t unlock_msg(state_t s, char *msg)
+static state_t __hsmp_open(topology_t *tp, mode_t mode)
 {
-    debug("Exitting because: %s", msg);
-	pthread_mutex_unlock(&lock);
-	return_msg(s, msg);
+    state_t s;
+    api_mode = mode;
+    if ((mode == O_RDWR) && state_ok(s = hsmp_pci_open(tp, mode))) {
+        debug("HSMP PCI loaded in %s mode", mode_str(mode));
+        api = HSMP_API_PCI;
+        return s;
+    }
+    debug("HSMP PCI failed in %s mode: %s", mode_str(mode), state_msg);
+    if (state_ok(s = hsmp_esmi_open(tp, mode))) {
+        debug("HSMP ESMI loaded in %s mode", mode_str(mode));
+        api = HSMP_API_ESMI;
+        return s;
+    }
+    debug("HSMP ESMI failed in %s mode: %s", mode_str(mode), state_msg);
+    if (state_ok(s = hsmp_driver_open(tp, mode))) {
+        debug("HSMP driver loaded in %s mode", mode_str(mode));
+        api = HSMP_API_DRIVER;
+        return s;
+    }
+    debug("HSMP driver failed in %s mode: %s", mode_str(mode), state_msg);
+    return EAR_ERROR;
 }
 
-state_t hsmp_scan(topology_t *tp)
+state_t hsmp_open(topology_t *tp, mode_t mode)
 {
-	state_t s;
-
-	if (tp->vendor == VENDOR_INTEL || tp->family < FAMILY_ZEN) {
-		return_msg(EAR_ERROR, Generr.api_incompatible);
-	}
-	while (pthread_mutex_trylock(&lock0));
-	if (pcis != NULL) {
-        if (hsmp_failed) {
-            return unlock_msg0(EAR_ERROR, "HSMP doesn't work");
-        } else {
-            return unlock_msg0(EAR_SUCCESS, "");
+    while (pthread_mutex_trylock(&lock))
+        ;
+    if (api == HSMP_API_NONE) {
+        if (state_fail(__hsmp_open(tp, O_RDWR))) {
+            if (state_fail(__hsmp_open(tp, O_RDONLY))) {
+                debug("no HSMP API can be opened");
+                api = HSMP_API_FAILED;
+            }
         }
-	}
-	sockets_count = tp->socket_count;
-	// By now just ZEN2 and greater
-	if (tp->family >= FAMILY_ZEN) {
-        // ZEN selection
-        if (tp->family >= FAMILY_ZEN3) {
-            debug("ZEN3 detected");
-            mist_pci_dfs     = zen2_pci_dfs;
-            mist_pci_ids     = zen3_pci_ids;
-            mist_nbios_count = zen2_nbios_count;
-        } else {
-            debug("ZEN2 detected");
-            mist_pci_dfs     = zen2_pci_dfs;
-            mist_pci_ids     = zen2_pci_ids;
-            mist_nbios_count = zen2_nbios_count;
-        }
-        // Opening PCis
-        if (state_fail(s = pci_scan(amd_vendor, mist_pci_ids, mist_pci_dfs, O_RDWR, &pcis, &pcis_count))) {
-            return unlock_msg0(s, state_msg);
-        }
-		if (pcis_count != (sockets_count*mist_nbios_count)) {
-			return unlock_msg0(EAR_ERROR, "Not enough NBIO devices detected");
-		}
-		mail = &zen2_mailbox;
-		// TODO: test function
-        uint args[2] = { 68, -1 };
-        uint reps[2] = {  0, -1 };
-        
-        if (state_fail(s = hsmp_send(0, HSMP_TEST, args, reps))) {
-            return unlock_msg0(s, "HSMP not enabled");
-        }
-        // Ping checking
-        if (reps[0] != 69) {
-            return unlock_msg0(EAR_ERROR, "HSMP not enabled (incorrect ping value)");
-        }
-        debug("Ping returned %d", reps[0]);
-	}
-	return unlock_msg0(EAR_SUCCESS, "OK");
+    }
+    pthread_mutex_unlock(&lock);
+    // Once opened or failed
+    if (api == HSMP_API_FAILED) {
+        return_msg(EAR_ERROR, "API failed previously");
+    } else if (mode == O_RDWR && api_mode != O_RDWR) {
+        debug("The permissions request can be satisfied");
+        return_msg(EAR_ERROR, Generr.no_permissions);
+    }
+    return EAR_SUCCESS;
 }
 
 state_t hsmp_close()
 {
-	// Nothing
-	return EAR_SUCCESS;
+    state_t s = EAR_ERROR;
+    state_msg = Generr.api_uninitialized;
+    while (pthread_mutex_trylock(&lock))
+        ;
+    if (api == HSMP_API_DRIVER)
+        s = hsmp_driver_close();
+    if (api == HSMP_API_ESMI)
+        s = hsmp_esmi_close();
+    if (api == HSMP_API_PCI)
+        s = hsmp_pci_close();
+    api = HSMP_API_NONE;
+    pthread_mutex_unlock(&lock);
+    return s;
 }
 
-static state_t smn_write(pci_t *pci, mailopt_t *opt, uint data)
+static state_t unlock(state_t s)
 {
-	state_t s;
-    //debug("smn_write");
-	if (state_fail(s = pci_write(pci, (const void *) &opt->address, sizeof(uint), smn.index))) {
-		debug("pci_write returned: %s (%d)", state_msg, s);
-		return s;
-	}
-	if (state_fail(s = pci_write(pci, &data, opt->size, smn.data))) {
-		debug("pci_write returned: %s (%d)", state_msg, s);
-		return s;
-	}
-	debug("PCI%d: written %u (%lu) in %s (%lx)",
-		pci->fd, data, opt->size, opt->name, opt->address);
-	return EAR_SUCCESS;
-}
-
-static state_t smn_read(pci_t *pci, mailopt_t *opt, uint *data)
-{
-	state_t s;
-	if (state_fail(s = pci_write(pci, (const void *) &opt->address, sizeof(uint), smn.index))) {
-		debug("pci_write returned: %s (%d)", state_msg, s);
-		return s;
-	}
-	*data = 0;
-	if (state_fail(s = pci_read(pci, data, opt->size, smn.data))) {
-		debug("pci_write returned: %s (%d)", state_msg, s);
-		return s;
-	}
-	debug("PCI%d: Readed %u (%lu) from %s (%lx)",
-		pci->fd, *data, opt->size, opt->name, opt->address);
-	return EAR_SUCCESS;
+    pthread_mutex_unlock(&lock);
+    return s;
 }
 
 state_t hsmp_send(int socket, uint function, uint *args, uint *reps)
 {
-	struct timespec one_ms = { 0, 1000 * 1000 };
-	mailopt_t arg;
-	uint response;
-	uint timeout;
-	state_t s;
-	int a;
-
-	socket   = socket * 4;
-	arg.size = mail->arg0.size;
-	arg.name = mail->arg0.name;
-	response = HSMP_NOT_READY;
-	timeout  = 500;
-	uint intents  = 0;
-	// Locking
-	while (pthread_mutex_trylock(&lock));
-	//
-	if (state_fail(s = smn_write(&pcis[socket], &mail->response, response))) {
-		return unlock_msg(s, state_msg);
-	}
-	for (a = 0; args[a] != -1; ++a) {
-		arg.address = mail->arg0.address + (a<<2);
-		// Getting argument address
-		if (state_fail(s = smn_write(&pcis[socket], &arg, args[a]))) {
-			return unlock_msg(s, state_msg);
-		}
-	}
-	if (state_fail(s = smn_write(&pcis[socket], &mail->function, function))) {
-		return unlock_msg(s, state_msg);
-	}
-retry:
-	nanosleep(&one_ms, NULL);
-	// Waiting the mail signal
-	if (state_fail(s = smn_read(&pcis[socket], &mail->response, &response))) {
-		return unlock_msg(s, state_msg);
-	}
-	if (response == HSMP_NOT_READY) {
-		if (--timeout == 0) {
-			return unlock_msg(EAR_ERROR, "Timeout, waiting too long for an HSMP response");
-		}
-		++intents;
-		goto retry;
-	}
-	if (response == HSMP_INVALID_ID) {
-		return unlock_msg(EAR_ERROR, "Invalid mail function id");
-	}
-	if (response == HSMP_INVALID_ARG) {
-		return unlock_msg(EAR_ERROR, "Invalid mail argument");
-	}
-	debug("HSMP answered after %d intents", intents);
-	// Reading the values
-	for (a = 0; reps[a] != -1; ++a) {
-		arg.address = mail->arg0.address + (a<<2);
-		// Getting argument address
-		if (state_fail(s = smn_read(&pcis[socket], &arg, &reps[a]))) {
-			return unlock_msg(s, state_msg);
-		}
-	}
-	return unlock_msg(EAR_SUCCESS, "");
+    while (pthread_mutex_trylock(&lock))
+        ;
+    if (api == HSMP_API_DRIVER)
+        return unlock(hsmp_driver_send(socket, function, args, reps));
+    if (api == HSMP_API_ESMI)
+        return unlock(hsmp_esmi_send(socket, function, args, reps));
+    if (api == HSMP_API_PCI)
+        return unlock(hsmp_pci_send(socket, function, args, reps));
+    pthread_mutex_unlock(&lock);
+    return_msg(EAR_ERROR, Generr.api_uninitialized);
 }
 
+static void hsmp_test_print_functions(cpu_t *cpu, strtable_t *tb, char *api_str, char *perms_str)
+{
+    state_t s    = EAR_SUCCESS;
+    uint args[2] = {-1, -1};
+    uint reps[2] = {-1, -1};
+    uint fAar    = cpu->apicid;
+    uint f8ar    = 0; // Function 8 argument
+    uint f5ar    = 0;
+
+#define ht(dependent, a0, a1, r0, r1, function, line)                                                                  \
+    args[0] = a0;                                                                                                      \
+    args[1] = a1;                                                                                                      \
+    reps[0] = r0;                                                                                                      \
+    reps[1] = r1;                                                                                                      \
+    if (!dependent || state_ok(s)) {                                                                                   \
+        if (state_ok(s = hsmp_send(cpu->socket_id, function, args, reps))) {                                           \
+            tprintf2(tb, "%s||%s||%s||%d||%d||%d||%s||%d||%d||%d||-", api_str, perms_str, #function, cpu->socket_id,   \
+                     cpu->id, cpu->apicid, "OK", (int) args[0], (int) reps[0], (int) reps[1]);                         \
+            line;                                                                                                      \
+        } else {                                                                                                       \
+            tprintf2(tb, "%s||%s||%s||%d||%d||%d||%s||%d||%d||%d||%s", api_str, perms_str, #function, cpu->socket_id,  \
+                     cpu->id, cpu->apicid, "FAILED", (int) args[0], (int) reps[0], (int) reps[1], state_msg);          \
+        }                                                                                                              \
+    }
+    ht(0, 68, -1, 0, -1, HSMP_TEST, );
+    ht(0, -1, -1, 0, -1, HSMP_GET_SMU_VER, );
+    ht(0, -1, -1, 0, -1, HSMP_GET_PROTO_VER, );
+    ht(0, -1, -1, 0, -1, HSMP_GET_SOCKET_POWER, );
+    ht(0, -1, -1, 0, -1, HSMP_GET_SOCKET_POWER_LIMIT, f5ar = reps[0]);
+    ht(0, f5ar, -1, -1, -1, HSMP_SET_SOCKET_POWER_LIMIT, );
+    ht(0, -1, -1, 0, -1, HSMP_GET_SOCKET_POWER_LIMIT_MAX, );
+    ht(0, fAar, -1, 0, -1, HSMP_GET_BOOST_LIMIT, f8ar = (cpu->apicid << 16) | reps[0]);
+    ht(1, f8ar, -1, -1, -1, HSMP_SET_BOOST_LIMIT, );
+    // ht(1, -1, -1, -1, -1, HSMP_SET_BOOST_LIMIT_SOCKET,); // If pthe revious work...
+    ht(0, -1, -1, 0, -1, HSMP_GET_PROC_HOT, );
+    // ht(1, -1, -1, -1, -1, HSMP_SET_XGMI_LINK_WIDTH,); // We don't use this.
+    ht(0, 0, -1, -1, -1, HSMP_SET_DF_PSTATE, );
+    ht(0, -1, -1, -1, -1, HSMP_SET_AUTO_DF_PSTATE, );
+    ht(0, -1, -1, 0, 0, HSMP_GET_FCLK_MCLK, );
+    ht(0, -1, -1, 0, -1, HSMP_GET_CCLK_THROTTLE_LIMIT, );
+    ht(0, -1, -1, 0, -1, HSMP_GET_C0_PERCENT, );
+    // ht(0, -1, -1, -1, -1, HSMP_SET_NBIO_DPM_LEVEL,); // We don't use this. By now.
+    ht(0, -1, -1, 0, -1, HSMP_GET_DDR_BANDWIDTH, );
+    // More functions from family 1A
+}
+
+void hsmp_test_print()
+{
+    static topology_t tp_sockets = {0};
+    static topology_t tp         = {0};
+    static strtable_t tb         = {0};
+    int cpu;
+
+    // If more than one socket
+    topology_init(&tp);
+    topology_select(&tp, &tp_sockets, TPSelect.socket, TPGroup.merge, 0);
+
+    // Initializing the output table
+    tprintf_init2(&tb, fdout, STR_MODE_DEF, "8 9 35 4 4 8 8 10 10 10 20");
+    tprintf2(&tb, "API||Perms||Function||S||CPU||APICID||State||args0||reps0||reps1||Error msg.");
+    tprintf2(&tb, "---||-----||--------||-||---||------||-----||-----||-----||-----||----------");
+
+#define ho(iapi, IAPI, PERMS)                                                                                          \
+    if (state_fail(hsmp_##iapi##_open(&tp, PERMS))) {                                                                  \
+        tprintf2(&tb, "%s||%s||HSMP_OPEN()||-||-||-||%s||-1||-1||-1||%s", #IAPI, #PERMS, "FAILED", state_msg);         \
+    } else {                                                                                                           \
+        api = HSMP_API_##IAPI;                                                                                         \
+        for (cpu = 0; cpu < tp_sockets.cpu_count; ++cpu) {                                                             \
+            hsmp_test_print_functions(&tp_sockets.cpus[cpu], &tb, #IAPI, #PERMS);                                      \
+        }                                                                                                              \
+        hsmp_##iapi##_close();                                                                                         \
+    }
+    ho(driver, DRIVER, HSMP_WR);
+    ho(driver, DRIVER, HSMP_RD);
+    ho(esmi, ESMI, HSMP_WR);
+    ho(esmi, ESMI, HSMP_RD);
+    ho(pci, PCI, HSMP_WR);
+    ho(pci, PCI, HSMP_RD);
+}
+
+#if TESTM
+int main(int argc, char *argv[])
+{
+    hsmp_test_print();
+    return 0;
+}
+#endif
 #if TEST
 int main(int argc, char *argv[])
 {
-	topology_t tp;
-	state_t s;
-
-	topology_init(&tp);
-
-	if (state_fail(s = hsmp_scan(&tp))) {
-        printf("HSMP: FAILED (%s)\n", state_msg);
-	} else {
-        printf("HSMP: SUCCESS\n");
+    static topology_t tp = {0};
+    topology_init(&tp);
+    if (state_ok(hsmp_open(&tp, HSMP_RD))) {
+        printf("HSMP opened: API %d\n", api);
+    } else {
+        printf("HSMP failed: %s\n", state_msg);
     }
-	return 0;
+    return 0;
 }
 #endif

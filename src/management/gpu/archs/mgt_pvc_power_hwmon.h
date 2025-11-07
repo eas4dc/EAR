@@ -15,7 +15,6 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-
 #ifndef MGT_ENERGY_CPU_PVC_HWMON_METER_H
 #define MGT_ENERGY_CPU_PVC_HWMON_METER_H
 
@@ -27,8 +26,6 @@ void mgt_pvc_hwmon_get_api(uint *api);
 state_t mgt_pvc_hwmon_get_devices(ctx_t *c, gpu_devs_t **devs_in, uint *devs_count_in);
 state_t mgt_pvc_hwmon_dispose(ctx_t *c);
 state_t mgt_pvc_hwmon_count_devices(ctx_t *c, uint *count);
-
-
 
 /* DUMMY */
 state_t mgt_pvc_hwmon_freq_limit_get_current(ctx_t *c, ulong *khz);
@@ -42,7 +39,5 @@ state_t mgt_pvc_hwmon_power_cap_get_default(ctx_t *c, ulong *watts);
 state_t mgt_pvc_hwmon_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts_max);
 state_t mgt_pvc_hwmon_power_cap_reset(ctx_t *c);
 state_t mgt_pvc_hwmon_power_cap_set(ctx_t *c, ulong *watts);
-
-
 
 #endif

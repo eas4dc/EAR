@@ -11,17 +11,17 @@
 #ifndef UP_CONFIG_H
 #define UP_CONFIG_H
 
-#include <metrics/metrics.h>
 #include <common/system/plugin_manager.h>
 #include <common/types/configuration/cluster_conf.h>
+#include <metrics/metrics.h>
 
 typedef struct conf_s {
-    char            hostname[256]; //Alias
-    char            hostname_full[256];
-    topology_t      tp;
-    cluster_conf_t  cluster; //Its a pointer to check if was loaded
-    int             cluster_loaded;
+    char hostname[256]; // Alias
+    char hostname_full[256];
+    topology_t tp;
+    cluster_conf_t cluster; // Its a pointer to check if was loaded
+    int cluster_loaded;
     my_node_conf_t *node;
 } conf_t;
 
-#endif //UP_CONFIG_H
+#endif // UP_CONFIG_H

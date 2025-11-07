@@ -12,8 +12,8 @@
 #define MANAGEMENT_CPUFREQ_FREQUENCY
 
 #define _GNU_SOURCE
-#include <sched.h>
 #include <management/cpufreq/cpufreq.h>
+#include <sched.h>
 
 // This API is OBSOLETE
 //
@@ -22,25 +22,21 @@
 // adapt and test the old code. The old frequency API without cpufreq is in
 // recovery folder. Take a look into cpufreq.h to learn about compiling options.
 
-#define check_usrspace_gov_set(st, vrb_lvl) \
-    if (state_fail(st))\
-    {\
-       if (state_is(st, EAR_WARNING))\
-       {\
-            verbose(vrb_lvl, "%s", state_msg);\
-       } else if (state_is(st, EAR_NOT_INITIALIZED))\
-       {\
-           verbose(vrb_lvl, "%sERROR%s %s", COL_RED, COL_CLR, state_msg);\
-       } else\
-       {\
-            verbose(vrb_lvl, "%sERROR%s Setting userspace governor.", COL_RED, COL_CLR);\
-       }\
+#define check_usrspace_gov_set(st, vrb_lvl)                                                                            \
+    if (state_fail(st)) {                                                                                              \
+        if (state_is(st, EAR_WARNING)) {                                                                               \
+            verbose(vrb_lvl, "%s", state_msg);                                                                         \
+        } else if (state_is(st, EAR_NOT_INITIALIZED)) {                                                                \
+            verbose(vrb_lvl, "%sERROR%s %s", COL_RED, COL_CLR, state_msg);                                             \
+        } else {                                                                                                       \
+            verbose(vrb_lvl, "%sERROR%s Setting userspace governor.", COL_RED, COL_CLR);                               \
+        }                                                                                                              \
     }
 
 typedef struct governor {
-	char name[128];
-	ulong max_f;
-	ulong min_f;
+    char name[128];
+    ulong max_f;
+    ulong min_f;
 } governor_t;
 
 // Initializes API with privileges (used in: eard.c/dvfs.c).
@@ -94,4 +90,4 @@ void verbose_frequencies(int cpus, ulong *f);
 
 void vector_print_pstates(uint *pstates, uint num_cpus);
 
-#endif //MANAGEMENT_CPUFREQ_FREQUENCY
+#endif // MANAGEMENT_CPUFREQ_FREQUENCY

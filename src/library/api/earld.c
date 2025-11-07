@@ -8,13 +8,12 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 // These are dummy loader symbols to be replaced at runtime by specific
 // EAR library symbols
 void __attribute__((weak)) ear_constructor()
 {
 }
+
 void __attribute__((weak)) ear_destructor()
 {
 }
-

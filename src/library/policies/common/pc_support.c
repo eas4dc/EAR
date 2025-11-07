@@ -8,40 +8,38 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <common/config.h>
 #include <common/includes.h>
-#include <common/types/signature.h>
 #include <common/types/pc_app_info.h>
+#include <common/types/signature.h>
 
 #include <daemon/powercap/powercap_status.h>
 
 #include <management/cpufreq/frequency.h>
 #include <management/gpu/gpu.h>
 
-
 #include <library/common/externs.h>
 #include <library/common/verbose_lib.h>
 #include <library/metrics/metrics.h>
 #include <library/policies/policy_ctx.h>
 
-extern       pc_app_info_t  *pc_app_info_data;
-static const ulong         **gpu_freq_list;
-static const uint           *gpu_freq_num;
+extern pc_app_info_t *pc_app_info_data;
+static const ulong **gpu_freq_list;
+static const uint *gpu_freq_num;
 
 state_t pc_support_init(polctx_t *c)
 {
 #if USE_GPUS
     gpu_freq_list = (const ulong **) metrics_gpus_get(MGT_GPU)->avail_list;
-    gpu_freq_num  = (const uint *)   metrics_gpus_get(MGT_GPU)->avail_count;
+    gpu_freq_num  = (const uint *) metrics_gpus_get(MGT_GPU)->avail_count;
 
-    pc_app_info_data->num_gpus_used=c->num_gpus;
+    pc_app_info_data->num_gpus_used = c->num_gpus;
 #endif // USE_GPUS
     return EAR_SUCCESS;
 }
@@ -86,34 +84,34 @@ static ulong avg_gpu_freq(signature_t *s)
 }
 #endif
 
-static void estimate_gpu_freq(ulong *oldf,signature_t *s,double glimit)
+static void estimate_gpu_freq(ulong *oldf, signature_t *s, double glimit)
 {
-	#if SHOW_DEBUGS
-	int used = sig_gpus_used(s);
-	double gpower=sig_total_gpu_power(s);
-	double gpower_per_gpu,glimit_per_gpu;
-	gpower_per_gpu = gpower/used;
-	glimit_per_gpu = glimit = used;
-	red = (gpower_per_gpu - glimit_per_gpu)/glimit_per_gpu;
-	debug("We should reduce a %f of gpu power",red);
-	#endif
-	return;
+#if SHOW_DEBUGS
+    int used      = sig_gpus_used(s);
+    double gpower = sig_total_gpu_power(s);
+    double gpower_per_gpu, glimit_per_gpu;
+    gpower_per_gpu = gpower / used;
+    glimit_per_gpu = glimit = used;
+    red                     = (gpower_per_gpu - glimit_per_gpu) / glimit_per_gpu;
+    debug("We should reduce a %f of gpu power", red);
+#endif
+    return;
 }
 
-void pc_support_adapt_gpu_freq(polctx_t *c,node_powercap_opt_t *pc,ulong *f,signature_t *s)
+void pc_support_adapt_gpu_freq(polctx_t *c, node_powercap_opt_t *pc, ulong *f, signature_t *s)
 {
     uint plimit;
     double gpower;
     signature_t new_s;
 
-    signature_copy(&new_s,s);
+    signature_copy(&new_s, s);
     new_s.DC_power = sig_total_gpu_power(s);
-    plimit = pc->pper_domain[DOMAIN_GPU];        /* limit */
-    gpower = new_s.DC_power;
-    debug("checking gpu frequency: gpu_power %lf gpu_powercap %u",gpower,plimit);
+    plimit         = pc->pper_domain[DOMAIN_GPU]; /* limit */
+    gpower         = new_s.DC_power;
+    debug("checking gpu frequency: gpu_power %lf gpu_powercap %u", gpower, plimit);
     mgt_gpu_freq_limit_get_current(no_ctx, f);
 
-    if ((uint)gpower <= plimit) {
+    if ((uint) gpower <= plimit) {
         pc_app_info_data->pc_gpu_status = PC_STATUS_OK;
         debug("GPU power is enough");
         return;
@@ -125,7 +123,6 @@ void pc_support_adapt_gpu_freq(polctx_t *c,node_powercap_opt_t *pc,ulong *f,sign
     return;
 }
 #endif
-
 
 // ulong pc_support_adapt_freq(polctx_t *c,node_powercap_opt_t *pc,ulong f,signature_t *s)
 // {
@@ -147,8 +144,8 @@ void pc_support_adapt_gpu_freq(polctx_t *c,node_powercap_opt_t *pc,ulong *f,sign
 // 		}else{
 // 			ppower = plimit;
 // 		}
-// 		debug("checking frequency: cfreq %lu cpstate %u ppstate %u cpower %lf ppower %lf limit %u",cfreq,cpstate,ppstate,new_s.DC_power,ppower,plimit);		
-// 		if (((uint)ppower<=plimit) && (adapted)){
+// 		debug("checking frequency: cfreq %lu cpstate %u ppstate %u cpower %lf ppower %lf limit
+// %u",cfreq,cpstate,ppstate,new_s.DC_power,ppower,plimit); 		if (((uint)ppower<=plimit) && (adapted)){
 // 			power_status=compute_power_status(pc,(uint)ppower);
 // 			pc_app_info_data->req_power=(uint)ppower;
 // 			if (power_status == PC_STATUS_RELEASE) pc_app_info_data->pc_status=power_status;
@@ -161,7 +158,7 @@ void pc_support_adapt_gpu_freq(polctx_t *c,node_powercap_opt_t *pc,ulong *f,sign
 // 			numpstates=frequency_get_num_pstates();
 // 			do{
 // 				ppstate++;
-// 				if (projection_available(cpstate,ppstate)==EAR_SUCCESS){			
+// 				if (projection_available(cpstate,ppstate)==EAR_SUCCESS){
 // 					adapted=1;
 // 					project_power(&new_s,cpstate,ppstate,&ppower);
 // 					pc_app_info_data->req_power=(uint)ppower;
@@ -170,10 +167,10 @@ void pc_support_adapt_gpu_freq(polctx_t *c,node_powercap_opt_t *pc,ulong *f,sign
 // 		}
 // 		if (adapted) req_f=frequency_pstate_to_freq(ppstate);
 // 		return req_f;
-// 
+//
 // }
 
-void pc_support_compute_next_state(polctx_t *c,node_powercap_opt_t *pc,signature_t *s)
+void pc_support_compute_next_state(polctx_t *c, node_powercap_opt_t *pc, signature_t *s)
 {
 #if 0
 		uint power_status;

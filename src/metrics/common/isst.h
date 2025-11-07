@@ -11,12 +11,12 @@
 #ifndef METRICS_COMMON_ISST_H
 #define METRICS_COMMON_ISST_H
 
-#include <common/types.h>
-#include <common/states.h>
 #include <common/hardware/topology.h>
+#include <common/states.h>
+#include <common/types.h>
 
-#define ISST_MAX_FREQ    25500000
-#define ISST_SAME_PRIO   UINT_MAX
+#define ISST_MAX_FREQ  25500000
+#define ISST_SAME_PRIO UINT_MAX
 
 typedef struct clos_s {
     ullong max_khz;

@@ -12,28 +12,35 @@
 
 ullong setbits64(ullong reg, ullong val, uint left_bit, uint right_bit)
 {
-	uint digits = (left_bit - right_bit);
-	ullong mask = ~((((0x01 << (digits + 1)) - 1) << right_bit));
-	return (reg & mask) | ((val) << right_bit);
+    uint digits = (left_bit - right_bit);
+    ullong mask = ~((((0x01 << (digits + 1)) - 1) << right_bit));
+    return (reg & mask) | ((val) << right_bit);
 }
 
 uint setbits32(uint reg, uint val, uint left_bit, uint right_bit)
 {
-	uint digits = (left_bit - right_bit);
-	uint mask   = ~((((0x01 << (digits + 1)) - 1) << right_bit));
-	return (reg & mask) | ((val) << right_bit);
+    uint digits = (left_bit - right_bit);
+    uint mask   = ~((((0x01 << (digits + 1)) - 1) << right_bit));
+    return (reg & mask) | ((val) << right_bit);
 }
 
 ullong getbits64(ullong reg, uint left_bit, uint right_bit)
 {
-	uint digits = left_bit - right_bit;
-	ullong mask = (((0x01 << digits) - 1) << 1) + 1;
-	return ((reg >> right_bit) & mask);
+    uint digits = left_bit - right_bit;
+    ullong mask = (((0x01 << digits) - 1) << 1) + 1;
+    return ((reg >> right_bit) & mask);
 }
 
 uint getbits32(uint reg, uint left_bit, uint right_bit)
 {
-	uint digits = left_bit - right_bit;
-	uint mask   = (((0x01 << digits) - 1) << 1) + 1;
-	return ((reg >> right_bit) & mask);
+    uint digits = left_bit - right_bit;
+    uint mask   = (((0x01 << digits) - 1) << 1) + 1;
+    return ((reg >> right_bit) & mask);
+}
+
+uchar getbits8(uchar reg, uchar left_bit, uchar right_bit)
+{
+    uchar digits = left_bit - right_bit;
+    uchar mask   = (((0x01 << digits) - 1) << 1) + 1;
+    return ((reg >> right_bit) & mask);
 }

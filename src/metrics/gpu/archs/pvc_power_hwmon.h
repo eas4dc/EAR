@@ -15,7 +15,6 @@
 * found in COPYING.BSD and COPYING.EPL files.
 */
 
-
 #ifndef METRICS_ENERGY_CPU_PVC_HWMON_METER_H
 #define METRICS_ENERGY_CPU_PVC_HWMON_METER_H
 
@@ -31,6 +30,5 @@ state_t pvc_hwmon_count_devices(ctx_t *c, uint *count);
 state_t pvc_hwmon_read(ctx_t *c, gpu_t *data);
 state_t pvc_hwmon_read_raw(ctx_t *c, gpu_t *data);
 state_t pvc_hwmon_set_mode(ctx_t *c, uint32_t mode);
-
 
 #endif

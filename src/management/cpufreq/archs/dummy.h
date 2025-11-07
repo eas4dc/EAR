@@ -50,4 +50,4 @@ state_t mgt_cpufreq_dummy_governor_set_mask(ctx_t *c, uint governor, cpu_set_t m
 
 state_t mgt_cpufreq_dummy_governor_set_list(ctx_t *c, uint *governors);
 
-#endif //MANAGEMENT_CPUFREQ_ARCHS_DUMMY_H
+#endif // MANAGEMENT_CPUFREQ_ARCHS_DUMMY_H

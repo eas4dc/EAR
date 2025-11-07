@@ -8,15 +8,15 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#include <common/environment_common.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <common/environment_common.h>
 
 int openmpi_num_nodes()
 {
-	char *cn = ear_getenv("OMPI_MCA_orte_num_nodes");
-	if (cn != NULL)
-		return atoi(cn);
-	else
-		return -1;
+    char *cn = ear_getenv("OMPI_MCA_orte_num_nodes");
+    if (cn != NULL)
+        return atoi(cn);
+    else
+        return -1;
 }

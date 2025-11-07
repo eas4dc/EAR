@@ -34,4 +34,4 @@ state_t mgt_imcfreq_intel63_get_current_ranged_list(ctx_t *c, pstate_t *ps_min_l
 
 state_t mgt_imcfreq_intel63_set_current_ranged_list(ctx_t *c, uint *id_min_list, uint *id_max_list);
 
-#endif //MANAGEMENT_IMCFREQ_INTEL63_H
+#endif // MANAGEMENT_IMCFREQ_INTEL63_H

@@ -31,4 +31,4 @@ int filemagic_word_mwrite(int *fds, int fds_count, char *word, int line_break);
 
 int filemagic_once_read(char *path, char *buffer, int buffer_length);
 
-#endif //METRICS_COMMON_FILE_H
+#endif // METRICS_COMMON_FILE_H

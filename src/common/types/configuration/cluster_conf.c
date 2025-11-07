@@ -97,15 +97,10 @@ int get_num_nodes_in_eargm(cluster_conf_t *my_conf, int eargm_id)
 
     for (i = 0; i < my_conf->num_islands; i++) {
         for (j = 0; j < my_conf->islands[i].num_ranges; j++) {
-            node_range_t range = my_conf->islands[i].ranges[j];
-            if (range.eargm_id != eargm_id)
+            node_range_t *range = &my_conf->islands[i].ranges[j];
+            if (range->eargm_id != eargm_id)
                 continue;
-            if (range.end == -1)
-                total_nodes++;
-            else if (range.end == range.start)
-                total_nodes++;
-            else
-                total_nodes += (range.end - range.start) + 1; // end - start does not count the starting node
+            total_nodes += node_range_get_num_nodes(range);
         }
     }
 
@@ -124,26 +119,193 @@ int get_num_nodes(cluster_conf_t *my_conf)
 
     for (i = 0; i < my_conf->num_islands; i++) {
         for (j = 0; j < my_conf->islands[i].num_ranges; j++) {
-            node_range_t range = my_conf->islands[i].ranges[j];
-            if (range.end == -1)
-                total_nodes++;
-            else if (range.end == range.start)
-                total_nodes++;
-            else
-                total_nodes += (range.end - range.start) + 1; // end - start does not count the starting node
+            node_range_t *range = &my_conf->islands[i].ranges[j];
+            total_nodes += node_range_get_num_nodes(range);
         }
     }
 
     return total_nodes;
 }
 
+static void _add_ips_and_names_from_range(char *base, range_def_t *r, int32_t **ips, int32_t *num_ips, char ***names,
+                                          cluster_conf_t *conf)
+{
+    char buff[1024]        = {0};
+    char second_buff[1024] = {0};
+    if (base != NULL)
+        strcpy(buff, base);
+
+    if (r == NULL) {
+        // store the ip
+        *ips              = realloc(*ips, ((*num_ips) + 1) * (sizeof(int32_t)));
+        int32_t *aux_ptr  = *ips;
+        aux_ptr[*num_ips] = get_ip(buff, conf);
+
+        // store the hostname
+        *names              = realloc(*names, ((*num_ips) + 1) * (sizeof(char *)));
+        char **name_list    = *names;
+        name_list[*num_ips] = calloc(strlen(buff) + 1, sizeof(char));
+        strcpy(name_list[*num_ips], buff);
+
+        (*num_ips)++;
+        return;
+    }
+    if (r->numbers_count == 0) { // special case
+        strcat(buff, r->prefix);
+        *ips              = realloc(*ips, ((*num_ips) + 1) * (sizeof(int32_t)));
+        int32_t *aux_ptr  = *ips;
+        aux_ptr[*num_ips] = get_ip(buff, conf);
+
+        *names              = realloc(*names, ((*num_ips) + 1) * (sizeof(char *)));
+        char **name_list    = *names;
+        name_list[*num_ips] = calloc(strlen(buff) + 1, sizeof(char));
+        strcpy(name_list[*num_ips], buff);
+
+        (*num_ips)++;
+        return;
+    }
+    for (int32_t i = 0; i < r->numbers_count; i++) {
+        memset(second_buff, 0, sizeof(second_buff));
+        memset(buff, 0, sizeof(buff));
+        if (base != NULL)
+            strcpy(buff, base);
+        pair *aux = &r->numbers[i];
+        /*   1)0-0 if NO numbers had to be set (ideally shouldn't happen and the pointer would be null with no range).
+         * cmp2546[] (useless []) 2)0-N or N-M if BOTH numbers have been set. ex: cmp25[45-47] 3)N-0 if only ONE number
+         * has been set. ex: cmp25[45]
+         */
+        if (aux->first == 0 && aux->second == 0) {
+            sprintf(second_buff, "%s", r->prefix);
+            strcat(buff, second_buff);
+            _add_ips_and_names_from_range(buff, r->next, ips, num_ips, names, conf);
+        } else if (aux->second == 0) {
+            sprintf(second_buff, "%s", r->prefix);
+            for (int32_t i = 0; i < aux->leading_zeroes; i++)
+                strcat(second_buff, "0");
+            sprintf(&second_buff[strlen(second_buff)], "%d", aux->first);
+            strcat(buff, second_buff);
+            _add_ips_and_names_from_range(buff, r->next, ips, num_ips, names, conf);
+        } else {
+            for (int32_t i = 0; i <= (aux->second - aux->first); i++) {
+                memset(second_buff, 0, sizeof(second_buff));
+                memset(buff, 0, sizeof(second_buff));
+                if (base != NULL)
+                    strcpy(buff, base);
+
+                sprintf(second_buff, "%s", r->prefix);
+                int32_t zeroes = aux->leading_zeroes + difference_in_units(aux->first + i, aux->second);
+                for (int32_t j = 0; j < zeroes; j++)
+                    strcat(second_buff, "0");
+                sprintf(&second_buff[strlen(second_buff)], "%d", aux->first + i);
+                strcat(buff, second_buff);
+                _add_ips_and_names_from_range(buff, r->next, ips, num_ips, names, conf);
+            }
+        }
+    }
+}
+
+int get_ip_and_names_from_ranges(cluster_conf_t *my_conf, int **num_ips, int ***ips, char ****names)
+{
+    int i, j;
+    int **aux_ips;
+    char ***aux_names;
+    int *ip_counter;
+    int total_ranges  = 0;
+    int current_range = 0;
+    // get total number of ranges
+    for (i = 0; i < my_conf->num_islands; i++)
+        total_ranges += my_conf->islands[i].num_ranges;
+
+    if (total_ranges < 1) {
+        error("No IP ranges found.");
+        return EAR_ERROR;
+    }
+    // allocate memory for each range of IPs as well as each range's IP counter
+    ip_counter = calloc(total_ranges, sizeof(int));
+    aux_ips    = calloc(total_ranges, sizeof(int *));
+    aux_names  = calloc(total_ranges, sizeof(char **));
+
+    for (i = 0; i < my_conf->num_islands; i++) {
+        for (j = 0; j < my_conf->islands[i].num_ranges; j++) {
+            range_def_t range = my_conf->islands[i].ranges[j].r_def;
+            _add_ips_and_names_from_range("", &range, &aux_ips[current_range], &ip_counter[current_range],
+                                          &aux_names[current_range], my_conf);
+            current_range++;
+        }
+    }
+    *ips     = aux_ips;
+    *num_ips = ip_counter;
+    *names   = aux_names;
+
+    return total_ranges;
+}
+
+static void _add_ips_from_range(char *base, range_def_t *r, int32_t **ips, int32_t *num_ips, cluster_conf_t *conf)
+{
+    char buff[1024]        = {0};
+    char second_buff[1024] = {0};
+    if (base != NULL)
+        strcpy(buff, base);
+    if (r == NULL) {
+        *ips              = realloc(*ips, ((*num_ips) + 1) * (sizeof(int32_t)));
+        int32_t *aux_ptr  = *ips;
+        aux_ptr[*num_ips] = get_ip(buff, conf);
+        (*num_ips)++;
+        return;
+    }
+    if (r->numbers_count == 0) { // special case
+        strcat(buff, r->prefix);
+        *ips              = realloc(*ips, ((*num_ips) + 1) * (sizeof(int32_t)));
+        int32_t *aux_ptr  = *ips;
+        aux_ptr[*num_ips] = get_ip(buff, conf);
+        (*num_ips)++;
+        return;
+    }
+    for (int32_t i = 0; i < r->numbers_count; i++) {
+        memset(second_buff, 0, sizeof(second_buff));
+        memset(buff, 0, sizeof(buff));
+        if (base != NULL)
+            strcpy(buff, base);
+        pair *aux = &r->numbers[i];
+        /*   1)0-0 if NO numbers had to be set (ideally shouldn't happen and the pointer would be null with no range).
+         * cmp2546[] (useless []) 2)0-N or N-M if BOTH numbers have been set. ex: cmp25[45-47] 3)N-0 if only ONE number
+         * has been set. ex: cmp25[45]
+         */
+        if (aux->first == 0 && aux->second == 0) {
+            sprintf(second_buff, "%s", r->prefix);
+            strcat(buff, second_buff);
+            _add_ips_from_range(buff, r->next, ips, num_ips, conf);
+        } else if (aux->second == 0) {
+            sprintf(second_buff, "%s", r->prefix);
+            for (int32_t i = 0; i < aux->leading_zeroes; i++)
+                strcat(second_buff, "0");
+            sprintf(&second_buff[strlen(second_buff)], "%d", aux->first);
+            strcat(buff, second_buff);
+            _add_ips_from_range(buff, r->next, ips, num_ips, conf);
+        } else {
+            for (int32_t i = 0; i <= (aux->second - aux->first); i++) {
+                memset(second_buff, 0, sizeof(second_buff));
+                memset(buff, 0, sizeof(second_buff));
+                if (base != NULL)
+                    strcpy(buff, base);
+
+                sprintf(second_buff, "%s", r->prefix);
+                int32_t zeroes = aux->leading_zeroes + difference_in_units(aux->first + i, aux->second);
+                for (int32_t j = 0; j < zeroes; j++)
+                    strcat(second_buff, "0");
+                sprintf(&second_buff[strlen(second_buff)], "%d", aux->first + i);
+                strcat(buff, second_buff);
+                _add_ips_from_range(buff, r->next, ips, num_ips, conf);
+            }
+        }
+    }
+}
+
 int get_ip_ranges(cluster_conf_t *my_conf, int **num_ips, int ***ips)
 {
-    int i, j, k;
+    int i, j;
     int **aux_ips;
-    int *sec_aux_ips;
     int *ip_counter;
-    char aux_name[256];
     int total_ranges  = 0;
     int current_range = 0;
     // get total number of ranges
@@ -160,40 +322,8 @@ int get_ip_ranges(cluster_conf_t *my_conf, int **num_ips, int ***ips)
 
     for (i = 0; i < my_conf->num_islands; i++) {
         for (j = 0; j < my_conf->islands[i].num_ranges; j++) {
-            node_range_t range = my_conf->islands[i].ranges[j];
-            if (range.end == -1) {
-                sprintf(aux_name, "%s", range.prefix);
-                sec_aux_ips               = calloc(1, sizeof(int));
-                sec_aux_ips[0]            = get_ip(aux_name, my_conf);
-                aux_ips[current_range]    = sec_aux_ips;
-                ip_counter[current_range] = 1;
-                current_range++;
-                continue;
-            }
-            if (range.end == range.start) {
-                sprintf(aux_name, "%s%u", range.prefix, range.start);
-                sec_aux_ips               = calloc(1, sizeof(int));
-                sec_aux_ips[0]            = get_ip(aux_name, my_conf);
-                aux_ips[current_range]    = sec_aux_ips;
-                ip_counter[current_range] = 1;
-                current_range++;
-                continue;
-            }
-
-            int total_ips = range.end - range.start + 1;
-            int it        = 0;
-            sec_aux_ips   = calloc(total_ips, sizeof(int));
-            for (k = range.start; k <= range.end; k++) {
-                if (is_smaller_unit(k, range.end))
-                    sprintf(aux_name, "%s0%u", range.prefix, k);
-                else
-                    sprintf(aux_name, "%s%u", range.prefix, k);
-
-                sec_aux_ips[it] = get_ip(aux_name, my_conf);
-                it++;
-            }
-            aux_ips[current_range]    = sec_aux_ips;
-            ip_counter[current_range] = it;
+            range_def_t range = my_conf->islands[i].ranges[j].r_def;
+            _add_ips_from_range("", &range, &aux_ips[current_range], &ip_counter[current_range], my_conf);
             current_range++;
         }
     }
@@ -205,47 +335,16 @@ int get_ip_ranges(cluster_conf_t *my_conf, int **num_ips, int ***ips)
 
 int get_range_ips(cluster_conf_t *my_conf, char *nodename, int **ips)
 {
-    int i, j, range_idx;
-    int *aux_ips;
-    char aux_name[256];
+    int i, range_idx;
+    int32_t total_ips = 0;
     for (i = 0; i < my_conf->num_islands; i++) {
-        range_idx = island_range_conf_contains_node(&my_conf->islands[i], nodename);
+        range_idx = nodeconf_get_island_range_for_node(&my_conf->islands[i], nodename);
         if (range_idx < 0)
             continue;
 
-        node_range_t range = my_conf->islands[i].ranges[range_idx];
-        if (range.end == -1) {
-            sprintf(aux_name, "%s", range.prefix);
-            aux_ips    = calloc(1, sizeof(int));
-            aux_ips[0] = get_ip(aux_name, my_conf);
-            *ips       = aux_ips;
-            return 1;
-        }
-        if (range.end == range.start) {
-            sprintf(aux_name, "%s%u", range.prefix, range.start);
-            aux_ips    = calloc(1, sizeof(int));
-            aux_ips[0] = get_ip(aux_name, my_conf);
-            *ips       = aux_ips;
-            return 1;
-        }
+        range_def_t range = my_conf->islands[i].ranges[range_idx].r_def;
 
-        int total_ips = range.end - range.start + 1;
-        int it        = 0;
-        aux_ips       = calloc(total_ips, sizeof(int));
-        for (j = range.start; j <= range.end; j++) {
-            if (j < 10 && range.end > 100)
-                sprintf(aux_name, "%s00%u", range.prefix, j);
-            else if (j < 10 && range.end > 10)
-                sprintf(aux_name, "%s0%u", range.prefix, j);
-            else if (j < 100 && range.end > 100)
-                sprintf(aux_name, "%s0%u", range.prefix, j);
-            else
-                sprintf(aux_name, "%s%u", range.prefix, j);
-
-            aux_ips[it] = get_ip(aux_name, my_conf);
-            it++;
-        }
-        *ips = aux_ips;
+        _add_ips_from_range("", &range, ips, &total_ips, my_conf);
         return total_ips;
     }
 
@@ -336,7 +435,7 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
 
     i = 0;
     do { // At least one node is assumed
-        if ((range_id = island_range_conf_contains_node(&my_conf->islands[i], nodename)) >= 0) {
+        if ((range_id = nodeconf_get_island_range_for_node(&my_conf->islands[i], nodename)) >= 0) {
             range_found = 1;
             n->island   = my_conf->islands[i].id;
             island_idx  = i;
@@ -413,9 +512,10 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
         if (strlen(my_conf->tags[tag_id].energy_model) > 0)
             n->energy_model = my_conf->tags[tag_id].energy_model;
 
-        n->idle_governor       = my_conf->tags[tag_id].idle_governor;
-        n->powercap_plugin     = my_conf->tags[tag_id].powercap_plugin;
-        n->powercap_gpu_plugin = my_conf->tags[tag_id].powercap_gpu_plugin;
+        n->idle_governor        = my_conf->tags[tag_id].idle_governor;
+        n->powercap_plugin      = my_conf->tags[tag_id].powercap_plugin;
+        n->powercap_node_plugin = my_conf->tags[tag_id].powercap_node_plugin;
+        n->powercap_gpu_plugin  = my_conf->tags[tag_id].powercap_gpu_plugin;
 
         n->coef_file = strlen(my_conf->tags[tag_id].coeffs) > 0 ? my_conf->tags[tag_id].coeffs : "coeffs.default";
         // There is a specific default_policy , we replace the cluster conf default policy
@@ -596,8 +696,7 @@ int get_eardbd_conf_path(char *ear_conf_path)
 }
 
 /** CHECKING USER TYPE */
-/* returns true if the username, group and/or accounts is presents in the list of authorized users/groups/accounts */
-int is_privileged(cluster_conf_t *my_conf, char *user, char *group, char *acc)
+int is_authorized_usr_grp_acc(cluster_conf_t *my_conf, char *user, char *group, char *acc)
 {
     int i;
     int found = 0;
@@ -627,6 +726,7 @@ int is_privileged(cluster_conf_t *my_conf, char *user, char *group, char *acc)
                 verbose(0, "User not found\n");
             } else {
                 verbose(0, "getpwdnam_r failed with exit code %d\n", s);
+                free(buf);
                 return_msg(EAR_ERROR, "getpwnam_r failed");
             }
         }
@@ -658,8 +758,8 @@ int is_privileged(cluster_conf_t *my_conf, char *user, char *group, char *acc)
             if (gr != NULL) {
                 char *gr_name = gr->gr_name;
                 int j         = 0;
-                while ((j < my_conf->num_priv_groups) && (!found)) {
-                    char *grpriv_name = my_conf->priv_groups[j];
+                while ((j < my_conf->auth_groups_count) && (!found)) {
+                    char *grpriv_name = my_conf->auth_groups[j];
                     if ((strcmp(gr_name, grpriv_name) == 0) || (strcmp(grpriv_name, "all") == 0)) {
                         found = 1;
                     } else
@@ -672,10 +772,10 @@ int is_privileged(cluster_conf_t *my_conf, char *user, char *group, char *acc)
         free(buf);
 
         i = 0;
-        while ((i < my_conf->num_priv_users) && (!found)) {
-            if (strcmp(user, my_conf->priv_users[i]) == 0)
+        while ((i < my_conf->auth_users_count) && (!found)) {
+            if (strcmp(user, my_conf->auth_users[i]) == 0)
                 found = 1;
-            else if (strcmp(my_conf->priv_users[i], "all") == 0)
+            else if (strcmp(my_conf->auth_users[i], "all") == 0)
                 found = 1;
             else
                 i++;
@@ -685,10 +785,10 @@ int is_privileged(cluster_conf_t *my_conf, char *user, char *group, char *acc)
         return found;
     if (group != NULL) {
         i = 0;
-        while ((i < my_conf->num_priv_groups) && (!found)) {
-            if (strcmp(group, my_conf->priv_groups[i]) == 0)
+        while ((i < my_conf->auth_groups_count) && (!found)) {
+            if (strcmp(group, my_conf->auth_groups[i]) == 0)
                 found = 1;
-            else if (strcmp(my_conf->priv_groups[i], "all") == 0)
+            else if (strcmp(my_conf->auth_groups[i], "all") == 0)
                 found = 1;
             else
                 i++;
@@ -698,16 +798,33 @@ int is_privileged(cluster_conf_t *my_conf, char *user, char *group, char *acc)
         return found;
     if (acc != NULL) {
         i = 0;
-        while ((i < my_conf->num_acc) && (!found)) {
-            if (strcmp(acc, my_conf->priv_acc[i]) == 0)
+        while ((i < my_conf->auth_acc_count) && (!found)) {
+            if (strcmp(acc, my_conf->auth_accounts[i]) == 0)
                 found = 1;
-            else if (strcmp(my_conf->priv_acc[i], "all") == 0)
+            else if (strcmp(my_conf->auth_accounts[i], "all") == 0)
                 found = 1;
             else
                 i++;
         }
     }
     return found;
+}
+
+int is_admin_usr(cluster_conf_t *my_conf, char *user)
+{
+    if (!my_conf || !user) {
+        return_msg(EAR_ERROR, Generr.input_null);
+    }
+
+    int i = 0;
+    while (i < my_conf->admin_users_count) {
+        if (strcmp(user, my_conf->admin_users[i]) == 0) {
+            return 1;
+        }
+        i++;
+    }
+
+    return 0;
 }
 
 /* returns true if the username, group and/or accounts can use the given energy_tag_t */
@@ -799,15 +916,26 @@ energy_tag_t *energy_tag_exists(cluster_conf_t *my_conf, char *etag)
     return NULL;
 }
 
-/** returns the user type: NORMAL, AUTHORIZED, ENERGY_TAG */
+/** returns the user type: NORMAL, AUTHORIZED, ENERGY_TAG
+ * Both Authorized and Admins may return AUTHORIZED. */
 uint get_user_type(cluster_conf_t *my_conf, char *energy_tag, char *user, char *group, char *acc, energy_tag_t **my_tag)
 {
     energy_tag_t *is_tag;
-    int flag;
     *my_tag = NULL;
-    verbose(VPRIV, "Checking user %s group %s acc %s etag %s\n", user, group, acc, energy_tag);
+    verbose(VPRIV, "Checking user (%s), group (%s), account (%s) and energy tag (%s)...", user, group, acc, energy_tag);
+
     /* We first check if it is authorized user */
-    flag = is_privileged(my_conf, user, group, acc);
+    int flag = is_authorized_usr_grp_acc(my_conf, user, group, acc);
+    if (!flag) {
+        /* If it is not an authorized user, we check whether is an admin user */
+        flag = is_admin_usr(my_conf, user);
+        /* The above function may return a negative value.
+         * Handle it as it isn't an amdin. */
+        if (flag < 0) {
+            flag = 0;
+        }
+    }
+
     if (flag) {
         if (energy_tag != NULL) {
             is_tag = energy_tag_exists(my_conf, energy_tag);
@@ -819,6 +947,7 @@ uint get_user_type(cluster_conf_t *my_conf, char *energy_tag, char *user, char *
         } else
             return AUTHORIZED;
     }
+
     /* It is an energy tag user ? */
     is_tag = is_energy_tag_privileged(my_conf, user, group, acc, energy_tag);
     if (is_tag != NULL) {
@@ -854,6 +983,7 @@ void set_default_tag_values(tag_t *tag)
     strcpy(tag->energy_model, "");
     strcpy(tag->energy_plugin, "");
     strcpy(tag->powercap_plugin, "");
+    strcpy(tag->powercap_node_plugin, "");
     strcpy(tag->powercap_gpu_plugin, "");
     strcpy(tag->idle_governor, "default");
     strcpy(tag->default_policy, "");
@@ -1229,7 +1359,7 @@ void remove_islands_by_tag(cluster_conf_t conf[static 1], const char *tag)
 {
     if (conf == NULL || tag == NULL)
         return;
-    // debug("Removing node with earmg different than %d", e_def->id);
+    debug("Removing node with earmg different than %s", tag);
 
     int i, j, k;
     for (i = 0; i < conf->num_islands; i++) {
@@ -1362,29 +1492,40 @@ state_t serialize_cluster_conf(cluster_conf_t *conf, char **ear_conf_buf, size_t
     debug("serial + policies: %u policies", conf->num_policies);
 
     /* Priv users */
-    serial_add_elem(&ear_conf_serial, (char *) &conf->num_priv_users, sizeof(conf->num_priv_users));
-    for (uint auth = 0; auth < conf->num_priv_users; auth++) {
-        uint size_auth = strlen(conf->priv_users[auth]);
+    serial_add_elem(&ear_conf_serial, (char *) &conf->auth_users_count, sizeof(conf->auth_users_count));
+    for (uint auth = 0; auth < conf->auth_users_count; auth++) {
+        uint size_auth = strlen(conf->auth_users[auth]);
         serial_add_elem(&ear_conf_serial, (char *) &size_auth, sizeof(size_auth));
-        serial_add_elem(&ear_conf_serial, (char *) conf->priv_users[auth], strlen(conf->priv_users[auth]));
+        serial_add_elem(&ear_conf_serial, (char *) conf->auth_users[auth], strlen(conf->auth_users[auth]));
     }
     /* Priv groups */
-    serial_add_elem(&ear_conf_serial, (char *) &conf->num_priv_groups, sizeof(conf->num_priv_groups));
-    for (uint auth = 0; auth < conf->num_priv_groups; auth++) {
-        uint size_auth = strlen(conf->priv_groups[auth]);
+    serial_add_elem(&ear_conf_serial, (char *) &conf->auth_groups_count, sizeof(conf->auth_groups_count));
+    for (uint auth = 0; auth < conf->auth_groups_count; auth++) {
+        uint size_auth = strlen(conf->auth_groups[auth]);
         serial_add_elem(&ear_conf_serial, (char *) &size_auth, sizeof(size_auth));
-        serial_add_elem(&ear_conf_serial, (char *) conf->priv_groups[auth], strlen(conf->priv_groups[auth]));
+        serial_add_elem(&ear_conf_serial, (char *) conf->auth_groups[auth], strlen(conf->auth_groups[auth]));
     }
 
     /* Priv accounts */
-    serial_add_elem(&ear_conf_serial, (char *) &conf->num_acc, sizeof(conf->num_acc));
-    for (uint auth = 0; auth < conf->num_acc; auth++) {
-        uint size_auth = strlen(conf->priv_acc[auth]);
+    serial_add_elem(&ear_conf_serial, (char *) &conf->auth_acc_count, sizeof(conf->auth_acc_count));
+    for (uint auth = 0; auth < conf->auth_acc_count; auth++) {
+        uint size_auth = strlen(conf->auth_accounts[auth]);
         serial_add_elem(&ear_conf_serial, (char *) &size_auth, sizeof(size_auth));
-        serial_add_elem(&ear_conf_serial, (char *) conf->priv_acc[auth], strlen(conf->priv_acc[auth]));
+        serial_add_elem(&ear_conf_serial, (char *) conf->auth_accounts[auth], strlen(conf->auth_accounts[auth]));
     }
-    debug("serial + authorized: users %u groups %u accounts %u", conf->num_priv_users, conf->num_priv_groups,
-          conf->num_acc);
+
+    /* Admin users */
+    serial_add_elem(&ear_conf_serial, (char *) &conf->admin_users_count, sizeof(conf->admin_users_count));
+
+    for (uint admn = 0; admn < conf->admin_users_count; admn++) {
+        uint size_auth = strlen(conf->admin_users[admn]);
+        serial_add_elem(&ear_conf_serial, (char *) &size_auth, sizeof(size_auth));
+
+        serial_add_elem(&ear_conf_serial, (char *) conf->admin_users[admn], strlen(conf->admin_users[admn]));
+    }
+
+    debug("serial + authorized: users %u groups %u accounts %u admins %u", conf->auth_users_count,
+          conf->auth_groups_count, conf->auth_acc_count, conf->admin_users_count);
 
     /* Global data */
     serial_add_elem(&ear_conf_serial, (char *) &conf->min_time_perf_acc, sizeof(conf->min_time_perf_acc));
@@ -1437,7 +1578,8 @@ state_t serialize_cluster_conf(cluster_conf_t *conf, char **ear_conf_buf, size_t
 }
 
 /* ear_conf_buf points to a serialized region. conf is the output. Memory is not internally allocated for it */
-state_t deserialize_cluster_conf(cluster_conf_t *conf, char *ear_conf_buf, size_t conf_size)
+state_t deserialize_cluster_conf(cluster_conf_t *conf, char *ear_conf_buf, size_t conf_size,
+                                 const version_t *src_version)
 {
     state_t s = EAR_SUCCESS;
     wide_buffer_t ear_conf_serial;
@@ -1472,37 +1614,54 @@ state_t deserialize_cluster_conf(cluster_conf_t *conf, char *ear_conf_buf, size_
     serial_copy_elem(&ear_conf_serial, (char *) &conf->default_policy, NULL);
 
     /* Priv users */
-    serial_copy_elem(&ear_conf_serial, (char *) &conf->num_priv_users, NULL);
-    if (conf->num_priv_users) {
-        conf->priv_users = calloc(sizeof(char *), conf->num_priv_users);
-        for (uint auth = 0; auth < conf->num_priv_users; auth++) {
+    serial_copy_elem(&ear_conf_serial, (char *) &conf->auth_users_count, NULL);
+    if (conf->auth_users_count) {
+        conf->auth_users = calloc(sizeof(char *), conf->auth_users_count);
+        for (uint auth = 0; auth < conf->auth_users_count; auth++) {
             uint size_auth;
             serial_copy_elem(&ear_conf_serial, (char *) &size_auth, NULL);
-            conf->priv_users[auth] = calloc(1, size_auth + 1);
-            serial_copy_elem(&ear_conf_serial, (char *) conf->priv_users[auth], NULL);
+            conf->auth_users[auth] = calloc(1, size_auth + 1);
+            serial_copy_elem(&ear_conf_serial, (char *) conf->auth_users[auth], NULL);
         }
     }
     /* Priv groups */
-    serial_copy_elem(&ear_conf_serial, (char *) &conf->num_priv_groups, NULL);
-    if (conf->num_priv_groups) {
-        conf->priv_groups = calloc(sizeof(char *), conf->num_priv_groups);
-        for (uint auth = 0; auth < conf->num_priv_groups; auth++) {
+    serial_copy_elem(&ear_conf_serial, (char *) &conf->auth_groups_count, NULL);
+    if (conf->auth_groups_count) {
+        conf->auth_groups = calloc(sizeof(char *), conf->auth_groups_count);
+        for (uint auth = 0; auth < conf->auth_groups_count; auth++) {
             uint size_auth;
             serial_copy_elem(&ear_conf_serial, (char *) &size_auth, NULL);
-            conf->priv_groups[auth] = calloc(1, size_auth + 1);
-            serial_copy_elem(&ear_conf_serial, (char *) conf->priv_groups[auth], NULL);
+            conf->auth_groups[auth] = calloc(1, size_auth + 1);
+            serial_copy_elem(&ear_conf_serial, (char *) conf->auth_groups[auth], NULL);
         }
     }
 
     /* Priv accounts */
-    serial_copy_elem(&ear_conf_serial, (char *) &conf->num_acc, NULL);
-    if (conf->num_acc) {
-        conf->priv_acc = calloc(sizeof(char *), conf->num_acc);
-        for (uint auth = 0; auth < conf->num_acc; auth++) {
+    serial_copy_elem(&ear_conf_serial, (char *) &conf->auth_acc_count, NULL);
+    if (conf->auth_acc_count) {
+        conf->auth_accounts = calloc(sizeof(char *), conf->auth_acc_count);
+        for (uint auth = 0; auth < conf->auth_acc_count; auth++) {
             uint size_auth;
             serial_copy_elem(&ear_conf_serial, (char *) &size_auth, NULL);
-            conf->priv_acc[auth] = calloc(1, size_auth + 1);
-            serial_copy_elem(&ear_conf_serial, (char *) conf->priv_acc[auth], NULL);
+            conf->auth_accounts[auth] = calloc(1, size_auth + 1);
+            serial_copy_elem(&ear_conf_serial, (char *) conf->auth_accounts[auth], NULL);
+        }
+    }
+
+    /* Admin users: Just available since v6.0 */
+    version_t admusr_min_v;
+    version_set(&admusr_min_v, 6, 0);
+    if (version_is(VERSION_GE, src_version, &admusr_min_v)) {
+        serial_copy_elem(&ear_conf_serial, (char *) &conf->admin_users_count, NULL);
+        if (conf->admin_users_count) {
+            conf->admin_users = calloc(sizeof(char *), conf->admin_users_count);
+
+            for (uint admn = 0; admn < conf->admin_users_count; admn++) {
+                uint size_auth;
+                serial_copy_elem(&ear_conf_serial, (char *) &size_auth, NULL);
+                conf->admin_users[admn] = calloc(1, size_auth + 1);
+                serial_copy_elem(&ear_conf_serial, (char *) conf->admin_users[admn], NULL);
+            }
         }
     }
 

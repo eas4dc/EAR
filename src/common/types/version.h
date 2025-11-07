@@ -11,9 +11,7 @@
 #ifndef _EAR_VERSION_H
 #define _EAR_VERSION_H
 
-
 void version_to_str(char *buff);
 void print_version();
-
 
 #endif

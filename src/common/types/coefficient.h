@@ -14,9 +14,8 @@
 #include <common/config.h>
 #include <common/types/generic.h>
 
-typedef struct coefficient
-{
-	  ulong pstate_ref;	
+typedef struct coefficient {
+    ulong pstate_ref;
     ulong pstate;
     uint available;
     /* For power projection */
@@ -29,9 +28,7 @@ typedef struct coefficient
     double F;
 } coefficient_t;
 
-
-typedef struct coefficient_gpu
-{
+typedef struct coefficient_gpu {
     ulong pstate_ref;
     ulong pstate;
     uint available;
@@ -46,7 +43,6 @@ typedef struct coefficient_gpu
     double B2;
     double B3;
 } coefficient_gpu_t;
-
 
 // File
 int coeff_file_size(char *path);

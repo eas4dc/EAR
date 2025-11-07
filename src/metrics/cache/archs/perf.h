@@ -27,4 +27,4 @@ void cache_perf_data_diff(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs)
 
 void cache_perf_internals_tostr(char *buffer, int length);
 
-#endif //METRICS_CACHE_PERF_H
+#endif // METRICS_CACHE_PERF_H

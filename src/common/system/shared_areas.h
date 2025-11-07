@@ -13,7 +13,6 @@
 
 #include <sys/stat.h>
 
-
 /** Creates a shared memory region based on files and mmap.
  *
  * \param[in] path The full file name to store data.
@@ -27,8 +26,7 @@
  * \return the shared region pointer otherwise. */
 void *create_shared_area(char *path, mode_t file_perms_bits, char *data, int area_size, int *shared_fd, int must_clean);
 
-
-void * attach_shared_area(char *path,int area_size,uint perm,int *shared_fd,int *s);
+void *attach_shared_area(char *path, int area_size, uint perm, int *shared_fd, int *s);
 void dettach_shared_area(int fd);
-void dispose_shared_area(char *path,int fd);
+void dispose_shared_area(char *path, int fd);
 #endif

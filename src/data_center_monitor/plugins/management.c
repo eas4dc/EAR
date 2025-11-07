@@ -10,18 +10,18 @@
 
 // #define SHOW_DEBUGS 1
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <common/output/debug.h>
 #include <data_center_monitor/plugins/conf.h>
 #include <data_center_monitor/plugins/management.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-static mans_t     m;
-static conf_t    *conf;
+static mans_t m;
+static conf_t *conf;
 
 declr_up_get_tag()
 {
-    *tag = "management";
+    *tag       = "management";
     *tags_deps = "!conf+!metrics";
 }
 
@@ -34,6 +34,6 @@ declr_up_action_init(_conf)
 declr_up_action_init(_management)
 {
     *data_alloc = &m;
-    management_init(&m.mi, &conf->tp, atoull(getenv("MFLAGS")));
+    management_load(&m.mi, &conf->tp, atoull(getenv("MFLAGS")));
     return rsprintf("Management plugin initialized correctly");
 }

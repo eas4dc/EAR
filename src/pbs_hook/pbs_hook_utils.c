@@ -8,17 +8,15 @@
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
 
-
 #define _GNU_SOURCE
 
-
-#include <sched.h>
-#include <stdio.h>
+#include <common/hardware/hardware_info.h>
+#include <common/types/application.h>
+#include <daemon/shared_configuration.h>
 #include <errno.h>
 #include <pbs_hook/pbs_hook_utils.h>
-#include <common/types/application.h>
-#include <common/hardware/hardware_info.h>
-#include <daemon/shared_configuration.h>
+#include <sched.h>
+#include <stdio.h>
 
 uint pbs_util_get_ID(int job_id, int step_id)
 {
@@ -29,10 +27,9 @@ int pbs_util_get_eard_port(char *ear_tmp)
 {
     int ret;
     char path[GENERIC_NAME];
-    
+
     ret = get_services_conf_path(ear_tmp, path);
-    if (state_ok(ret))
-    {
+    if (state_ok(ret)) {
         services_conf_t *services_conf;
         services_conf = attach_services_conf_shared_area(path);
         if (services_conf == NULL) {
@@ -40,13 +37,13 @@ int pbs_util_get_eard_port(char *ear_tmp)
         }
 
         return services_conf->eard.port;
-    } else
-    {
+    } else {
         return -1;
     }
 }
 
-int pbs_util_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *mask, int *errno_sym) {
+int pbs_util_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *mask, int *errno_sym)
+{
     int ret = sched_getaffinity(pid, cpusetsize, mask);
     if (ret < 0) {
         *errno_sym = errno;

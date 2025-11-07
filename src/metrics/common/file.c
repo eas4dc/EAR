@@ -8,17 +8,17 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
+#include <common/output/debug.h>
+#include <common/states.h>
 #include <fcntl.h>
+#include <metrics/common/file.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <common/states.h>
-#include <common/output/debug.h>
-#include <metrics/common/file.h>
+#include <unistd.h>
 
 int filemagic_exists(char *path)
 {
@@ -71,7 +71,7 @@ static int filemagic_can_msomething(char *format, int index_count, int **fds, in
             return 0;
         }
     }
-    *fds = calloc((unsigned int)index_count, sizeof(int));
+    *fds = calloc((unsigned int) index_count, sizeof(int));
     for (i = 0; i < index_count; ++i) {
         sprintf(buffer, format, i);
         if (!can(buffer, &((*(fds))[i]))) {
@@ -96,12 +96,12 @@ int filemagic_word_read(int fd, char *word, int reset_position)
     int i = 0;
     char c;
     if (reset_position) {
-        if(lseek(fd, 0, SEEK_SET) < 0) {
+        if (lseek(fd, 0, SEEK_SET) < 0) {
             return_print(0, "while trying to read cpufreq file (%s)", strerror(errno));
         }
     }
     // Does not read ' ' nor '\n'
-    while((read(fd, &c, sizeof(char)) > 0) && !((c == (char) 10) || (c == (char) 32))) {
+    while ((read(fd, &c, sizeof(char)) > 0) && !((c == (char) 10) || (c == (char) 32))) {
         word[i] = c;
         i++;
     }
@@ -119,17 +119,17 @@ int filemagic_word_write(int fd, char *word, int len, int line_break)
     // Adding a line break
     if (line_break) {
         len += 1;
-        word[len-1] = '\n';
-        word[len  ] = '\0';
+        word[len - 1] = '\n';
+        word[len]     = '\0';
     }
     for (i = 0, r = 1, p = len; i < len && r > 0;) {
         r = pwrite(fd, (void *) &word[i], p, i);
-        i = i   + r;
+        i = i + r;
         p = len - i;
     }
     // Recovering from line break
     if (line_break) {
-        word[len-1] = '\0';
+        word[len - 1] = '\0';
     }
     if (r == -1) {
         return_print(0, "%s when writing '%s' in cpufreq file", strerror(errno), word);
@@ -140,13 +140,13 @@ int filemagic_word_write(int fd, char *word, int len, int line_break)
 int filemagic_word_mwrite(int *fds, int fds_count, char *word, int line_break)
 {
     int len = strlen(word);
-    int s = 1;
-    int i = 0;
+    int s   = 1;
+    int i   = 0;
     debug("Multiple writing a word '%s'", word);
     // Adding a line break
     if (line_break) {
-        word[len]   = '\n';
-        word[len+1] = '\0';
+        word[len]     = '\n';
+        word[len + 1] = '\0';
         len++;
     }
     for (i = 0; i < fds_count; ++i) {
@@ -157,7 +157,7 @@ int filemagic_word_mwrite(int *fds, int fds_count, char *word, int line_break)
     }
     // Recovering from line break
     if (line_break) {
-        word[len-1] = '\0';
+        word[len - 1] = '\0';
     }
     return s;
 }
@@ -165,8 +165,8 @@ int filemagic_word_mwrite(int *fds, int fds_count, char *word, int line_break)
 int filemagic_once_read(char *path, char *buffer, int buffer_length)
 {
     int fd = -1;
-    int i  =  0;
-    int r  =  0;
+    int i  = 0;
+    int r  = 0;
     if ((fd = open(path, O_RDONLY)) < 0) {
         debug("Opening '%s' failed: %s", path, strerror(errno));
         return_msg(0, strerror(errno));

@@ -14,17 +14,17 @@
 #include <common/states.h>
 
 typedef struct popen_s {
-    char  table[512][16][128];
-    int   rows_escape;
-    int   rows_index;
-    int   rows_count;
-    int   cols_count;
-    int   one_shot;
-    int   opened;
+    char table[512][16][128];
+    int rows_escape;
+    int rows_index;
+    int rows_count;
+    int cols_count;
+    int one_shot;
+    int opened;
     FILE *file;
-    int   eof;
-    int   fd;
-		pid_t pid;
+    int eof;
+    int fd;
+    pid_t pid;
 } popen_t;
 
 // Tests if an executable (binary or script) exists, before call popen_open.
@@ -61,7 +61,7 @@ void popen_close(popen_t *p);
 #define popen_read(p, fmt, ...) popen_read2(p, ' ', fmt, __VA_ARGS__)
 
 // The same than popen_read() macro but using a separator instead white space.
-int popen_read2(popen_t *p, char separator, const char* fmt, ...);
+int popen_read2(popen_t *p, char separator, const char *fmt, ...);
 
 // Counts the number of current lines kept in the buffer from last reading.
 uint popen_count_read(popen_t *p);
@@ -69,4 +69,4 @@ uint popen_count_read(popen_t *p);
 // Count the number of lines pending.
 uint popen_count_pending(popen_t *p);
 
-#endif //METRICS_COMMON_POPEN_H
+#endif // METRICS_COMMON_POPEN_H

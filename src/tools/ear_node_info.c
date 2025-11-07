@@ -8,25 +8,25 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <common/config.h>
 #include <common/states.h>
 #include <common/utils/string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-#include <metrics/metrics.h>
-#include <management/management.h>
 #include <daemon/local_api/eard_api.h>
+#include <management/management.h>
+#include <metrics/metrics.h>
 
 char node_name[256];
 topology_t tp;
 char buffer[2048];
 
-#define check(st, msg) \
-    if (st != EAR_SUCCESS){\
-        printf(msg);\
-        eards_disconnect();\
-        exit(1);\
+#define check(st, msg)                                                                                                 \
+    if (st != EAR_SUCCESS) {                                                                                           \
+        printf(msg);                                                                                                   \
+        eards_disconnect();                                                                                            \
+        exit(1);                                                                                                       \
     }
 
 int usage(char *app)
@@ -44,9 +44,8 @@ int usage(char *app)
 void show_gpu_info()
 {
 
-    printf("EAR GPU info in node %s\n",node_name);
-    check(eards_connection(),"eards_connection");
-
+    printf("EAR GPU info in node %s\n", node_name);
+    check(eards_connection(), "eards_connection");
 
     mgt_gpu_load(EARD);
     check(mgt_gpu_init(no_ctx), "mgt_gpu_init");
@@ -56,24 +55,25 @@ void show_gpu_info()
     printf("EAR GPU info API: %s\n", buffer);
 
     uint gpu_dev;
-    check(mgt_gpu_count_devices(no_ctx,&gpu_dev),"mgt_gpu_count_devices");
+    check(mgt_gpu_count_devices(no_ctx, &gpu_dev), "mgt_gpu_count_devices");
     printf("EAR GPU info num devices %u\n", gpu_dev);
 
     printf("EAR GPU info is supported %u\n", mgt_gpu_is_supported());
 
     ulong **gpu_freq_list;
-    uint  *num_freqs;
-    check(mgt_gpu_freq_get_available(no_ctx,(const ulong ***) &gpu_freq_list,(const uint **) &num_freqs),"mgt_gpu_freq_get_available");
+    uint *num_freqs;
+    check(mgt_gpu_freq_get_available(no_ctx, (const ulong ***) &gpu_freq_list, (const uint **) &num_freqs),
+          "mgt_gpu_freq_get_available");
     printf("EAR GPU info : Print list of freqs for GPU 0 assuming all are equal\n");
     ulong *curr_list = gpu_freq_list[0];
-    for (uint gfreq = 0; gfreq < num_freqs[0]; gfreq ++){
+    for (uint gfreq = 0; gfreq < num_freqs[0]; gfreq++) {
         printf("EAR GPU info : GPU freq[0][%u] = %lu\n", gfreq, curr_list[gfreq]);
     }
 
     ulong *curr_gpuf;
-    check(mgt_gpu_data_alloc(&curr_gpuf),"mgt_gpu_data_alloc");
-    check(mgt_gpu_freq_limit_get_current(no_ctx, curr_gpuf),"mgt_gpu_freq_limit_get_current");
-    for (uint cgpu = 0; cgpu < gpu_dev; cgpu++){
+    check(mgt_gpu_data_alloc(&curr_gpuf), "mgt_gpu_data_alloc");
+    check(mgt_gpu_freq_limit_get_current(no_ctx, curr_gpuf), "mgt_gpu_freq_limit_get_current");
+    for (uint cgpu = 0; cgpu < gpu_dev; cgpu++) {
         printf("EAR GPU info : GPU freq[%u] = %lu\n", cgpu, curr_gpuf[cgpu]);
     }
 
@@ -84,39 +84,37 @@ void show_gpu_info()
 
 void show_mem_info()
 {
-    printf("EAR MEM info in node %s\n",node_name);
-    check(eards_connection(),"eards_connection");
+    printf("EAR MEM info in node %s\n", node_name);
+    check(eards_connection(), "eards_connection");
 
-    check(mgt_imcfreq_load(&tp, EARD, NULL),"mgt_imcfreq_load");
+    check(mgt_imcfreq_load(&tp, EARD, NULL), "mgt_imcfreq_load");
     check(mgt_imcfreq_init(no_ctx), "mgt_imcfreq_init");
 
     uint mem_api;
-    check(mgt_imcfreq_get_api(&mem_api),"mgt_imcfreq_get_api");
+    check(mgt_imcfreq_get_api(&mem_api), "mgt_imcfreq_get_api");
     apis_tostr(mem_api, buffer, sizeof(buffer));
     printf("EAR MEM info API: %s\n", buffer);
 
-
     uint mem_devices;
-    check(mgt_imcfreq_count_devices(no_ctx, &mem_devices),"mgt_imcfreq_count_devices");
+    check(mgt_imcfreq_count_devices(no_ctx, &mem_devices), "mgt_imcfreq_count_devices");
     printf("EAR MEM info num devices %u\n", mem_devices);
 
     pstate_t *mem_pstate_list;
-    uint      num_pstates;
+    uint num_pstates;
 
-    check(mgt_imcfreq_get_available_list(no_ctx, (const pstate_t **)&mem_pstate_list, &num_pstates),"mgt_imcfreq_get_available_list");
+    check(mgt_imcfreq_get_available_list(no_ctx, (const pstate_t **) &mem_pstate_list, &num_pstates),
+          "mgt_imcfreq_get_available_list");
     pstate_tostr(mem_pstate_list, num_pstates, buffer, sizeof(buffer));
     printf("EAR MEM info list of MEM frequencies \n%s\n", buffer);
 
     pstate_t *current_mem_list;
-    uint     *index;
+    uint *index;
     check(mgt_imcfreq_data_alloc(&current_mem_list, &index), "mgt_imcfreq_data_alloc");
-    check(mgt_imcfreq_get_current_list(no_ctx, current_mem_list),"mgt_imcfreq_get_current_list");
+    check(mgt_imcfreq_get_current_list(no_ctx, current_mem_list), "mgt_imcfreq_get_current_list");
 
-    for (uint cdev = 0; cdev < mem_devices; cdev ++){
+    for (uint cdev = 0; cdev < mem_devices; cdev++) {
         printf("EAR MEM info curr freq DEV[%u] = %llu\n", cdev, current_mem_list[cdev].khz);
     }
-
-
 
     mgt_imcfreq_dispose(no_ctx);
 
@@ -126,14 +124,14 @@ void show_mem_info()
 void show_cpu_info()
 {
     uint api;
-    printf("EAR CPU info in node %s\n",node_name);
-    check(eards_connection(),"eards_connection");
+    printf("EAR CPU info in node %s\n", node_name);
+    check(eards_connection(), "eards_connection");
 
     topology_tostr(&tp, buffer, sizeof(buffer));
     printf("EAR CPU info Topology: %s\n", buffer);
 
     printf("EAR CPU info load\n");
-    check(mgt_cpufreq_load(&tp, EARD),"mgt_cpufreq_load");
+    check(mgt_cpufreq_load(&tp, EARD), "mgt_cpufreq_load");
     check(mgt_cpufreq_init(no_ctx), "mgt_cpufreq_init");
     mgt_cpufreq_get_api(&api);
     apis_tostr(api, buffer, sizeof(buffer));
@@ -144,31 +142,33 @@ void show_cpu_info()
     printf("EAR CPU info num devices:%u\n", cpuf_num_dev);
 
     pstate_t *cpu_pstate_list;
-    uint 			num_pstates;
-    check(mgt_cpufreq_get_available_list(no_ctx, (const pstate_t **)&cpu_pstate_list, &num_pstates), "mgt_cpufreq_get_available_list");
+    uint num_pstates;
+    check(mgt_cpufreq_get_available_list(no_ctx, (const pstate_t **) &cpu_pstate_list, &num_pstates),
+          "mgt_cpufreq_get_available_list");
 
     pstate_tostr(cpu_pstate_list, num_pstates, buffer, sizeof(buffer));
     printf("EAR CPU info list of CPU frequencies \n%s\n", buffer);
 
     uint pstate_nominal;
-    check(mgt_cpufreq_get_nominal(no_ctx, &pstate_nominal),"mgt_cpufreq_get_nominal");
-    printf("EAR CPU info pstate nominal is %u, CPU freq = %llu KHz\n", pstate_nominal, cpu_pstate_list[pstate_nominal].khz);
+    check(mgt_cpufreq_get_nominal(no_ctx, &pstate_nominal), "mgt_cpufreq_get_nominal");
+    printf("EAR CPU info pstate nominal is %u, CPU freq = %llu KHz\n", pstate_nominal,
+           cpu_pstate_list[pstate_nominal].khz);
 
     uint *governor_list;
-    governor_list = (uint *)calloc(cpuf_num_dev, sizeof(uint));
-    check(mgt_cpufreq_governor_get_list(no_ctx, governor_list),"mgt_cpufreq_governor_get_list");
+    governor_list = (uint *) calloc(cpuf_num_dev, sizeof(uint));
+    check(mgt_cpufreq_governor_get_list(no_ctx, governor_list), "mgt_cpufreq_governor_get_list");
 
-    for (uint c = 0; c < cpuf_num_dev; c++){
-        governor_tostr(governor_list[c],buffer);
+    for (uint c = 0; c < cpuf_num_dev; c++) {
+        governor_tostr(governor_list[c], buffer);
         printf("EAR CPU info governor CPU[%u] = %s\n", c, buffer);
     }
 
     /* Asking for the current CPU freq requires data allocation */
     pstate_t *curr_cpu_pstate;
-    uint     *index;
+    uint *index;
     mgt_cpufreq_data_alloc(&curr_cpu_pstate, &index);
-    check(mgt_cpufreq_get_current_list(no_ctx, curr_cpu_pstate),"mgt_cpufreq_get_current_list");
-    for (uint ccpu = 0; ccpu < cpuf_num_dev; ccpu++){
+    check(mgt_cpufreq_get_current_list(no_ctx, curr_cpu_pstate), "mgt_cpufreq_get_current_list");
+    for (uint ccpu = 0; ccpu < cpuf_num_dev; ccpu++) {
         printf("EAR CPU info curr CPUF[%u] = %llu\n", ccpu, curr_cpu_pstate[ccpu].khz);
     }
 
@@ -177,7 +177,6 @@ void show_cpu_info()
     mgt_cpufreq_dispose(no_ctx);
     eards_disconnect();
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -188,15 +187,10 @@ int main(int argc, char *argv[])
     }
 
     char c;
-    int option_idx = 0;
-    static struct option long_options[] = {
-        {"cpu-info",      no_argument, 0, 0},
-        {"mem-info",      no_argument, 0, 1},
-        {"gpu-info",    	no_argument, 0, 2},
-        {"all",           no_argument, 0, 3},
-        {"help",          no_argument, 0, 4},
-        {NULL,          0, 0, 0}
-    };
+    int option_idx                      = 0;
+    static struct option long_options[] = {{"cpu-info", no_argument, 0, 0}, {"mem-info", no_argument, 0, 1},
+                                           {"gpu-info", no_argument, 0, 2}, {"all", no_argument, 0, 3},
+                                           {"help", no_argument, 0, 4},     {NULL, 0, 0, 0}};
 
     /* Node name */
 
@@ -207,26 +201,29 @@ int main(int argc, char *argv[])
 
     while (1) {
         c = getopt_long(argc, argv, "c:m:g:a:h", long_options, &option_idx);
-        if (c == -1) break;
+        if (c == -1)
+            break;
         switch (c) {
             case 0:
-                show_cpu_info(); break;
+                show_cpu_info();
+                break;
             case 1:
-                show_mem_info(); break;
+                show_mem_info();
+                break;
             case 2:
-                show_gpu_info(); break;
+                show_gpu_info();
+                break;
             case 3:
                 show_cpu_info();
                 show_mem_info();
                 show_gpu_info();
                 break;
-            case 4: usage(argv[0]);
+            case 4:
+                usage(argv[0]);
             default:
-                    break;
+                break;
         }
     }
 
-
     return 0;
 }
-

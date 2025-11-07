@@ -11,16 +11,13 @@
 #ifndef _EAR_TRACES_H_
 #define _EAR_TRACES_H_
 
-
 #include <common/types/generic.h>
 #include <daemon/shared_configuration.h>
 
-
 /** Executed at application start */
-void traces_init(settings_conf_t *conf, char *app, int global_rank, int local_rank,
-        int nodes, int mpis, int ppn);
+void traces_init(settings_conf_t *conf, char *app, int global_rank, int local_rank, int nodes, int mpis, int ppn);
 /** Executed at application end */
-void traces_end(int global_rank,int local_rank, unsigned long int total_ener);
+void traces_end(int global_rank, int local_rank, unsigned long int total_ener);
 /** **/
 void traces_start();
 /** **/
@@ -28,13 +25,14 @@ void traces_stop();
 
 /**@{ Executed when application signature is computed at EVALUATING_SIGNATURE and SIGANTURE_STABLE states */
 void traces_frequency(int global_rank, int local_rank, unsigned long f);
-void traces_new_signature(int global_rank, int local_rank, double seconds, double cpi, double tpi, double gbs, double power,double vpi);
-void traces_PP(int global_rank, int local_rank, double seconds, double power); /**@}*/ 
+void traces_new_signature(int global_rank, int local_rank, double seconds, double cpi, double tpi, double gbs,
+                          double power, double vpi);
+void traces_PP(int global_rank, int local_rank, double seconds, double power); /**@}*/
 
 /**@{ Executed when each time a new loop is detected, the loop ends, or a new iteration are reported */
 void traces_new_n_iter(int global_rank, int local_rank, ullong period_id, int loop_size, int iterations);
 void traces_new_period(int global_rank, int local_rank, ullong period_id);
-void traces_end_period(int global_rank, int local_rank); /**@}*/ 
+void traces_end_period(int global_rank, int local_rank); /**@}*/
 
 /** EARL internal state */
 void traces_policy_state(int global_rank, int local_rank, int state);
@@ -53,6 +51,5 @@ void traces_mpi_init();
 void traces_mpi_call(int global_rank, int local_rank, ulong time, ulong ev, ulong a1, ulong a2, ulong a3);
 
 void traces_mpi_end();
-
 
 #endif

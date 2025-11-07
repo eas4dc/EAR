@@ -16,8 +16,7 @@
 #include <common/types/generic.h>
 #define NODE_SIZE 256
 
-typedef struct gm_warning 
-{
+typedef struct gm_warning {
     ulong level;
     ulong new_p_state;
     double energy_percent;
@@ -29,7 +28,6 @@ typedef struct gm_warning
     ulong energy_p2;
     char policy[64];
 } gm_warning_t;
-
 
 // Function declarations
 

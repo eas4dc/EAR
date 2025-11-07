@@ -12,13 +12,10 @@
 #define _GPU_NODE_MGR_H
 
 state_t gpu_mgr_init();
-state_t gpu_mgr_set_freq(uint num_dev,ulong *freqs);
+state_t gpu_mgr_set_freq(uint num_dev, ulong *freqs);
 state_t gpu_mgr_set_freq_all_gpus(ulong gfreq);
-uint    gpu_mgr_num_gpus();
+uint gpu_mgr_num_gpus();
 state_t gpu_mgr_get_min(uint gpu, ulong *gfreq);
 state_t gpu_mgr_get_max(uint gpu, ulong *gfreq);
 
-
 #endif
-
-

@@ -8,22 +8,17 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
-#include <common/output/debug.h>
 #include <common/hardware/cpuid.h>
 #include <common/hardware/defines.h>
+#include <common/output/debug.h>
 
 void cpuid_native(uint *eax, uint *ebx, uint *ecx, uint *edx)
 {
-    #if __ARCH_X86
-    asm volatile("cpuid"
-        : "=a" (*eax),
-          "=b" (*ebx),
-          "=c" (*ecx),
-          "=d" (*edx)
-        : "0"  (*eax), "2" (*ecx));
-    #endif
+#if __ARCH_X86
+    asm volatile("cpuid" : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx) : "0"(*eax), "2"(*ecx));
+#endif
 }
 
 uint cpuid_getbits(uint reg, int left_bit, int right_bit)
@@ -41,12 +36,12 @@ uint cpuid_isleaf(uint leaf)
     if (leaf < aux) {
         aux = 0;
     }
-    CPUID(r,aux,0);
+    CPUID(r, aux, 0);
     // If max leafs are less
     if (r.eax < leaf) {
         return 0;
     }
-    CPUID(r,leaf,0);
+    CPUID(r, leaf, 0);
     // EBX confirms its presence
     if (r.ebx == 0) {
         return 0;

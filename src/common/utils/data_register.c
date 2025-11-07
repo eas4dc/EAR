@@ -8,20 +8,20 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
+#include <common/output/verbose.h>
+#include <common/system/time.h>
+#include <common/utils/data_register.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <common/system/time.h>
-#include <common/output/verbose.h>
-#include <common/utils/data_register.h>
 
 typedef struct dreg_col_s {
-    char   fmt[8];
-    char   show;
-    uint   type;
+    char fmt[8];
+    char show;
+    uint type;
     size_t size;
     size_t p;
 } dreg_col_t;
@@ -32,7 +32,7 @@ typedef struct dreg_col_s {
 
 void dreg_init(dreg_t *d, size_t colsize)
 {
-    d->colsize_full = colsize+sizeof(timestamp_t);
+    d->colsize_full = colsize + sizeof(timestamp_t);
     d->colsize_mix  = colsize;
     d->buffer       = calloc(DREG_TYPE_ALLOC, d->colsize_full);
     d->rows         = 0;
@@ -79,11 +79,11 @@ void dreg_fmt_build(dreg_t *d, dreg_col_t *cols, uint *cols_count, cchar *fmt)
     uint all;
     char *p;
     uint c;
-    
-    all     = (fmt[0] == '*');
-    fmt     = &fmt[all];
-    accum   = sizeof(timestamp_t);
-    c       = 0;
+
+    all   = (fmt[0] == '*');
+    fmt   = &fmt[all];
+    accum = sizeof(timestamp_t);
+    c     = 0;
 
     if (all) {
         // Getting single type size
@@ -98,7 +98,7 @@ void dreg_fmt_build(dreg_t *d, dreg_col_t *cols, uint *cols_count, cchar *fmt)
             cols[c].type = cols[0].type;
             cols[c].show = 1;
             cols[c].p    = accum;
-            accum       += cols[0].size;
+            accum += cols[0].size;
         }
         goto out;
     }
@@ -112,16 +112,16 @@ void dreg_fmt_build(dreg_t *d, dreg_col_t *cols, uint *cols_count, cchar *fmt)
         cols[c].type = dreg_fmt_gettype(p);
         cols[c].show = !(p[0] == '-');
         cols[c].p    = accum;
-        accum       += cols[c].size;
-        *cols_count  = ++c;
-    } while((p = strtok(NULL, "|")));
+        accum += cols[c].size;
+        *cols_count = ++c;
+    } while ((p = strtok(NULL, "|")));
 out:
-    #if SHOW_DEBUGS
+#if SHOW_DEBUGS
     for (c = 0; c < *cols_count; ++c) {
-       debug("%u: '%s', type %u, show %d, %lu bytes, %lu p",
-            c, cols[c].fmt, cols[c].type, cols[c].show, cols[c].size, cols[c].p);
+        debug("%u: '%s', type %u, show %d, %lu bytes, %lu p", c, cols[c].fmt, cols[c].type, cols[c].show, cols[c].size,
+              cols[c].p);
     }
-    #endif
+#endif
     return;
 }
 
@@ -141,7 +141,7 @@ void dreg_print(dreg_t *d, uint style, cchar *fmt, int fd)
     perrows = !percols;
     fmt     = &fmt[percols];
     comma   = 0;
-    sep     = ' '; 
+    sep     = ' ';
     // Building the printing format
     dreg_fmt_build(d, cols, &cols_count, fmt);
     // Style
@@ -152,52 +152,50 @@ void dreg_print(dreg_t *d, uint style, cchar *fmt, int fd)
         sep = ',';
     }
     // Print one by one
-    if (perrows)
-    {
-    debug("per rows");
-    dprintf(fd, "(");
-    for (r = 0, q = d->buffer; r < d->rows; ++r, q += d->colsize_full) {
+    if (perrows) {
+        debug("per rows");
+        dprintf(fd, "(");
+        for (r = 0, q = d->buffer; r < d->rows; ++r, q += d->colsize_full) {
+            for (c = 0; c < cols_count; ++c) {
+                if (!cols[c].show) {
+                    continue;
+                }
+                if (comma) {
+                    dprintf(fd, "%c", sep);
+                }
+#define drprintf(dtype, cast)                                                                                          \
+    if (cols[c].type == dtype) {                                                                                       \
+        cast *dp = (cast *) &q[cols[c].p];                                                                             \
+        dprintf(fd, cols[c].fmt, *dp);                                                                                 \
+    }
+                drprintf(DREG_TYPE_ULLONG, ullong);
+                drprintf(DREG_TYPE_UINT, uint);
+                drprintf(DREG_TYPE_DOUBLE, double);
+                ++comma;
+            }
+        }
+        dprintf(fd, ")\n");
+    }
+    if (percols) {
+        debug("per columns");
         for (c = 0; c < cols_count; ++c) {
             if (!cols[c].show) {
                 continue;
             }
-            if (comma) {
-                dprintf(fd, "%c", sep);
+            comma = 0;
+            dprintf(fd, "(");
+            for (r = 0, q = d->buffer; r < d->rows; ++r, q += d->colsize_full) {
+                if (comma) {
+                    dprintf(fd, "%c", sep);
+                }
+                drprintf(DREG_TYPE_ULLONG, ullong);
+                drprintf(DREG_TYPE_UINT, uint);
+                drprintf(DREG_TYPE_DOUBLE, double);
+                ++comma;
+                comma = 1;
             }
-            #define drprintf(dtype, cast) \
-            if (cols[c].type == dtype) { \
-                cast *dp = (cast *) &q[cols[c].p]; \
-                dprintf(fd, cols[c].fmt, *dp); \
-            }
-            drprintf(DREG_TYPE_ULLONG, ullong);
-            drprintf(DREG_TYPE_UINT  , uint  );
-            drprintf(DREG_TYPE_DOUBLE, double);
-            ++comma;
-        } 
-    }
-    dprintf(fd, ")\n");
-    } 
-    if (percols)
-    {
-    debug("per columns");
-    for (c = 0; c < cols_count; ++c) {
-        if (!cols[c].show) {
-            continue;
+            dprintf(fd, ")\n");
         }
-        comma = 0;
-        dprintf(fd, "(");
-        for (r = 0, q = d->buffer; r < d->rows; ++r, q += d->colsize_full) {
-            if (comma) {
-                dprintf(fd, "%c", sep);
-            }
-            drprintf(DREG_TYPE_ULLONG, ullong);
-            drprintf(DREG_TYPE_UINT  , uint  );
-            drprintf(DREG_TYPE_DOUBLE, double);
-            ++comma;
-            comma = 1; 
-        }
-        dprintf(fd, ")\n");
-    }
     }
 }
 

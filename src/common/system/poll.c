@@ -9,9 +9,10 @@
  **************************************************************************/
 
 // #define SHOW_DEBUGS 1
+
 #define _GNU_SOURCE
-#include <common/system/poll.h>
 #include <common/output/debug.h>
+#include <common/system/poll.h>
 
 static int ids_count;
 
@@ -22,21 +23,21 @@ void afd_init(afd_set_t *set)
     int i;
     // Full clean
     memset(set, 0, sizeof(afd_set_t));
-    // Tags
-    #if AFD_DEBUG
+// Tags
+#if AFD_DEBUG
     char *p = calloc(sizeof(char), AFD_MAX * AFD_TAG);
-    #endif
+#endif
     //
     for (i = 0; i < AFD_MAX; ++i) {
-        set->fds[i].fd      =  -1;
-        set->fds[i].events  =   0;
-        set->fds[i].revents =   0;
-        #if !AFD_DEBUG
-        set->tags[i]        = NULL;
-        #else
-        set->tags[i]        = &p[i*AFD_TAG];
+        set->fds[i].fd      = -1;
+        set->fds[i].events  = 0;
+        set->fds[i].revents = 0;
+#if !AFD_DEBUG
+        set->tags[i] = NULL;
+#else
+        set->tags[i] = &p[i * AFD_TAG];
         sprintf(set->tags[i], "-");
-        #endif
+#endif
     }
     set->id     = ++ids_count;
     set->fd_min = AFD_MAX;
@@ -55,7 +56,7 @@ int afd_set(int fd, afd_set_t *set, int flags)
     set->fds[fd].fd      = fd;
     set->fds[fd].events  = flags;
     set->fds[fd].revents = 0;
-    set->fds_count      += 1;
+    set->fds_count += 1;
 
     if (fd > set->fd_max) {
         set->fd_max = fd;
@@ -76,9 +77,9 @@ int afd_ishup(int fd, afd_set_t *set)
 int afd_isset(int fd, afd_set_t *set, int flag)
 {
     int retset = (set->fds[fd].revents & flag);
-    int rethup = afd_ishup(fd, set); 
-    afdebug("AFD_ISSET(%d, set%d): ret %d, hup %d (revents %d), tag %s",
-        fd, set->id, retset, rethup, set->fds[fd].revents, set->tags[fd]);
+    int rethup = afd_ishup(fd, set);
+    afdebug("AFD_ISSET(%d, set%d): ret %d, hup %d (revents %d), tag %s", fd, set->id, retset, rethup,
+            set->fds[fd].revents, set->tags[fd]);
     if (!retset && rethup) {
         retset = rethup;
     }
@@ -97,9 +98,9 @@ void afd_clear(int fd, afd_set_t *set)
         return;
     }
     set->fds[fd].fd      = -1;
-    set->fds[fd].events  =  0;
-    set->fds[fd].revents =  0;
-    set->fds_count      -=  1;
+    set->fds[fd].events  = 0;
+    set->fds[fd].revents = 0;
+    set->fds_count -= 1;
 
     for (i = set->fd_min; i < AFD_MAX; ++i) {
         if (set->fds[i].fd != -1) {
@@ -115,9 +116,9 @@ void afd_clear(int fd, afd_set_t *set)
     }
     // Counting
     set->fds_rank = set->fd_max - set->fd_min + 1;
-    #if AFD_DEBUG
+#if AFD_DEBUG
     sprintf(set->tags[i], "-");
-    #endif
+#endif
     afd_debug(fd, set, "AFD_CLR");
 }
 
@@ -137,8 +138,8 @@ int afd_stat(int fd, struct stat *s)
 
 void afd_debug(int fd, afd_set_t *set, const char *prefix)
 {
-    afdebug("%s(%d, set%d) [%d,%d], fds_count %u, fds_rank %d, tag %s", prefix, fd,
-        set->id, set->fd_min, set->fd_max, set->fds_count, (int) set->fds_rank, set->tags[fd]);
+    afdebug("%s(%d, set%d) [%d,%d], fds_count %u, fds_rank %d, tag %s", prefix, fd, set->id, set->fd_min, set->fd_max,
+            set->fds_count, (int) set->fds_rank, set->tags[fd]);
 }
 
 int aselect(afd_set_t *set, ullong timeout, ullong *time_left)
@@ -160,10 +161,10 @@ int aselect(afd_set_t *set, ullong timeout, ullong *time_left)
     int r;
     // Polling and calculating time
     timestamp_get(&ts);
-    r = poll(&set->fds[set->fd_min], set->fds_rank, (int) timeout);
+    r           = poll(&set->fds[set->fd_min], set->fds_rank, (int) timeout);
     time_passed = timestamp_diffnow(&ts, TIME_MSECS);
-    afdebug("%d = poll(set%d, fds_count: %u, fds_rank: %lu, timeout: %d, time_passed: %llu)",
-        r, set->id, set->fds_count, set->fds_rank, (int) timeout, time_passed);
+    afdebug("%d = poll(set%d, fds_count: %u, fds_rank: %lu, timeout: %d, time_passed: %llu)", r, set->id,
+            set->fds_count, set->fds_rank, (int) timeout, time_passed);
     // Calculating the lefting time
     if (time_left != NULL) {
         *time_left = 0;
@@ -195,48 +196,43 @@ int aselectv(afd_set_t *set, struct timeval *_timeout)
 int32_t afd_check_socket_state(int32_t socket)
 {
 
-	struct pollfd stfd = { 0 };
-	stfd.fd = socket;
-	stfd.events = POLLRDHUP;
-	int32_t ret = 0;
-	if ((ret = poll(&stfd, 1, 1000)) == 1) {
-		if (stfd.revents & POLLRDHUP)	{
-			debug("poll returns revent POLLRDHUP, the remote has been closed");
-			return -1; //POLLHUP, connection has been closed by the remote
-		} else if (stfd.revents & POLLHUP) {
-			debug("poll returns revent POLLHUP, the remote has been closed");
-			return -1; //POLLHUP, connection has been closed by the remote
-		}
-		debug("poll revents is %d", stfd.revents);
-	} else if (ret == 0) {
-		debug("poll timed out");
-	} else {
-		return -2;
-		debug("Poll fails for check_socket state (%s)", strerror(errno));
-	}
-	return 0;
+    struct pollfd stfd = {0};
+    stfd.fd            = socket;
+    stfd.events        = POLLRDHUP;
+    int32_t ret        = 0;
+    if ((ret = poll(&stfd, 1, 1000)) == 1) {
+        if (stfd.revents & POLLRDHUP) {
+            debug("Poll() returns revent POLLRDHUP, the remote has been closed");
+            return -1; // POLLHUP, connection has been closed by the remote
+        } else if (stfd.revents & POLLHUP) {
+            debug("Poll() returns revent POLLHUP, the remote has been closed");
+            return -1; // POLLHUP, connection has been closed by the remote
+        }
+        debug("Poll() revents is %d", stfd.revents);
+    } else if (ret == 0) {
+        debug("Poll() timed out");
+    } else {
+        debug("Poll() fails for check_socket state (%s)", strerror(errno));
+        return -2;
+    }
+    return 0;
 }
 
 void afd_check_sockets(afd_set_t *fdlist)
 {
-	int i;
+    int i;
     for (i = fdlist->fd_min; i <= fdlist->fd_max; i++) {
-		if (AFD_ISSET(i,fdlist)){
-			debug("Validating socket %d",i);
-			if (!AFD_STAT(i, NULL)){
-				AFD_CLR(i, fdlist);
-				close(i);
-				debug("CLOSING SOCKETS due to AFD_STAT!");
-			} else if (afd_check_socket_state(i) < 0) {
-				AFD_CLR(i, fdlist);
-				close(i);
-				debug("CLOSING SOCKETS due to check_socket_state!");
-			}
-		}
-	}
+        if (AFD_ISSET(i, fdlist)) {
+            debug("Validating socket %d", i);
+            if (!AFD_STAT(i, NULL)) {
+                debug("Closing due to AFD_STAT");
+                AFD_CLR(i, fdlist);
+                close(i);
+            } else if (afd_check_socket_state(i) < 0) {
+                debug("Closing sockets due to check_socket_state()");
+                AFD_CLR(i, fdlist);
+                close(i);
+            }
+        }
+    }
 }
-
-
-
-
-

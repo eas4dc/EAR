@@ -14,11 +14,10 @@
 #include <common/sizes.h>
 #include <common/states.h>
 
-typedef struct process_data
-{
-	char path_pid[SZ_PATH];
-	char name[SZ_NAME_SHORT];
-	pid_t pid;
+typedef struct process_data {
+    char path_pid[SZ_PATH];
+    char name[SZ_NAME_SHORT];
+    pid_t pid;
 } process_data_t;
 
 /* */
@@ -39,4 +38,4 @@ state_t process_pid_file_load(const process_data_t *prodata, pid_t *pid);
 /* */
 state_t process_pid_file_clean(process_data_t *prodata);
 
-#endif //EAR_PROCESS_H
+#endif // EAR_PROCESS_H

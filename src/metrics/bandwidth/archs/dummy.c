@@ -8,15 +8,15 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <stdlib.h>
 #include <metrics/bandwidth/archs/dummy.h>
+#include <stdlib.h>
 
 BWIDTH_F_LOAD(bwidth_dummy_load)
 {
     apis_put(ops->get_info, bwidth_dummy_get_info);
-    apis_put(ops->init,     bwidth_dummy_init);
-    apis_put(ops->dispose,  bwidth_dummy_dispose);
-    apis_put(ops->read,     bwidth_dummy_read);
+    apis_put(ops->init, bwidth_dummy_init);
+    apis_put(ops->dispose, bwidth_dummy_dispose);
+    apis_put(ops->read, bwidth_dummy_read);
 }
 
 BWIDTH_F_GET_INFO(bwidth_dummy_get_info)
@@ -25,22 +25,22 @@ BWIDTH_F_GET_INFO(bwidth_dummy_get_info)
         info->api         = API_DUMMY;
         info->scope       = SCOPE_NODE;
         info->granularity = GRANULARITY_DUMMY;
-        info->devs_count  = 1+1;
+        info->devs_count  = 1 + 1;
     }
 }
 
 BWIDTH_F_INIT(bwidth_dummy_init)
 {
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 BWIDTH_F_DISPOSE(bwidth_dummy_dispose)
 {
-	return EAR_SUCCESS;
+    return EAR_SUCCESS;
 }
 
 BWIDTH_F_READ(bwidth_dummy_read)
 {
-	memset(bws, 0, (1+1)*sizeof(bwidth_t));
-	return EAR_SUCCESS;
+    memset(bws, 0, (1 + 1) * sizeof(bwidth_t));
+    return EAR_SUCCESS;
 }

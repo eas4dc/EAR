@@ -10,21 +10,21 @@
 
 // #define SHOW_DEBUGS 1
 
-#include <stdlib.h>
-#include <common/output/debug.h>
 #include <common/math_operations.h>
-#include <metrics/common/msr.h>
+#include <common/output/debug.h>
 #include <metrics/bandwidth/archs/amd17.h>
+#include <metrics/common/msr.h>
+#include <stdlib.h>
 
 static topology_t tp;
 static uint       devs_count;
-static off_t      ctl; //Address
-static off_t      ctr; //Address
-static ullong     cmd; //Value
+static off_t      ctl; // Address
+static off_t      ctr; // Address
+static ullong     cmd; // Value
 
 BWIDTH_F_LOAD(bwidth_amd17_load)
 {
-    if (tpo->vendor != VENDOR_AMD || tpo->family < FAMILY_ZEN){
+    if (tpo->vendor != VENDOR_AMD || tpo->family < FAMILY_ZEN) {
         return_msg(, Generr.api_incompatible);
     }
     if (state_fail(msr_test(tpo, MSR_WR))) {
@@ -34,14 +34,14 @@ BWIDTH_F_LOAD(bwidth_amd17_load)
     if (state_fail(topology_select(tpo, &tp, TPSelect.l3, TPGroup.merge, 0))) {
         return;
     }
-    // ZEN3
+    // ZEN3/4/5. In theory is compatible because the small bit changes between
+    // ZEN3/4 and ZEN5 are not used.
     if (tpo->family >= FAMILY_ZEN3) {
-//        cmd = 0x0300c0000040ff04;
+        //  cmd = 0x0300c0000040ff04;
         cmd = 0x0300c00000400104;
         ctl = 0xc0010230;
         ctr = 0xc0010231;
-    }
-    else { // ZEN+ZEN2
+    } else { // ZEN+ZEN2
         cmd = 0xff0f000000400104;
         ctl = 0xc0010230;
         ctr = 0xc0010231;
@@ -62,7 +62,7 @@ BWIDTH_F_GET_INFO(bwidth_amd17_get_info)
     info->api         = API_AMD17;
     info->scope       = SCOPE_NODE;
     info->granularity = GRANULARITY_L3_SLICE;
-    info->devs_count  = devs_count+1;
+    info->devs_count  = devs_count + 1;
 }
 
 BWIDTH_F_INIT(bwidth_amd17_init)

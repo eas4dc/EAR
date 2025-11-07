@@ -11,12 +11,12 @@
 #ifndef UP_METRICS_H
 #define UP_METRICS_H
 
-#include <metrics/metrics.h>
 #include <common/system/plugin_manager.h>
+#include <metrics/metrics.h>
 
 typedef struct mets_s {
     metrics_info_t mi;
     metrics_read_t mr;
 } mets_t;
 
-#endif //UP_METRICS_H
+#endif // UP_METRICS_H

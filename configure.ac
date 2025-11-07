@@ -21,15 +21,27 @@ m4_include([m4/ac_countdown.m4])
 
 # INIT
 AC_PREREQ([2.69])
-AC_INIT([EAR], [5.2], [ear-support@bsc.es], [ear-5.2], [https://gitlab.bsc.es/ear_team/ear])
+AC_INIT([EAR], [6.0], [ear-support@bsc.es], [ear-6.0], [https://gitlab.bsc.es/ear_team/ear])
+
+# Notices in configure
 AC_COPYRIGHT([Copyright © 2017-present BSC])
+
+# Distinguish this package’s source directory from other source directories that
+# might happen to exist in the file system.
+AC_CONFIG_SRCDIR([src/library/api/ear.c])
+AC_CONFIG_MACRO_DIRS([m4])
+AC_CONFIG_AUX_DIR([build-aux])
+
 AC_LANG(C)
+AM_INIT_AUTOMAKE
 
 # PROGRAMS TEST
 AC_PROG_CC
 AC_PROG_AWK
 AC_PROG_GREP
 AC_PROG_MAKE_SET
+AC_PROG_RANLIB
+AM_PROG_AR
 
 #################
 # FIRST SCRIPTS #
@@ -124,7 +136,8 @@ AC_CONFIG_FILES([Makefile
                  etc/rpms/specs/ear.spec
 				 etc/rpms/specs/ear_ln.spec
 				 etc/rpms/specs/ear_cn.spec
-				 etc/rpms/specs/ear_sn.spec])
+				 etc/rpms/specs/ear_sn.spec
+                 src/daemon/app_api/Makefile])
 AC_CONFIG_FILES([etc/rpms/rpmbuild.sh], [chmod +x etc/rpms/rpmbuild.sh])
 AC_OUTPUT
 AX_AFTER_OUTPUT

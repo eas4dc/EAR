@@ -11,22 +11,22 @@
 #ifndef _ARCH_INFO_H_
 #define _ARCH_INFO_H_
 
+#include <common/hardware/topology.h>
 #include <common/sizes.h>
 #include <common/states.h>
-#include <common/hardware/topology.h>
 
-typedef struct architecture{
-	unsigned long max_freq_avx512;
-	unsigned long max_freq_avx2;
-	int pstates;
-	topology_t top;
-}architecture_t;
+typedef struct architecture {
+    unsigned long max_freq_avx512;
+    unsigned long max_freq_avx2;
+    int pstates;
+    topology_t top;
+} architecture_t;
 
 /** Fills the current architecture in arch*/
 state_t get_arch_desc(architecture_t *arch);
 
 /** Copy src in dest */
-state_t copy_arch_desc(architecture_t *dest,architecture_t *src);
+state_t copy_arch_desc(architecture_t *dest, architecture_t *src);
 
 /** Prints in stdout the current architecture*/
 void print_arch_desc(architecture_t *arch);

@@ -8,27 +8,28 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <pthread.h>
 #include <common/states.h>
-#include <metrics/gpu/gpuprof.h>
-#include <metrics/gpu/archs/gpuprof_nvml.h>
 #include <metrics/gpu/archs/gpuprof_dcgmi.h>
 #include <metrics/gpu/archs/gpuprof_dummy.h>
+#include <metrics/gpu/archs/gpuprof_nvml.h>
+#include <metrics/gpu/gpuprof.h>
+#include <pthread.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static gpuprof_ops_t ops;
-static uint          ok_load;
+static uint ok_load;
 
 void gpuprof_load(int force_api)
 {
-    while (pthread_mutex_trylock(&lock));
+    while (pthread_mutex_trylock(&lock))
+        ;
     if (ok_load) {
         goto unlock_load;
     }
     if (API_IS(force_api, API_DUMMY)) {
         goto dummy;
     }
-    //gpuprof_rocm_load(&ops, force_api);
+    // gpuprof_rocm_load(&ops, force_api);
     gpuprof_nvml_load(&ops);
     gpuprof_dcgmi_load(&ops);
 dummy:
@@ -40,19 +41,15 @@ unlock_load:
 
 GPUPROF_F_INIT(gpuprof_init)
 {
-	if (ok_load)
-	{
-		if (ops.init)
-		{
-			return ops.init();
-		} else
-		{
-			return EAR_SUCCESS;
-		}
-	} else
-	{
-		return_msg(EAR_ERROR, Generr.api_uninitialized);
-	}
+    if (ok_load) {
+        if (ops.init) {
+            return ops.init();
+        } else {
+            return EAR_SUCCESS;
+        }
+    } else {
+        return_msg(EAR_ERROR, Generr.api_uninitialized);
+    }
 }
 
 void gpuprof_get_info(apinfo_t *info)
@@ -123,23 +120,23 @@ GPUPROF_F_DATA_COPY(gpuprof_data_copy)
 
 int gpuprof_compare_events(const void *gpuprof_ev_ptr1, const void *gpuprof_ev_ptr2)
 {
-	const gpuprof_evs_t *ev1 = gpuprof_ev_ptr1;
-	const gpuprof_evs_t *ev2 = gpuprof_ev_ptr2;
+    const gpuprof_evs_t *ev1 = gpuprof_ev_ptr1;
+    const gpuprof_evs_t *ev2 = gpuprof_ev_ptr2;
 
-	return ev1->id - ev2->id;
+    return ev1->id - ev2->id;
 }
 
 #ifdef TEST_EXAMPLE
-#include <stdlib.h>
-#include <metrics/common/apis.h>
 #include <common/system/monitor.h>
+#include <metrics/common/apis.h>
+#include <stdlib.h>
 
-static gpuprof_t            *m1;
-static gpuprof_t            *m2;
-static gpuprof_t            *mD;
+static gpuprof_t *m1;
+static gpuprof_t *m2;
+static gpuprof_t *mD;
 static const gpuprof_evs_t *evs;
-static uint                 evs_count;
-static apinfo_t             info;
+static uint evs_count;
+static apinfo_t info;
 
 static int is(char *s1, const char *s2)
 {
@@ -152,8 +149,7 @@ int main(int argc, char *argv[])
     int i, m, d;
 
     monitor_init();
-    while(1)
-    {
+    while (1) {
         printf("Enter command: ");
         scanf("%s", command);
         if (is(command, "load")) {

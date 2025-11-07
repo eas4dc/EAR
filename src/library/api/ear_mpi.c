@@ -8,23 +8,22 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
+#include <common/output/debug.h>
 #include <common/states.h>
 #include <library/api/ear.h>
 #include <library/api/ear_mpi.h>
 #include <library/policies/policy.h>
-#include <common/output/debug.h>
 
 void before_init()
 {
-	debug("before_init");
+    debug("before_init");
 }
 
 void after_init()
 {
-	debug("after_init");
-	ear_init();
+    debug("after_init");
+    ear_init();
 }
 
 #if MPI_OPTIMIZED
@@ -33,34 +32,34 @@ p2i last_buf, last_dest;
 
 void before_mpi(mpi_call call_type, p2i buf, p2i dest)
 {
-	debug("before_mpi");
+    debug("before_mpi");
 #if MPI_OPTIMIZED
-        last_buf  = buf;
-        last_dest = dest;
+    last_buf  = buf;
+    last_dest = dest;
 #endif
 #if EAR_OFF
-  return;
+    return;
 #endif
-	policy_mpi_init(call_type);
-	ear_mpi_call(call_type,buf,dest);
+    policy_mpi_init(call_type);
+    ear_mpi_call(call_type, buf, dest);
 }
 
 void after_mpi(mpi_call call_type)
 {
-	debug("after_mpi");
+    debug("after_mpi");
 #if EAR_OFF
-  return;
+    return;
 #endif
-	policy_mpi_end(call_type);
+    policy_mpi_end(call_type);
 }
 
 void before_finalize()
 {
-	debug("before_finalize");
-	ear_finalize(EAR_SUCCESS);
+    debug("before_finalize");
+    ear_finalize(EAR_SUCCESS);
 }
 
 void after_finalize()
 {
-	debug("after_finalize");
+    debug("after_finalize");
 }

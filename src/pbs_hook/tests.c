@@ -8,12 +8,11 @@
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
 
-
-#include <stdlib.h>
-#include <stdio.h>
 #include <assert.h>
-#include <pbs_hook/pbs_hook_utils.h>
 #include <common/hardware/hardware_info.h>
+#include <pbs_hook/pbs_hook_utils.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 int main(int argc, char **argv)
 {

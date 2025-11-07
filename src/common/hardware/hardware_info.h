@@ -8,32 +8,26 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #ifndef _HW_INFO_H_
 #define _HW_INFO_H_
 
-
-#include <sched.h>
+#include <common/hardware/cpuid.h>
+#include <common/hardware/topology.h>
 #include <common/sizes.h>
 #include <common/states.h>
 #include <common/system/file.h>
 #include <common/types/generic.h>
-#include <common/hardware/cpuid.h>
-#include <common/hardware/topology.h>
-
+#include <sched.h>
 
 /** Returns the number of packages detected. */
 int detect_packages(int **package_map);
 
-
 /** Sets all bits of `mask` to one. */
 state_t cpumask_all_cpus(cpu_set_t *mask);
-
 
 /** Computes the number of cpus in a given mask.
  * Returns -1 if \p my_mask is a NULL pointer. */
 int cpumask_count(cpu_set_t *my_mask);
-
 
 /** Fills \p cpu_list with the numbers of CPUs set in \p my_mask.
  * Returns 0 on success, -1 on error.
@@ -42,23 +36,18 @@ int cpumask_count(cpu_set_t *my_mask);
  * \param cpu_list The output list. This pointer must be allocated with \p n_cpus elements. */
 int cpumask_getlist(cpu_set_t *my_mask, uint n_cpus, uint *cpu_list);
 
-
 /** Add cpus set in src to dst. */
 void cpumask_aggregate(cpu_set_t *dst, cpu_set_t *src);
-
 
 /** Removes CPUs set in src from dst. */
 void cpumask_remove(cpu_set_t *dst, cpu_set_t *src);
 
-
 /** Sets in dst CPUs not in src. */
 void cpumask_not(cpu_set_t *dst, cpu_set_t *src);
-
 
 /** Computes the cpu_set mask of the process with PID \p pid and all its
  * threads. */
 state_t cpumask_get_processmask(cpu_set_t *dst, pid_t pid);
-
 
 /** Prints the affinity mask of the current process. */
 void print_affinity_mask(topology_t *topo);

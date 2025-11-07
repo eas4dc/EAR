@@ -11,6 +11,4 @@
 #ifndef _LOG_EARGM_
 #define _LOG_EARGM_
 
-
 #endif
-

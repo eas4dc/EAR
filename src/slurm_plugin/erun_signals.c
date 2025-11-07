@@ -9,12 +9,12 @@
  **************************************************************************/
 
 #include <signal.h>
-#include <string.h>
 #include <slurm_plugin/slurm_plugin.h>
 #include <slurm_plugin/slurm_plugin_environment.h>
 #include <slurm_plugin/slurm_plugin_serialization.h>
+#include <string.h>
 
-// 
+//
 extern plug_serialization_t sd;
 
 // Buffers
@@ -22,11 +22,10 @@ extern char buffer[SZ_PATH];
 
 //
 extern char **_argv;
-extern int    _argc;
+extern int _argc;
 
 //
 extern int _sp;
-
 
 void signals_handler(int signal, siginfo_t *info, void *context)
 {
@@ -53,6 +52,6 @@ void signals()
 
     sigaction(SIGTERM, &action, NULL);
     sigaction(SIGCHLD, &action, NULL);
-    sigaction(SIGINT,  &action, NULL);
-    sigaction(SIGHUP,  &action, NULL);
+    sigaction(SIGINT, &action, NULL);
+    sigaction(SIGHUP, &action, NULL);
 }

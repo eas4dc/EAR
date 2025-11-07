@@ -10,13 +10,13 @@
 
 // #define SHOW_DEBUGS 1
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
 #include <common/output/debug.h>
+#include <daemon/local_api/eard_api_rpc.h>
 #include <metrics/common/apis.h>
 #include <metrics/temperature/archs/eard.h>
-#include <daemon/local_api/eard_api_rpc.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 static apinfo_t self_info;
 static llong *read_values;
@@ -25,6 +25,10 @@ TEMP_F_LOAD(eard)
 {
     state_t s;
 
+    // Another API is opened and this API is not mixtable
+    if (ops->read != NULL) {
+        return;
+    }
     if (force_api != API_EARD) {
         return;
     }
@@ -42,9 +46,9 @@ TEMP_F_LOAD(eard)
     }
     read_values = calloc(self_info.devs_count, sizeof(llong));
     apis_set(ops->get_info, temp_eard_get_info);
-    apis_set(ops->init,     temp_eard_init);
-    apis_set(ops->dispose,  temp_eard_dispose);
-    apis_set(ops->read,     temp_eard_read);
+    apis_set(ops->init, temp_eard_init);
+    apis_set(ops->dispose, temp_eard_dispose);
+    apis_set(ops->read, temp_eard_read);
 }
 
 TEMP_F_GET_INFO(eard)
@@ -70,12 +74,13 @@ TEMP_F_READ(eard)
     state_t s;
     int i;
 
-    if (state_fail(s = eard_rpc(RPC_MET_TEMP_READ, NULL, 0, (char *) read_values, self_info.devs_count*sizeof(llong)))) {
+    if (state_fail(
+            s = eard_rpc(RPC_MET_TEMP_READ, NULL, 0, (char *) read_values, self_info.devs_count * sizeof(llong)))) {
         return s;
     }
     // Calculating the average
     if (temp != NULL) {
-        memcpy(temp, read_values, self_info.devs_count*sizeof(llong));
+        memcpy(temp, read_values, self_info.devs_count * sizeof(llong));
     }
     if (average != NULL) {
         for (i = 0; i < self_info.devs_count; ++i) {

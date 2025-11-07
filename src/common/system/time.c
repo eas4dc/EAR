@@ -13,65 +13,60 @@
 #include <common/math_operations.h>
 #include <common/system/time.h>
 #include <common/output/debug.h>
+#include <common/math_operations.h>
 
 void timestamp_get(timestamp *ts)
 {
-	timestamp_getfast(ts);
+    timestamp_getfast(ts);
 }
 
 void timestamp_getprecise(timestamp *ts)
 {
-	clock_gettime(CLOCK_MONOTONIC, ts);
+    clock_gettime(CLOCK_MONOTONIC, ts);
 }
 
 void timestamp_getfast(timestamp *ts)
 {
-	clock_gettime(CLOCK_MONOTONIC_COARSE, ts);
+    clock_gettime(CLOCK_MONOTONIC_COARSE, ts);
 }
 
 void timestamp_getreal(timestamp *ts)
 {
-	clock_gettime(CLOCK_REALTIME_COARSE, ts);
+    clock_gettime(CLOCK_REALTIME_COARSE, ts);
 }
 
 ullong timestamp_convert(timestamp *ts, ullong time_unit)
 {
-	ullong stamp = 0;
-	stamp  = (ullong) (ts->tv_sec * 1000000000);
-	stamp += (ullong) (ts->tv_nsec);
-	stamp /= time_unit;
-	return stamp;
+    ullong stamp = 0;
+    stamp        = (ullong) (ts->tv_sec * 1000000000);
+    stamp += (ullong) (ts->tv_nsec);
+    stamp /= time_unit;
+    return stamp;
 }
 
 ullong timestamp_getconvert(ullong time_unit)
 {
-	timestamp_t ts;
-	timestamp_getfast(&ts);
-	return timestamp_convert(&ts, time_unit);
+    timestamp_t ts;
+    timestamp_getfast(&ts);
+    return timestamp_convert(&ts, time_unit);
 }
 
 ullong timestamp_diff(timestamp *ts2, timestamp *ts1, ullong time_unit)
 {
-    ullong initsec  = 0;
-    ullong initnsec = 0;
-    ullong endsec   = 0;
-    ullong endnsec  = 0;
-    ullong stamp    = 0;
-
-    if ((ts1->tv_sec == ts2->tv_sec) && (ts1->tv_nsec == ts2->tv_nsec)) {
+    #define __1E9LLU 1000000000LLU
+    ullong ts2_nsec = ts2->tv_nsec;
+    ullong ts1_nsec = ts1->tv_nsec;
+    ullong ts2_sec  = ts2->tv_sec;
+    ullong ts1_sec  = ts1->tv_sec;
+    if (ts1_sec > ts2_sec || ts2_nsec >= __1E9LLU || ts1_nsec >= __1E9LLU) {
         return 0LLU;
     }
-    initsec  = (ullong) ts1->tv_sec;
-    initnsec = (ullong) ts1->tv_nsec;
-    endsec   = (ullong) ts2->tv_sec;
-    endnsec  = (ullong) ts2->tv_nsec;
-
-    if (endnsec < initnsec){
-        endsec--;
-        endnsec += 1E9;
+    if (ts1_sec == ts2_sec && ts1_nsec >= ts2_nsec) {
+        return 0LLU;
     }
-    stamp = (((endsec - initsec)) * 1E9) + overflow_zeros_u64(endnsec , initnsec);
-    return stamp / time_unit;
+    ts2_sec  = ts2_sec - ts1_sec - (ts1_nsec > ts2_nsec);
+    ts2_nsec = overflow_magic_u64(ts2_nsec, ts1_nsec, __1E9LLU);
+    return ((ts2_sec * __1E9LLU) + ts2_nsec) / time_unit;
 }
 
 double timestamp_fdiff(timestamp *ts2, timestamp *ts1, ullong diff_unit, ullong prec_unit)
@@ -83,22 +78,22 @@ double timestamp_fdiff(timestamp *ts2, timestamp *ts1, ullong diff_unit, ullong 
 
 ullong timestamp_diffnow(timestamp *ts1, ullong time_unit)
 {
-	timestamp_t time_now;
-	timestamp_get(&time_now);
-	return timestamp_diff(&time_now, ts1, time_unit);
+    timestamp_t time_now;
+    timestamp_get(&time_now);
+    return timestamp_diff(&time_now, ts1, time_unit);
 }
 
 void timestamp_revert(timestamp *ts, ullong time, ullong time_unit)
 {
     ullong aux_ns = time * time_unit;
-    ts->tv_sec    = aux_ns / 1000000000; 
+    ts->tv_sec    = aux_ns / 1000000000;
     ts->tv_nsec   = aux_ns - (ts->tv_sec * 1000000000);
 }
 
 void timestamp_print(timestamp *ts, int fd)
 {
     char buffer[1024];
-    timestamp_tostr(ts, buffer, sizeof(buffer)); 
+    timestamp_tostr(ts, buffer, sizeof(buffer));
     dprintf(fd, "%s", buffer);
 }
 

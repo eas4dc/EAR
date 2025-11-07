@@ -11,10 +11,10 @@
 #ifndef METRICS_ENERGY_CPU_H
 #define METRICS_ENERGY_CPU_H
 
-#include <common/states.h>
-#include <common/plugins.h>
 #include <common/hardware/topology.h>
+#include <common/plugins.h>
+#include <common/states.h>
 //
 #include <metrics/energy/cpu/intel63.h>
 
-#endif 
+#endif

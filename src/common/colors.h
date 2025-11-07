@@ -13,4 +13,4 @@
 
 #include <common/utils/strtable.h>
 
-#endif //COMMON_COLORS_H
+#endif // COMMON_COLORS_H

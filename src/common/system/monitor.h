@@ -11,23 +11,22 @@
 #ifndef COMMON_APIS_SUSCRIPTOR_H
 #define COMMON_APIS_SUSCRIPTOR_H
 
-#include <common/types.h>
 #include <common/states.h>
 #include <common/system/time.h>
+#include <common/types.h>
 
-typedef state_t (*suscall_f) (void *);
-typedef state_t (*suscribe_f) (void *);
+typedef state_t (*suscall_f)(void *);
+typedef state_t (*suscribe_f)(void *);
 
-typedef struct suscription_s
-{
-	suscribe_f 	suscribe;
-	suscall_f	call_init;
-	suscall_f	call_main;
-	void		*memm_init;
-	void		*memm_main;
-	int			time_relax; // In miliseconds.
-	int			time_burst; // In miliseconds.
-    int			id;
+typedef struct suscription_s {
+    suscribe_f suscribe;
+    suscall_f call_init;
+    suscall_f call_main;
+    void *memm_init;
+    void *memm_main;
+    int time_relax; // In miliseconds.
+    int time_burst; // In miliseconds.
+    int id;
 } suscription_t;
 
 // Example (test will receive NULL):
@@ -40,7 +39,7 @@ typedef struct suscription_s
 //	sus->call_main  = test;
 //	sus->time_relax = 1000;
 //	sus->time_burst =  300;
-//	
+//
 //	s = monitor_init();
 //	s = monitor_register(sus);
 //	s = monitor_burst(sus, MON_NO_INTERRUPT);
@@ -68,4 +67,4 @@ int monitor_is_bursting(suscription_t *s);
 
 suscription_t *suscription();
 
-#endif //EAR_STASH_MONITOR_H
+#endif // EAR_STASH_MONITOR_H

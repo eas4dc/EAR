@@ -18,6 +18,6 @@ state_t init_active_connections_list();
 state_t notify_new_connection(int fd);
 state_t add_new_connection();
 state_t remove_remote_connection(int fd);
-void * process_remote_req_th(void * arg);
+void *process_remote_req_th(void *arg);
 
 #endif

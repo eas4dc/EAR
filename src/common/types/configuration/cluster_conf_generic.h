@@ -13,18 +13,15 @@
 
 #include <common/config.h>
 #include <common/states.h>
-#include <common/types/generic.h>
 #include <common/types/configuration/cluster_conf.h>
+#include <common/types/generic.h>
 
-
-
-state_t GENERIC_parse_token(cluster_conf_t *conf,char *token,char *def_policy);
-state_t LIST_parse_token(char *token,unsigned int *num_elemsp,char ***list_elemsp);
-
+state_t GENERIC_parse_token(cluster_conf_t *conf, char *token, char *def_policy);
+state_t LIST_parse_token(char *token, unsigned int *num_elemsp, char ***list_elemsp);
 
 state_t AUTH_token(char *token);
-state_t AUTH_parse_token(char *token,unsigned int *num_elemsp,char ***list_elemsp);
+state_t AUTH_parse_token(char *token, unsigned int *num_elemsp, char ***list_elemsp);
 
-
+state_t ADMIN_token(char *token);
 
 #endif

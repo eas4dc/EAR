@@ -8,17 +8,14 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #ifndef _EAR_ENERGY_MODELS_COMM_
 #define _EAR_ENERGY_MODELS_COMM_
 
-#include <common/types/signature.h>
 #include <common/types/coefficient.h>
-
+#include <common/types/signature.h>
 
 /** Computes the projection of the \ref signature CPI by using \ref coeff.
  * \pre Input arguments must be initialized. */
 double em_common_project_cpi(signature_t *signature, coefficient_t *coeff);
-
 
 #endif // _EAR_ENERGY_MODELS_COMM_

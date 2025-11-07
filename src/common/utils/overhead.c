@@ -173,7 +173,7 @@ void overhead_print_header()
                   "---------|||-----------");
 }
 
-#if 0
+#if TEST
 int main(int argc, char *argv[])
 {
     uint id1;
@@ -196,9 +196,7 @@ int main(int argc, char *argv[])
         sleep(1);
         overhead_stop(id3);
     }
-
     overhead_report();
-
     return 0;
 }
 #endif

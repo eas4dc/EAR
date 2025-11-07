@@ -12,7 +12,7 @@ modl_BINS = \
 
 ifeq ($(FEAT_GPUS), 1)
 modl_BINS += \
-						energy_models/gpu_dummy_model.so
+	     energy_models/gpu_dummy_model.so
 endif
 
 modl_OBJS = cpu_power_model.o energy_model.o 

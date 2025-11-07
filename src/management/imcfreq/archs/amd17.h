@@ -33,4 +33,4 @@ state_t mgt_imcfreq_amd17_get_current_ranged_list(ctx_t *c, pstate_t *ps_min_lis
 
 state_t mgt_imcfreq_amd17_set_current_ranged_list(ctx_t *c, uint *id_min_list, uint *id_max_list);
 
-#endif //MANAGEMENT_IMCFREQ_AMD17
+#endif // MANAGEMENT_IMCFREQ_AMD17

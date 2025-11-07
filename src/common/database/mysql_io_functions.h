@@ -8,7 +8,6 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #ifndef _EAR_MYSQL_IO_FNCTS_H
 #define _EAR_MYSQL_IO_FNCTS_H
 
@@ -16,23 +15,23 @@
 #include <common/database/db_io_common.h>
 
 #if DB_MYSQL
-#include <common/types/log.h>
-#include <common/types/job.h>
-#include <common/types/loop.h>
-#include <common/types/signature.h>
-#include <common/types/gm_warning.h>
 #include <common/types/application.h>
+#include <common/types/gm_warning.h>
+#include <common/types/job.h>
+#include <common/types/log.h>
+#include <common/types/loop.h>
+#include <common/types/periodic_aggregation.h>
 #include <common/types/periodic_metric.h>
 #include <common/types/power_signature.h>
-#include <common/types/periodic_aggregation.h>
+#include <common/types/signature.h>
 #include <stdbool.h>
 
 #include <mysql/mysql.h>
 #define ear_db_bool my_bool
-//#define ear_db_bool bool
 
-typedef struct
-{
+// #define ear_db_bool bool
+
+typedef struct {
     char type;
     application_t *app;
     loop_t *loop;
@@ -48,133 +47,131 @@ void set_node_detail(char node_det);
 void set_periodic_metrics_simple(char full_periodic);
 
 /** Given a MYSQL connection and an application, inserts said application into
-*   the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR or
-*   EAR_MYSQL_STMT_ERROR on error.*/
+ *   the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR or
+ *   EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_insert_application(MYSQL *connection, application_t *app);
 
 /** Given a MYSQL connection and an array of applications, insert said applications
-*   into the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR
-*   or EAR_MYSQL_STMT_ERROR on error. */ 
+ *   into the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR
+ *   or EAR_MYSQL_STMT_ERROR on error. */
 int mysql_batch_insert_applications(MYSQL *connection, application_t *apps, int num_apps);
 
-
 /** Given a MYSQL connection and an array of applications, insert said applications
-*   into the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR
-*   or EAR_MYSQL_STMT_ERROR on error. Used for non-mpi applications. */ 
+ *   into the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR
+ *   or EAR_MYSQL_STMT_ERROR on error. Used for non-mpi applications. */
 int mysql_batch_insert_applications_no_mpi(MYSQL *connection, application_t *apps, int num_apps);
 
-/** Given a MYSQL connection and a valid MYSQL query, stores in apps the 
-*   applications found in the database corresponding to the query. Returns the 
-*   number of applications found on success, and either EAR_MYSQL_ERROR or
-*   EAR_MYSQL_STMT_ERROR on error. */
+/** Given a MYSQL connection and a valid MYSQL query, stores in apps the
+ *   applications found in the database corresponding to the query. Returns the
+ *   number of applications found on success, and either EAR_MYSQL_ERROR or
+ *   EAR_MYSQL_STMT_ERROR on error. */
 int mysql_retrieve_applications(MYSQL *connection, char *query, application_t **apps, char is_learning);
 
 /** Given a MYSQL connection and a loop, inserts said loop into
-*   the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR or
-*   EAR_MYSQL_STMT_ERROR on error.*/
+ *   the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR or
+ *   EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_insert_loop(MYSQL *connection, loop_t *loop);
 
 /** Given a MYSQL connection and an array of loops, inserts said loops into
-*   the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR or
-*   EAR_MYSQL_STMT_ERROR on error.*/
+ *   the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR or
+ *   EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_batch_insert_loops(MYSQL *connection, loop_t *loop, int num_loops);
 
-/** Given a MYSQL connection and a valid MYSQL query, stores in loops the 
-*   loops found in the database corresponding to the query. Returns the 
-*   number of loops found on success, and either EAR_MYSQL_ERROR or
-*   EAR_MYSQL_STMT_ERROR on error. */
+/** Given a MYSQL connection and a valid MYSQL query, stores in loops the
+ *   loops found in the database corresponding to the query. Returns the
+ *   number of loops found on success, and either EAR_MYSQL_ERROR or
+ *   EAR_MYSQL_STMT_ERROR on error. */
 int mysql_retrieve_loops(MYSQL *connection, char *query, loop_t **loops);
 
 /** Given a MYSQL connection and a job, inserts said job into
-*   the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR or
-*   EAR_MYSQL_STMT_ERROR on error.*/
+ *   the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR or
+ *   EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_insert_job(MYSQL *connection, job_t *job, char is_learning);
 
 /** Given a MYSQL connection and an array of applications, insert said applications' jobs
-*   into the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR
-*   or EAR_MYSQL_STMT_ERROR on error.  */ 
+ *   into the database. Returns EAR_SUCCESS on success, and either EAR_MYSQL_ERROR
+ *   or EAR_MYSQL_STMT_ERROR on error.  */
 int mysql_batch_insert_jobs(MYSQL *connection, application_t *app, int num_apps);
 
-/** Given a MYSQL connection and a valid MYSQL query, stores in jobs the 
-*   jobs found in the database corresponding to the query. Returns the 
-*   number of jobs found on success, and either EAR_MYSQL_ERROR or
-*   EAR_MYSQL_STMT_ERROR on error. */
+/** Given a MYSQL connection and a valid MYSQL query, stores in jobs the
+ *   jobs found in the database corresponding to the query. Returns the
+ *   number of jobs found on success, and either EAR_MYSQL_ERROR or
+ *   EAR_MYSQL_STMT_ERROR on error. */
 int mysql_retrieve_jobs(MYSQL *connection, char *query, job_t **jobs);
 
-
-/** Given a MYSQL connection and a valid MYSQL query, stores in applications the 
-*   applications found in the database corresponding to the query. It looks in learning
-*   or "normal" tables depending on is_learning. Returns the 
-*   number of applications found on success, and either EAR_MYSQL_ERROR or
-*   EAR_MYSQL_STMT_ERROR on error. */
+/** Given a MYSQL connection and a valid MYSQL query, stores in applications the
+ *   applications found in the database corresponding to the query. It looks in learning
+ *   or "normal" tables depending on is_learning. Returns the
+ *   number of applications found on success, and either EAR_MYSQL_ERROR or
+ *   EAR_MYSQL_STMT_ERROR on error. */
 int mysql_retrieve_applications(MYSQL *connection, char *query, application_t **apps, char is_learning);
 
 /** Given a MYSQL connection and a signature, inserts said signature into
-*   the database. Returns the signature's database id on success, and either 
-*   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
+ *   the database. Returns the signature's database id on success, and either
+ *   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_insert_signature(MYSQL *connection, signature_t *sig, char is_learning);
 
 /** Given a MYSQL connection and an array of applications, inserts said application's
-*   signatures into the database. Returns the first signature's database id on 
-*   success, and either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
+ *   signatures into the database. Returns the first signature's database id on
+ *   success, and either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
 long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t cont, char is_learning, int num_sigs);
 
-/** Given a MYSQL connection and a valid MYSQL query, stores in sigs the 
-*   signatures found in the database corresponding to the query. Returns the 
-*   number of signatures found on success, and either EAR_MYSQL_ERROR or
-*   EAR_MYSQL_STMT_ERROR on error. */
+/** Given a MYSQL connection and a valid MYSQL query, stores in sigs the
+ *   signatures found in the database corresponding to the query. Returns the
+ *   number of signatures found on success, and either EAR_MYSQL_ERROR or
+ *   EAR_MYSQL_STMT_ERROR on error. */
 int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs);
 
 /** Given a MYSQL connection and an array of aplications , inserts said application's
-*   power_signatures into the database. Returns the first power_signature's database
-*   id on success, and either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
+ *   power_signatures into the database. Returns the first power_signature's database
+ *   id on success, and either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_batch_insert_power_signatures(MYSQL *connection, application_t *pow_sig, int num_sigs);
 
 /** Given a MYSQL connection and a periodic_metric, inserts said periodic_metric into
-*   the database. Returns the periodic_metric's database id on success, and either 
-*   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
+ *   the database. Returns the periodic_metric's database id on success, and either
+ *   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_insert_periodic_metric(MYSQL *connection, periodic_metric_t *per_met);
 
-/** Given a MYSQL connection and num_mets periodic_metrics, inserts said 
-*   periodic_metrics into the database. Returns EAR_SUCCESS on success, and either
-*   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error. */
+/** Given a MYSQL connection and num_mets periodic_metrics, inserts said
+ *   periodic_metrics into the database. Returns EAR_SUCCESS on success, and either
+ *   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error. */
 int mysql_batch_insert_periodic_metrics(MYSQL *connection, periodic_metric_t *per_mets, int num_mets);
 
 /** Given a MYSQL connection and a periodic_aggregation, inserts said periodic_aggregation
-*   into the database. Returns the periodic_aggregation's database id on success, and 
-*   either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
+ *   into the database. Returns the periodic_aggregation's database id on success, and
+ *   either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_insert_periodic_aggregation(MYSQL *connection, periodic_aggregation_t *per_agg);
 
-/** Given a MYSQL connection and num_aggs periodic_aggregations, inserts said 
-*   periodic_agregations into the database. Returns EAR_SUCCESS on success, and either
-*   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error. */
+/** Given a MYSQL connection and num_aggs periodic_aggregations, inserts said
+ *   periodic_agregations into the database. Returns EAR_SUCCESS on success, and either
+ *   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error. */
 int mysql_batch_insert_periodic_aggregations(MYSQL *connection, periodic_aggregation_t *per_aggs, int num_aggs);
 
 /** Given a MYSQL connection and an EAR event, inserts said event into
-*   the database. Returns the event's database id on success, and either 
-*   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
+ *   the database. Returns the event's database id on success, and either
+ *   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_insert_ear_event(MYSQL *connection, ear_event_t *ear_ev);
 
 /** Given a MYSQL connection and num_evs EAR events, inserts said events into
-*   the database. Returns the EAR_SUCCESS success, and either 
-*   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
+ *   the database. Returns the EAR_SUCCESS success, and either
+ *   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_batch_insert_ear_events(MYSQL *connection, ear_event_t *ear_ev, int num_evs);
 
-/** Given a MYSQL connection and an global manager warning, inserts said 
-*   warning into the database. Returns EAR_SUCCESS on success, and either 
-*   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
+/** Given a MYSQL connection and an global manager warning, inserts said
+ *   warning into the database. Returns EAR_SUCCESS on success, and either
+ *   EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_insert_gm_warning(MYSQL *connection, gm_warning_t *warning);
 
 /** Given a MYSQL connection and num_sigs applications, inserts the application's signatures
-*   to the database using a query to calculate the moving average of all the signatures in 
-*   a job. Returns EAR_SUCCESS on succkess, and either EAR_MYSQL_ERROR
-*   or EAR_MYSQL_STMT_ERROR on error.*/
+ *   to the database using a query to calculate the moving average of all the signatures in
+ *   a job. Returns EAR_SUCCESS on succkess, and either EAR_MYSQL_ERROR
+ *   or EAR_MYSQL_STMT_ERROR on error.*/
 int mysql_batch_insert_avg_signatures(MYSQL *connection, application_t *app, int num_sigs);
 
 #if USE_GPUS
 /** Given a MYSQL connection and an array of applications or loops, inserts said application's
-*   signatures into the database. Returns the first signature's database id on 
-*   success, and either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
+ *   signatures into the database. Returns the first signature's database id on
+ *   success, and either EAR_MYSQL_ERROR or EAR_MYSQL_STMT_ERROR on error.*/
 long long mysql_batch_insert_gpu_signatures(MYSQL *connection, signature_container_t cont, int num_sigs);
 
 /** Given a MYSQL connection and a query, retrieves the gpu signatures corresponding to that query */
@@ -186,7 +183,6 @@ int mysql_statement_error(MYSQL_STMT *statement);
 
 /** Given a MYSQL connection and a query, retrieves the pwoer_signatures corresponding to that query */
 int mysql_retrieve_power_signatures(MYSQL *connection, char *query, power_signature_t **pow_sigs);
-
 
 /** Given a MYSQL connection and a query, retrieves the corresponding result and stores it in results*/
 int mysql_run_query_string_results(MYSQL *connection, char *query, char ****results, int *num_columns, int *num_rows);

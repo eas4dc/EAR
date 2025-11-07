@@ -11,11 +11,11 @@
 #ifndef METRICS_IMCFREQ_H
 #define METRICS_IMCFREQ_H
 
-#include <common/types.h>
-#include <common/states.h>
-#include <common/plugins.h>
-#include <common/system/time.h>
 #include <common/hardware/topology.h>
+#include <common/plugins.h>
+#include <common/states.h>
+#include <common/system/time.h>
+#include <common/types.h>
 #include <metrics/common/apis.h>
 #include <metrics/common/pstate.h>
 
@@ -43,25 +43,24 @@
 //  -------------------------------------------------------------------------
 
 typedef struct imcfreq_s {
-	timestamp_t time;
-	ulong freq; // KHz
-	uint error;
+    timestamp_t time;
+    ulong freq; // KHz
+    uint error;
 } imcfreq_t;
 
-typedef struct imcfreq_ops_s
-{
-	void    (*get_api)        (uint *api, uint *api_intern);
-	state_t (*init)           (ctx_t *c);
-	state_t (*init_static[4]) (ctx_t *c);
-	state_t (*dispose)        (ctx_t *c);
-	state_t (*count_devices)  (ctx_t *c, uint *dev_count);
-	state_t (*read)           (ctx_t *c, imcfreq_t *reg_list);
-	state_t (*data_alloc)     (imcfreq_t **reg_list, ulong **freq_list);
-	state_t (*data_free)      (imcfreq_t **reg_list, ulong **freq_list);
-	state_t (*data_copy)      (imcfreq_t *reg_list2, imcfreq_t *reg_list1);
-	state_t (*data_diff)      (imcfreq_t *reg_list2, imcfreq_t *reg_list, ulong *freq_list, ulong *freq_avg);
-	void    (*data_print)     (ulong *freq_list, ulong *freq_avg, int fd);
-	char*   (*data_tostr)     (ulong *freq_list, ulong *freq_avg, char *buffer, size_t length);
+typedef struct imcfreq_ops_s {
+    void (*get_api)(uint *api, uint *api_intern);
+    state_t (*init)(ctx_t *c);
+    state_t (*init_static[4])(ctx_t *c);
+    state_t (*dispose)(ctx_t *c);
+    state_t (*count_devices)(ctx_t *c, uint *dev_count);
+    state_t (*read)(ctx_t *c, imcfreq_t *reg_list);
+    state_t (*data_alloc)(imcfreq_t **reg_list, ulong **freq_list);
+    state_t (*data_free)(imcfreq_t **reg_list, ulong **freq_list);
+    state_t (*data_copy)(imcfreq_t *reg_list2, imcfreq_t *reg_list1);
+    state_t (*data_diff)(imcfreq_t *reg_list2, imcfreq_t *reg_list, ulong *freq_list, ulong *freq_avg);
+    void (*data_print)(ulong *freq_list, ulong *freq_avg, int fd);
+    char *(*data_tostr)(ulong *freq_list, ulong *freq_avg, char *buffer, size_t length);
 } imcfreq_ops_t;
 
 // Frequency is KHz
@@ -94,4 +93,4 @@ void imcfreq_data_print(ulong *freq_list, ulong *freq_avg, int fd);
 
 char *imcfreq_data_tostr(ulong *freq_list, ulong *freq_avg, char *buffer, size_t length);
 
-#endif //METRICS_IMCFREQ_H
+#endif // METRICS_IMCFREQ_H

@@ -3,8 +3,8 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 ######## FILES
 
 temp_OBJS = \
-    amd17.o \
     eard.o \
+    hwmon.o \
     intel63.o \
 	dummy.o
 

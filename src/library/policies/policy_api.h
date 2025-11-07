@@ -8,13 +8,11 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-
 #ifndef _EARL_POLICY_API_H
 #define _EARL_POLICY_API_H
 
-
-#include <common/states.h>
 #include <common/config.h>
+#include <common/states.h>
 #include <library/common/externs.h>
 #include <library/policies/policy_ctx.h>
 #include <library/policies/policy_state.h>
@@ -35,7 +33,7 @@ state_t policy_init(polctx_t *c);
 state_t policy_apply(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs, int *ready);
 
 /** \todo  */
-state_t policy_app_apply(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs,int *ready);
+state_t policy_app_apply(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs, int *ready);
 
 /** This function only is called by a node master process.
  * \param c The policy context within this function is called.
@@ -104,7 +102,7 @@ state_t policy_io_settings(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs
  * \param c The policy context within this function is called.
  * \param my_sig The input signature with node metrics.
  * \param freq_set Output array with per-proc frequency. */
-state_t policy_cpu_gpu_settings(polctx_t *c,signature_t *my_sig, node_freqs_t *freqs);
+state_t policy_cpu_gpu_settings(polctx_t *c, signature_t *my_sig, node_freqs_t *freqs);
 
 /** This function confgures freqs based on Busy Waiting criteria. It is called before call policy_apply.
  * \param c The policy context within this function is called.
