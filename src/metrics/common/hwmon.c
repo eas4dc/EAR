@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-//#define SHOW_DEBUGS 0
+// #define SHOW_DEBUGS 1
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -64,6 +64,7 @@ state_t hwmon_find_drivers(const char *name, uint **ids, uint *n)
 	            debug("comparing the driver name '%s' with '%s'", name, data);
             	#endif
 				if (strstr(name, data) != NULL) {
+					debug("driver found!");
 					if (m == 1) {
 						(*ids)[c] = i;
 					}
@@ -111,6 +112,7 @@ state_t hwmon_open_files(uint id, hwmon_t files, int **fds, uint *n, int i_start
 			debug("opening file '%s'", data);
 			//
 			if ((fd = open(data, O_RDONLY)) < 0) {
+				debug("File %s failed", (char *) files);
 				break;
 			}
 			if (m == 0) {

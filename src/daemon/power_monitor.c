@@ -1869,10 +1869,10 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
 
     // save_eard_conf(&eard_dyn_conf);
 
-    verbose(VJOBPMON_BASIC , "%sJob created ctx %d (%lu,%lu) is_mpi %d procs %lu def_cpuf %lu%s",
+    verbose(VJOBPMON_BASIC , "%sJob created ctx %d (%lu,%lu) is_mpi %d procs %lu def_cpuf %lu%s governor '%s'",
             COL_BLU, ccontext, current_ear_app[ccontext]->app.job.id,
             current_ear_app[ccontext]->app.job.step_id, current_ear_app[ccontext]->app.is_mpi,
-            current_ear_app[ccontext]->app.job.procs, pmapp->settings->def_freq, COL_CLR);
+            current_ear_app[ccontext]->app.job.procs, pmapp->settings->def_freq, pmapp->governor.name, COL_CLR);
     verbose(VJOBPMON , "*******************");
 
     pmapp->sig_reported = 0;
@@ -2226,7 +2226,7 @@ void update_pmapps(power_data_t *last_pmon, nm_data_t *nm)
                 if (is_job_in_node(pmapp->app.job.id, &alloc)) {
 
                     // cpu_ratio = (float) alloc->num_cpus / (float) tcpus;
-										cpu_ratio = ((tcpus && alloc->num_cpus) ? (float) alloc->num_cpus / (float) tcpus : 1);
+		    cpu_ratio = ((tcpus && alloc->num_cpus) ? (float) alloc->num_cpus / (float) tcpus : 1);
 
                     verbose(VEARD_NMGR, "Job %lu/%lu without node mask, using ratio %f = %u/%lu",
                             pmapp->app.job.id, pmapp->app.job.step_id, cpu_ratio, alloc->num_cpus, tcpus); 

@@ -142,11 +142,6 @@ static char *build_libear_path(void *call_mpi_version)
     if (buffer_path == NULL && buffer_hack == NULL) {
         return NULL;
     }
-    // Hack overrides normal path, its a complete absolute path to the library
-    if (buffer_hack != NULL) {
-        buffer_path = buffer_hack;
-        return buffer_hack;
-    }
     // FLAG_LOAD_MPI_VERSION => fakes an MPI_Get_version call
     //      HACK_MPI_VERSION => writes an extension, in form of $val.so (without so)
     verbose(2, "LOADER: env EAR_LOAD_MPI_VERSION  => %s", ear_getenv(FLAG_LOAD_MPI_VERSION));
@@ -159,6 +154,7 @@ static char *build_libear_path(void *call_mpi_version)
     } else if (call_mpi_version != NULL) {
         ((int (*)(char *, int *)) call_mpi_version)(buffer_version, &length);
     } else {
+        verbose(2, "LOADER: MPI version can not be read, no library can be loaded");
         return NULL;
     }
     verbose(2, "LOADER: version string '%s'", buffer_version);
@@ -173,6 +169,11 @@ static char *build_libear_path(void *call_mpi_version)
     _found_cray    = append_extension(buffer_version, "cray mpich",    CRAY_MPI_EXT, buffer_path);
     _found_hack    = append_extension(buffer_version, "hack"      ,        HACK_EXT, buffer_path);
     verbose(2, "LOADER: EAR library compatible with this MPI: %s", buffer_path);
+    // Hack overrides normal path, its a complete absolute path to the library
+    if (buffer_hack != NULL) {
+        buffer_path = buffer_hack;
+    }
+    verbose(2, "LOADER: final EAR library to load: %s", buffer_path);
     return buffer_path;
 }
 

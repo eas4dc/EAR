@@ -37,7 +37,7 @@ all: $(plug_BINS) dummy.so
 	$(CC) $(CFLAGS)  -o $@ $^
 
 conf.so:conf.c
-	$(CC)  $(CFLAGS)  -o $@ $^ $(call whole,$(SRCDIR)/common/libcommon.a)
+	$(CC) $(CFLAGS) -o $@ $^ $(call whole,$(SRCDIR)/common/libcommon.a)
 
 eardcon.so: eardcon.c $(SRCDIR)/daemon/local_api/libeard.a
 	$(CC) $(CFLAGS)  -o $@ $^
@@ -55,13 +55,13 @@ dummy.so: dummy.c
 	$(CC) $(CFLAGS)  -o $@ $^
 
 nodesensors.so: nodesensors.c
-	$(CC) $(CFLAGS)  -o $@ $^ $(SRCDIR)/common/libcommon.a $(SRCDIR)/metrics/libmetrics.a -lm 
+	$(CC) $(CFLAGS) -o $@ $^ $(SRCDIR)/common/libcommon.a $(SRCDIR)/metrics/libmetrics.a -lm
 
 nodesensors_report.so: nodesensors_report.c
 	$(CC) $(CFLAGS) -o $@ $^ $(SRCDIR)/common/libcommon.a $(SRCDIR)/report/report.o
 
 nodesensors_alerts.so: nodesensors_alerts.c
-	$(CC) $(CFLAGS) -o $@ $^ $(SRCDIR)/common/libcommon.a 
+	$(CC) $(CFLAGS) -o $@ $^ $(SRCDIR)/common/libcommon.a
 
 kernel_cuda.so: kernel_cuda.c kernel_cuda_ptx.cu
 	$(CUDA_BASE)/bin/nvcc  $(CFLAGS)  --compiler-options '-fPIC'  -o $@ $^

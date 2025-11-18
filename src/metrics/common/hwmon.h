@@ -19,7 +19,7 @@ typedef const char *hwmon_t;
 struct Hwmon_s
 {
 	hwmon_t temp_input;
-    hwmon_t temp_max;
+	hwmon_t temp_max;
 }
 Hwmon __attribute__((weak)) =
 {

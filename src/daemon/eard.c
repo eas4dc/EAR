@@ -718,6 +718,7 @@ int main(int argc, char *argv[])
 			Usage(argv[0]);
 		}
 	}
+	debug("EARD: Verbose level %d\n", verb_level);
 
 	set_ear_verbose(verb_level);
 	VERB_SET_LV(verb_level);
@@ -730,6 +731,7 @@ int main(int argc, char *argv[])
 #endif
 
 	verbose(VCONF, "Starting eard...................pid %d", getpid());
+
 	create_log("/tmp", "eard_journal", fd_my_log);
 
 	// We get nodename to create per_node files
@@ -741,6 +743,7 @@ int main(int argc, char *argv[])
 	strtok(nodename, ".");
 	get_exec_name(my_name, sizeof(my_name));
 	verbose(VEARD_INIT, "My name is %s and i'm running at %s", my_name, nodename);
+	debug("My name is %s and i'm running at %s", my_name, nodename);
 
     init_eard_rt_log();
     log_report_eard_min_interval(MIN_INTERVAL_RT_ERROR);

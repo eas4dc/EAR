@@ -39,7 +39,7 @@ all: $(poli_BINS)
 	$(CC) $(CC_FLAGS) $(CFLAGS) $(LIB_CFLAGS) $(GPU_OPT_FLAG) -c $<
 
 %.so: %.o $(poli_DEPS)
-	$(CC) $(CC_FLAGS) -shared -fPIC -pthread -o $@ $^ 
+	$(CC) $(CC_FLAGS) -shared -fPIC -pthread -o $@ $^
 
 ######## OPTIONS 
 

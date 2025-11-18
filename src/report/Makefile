@@ -84,10 +84,10 @@ eardbd.so: eardbd.c $(SRCDIR)/database_cache/eardbd_api.c $(repo_DEPS)
 	$(CC) $(CFLAGS) -shared -o $@ $^
 
 prometheus.so: prometheus.c $(repo_DEPS)
-	$(CC) $(CFLAGS) -shared -o prometheus.so prometheus.c -lmicrohttpd 
+	$(CC) $(CFLAGS) -shared -o prometheus.so prometheus.c -lmicrohttpd
 
 mysql.so: mysql.c $(DB_MYSQL_STATIC)
-	$(CC) $(CFLAGS) $(DB_CFLAGS)  $(DB_MYSQL_STATIC) -shared -o $@ $^ $(DB_MYSQL_LDFLAGS)
+	$(CC) $(CFLAGS) $(DB_CFLAGS) $(DB_MYSQL_STATIC) -shared -o $@ $^ $(DB_MYSQL_LDFLAGS)
 
 psql.so: psql.c $(DB_PSQL_STATIC) 
 	$(CC) $(CFLAGS) $(DB_CFLAGS) $(DB_PSQL_STATIC) -shared -o $@ $^ $(DB_PSQL_LDFLAGS)
@@ -102,7 +102,7 @@ cassandra.so: cassandra.c $(repo_DEPS)
 	$(CC) $(CFLAGS) $(DB_CFLAGS) -shared -o $@ $^ -L/usr/lib64 -lcassandra
 
 heroes.so: heroes.c $(repo_DEPS)
-	$(CC) $(CFLAGS)  -shared -o $@ $^ -L/usr/lib64 
+	$(CC) $(CFLAGS) -shared -o $@ $^ -L/usr/lib64
 
 mpi_node_metrics.so: mpi_node_metrics.c $(SRCDIR)/library/metrics/dlb_talp_lib.h $(repo_DEPS)
 	$(CC) $(CFLAGS) -shared -o $@ mpi_node_metrics.c $(repo_DEPS)

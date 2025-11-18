@@ -233,22 +233,24 @@ static state_t static_send(int fd, char *data, size_t size)
 	while(bytes_left > 0) {
 		// TCP protocol
 		if ((bytes_sent = send(fd, data + bytes_sent, bytes_left, flags)) < 0) {
-			debug("fd '%d', %ld to add to %ld/%ld (errno: %d, strerrno: %s)",
-				  fd, bytes_sent, size - bytes_left, size, errno, strerror(errno));
-			switch (bytes_sent) {
-				case ENETUNREACH:
-				case ENETDOWN:
-				case ECONNRESET:
-				case ENOTCONN:
-				case EPIPE:
-				case EDESTADDRREQ:
-					return_msg(EAR_ERROR, strerror(errno));
-				case EAGAIN:
-					return_msg(EAR_NOT_READY, strerror(errno));
-				default:
-					return_msg(EAR_ERROR, strerror(errno));
-			}
-		}
+            debug("fd '%d', %ld to add to %ld/%ld (errno: %d, strerrno: %s)",
+                  fd, bytes_sent, size - bytes_left, size, errno, strerror(errno));
+            switch (errno) {
+                case ENETUNREACH:
+                case ENETDOWN:
+                case ECONNRESET:
+                case ENOTCONN:
+                case EPIPE:
+                case EDESTADDRREQ:
+                    return_msg(EAR_ERROR, strerror(errno));
+                case EAGAIN:
+                    return_msg(EAR_NOT_READY, strerror(errno));
+                default:
+                    return_msg(EAR_ERROR, strerror(errno));
+            }
+        } else if (bytes_sent == 0) {
+            return_msg(EAR_ERROR, "Disconnected");
+        }
 		bytes_left -= bytes_sent;
 	}
 	return EAR_SUCCESS;
@@ -297,10 +299,7 @@ static state_t static_recv(int fd, char *buffer, ssize_t size, int block)
 	}
 	while (bytes_left > 0) {
 		//
-		if ((bytes_recv = recv(fd, (void *) &buffer[bytes_acum], bytes_left, flags)) == 0) {
-			return_msg(EAR_ERROR, "Disconnected from socket");
-		}
-		else if (bytes_recv < 0) {
+		if ((bytes_recv = recv(fd, (void *) &buffer[bytes_acum], bytes_left, flags)) < 0) {
 			debug("fd '%d', %ld to add to %ld/%ld (intent: %d, errno: %d, strerrno: %s)",
 				  fd, bytes_recv, size - bytes_left, size, intents, errno, strerror(errno));
 			switch (errno) {
@@ -309,7 +308,7 @@ static state_t static_recv(int fd, char *buffer, ssize_t size, int block)
 				case ECONNRESET:
 					return_msg(EAR_ERROR, strerror(errno));
 					break;
-				case EINVAL: // Not sure abou this
+				case EINVAL: // Not sure about this
 				case EAGAIN:
 					if (!block && intents < NON_BLOCK_TRYS) {
 						intents += 1;
@@ -320,10 +319,11 @@ static state_t static_recv(int fd, char *buffer, ssize_t size, int block)
 				default:
 					return_msg(EAR_ERROR, strerror(errno));
 			}
-		} else {
-			bytes_acum += bytes_recv;
-			bytes_left -= bytes_recv;
+		} else if (bytes_recv == 0) {
+			return_msg(EAR_ERROR, "Disconnected");
 		}
+		bytes_acum += bytes_recv;
+		bytes_left -= bytes_recv;
 	}
 	return EAR_SUCCESS;
 }

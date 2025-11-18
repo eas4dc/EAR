@@ -22,6 +22,7 @@
 #include <dlfcn.h>
 #include <semaphore.h>
 
+#include <common/config.h>
 #include <common/includes.h>
 #include <common/system/symplug.h>
 #include <common/environment.h>
@@ -2078,15 +2079,15 @@ static state_t policy_gpu_freq_selection(polctx_t *c, signature_t *my_sig, node_
 		return EAR_SUCCESS;
 
 #if USE_GPUS
-	if (verb_level >= POLICY_GPU)
-	{
-		for (i = 0; i < c->num_gpus; i++)
-		{
-			verbosen_master(POLICY_GPU, " GPU freq[%d] = %.3f ",
-							i, (float)gpu_f[i] / GHZ_TO_KHZ);
-		}
-		verbose_master(POLICY_GPU, " ");
-	}
+    if (verb_level >= POLICY_GPU)
+    {
+        for (i = 0; i < c->num_gpus; i++)
+        {
+            verbose_policy_info("Setting a GPU freq[%d] = %.3f (GHz)",
+                            i, (float)gpu_f[i] / GHZ_TO_KHZ);
+        }
+        verbose_master(POLICY_GPU, " ");
+    }
 
 	// TODO: Powercap limits are checked here but this code could be moved to a function.
 	pc_app_info_data->num_gpus_used = my_sig->gpu_sig.num_gpus;

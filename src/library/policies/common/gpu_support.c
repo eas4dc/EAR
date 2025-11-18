@@ -25,9 +25,6 @@
 #include <library/common/utils.h>
 #include <library/metrics/metrics.h>
 
-#ifndef GPU_OPT
-#define GPU_OPT 0
-#endif
 
 #define MASTER_LOCK_FILENAME ".gpu_optimize"
 
@@ -71,21 +68,22 @@ state_t policy_gpu_load(settings_conf_t * app_settings, polsym_t * psyms)
 	/* If the above didn't apply, try to load the configured GPU policy plug-in */
 
 	char gpupolicy_name[SZ_FILENAME];
-  char *cgpu_optimize = ear_getenv(GPU_ENABLE_OPT);
+  char *cgpu_optimize = ear_getenv(FLAG_GPU_ENABLE_OPT);
+  if (cgpu_optimize == NULL) cgpu_optimize = ear_getenv(GPU_ENABLE_OPT);
   if (cgpu_optimize != NULL) gpu_optimize = atoi(cgpu_optimize);
 
 	verbose_info2_master
 	    ("GPU optimization %s. GPU policy plug-in base name: %s",
-	     (GPU_OPT) ? "enabled" : "disabled",
-	     (GPU_OPT) ? app_settings->policy_name : "monitoring");
+	     (gpu_optimize) ? "enabled" : "disabled",
+	     (gpu_optimize) ? app_settings->policy_name : "monitoring");
 
 	/* 
-	 * If GPU_OPT is disabled, gpu_monitoring.so will be loaded.
+	 * If gpu_optimize is disabled, gpu_monitoring.so will be loaded.
 	 * Otherwise, 'gpu_'<cpu_policy_name>.so will be loaded.
 	 */
 
 	snprintf(gpupolicy_name, sizeof(gpupolicy_name) - 1, "gpu_%s.so",
-		 (GPU_OPT) ? app_settings->policy_name : "monitoring");
+		 (gpu_optimize) ? app_settings->policy_name : "monitoring");
 
 	if (state_fail
 	    (utils_build_valid_plugin_path
