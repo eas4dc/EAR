@@ -100,7 +100,7 @@ state_t classify_init(topology_t *tp_in, settings_conf_t *libconf)
     roofline = malloc(sizeof(roofline_t));
     extremes = malloc(sizeof(extremes_t));
     medoids  = malloc(sizeof(medoids_t));
-    char path[256];
+    char path[SZ_PATH];
     memset(path, 0, sizeof(path));
 
     // TODO: read env vars when auth_user

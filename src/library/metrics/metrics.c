@@ -480,12 +480,18 @@ void metrics_lib_reset()
 
 static uint api_mode(uint master, uint eard, uint per_process)
 {
-	// If connected, return what's already selected
-	if (eards_connected() || !EARL_LIGHT) return eard;
-	// API_EARD means I'm master
-	if ((eard == API_EARD) && !eards_connected()) return API_FREE;
-	if ((eard == NO_EARD) && (per_process)) return API_FREE;
-	if ((eard == NO_EARD) && (!per_process)) return API_DUMMY;
+    // If connected, return what's already selected
+    if (eards_connected() || !EARL_LIGHT)
+        return eard;
+    // API_EARD means I'm master
+    if ((eard == API_EARD) && !eards_connected())
+        return API_FREE;
+    if ((eard == NO_EARD) && (per_process))
+        return API_FREE;
+    if ((eard == NO_EARD) && (!per_process))
+        return API_DUMMY;
+
+    return API_DUMMY;
 }
 
 static void metrics_static_init(topology_t *tp)
@@ -1475,10 +1481,10 @@ static int metrics_partial_stop(uint where)
         energy_cpu_data_diff(no_ctx, last_rapl, aux_rapl, metrics_rapl[LOO]);
 
         // Manual RAPL accumulation
-        ullong total_RAPL_energy = 0;
+        // ullong total_RAPL_energy = 0;
         for (int i = 0; i < rapl_elements; i++) {
             metrics_rapl[APP][i] += metrics_rapl[LOO][i];
-            total_RAPL_energy += metrics_rapl[LOO][i];
+            // total_RAPL_energy += metrics_rapl[LOO][i];
             debug("energy CPU: %llu", metrics_rapl[LOO][i]);
         }
 

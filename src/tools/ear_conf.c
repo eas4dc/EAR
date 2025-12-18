@@ -19,14 +19,14 @@ static char *buffer_serial;
 static void serialize_deserialize_test(char *ear_path)
 {
     cluster_conf_t my_cluster_ser, my_cluster_deser;
-    size_t size_serial = { 0 };
+    size_t size_serial = {0};
     printf("reading ear.conf for serialization test\n");
     read_cluster_conf(ear_path, &my_cluster_ser);
     if (state_fail(serialize_cluster_conf(&my_cluster_ser, &buffer_serial, &size_serial))) {
         printf("Seralization fails\n");
         exit(1);
     }
-    printf("Serialization ok: Serial size %u\n", size_serial);
+    printf("Serialization ok: Serial size %lu\n", size_serial);
     printf("Deserialization\n");
 
     version_t conf_version;

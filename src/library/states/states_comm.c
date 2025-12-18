@@ -310,7 +310,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
         if (new_freq > 0) {
             verbose(SIG_VRB_LVL, " Next Frequency %.2f", NFREQ);
         } else {
-            verbose(SIG_VRB_LVL, "");
+            verbose(SIG_VRB_LVL, " ");
         }
 
         verbose(SIG_VRB_LVL, "\tCPI: %.3lf VPI: %.2f, Mem. bwidth: %.2lfGB/s TPI: %.2lf GFLOPS: %s I/O: %.2fMB/s %s %s",

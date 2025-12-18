@@ -161,7 +161,6 @@ sem_t *lib_shared_lock_sem;
 
 /* To be used by report plugins */
 report_id_t rep_id;
-cluster_conf_t cconf;
 
 cpu_set_t ear_process_mask;
 int ear_affinity_is_set = 0;
@@ -185,9 +184,10 @@ static char *creport_earl_events;
 uint ear_periodic_mode   = PERIODIC_MODE_OFF;
 uint mpi_calls_in_period = 10000;
 uint mpi_calls_per_second;
-static unsigned long long int total_mpi_calls = 0;
-static uint dynais_timeout                    = MAX_TIME_DYNAIS_WITHOUT_SIGNATURE;
-uint lib_period                               = PERIOD;
+static unsigned long long int __attribute__((unused))total_mpi_calls = 0;
+static unsigned long __attribute__((unused)) dynais_calls            = 0;
+static uint dynais_timeout = MAX_TIME_DYNAIS_WITHOUT_SIGNATURE;
+uint lib_period            = PERIOD;
 
 // MPI_CALLS_TO_CHECK_PERIODIC is defined to MAX_MPI_CALLS_SECOND
 static uint check_every = MPI_CALLS_TO_CHECK_PERIODIC;
@@ -258,8 +258,7 @@ uint per_proc_verb_file = 0;
 
 uint exclusive = 1;
 ear_classify_t phases_limits;
-static ulong dynais_calls = 0;
-uint limit_exceeded       = 0;
+uint limit_exceeded = 0;
 
 extern ulong perf_accuracy_min_time;
 static uint exiting = 0;
@@ -277,13 +276,14 @@ static uint must_masters_synchronize();
 static void create_earl_verbose_files();
 
 /** Make a copy of pathname and store it to a file called pathname.bckp */
-static state_t earl_log_backup(char *pathname, size_t pathname_size);
 
 static state_t check_eard_earl_compatibility(state_t eard_connect_state, eard_state_t *eard_conf)
 {
     state_t st = EAR_SUCCESS;
-    if (state_fail(eard_connect_state))
+    version_set(&eard_conf->version, VERSION_MAJOR, 0);
+    if (state_fail(eard_connect_state)) {
         return EAR_ERROR;
+    }
 
     // If eards_get_state returns EAR_ERROR, means that the connected EARD does not have the RPC
     // implemented, so we assume it is an old version and (by now) it should be compatible.
@@ -1921,8 +1921,13 @@ void ear_init()
     debug("Using ser cconf path %s", ser_cluster_conf_path);
     ser_cluster_conf = attach_ser_cluster_conf_shared_area(ser_cluster_conf_path, &ser_cluster_conf_size);
     debug("Serialized cluster conf requires %lu bytes", ser_cluster_conf_size);
-    verbose_info2_master("Deserializing the cluster conf")
-        deserialize_cluster_conf(&cconf, ser_cluster_conf, ser_cluster_conf_size, &eard_conf.version);
+    verbose(2, "Deserializing the cluster conf %s size %u", ser_cluster_conf_path, ser_cluster_conf_size);
+    memset(&cconf, 0, sizeof(cluster_conf_t));
+    deserialize_cluster_conf(&cconf, ser_cluster_conf, ser_cluster_conf_size, &eard_conf.version);
+
+    if (VERB_ON(3)) {
+        print_cluster_conf(&cconf);
+    }
 
     debug("END Shared region creation section");
     /* Processes in same node connectes each other*/
@@ -2995,10 +3000,12 @@ state_t earl_periodic_actions(void *no_arg)
     period_elapsed         = timestamp_diff(&curr_periodic_time, &periodic_time, TIME_SECS);
     last_signature_elapsed = timestamp_diff(&curr_periodic_time, &time_last_signature, TIME_SECS);
 
-    debug("%s [%d] elapsed %lu: first_exec_monitor %d Iterations %d MPI %d time_guided %d periodic %u dynais(%d) calls "
-          "%lu",
-          node_name, my_node_id, period_elapsed, first_exec_monitor, ear_iterations, module_mpi_is_enabled(),
-          ear_guided == TIME_GUIDED, ear_periodic_mode, dynais_enabled, dynais_calls);
+    verbose(2,
+            "%s [%d] Rank %d elapsed %lu: first_exec_monitor %d Iterations %d MPI %d time_guided %d periodic %u "
+            "dynais(%d) calls "
+            "%lu",
+            node_name, my_node_id, ear_my_rank, period_elapsed, first_exec_monitor, ear_iterations,
+            module_mpi_is_enabled(), ear_guided == TIME_GUIDED, ear_periodic_mode, dynais_enabled, dynais_calls);
 
     if (first_exec_monitor) {
         first_exec_monitor = 0;
@@ -3143,6 +3150,7 @@ void ear_destructor()
 }
 #endif
 
+#if 0
 static state_t earl_log_backup(char *pathname, size_t pathname_size)
 {
     state_t st        = EAR_SUCCESS;
@@ -3184,6 +3192,7 @@ static state_t earl_log_backup(char *pathname, size_t pathname_size)
 
     return st;
 }
+#endif
 
 static void create_earl_verbose_files()
 {

@@ -67,9 +67,11 @@ void signature_print_fd(int fd, signature_t *sig, char is_extended, int single_c
         }
     }
 #if WF_SUPPORT
+#if SHOW_DEBUGS
     uint num_sockets = MAX_SOCKETS_SUPPORTED;
     // CPU temperature and power, and DRAM power
     debug("Creating CPU signature with %u sockets", num_sockets);
+#endif
     char cpu_sig_str[256] = "";
     for (uint s = 0; s < sig->cpu_sig.devs_count; s++) {
         // CPU temperature

@@ -172,8 +172,7 @@ static state_t static_rpc(uint call, char *data, size_t size, char *recv_data, s
     }
 // ???
 #if MIX_RPC
-    int ack_ready;
-    ack_ready = aselect(&eard_api_client_fd, 3000, NULL);
+    aselect(&eard_api_client_fd, 3000, NULL);
     AFD_ZERO(&eard_api_client_fd);
     AFD_SETT(ear_fd_ack, &eard_api_client_fd, NULL);
 #endif

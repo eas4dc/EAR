@@ -83,7 +83,7 @@ static state_t grace_cpu_mon_main(void *p)
 
 state_t grace_cpu_load(topology_t *topo)
 {
-    state_t s;
+    state_t s = EAR_ERROR;
     debug("asking for status");
     while (pthread_mutex_trylock(&lock))
         ;
@@ -246,9 +246,6 @@ state_t grace_cpu_dispose(ctx_t *c)
 // Data
 state_t grace_cpu_count_devices(ctx_t *c, uint *count)
 {
-    hwfds_t *h;
-    state_t s;
-
     // TODO: socket_count variable is available once the API is loaded,
     // so technically a user could call this function before calling grace_cpu_init
 

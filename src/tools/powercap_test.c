@@ -95,11 +95,13 @@ static state_t metrics_apis_init(void *whatever)
     return EAR_SUCCESS;
 }
 
+#if 0
 static char *nodepow_data_tostr(ulong avrg, char *buffer, size_t length)
 {
     sprintf(buffer, "!%lu", avrg);
     return buffer;
 }
+#endif
 
 static char *dram_data_tostr(ullong *diffs, double secs, char *buffer, size_t length)
 {

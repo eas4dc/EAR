@@ -24,6 +24,7 @@
 #include <common/states.h>
 #include <common/types/configuration/cluster_conf.h>
 #include <common/types/configuration/cluster_conf_generic.h>
+#include <common/types/configuration/cluster_conf_verbose.h>
 #include <daemon/local_api/node_mgr.h>
 #include <daemon/shared_configuration.h>
 #include <library/common/global_comm.h>
@@ -59,13 +60,16 @@ static void create_dummy_island(cluster_conf_t *dummycc)
     dummycc->num_islands = 1;
     dummycc->islands     = calloc(1, sizeof(node_island_t));
     set_default_island_conf(&dummycc->islands[0], 0);
-    dummycc->islands[0].num_ips   = 1;
-    dummycc->islands[0].db_ips    = calloc(1, sizeof(char *));
-    dummycc->islands[0].db_ips[0] = calloc(1, strlen(nodename) + 1);
+    dummycc->islands[0].num_ips     = 1;
+    dummycc->islands[0].db_ips      = calloc(1, sizeof(char *));
+    dummycc->islands[0].db_ips[0]   = calloc(1, strlen(nodename) + 1);
+    dummycc->islands[0].num_backups = 0;
     strcpy(dummycc->islands[0].db_ips[0], nodename);
+    dummycc->islands[0].num_ranges = 0;
     generate_node_ranges(&dummycc->islands[0], nodename);
-    dummycc->num_tags = 1;
-    dummycc->tags     = calloc(1, sizeof(tag_t));
+    dummycc->islands[0].ranges[0].db_ip = dummycc->islands[0].ranges[0].sec_ip = -1;
+    dummycc->num_tags                                                          = 1;
+    dummycc->tags                                                              = calloc(1, sizeof(tag_t));
     memset(dummycc->tags, 0, sizeof(tag_t));
     set_default_tag_values(dummycc->tags);
     strcpy(dummycc->tags[0].energy_model, DEFAULT_ENERGY_MODEL);
@@ -73,6 +77,7 @@ static void create_dummy_island(cluster_conf_t *dummycc)
     strcpy(dummycc->tags[0].powercap_plugin, "");
     strncpy(dummycc->tags[0].id, "default", sizeof(dummycc->tags[0].id));
     dummycc->tags[0].is_default = 1;
+    print_islands_conf(&dummycc->islands[0]);
 }
 
 static void create_dummy_node_conf(cluster_conf_t *dummycc, char *nodename)
@@ -163,8 +168,10 @@ state_t eard_dummy_cluster_conf(char *ear_tmp, uint ID)
         create_dummy_island(&dummy_cc);
         create_dummy_policy(&dummy_cc);
     }
-    if (VERB_GET_LV() >= 3)
+
+    if (VERB_ON(2)) {
         print_cluster_conf(&dummy_cc);
+    }
 
     verbose_master(2, "Looking for node conf. Nodename %s", nodename);
     dummy_node_conf = get_my_node_conf(&dummy_cc, nodename);
@@ -187,7 +194,6 @@ state_t eard_dummy_cluster_conf(char *ear_tmp, uint ID)
     serialize_cluster_conf(&dummy_cc, &dummy_ser_cc, &dummy_ser_cc_size);
     get_ser_cluster_conf_path(ear_tmp, path);
 
-    debug("Serialized path %s for cconf", path);
     local_dummy_ser_cc = create_ser_cluster_conf_shared_area(path, dummy_ser_cc, dummy_ser_cc_size);
 
     check_null(local_dummy_ser_cc, "Error serializing cluster_conf in path %s", " ");
@@ -358,7 +364,6 @@ void eard_dummy_replace_base_freq(ulong base)
 /* This function is called when metrics are not yet initialized */
 state_t create_eard_dummy_shared_regions(char *ear_tmp, uint ID)
 {
-    verbose(2, "Creating dummy areas in %s and ID %u . SYSTEM_TYPE %u", ear_tmp, ID, SYSTEM_TYPE);
     earl_config_dummy = 1;
     eard_dummy_cluster_conf(ear_tmp, ID);
     eard_dummy_earl_settings(ear_tmp, ID);

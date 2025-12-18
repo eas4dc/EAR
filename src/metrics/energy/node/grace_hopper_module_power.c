@@ -89,7 +89,7 @@ static state_t gh_module_power_mon_main(void *p)
 
 static state_t gh_module_power_load(topology_t *topo)
 {
-    state_t s;
+    state_t s = EAR_ERROR;
     debug("asking for status");
     while (pthread_mutex_trylock(&lock)) {
     };
@@ -206,6 +206,8 @@ static state_t get_context(ctx_t *c, hwfds_t **h)
     return EAR_SUCCESS;
 }
 
+#if 0
+//Unused functions
 static state_t gh_module_power_read(ctx_t *c, ullong *values)
 {
     if (values == NULL)
@@ -221,6 +223,26 @@ static state_t gh_module_power_read(ctx_t *c, ullong *values)
     values[socket_count] = (ullong) aux_acum_energy;
     return EAR_SUCCESS;
 }
+static state_t gh_module_power_count_devices(ctx_t *c, uint *count)
+{
+    hwfds_t *h;
+    state_t s;
+
+    debug("gh_module_power_count_devices");
+
+    if (xtate_fail(s, get_context(c, &h))) {
+        return s;
+    }
+    if ((count != NULL) && (h != NULL)) {
+        //*count = h->id_count;
+        // To be compatible with other APIs we will use
+        // socket granularity for now
+        *count = socket_count;
+    }
+
+    return EAR_SUCCESS;
+}
+#endif
 
 static state_t gh_module_power_dispose(ctx_t *c)
 {
@@ -249,25 +271,6 @@ static state_t gh_module_power_dispose(ctx_t *c)
 }
 
 // Data
-static state_t gh_module_power_count_devices(ctx_t *c, uint *count)
-{
-    hwfds_t *h;
-    state_t s;
-
-    debug("gh_module_power_count_devices");
-
-    if (xtate_fail(s, get_context(c, &h))) {
-        return s;
-    }
-    if ((count != NULL) && (h != NULL)) {
-        //*count = h->id_count;
-        // To be compatible with other APIs we will use
-        // socket granularity for now
-        *count = socket_count;
-    }
-
-    return EAR_SUCCESS;
-}
 
 static state_t gh_module_static_read(ctx_t *c, llong *power, llong *acum, state_t *st_read)
 {
@@ -320,8 +323,6 @@ static state_t gh_module_static_read(ctx_t *c, llong *power, llong *acum, state_
 #include <common/system/time.h>
 #include <metrics/energy/node/energy_node.h>
 
-static timestamp_t start_time;
-static uint init;
 static topology_t tp;
 static ctx_t gh_ctx;
 static uint grace_module_energy_init = 0;
@@ -436,10 +437,11 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
         return EAR_ERROR;
     ulong *penergy_mj = (ulong *) energy_mj;
 
-    ullong elapsed = timestamp_diffnow(&start_time, TIME_MSECS);
-
     *penergy_mj = (ulong) aux_acum_energy;
+#if SHOW_DEBUGS
+    ullong elapsed = timestamp_diffnow(&start_time, TIME_MSECS);
     debug("energy_dc_read: %lu elapsed: %llu\n", *penergy_mj, elapsed);
+#endif
     *time_ms = (ulong) time(NULL) * 1000;
 
     return EAR_SUCCESS;

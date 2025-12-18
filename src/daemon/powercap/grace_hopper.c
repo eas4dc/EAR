@@ -127,6 +127,6 @@ void set_app_req_freq(ulong *f)
 
 uint32_t get_powercap_status(uint32_t *in_target, uint32_t *tbr)
 {
+    warning("Grace Hopper powercap status not implemented");
     return 0;
-#warning Grace Hopper powercap status not implemented
 }

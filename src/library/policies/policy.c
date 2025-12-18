@@ -69,7 +69,9 @@
 
 #define is_master                     (masters_info.my_master_rank >= 0)
 
+#if MPI_OPTIMIZED
 static int ear_mpi_opt;
+#endif
 static ear_event_t curr_policy_event;
 extern uint report_earl_events;
 extern report_id_t rep_id;
@@ -2015,7 +2017,7 @@ void compute_avg_sel_freq(ulong *avg_sel_mem_f, ulong *imcfreqs)
     for (uint sock_id = 0; sock_id < arch_desc.top.socket_count; sock_id++) {
         // Validate array index before access
         if ((sock_id * IMC_VAL + IMC_MAX) >= (arch_desc.top.socket_count * IMC_VAL)) {
-            verbose_master(2, "Invalid array index %lu", sock_id * IMC_VAL + IMC_MAX);
+            verbose_master(2, "Invalid array index %u", sock_id * IMC_VAL + IMC_MAX);
             break;
         }
 

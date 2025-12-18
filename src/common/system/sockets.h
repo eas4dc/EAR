@@ -89,6 +89,9 @@ state_t sockets_close_fd(int fd);
 /* Write & read*/
 state_t sockets_send(int fd, uint type, char *data, size_t data_size, ullong extra);
 
+// Unimplemented UPD version of sockets_send().
+state_t sockets_sendto(socket_t *socket, char *buffer, ssize_t data_size);
+
 state_t sockets_recv_header(int fd, uint *type, size_t *data_size, ullong *extra, uint block);
 
 state_t sockets_recv(int fd, char *data, size_t data_size, uint block);

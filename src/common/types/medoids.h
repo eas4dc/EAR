@@ -55,6 +55,8 @@ state_t load_extremes(char *path, char *architecture, extremes_t *final_extremes
 
 void medoids_print(medoids_t *phases);
 
+#if 0
 void extremes_print(extremes_t *extremes);
+#endif
 
 #endif

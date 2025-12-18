@@ -26,17 +26,8 @@
 #include <management/cpufreq/frequency.h>
 #include <stdlib.h>
 
-static coefficient_t **coefficients;
-static coefficient_t *coefficients_sm;
-static int num_coeffs;
-static uint num_pstates;
-static uint basic_model_init;
-
 /** Returns whether there exists a coefficients entry from \ref from_ps to \ref to_ps. */
 static uint projection_available(ulong from_ps, ulong to_ps);
-
-/** Returns whether the pair <from_ps, to_ps> is between the configured pstate list. */
-static int valid_range(ulong from_ps, ulong to_ps);
 
 /* This function loads any information needed by the energy model */
 state_t energy_model_init(char *ear_coeffs_path, char *ear_tmp_path, architecture_t *arch_desc)
@@ -66,6 +57,9 @@ uint energy_model_any_projection_available()
     return 1;
 }
 
+#if 0
+static uint num_pstates;
+/** Returns whether the pair <from_ps, to_ps> is between the configured pstate list. */
 static int valid_range(ulong from_ps, ulong to_ps)
 {
     if ((from_ps < num_pstates) && (to_ps < num_pstates))
@@ -73,6 +67,7 @@ static int valid_range(ulong from_ps, ulong to_ps)
     else
         return 0;
 }
+#endif
 
 static uint projection_available(ulong from_ps, ulong to_ps)
 {

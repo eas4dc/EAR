@@ -10,45 +10,60 @@
 
 // #define SHOW_DEBUGS 1
 
-#include <common/math_operations.h>
+// clang-format off
+#include <stdlib.h>
+#include <pthread.h>
+#include <common/system/time.h>
 #include <common/output/debug.h>
 #include <common/system/monitor.h>
-#include <common/system/time.h>
+#include <common/math_operations.h>
 #include <metrics/common/ipmi.h>
-#include <pthread.h>
-#include <stdlib.h>
 
 typedef struct consumption_s {
-    uint64_t energy;       // mJ
+    uint64_t    energy;    // mJ
     timestamp_t timestamp; // We use our timestamp because DCMI fails
-    uint64_t samples;
+    uint64_t    samples;
 } consumption_t;
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static ipmi_sensor_t *sensors;
-static uint sensors_count;
+static ipmi_sensor_t  *sensors;
+static uint            sensors_count;
 static ipmi_reading_t *sensors_readings;
-static suscription_t *sus;
-static consumption_t *pool;
-static uint opt_sysp[11] = {1, 1, 1000}; // Sys Power (power)
-static uint opt_lm50[11] = {2, 1, 1000}; // LM5066_PIN (power)
-static uint *opt         = NULL;
+static suscription_t  *sus;
+static consumption_t  *pool;
+// opt array = index, pooling y/n, power multiplier to get Watts
+static uint opt_args[3] = {0, 1, 1000};
+static uint opt_sysp[3] = {1, 1, 1000}; // Sys Power (power)
+static uint opt_lm50[3] = {2, 1, 1000}; // LM5066_PIN (power)
+static uint *opt        = NULL;
 
 static state_t energy_pool(void *data);
 
 state_t energy_init(void **x)
 {
     state_t s = EAR_SUCCESS;
-    while (pthread_mutex_trylock(&lock))
-        ;
+    char *sensor_env = NULL;
+    uint list_count = 0;
+    char **list = NULL;
+
+    while (pthread_mutex_trylock(&lock));
     if (sensors_count) {
         goto leave;
     }
     if (state_fail(s = ipmi_open())) {
         goto leave;
     }
+    if (getenv("EAR_ENERGY_ARGS") != NULL) {
+        if (strtoa(getenv("EAR_ENERGY_ARGS"), ':', &list, &list_count) != NULL) {
+            sensor_env  = list[0];
+            opt_args[1] = (list_count > 1) ? atoi(list[1]): opt_args[1];
+            opt_args[2] = (list_count > 2) ? atoi(list[2]): opt_args[2];
+        }
+    }
     // Detecting sensors depending on hardware
-    if (ipmi_sensors_find("LM5066_PIN,CWG_LM5066I_PIN", &sensors, &sensors_count)) {
+    if (ipmi_sensors_find(sensor_env, &sensors, &sensors_count)) {
+        opt = opt_args;
+    } else if (ipmi_sensors_find("LM5066_PIN,CWG_LM5066I_PIN", &sensors, &sensors_count)) {
         opt = opt_lm50;
     } else if (ipmi_sensors_find("Sys Power", &sensors, &sensors_count)) {
         opt = opt_sysp;
@@ -72,6 +87,7 @@ leave:
     pthread_mutex_unlock(&lock);
     return s;
 }
+// clang-format on
 
 state_t energy_dispose(void **x)
 {
@@ -97,9 +113,10 @@ static state_t energy_pool(void *data)
     timestamp_t ts = {0};
     double fpower;
     double ftime;
-    int s;
+    int s = 0;
 
-    while (pthread_mutex_trylock(&lock));
+    while (pthread_mutex_trylock(&lock))
+        ;
     //
     if (state_fail(st = ipmi_sensors_read(sensors, sensors_count, &sensors_readings))) {
         goto_state(leave, st = EAR_ERROR);
@@ -130,7 +147,7 @@ leave:
         memcpy(data, pool, sizeof(consumption_t) * sensors_count);
     }
     pthread_mutex_unlock(&lock);
-    return s;
+    return st;
 }
 
 state_t energy_dc_read(void *x, void *data)

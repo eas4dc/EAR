@@ -401,7 +401,7 @@ ulong compute_energy_t2()
 
 uint defcon(ulong e_t2, ulong e_t1, ulong load)
 {
-    double perc;
+    double perc = 0;
     switch (policy) {
         case MAXENERGY:
             perc_energy = ((double) e_t2 / (double) energy_budget) * (double) 100;

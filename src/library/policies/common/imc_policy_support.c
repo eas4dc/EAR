@@ -200,8 +200,6 @@ uint must_decrease_imc(imc_data_t *my_imc_data, uint cpu_pstate, uint my_imc_pst
 
 void copy_imc_data_from_signature(imc_data_t *my_imc_data, uint cpu_pstate, uint my_imc_pstate, signature_t *s)
 {
-    int i;
-    ullong tfops                                                        = 0;
     my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].time         = s->time;
     my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].power        = s->DC_power;
     my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].GBS          = s->GBS;
@@ -211,9 +209,10 @@ void copy_imc_data_from_signature(imc_data_t *my_imc_data, uint cpu_pstate, uint
 
     memcpy(my_imc_data[cpu_pstate * NUM_UNC_FREQ + my_imc_pstate].FLOPS, s->FLOPS, sizeof(ull) * FLOPS_EVENTS);
 
-    for (i = 0; i < FLOPS_EVENTS; i++)
-        tfops += s->FLOPS[i];
 #if SHOW_DEBUGS
+    ullong tfops = 0;
+    for (int32_ti = 0; i < FLOPS_EVENTS; i++)
+        tfops += s->FLOPS[i];
     float flops = 0;
     flops       = (float) tfops / (s->time * 1000000000.0);
     debug("IMC data [CPU %u, IMC %u]: time %.3lf power %2.lf GBS %.2lf I/s %.2f flops %.2f", cpu_pstate, my_imc_pstate,

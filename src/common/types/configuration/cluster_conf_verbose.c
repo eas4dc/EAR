@@ -124,11 +124,11 @@ void print_cluster_conf(cluster_conf_t *conf)
     verbosen(VCCONF, "\n>>>>> EARGM: System power manager section <<<<<\n");
     print_eargm_conf(&conf->eargm);
 
-    verbosen(VCCONF, "\n>>>>> TAGS <<<<<<\n");
+    verbosen(VCCONF, "\n>>>>> TAGS :%u<<<<<<\n", conf->num_tags);
     for (i = 0; i < conf->num_tags; i++)
         print_tags_conf(&conf->tags[i], i);
 
-    verbosen(VCCONF, "\n>>>>> Computational nodes <<<<<\n");
+    verbosen(VCCONF, "\n>>>>> Computational nodes:%u  <<<<<\n", conf->num_islands);
     for (i = 0; i < conf->num_islands; i++)
         print_islands_conf(&conf->islands[i]);
 
@@ -138,7 +138,7 @@ void print_cluster_conf(cluster_conf_t *conf)
     }
     verbose(VCCONF, " ");
 
-    verbosen(VCCONF, "\n>>>>> Energy tags section <<<<<\n");
+    verbosen(VCCONF, "\n>>>>> Energy tags section:%u <<<<<\n", conf->num_etags);
     for (i = 0; i < conf->num_etags; i++)
         print_energy_tag(&conf->e_tags[i]);
 

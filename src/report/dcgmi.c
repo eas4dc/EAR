@@ -40,7 +40,6 @@ static char *csv_log_file_env_loops;
 static char csv_loop_log_file[MAX_PATH_SIZE];
 static char csv_log_file[MAX_PATH_SIZE];
 static char path_base[1024];
-static char path_dir_app[1024], path_dir_loops[1024];
 
 static ullong my_time = 0;
 
@@ -110,6 +109,7 @@ state_t report_init(report_id_t *id, cluster_conf_t *cconf)
         dcgmi_verbose(2, "DCGMI paths app`%s loops %s", csv_log_file, csv_loop_log_file);
 
 #if 0
+static char path_dir_app[1024], path_dir_loops[1024];
 		/*
 		 * Commented since I'm trying to mimic the code of csv_ts.c plug-in.
 		 */

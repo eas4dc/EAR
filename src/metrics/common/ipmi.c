@@ -8,17 +8,17 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+// clang-format off
+#include <pthread.h>
 #include <metrics/common/ipmi.h>
 #include <metrics/common/ipmi_driver.h>
-#include <pthread.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 state_t ipmi_open()
 {
     state_t s;
-    while (pthread_mutex_trylock(&lock))
-        ;
+    while (pthread_mutex_trylock(&lock));
     s = ipmi_driver_open();
     pthread_mutex_unlock(&lock);
     return s;
@@ -26,8 +26,7 @@ state_t ipmi_open()
 
 void ipmi_close()
 {
-    while (pthread_mutex_trylock(&lock))
-        ;
+    while (pthread_mutex_trylock(&lock));
     ipmi_driver_close();
     pthread_mutex_unlock(&lock);
 }
@@ -50,8 +49,7 @@ int ipmi_sensors_find(char *string, ipmi_sensor_t **sensors, uint *sensors_count
 state_t ipmi_sensors_read(ipmi_sensor_t *sensors, uint sensors_count, ipmi_reading_t **values)
 {
     state_t s;
-    while (pthread_mutex_trylock(&lock))
-        ;
+    while (pthread_mutex_trylock(&lock));
     s = ipmi_driver_sensors_read(sensors, sensors_count, values);
     pthread_mutex_unlock(&lock);
     return s;
@@ -76,8 +74,7 @@ void ipmi_cmd_set_msg(ipmi_cmd_t *pkg, uchar netfn, uchar cmd, ushort data_len)
 state_t ipmi_cmd_send(int dev_no, ipmi_cmd_t *pkg)
 {
     state_t s;
-    while (pthread_mutex_trylock(&lock))
-        ;
+    while (pthread_mutex_trylock(&lock));
     s = ipmi_driver_cmd_send(dev_no, pkg);
     pthread_mutex_unlock(&lock);
     return s;

@@ -193,7 +193,7 @@ state_t ear_release_idle_power(cluster_conf_t *conf, pc_release_data_t *released
     if (nodes == NULL || num_nodes < 1) {
         return ear_cluster_release_idle_power(conf, released);
     } else {
-#warning release_idle_power not implemented for nodelists
+        warning("release_idle_power not implemented for nodelists");
     }
     return 0;
 }

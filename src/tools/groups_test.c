@@ -26,7 +26,6 @@
 int main(int argc, char *argv[])
 {
     cluster_conf_t my_cluster;
-    my_node_conf_t *my_node_conf;
     char nodename[256];
     char ear_path[256];
     strcpy(nodename, "");

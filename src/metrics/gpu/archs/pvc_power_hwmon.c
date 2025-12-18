@@ -217,7 +217,6 @@ state_t pvc_hwmon_count_devices(ctx_t *c, uint *count)
 state_t pvc_hwmon_read(ctx_t *c, gpu_t *data)
 {
     char sdata[SZ_PATH];
-    llong aux1, aux2 = 0;
     int i, k;
     hwfds_t *h;
     state_t s;

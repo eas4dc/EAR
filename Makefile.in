@@ -71,6 +71,9 @@ FREEIPMI_LDFLAGS   = @FREEIPMI_LDFLAGS@
 DLB_LIBS           = @DLB_LIBS@
 DLB_CPPFLAGS       = @DLB_CPPFLAGS@
 DLB_LDFLAGS        = @DLB_LDFLAGS@
+CMOCKA_LIBS 	   = @CMOCKA_LIBS@
+CMOCKA_LDFLAGS 	   = @CMOCKA_LDFLAGS@
+CMOCKA_CPPFLAGS    = @CMOCKA_CPPFLAGS@
 # Installation directories and options
 ROOTDIR            = $(shell pwd)
 SRCDIR             = $(ROOTDIR)/src

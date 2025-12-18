@@ -34,7 +34,9 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void chips_open(chips_t *chips, char *label)
 {
-    hwmon_open("power_meter", "power", label, &chips->chips, &chips->chips_count);
+    if (state_fail(hwmon_open("power_meter", "power", label, &chips->chips, &chips->chips_count))) {
+        return;
+    }
     chips->energy_uj     = calloc(chips_pkg.chips_count, sizeof(ullong));
     chips->power_uw_last = calloc(chips_pkg.chips_count, sizeof(double));
     debug("%s #chips: %u", label, chips->chips_count);
@@ -42,7 +44,7 @@ static void chips_open(chips_t *chips, char *label)
 
 static void chips_close(chips_t *chips)
 {
-    if (chips != NULL) {
+    if (chips->chips != NULL) {
         hwmon_close(&chips->chips);
         free(chips->power_uw_last);
         free(chips->energy_uj);
@@ -87,7 +89,7 @@ static void static_read_single(chips_t *chips, double time_s)
     ullong aux_uw = 0.0;
     int i = 0;
 
-    if (chips == NULL) {
+    if (chips->chips == NULL) {
         return;
     }
     hwmon_read(chips->chips);
@@ -103,7 +105,7 @@ static void static_read_single(chips_t *chips, double time_s)
         aux_uw = (ullong) (power_uw * time_s * 1000.0);
         chips->energy_uj[i] += aux_uw;
         debug("Process %d: CHIP[%d]: %llu += %llu = %0.lf * (%0.3lf us) (%s)",
-            getpid(), i, chips->energy_uj[i], aux_uw, power_uw, time_s, chips->chips[0].devs[0].label);
+              getpid(), i, chips->energy_uj[i], aux_uw, power_uw, time_s, chips->chips[0].devs[0].label);
         ++i;
     }
 }
@@ -134,14 +136,15 @@ static state_t static_pool(void *data)
     // It is 2 because this apis is DRAM[0]+PKG[1]
     for (j = 0; data != NULL && j < chips_pkg.chips_count; j += 1) {
         values[j+0] = 0LLU;
-        if (chips_socket.energy_uj[j] != 0 && chips_pkg.energy_uj[j] != 0 && chips_sysio.energy_uj[j] != 0) {
-            debug("vector [%d] info [%d]", j, j)
-            values[j+0] = chips_socket.energy_uj[j] - (chips_pkg.energy_uj[j] + chips_sysio.energy_uj[j]);
-            if (values[j+0] >= chips_socket.energy_uj[j]) {
-                values[j+0] = 0LLU;
+        // If we successfully opened socket and sysio
+        if (chips_socket.energy_uj != NULL && chips_sysio.energy_uj != NULL) {
+            if (chips_socket.energy_uj[j] != 0 && chips_pkg.energy_uj[j] != 0 && chips_sysio.energy_uj[j] != 0) {
+                values[j+0] = chips_socket.energy_uj[j] - (chips_pkg.energy_uj[j] + chips_sysio.energy_uj[j]);
+                if (values[j+0] >= chips_socket.energy_uj[j]) {
+                    values[j+0] = 0LLU;
+                }
             }
         }
-        debug("vector [%d] info [%d]", j+chips_pkg.chips_count, j)
         values[j + chips_pkg.chips_count] = chips_pkg.energy_uj[j];
     }
     pthread_mutex_unlock(&lock);

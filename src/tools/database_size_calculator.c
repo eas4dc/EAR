@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
                              (loop_size + signature_size + gpu_signature_size * gpus_job);
     double loops_double = (double) loops_estimate / unit;
     printf("\n----------------------\n");
-    printf("Estimates for %d days:\n", days_to_compute);
+    printf("Estimates for %ld days:\n", days_to_compute);
     printf("Monitoring size estimate (periodic metrics) %.3lf %s\n", periodic_metrics_double, unit_name);
     printf("Job accounting size estimate (applications, jobs, signatures, power_signatures, gpu_signatures) %.3lf %s\n",
            jobs_double, unit_name);

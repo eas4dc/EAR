@@ -37,9 +37,8 @@ compile-no-mpi:
 compile-mpi:
   stage: build
   script:
-    - export CONFIG_SITE="$TESTDIR/config-sites/config.ompi.site"
-    - MAKE_FEATURES="MPI_CFLAGS='$(pkgconf ompi-c --cflags)'" CONFIGURE_FLAGS="--prefix=$PWD/ear-ompi" $TESTDIR/compile.sh
-    - make install
+    # This script compiles, installs, and test the correctness of the installation
+    - $TESTDIR/build/compile_ompi.sh
   artifacts:
     when: on_success
     expire_in: 1 days

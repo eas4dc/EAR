@@ -969,7 +969,7 @@ void connect_service(struct daemon_req *new_req)
     char ear_commreq[MAX_PATH_SIZE * 2];
     application_t *new_app = &new_req->req_data.app;
     job_t *new_job         = &new_app->job;
-    unsigned long ack;
+    unsigned long ack      = 0;
     int ear_req_fd, ear_ack_fd;
     int newc;
     ulong lid = new_req->con_id.lid;

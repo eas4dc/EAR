@@ -329,15 +329,19 @@ int select_global_cp(int size, int max, int *ppn, shsignature_t *my_sh_sig, int 
     int i, j;
     int rank    = 0;
     double minp = 100.0, maxp = 0.0;
+#if SHOW_DEBUGS
     unsigned long long int total_mpi  = 0;
     unsigned long long total_mpi_time = 0, total_exec_time = 0;
+#endif
     /* Node loop */
     for (i = 0; i < size; i++) {
         /* Inside node */
         for (j = 0; j < ear_min(max, ppn[i]); j++) {
+#if SHOW_DEBUGS
             total_mpi += my_sh_sig[i * max + j].mpi_info.total_mpi_calls;
             total_mpi_time += my_sh_sig[i * max + j].mpi_info.mpi_time;
             total_exec_time += my_sh_sig[i * max + j].mpi_info.exec_time;
+#endif
             if (minp > my_sh_sig[i * max + j].mpi_info.perc_mpi) {
                 rank     = my_sh_sig[i * max + j].mpi_info.rank;
                 minp     = my_sh_sig[i * max + j].mpi_info.perc_mpi;

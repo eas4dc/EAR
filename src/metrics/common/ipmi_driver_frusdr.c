@@ -8,17 +8,18 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-// #define SHOW_DEBUGS 1
+//#define SHOW_DEBUGS 1
 
+// clang-format off
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <common/output/debug.h>
 #include <metrics/common/ipmi_driver.h>
 #include <metrics/common/ipmi_driver_frusdr.h>
 #include <metrics/common/ipmi_driver_parsing.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-static uchar fru_buffer[1048576];
+static uchar fru_buffer[1048576]; // 1 MiB
 
 static void ipmi_driver_sdrs_traversal(ipmi_cmd_t *pkg, ipmi_dev_t *dev, ipmi_addr_t *addr, ushort next_record_id)
 {
@@ -69,10 +70,8 @@ static void ipmi_driver_sdrs_traversal(ipmi_cmd_t *pkg, ipmi_dev_t *dev, ipmi_ad
             if (!rec->bmc_sdr || rec->new_addr_channel == 0x00) {
                 break;
             }
-            if (!ipmi_has_addr(dev, IPMI_IPMB_ADDR_TYPE, rec->new_addr_channel, rec->new_addr_slave,
-                               rec->new_addr_lun)) {
-                new_addr = ipmi_add_addr(dev, IPMI_IPMB_ADDR_TYPE, rec->new_addr_channel, rec->new_addr_slave,
-                                         rec->new_addr_lun);
+            if (!ipmi_has_addr(dev, IPMI_IPMB_ADDR_TYPE, rec->new_addr_channel, rec->new_addr_slave, rec->new_addr_lun)) {
+                new_addr = ipmi_add_addr(dev, IPMI_IPMB_ADDR_TYPE, rec->new_addr_channel, rec->new_addr_slave, rec->new_addr_lun);
             }
             break;
     }
@@ -112,32 +111,52 @@ __attribute__((unused)) static void debug_fru_bytes(char *title, uchar *data, ui
     debug("%s", buffer);
 }
 
+static void fru_debug(uchar is_ans, uchar cmd, uchar *data, uchar data_len, char **fields_names)
+{
+    uchar i;
+    #ifndef SHOW_DEBUGS
+    return;
+    #endif
+    debug("------------------------------");
+    debug("FRU %s (0x%X)", (!is_ans)? "request":"answer", cmd);
+    for (i = 0; i < data_len; ++i) {
+        debug("data[%u]: 0x%02X (%s)", i, data[i], (fields_names)? fields_names[i]:"");
+    }
+    debug("------------------------------");
+}
+
 static int ipmi_driver_frus_read_offset(ipmi_dev_t *dev, ipmi_cmd_t *pkg, uchar f, uint offset)
 {
+    char *fru11_req_names[4] = { "dev id", "lsb", "msb", "count" };
+    char *fru11_ans_names[4] = { "cc", "count", "data[0]", "data[1]" };
     uint org_offset = offset;
-    uint max_length = 256;
+    uint max_length = 254; //254 bytes + count
     uint fru_length = 0;
     uint length     = 0;
     uint finish     = 0;
     uint marker     = 0;
 
-    // Reading length of the string
+    debug("Reading FRU of device ID %u and offset 0x%x", (uint) f, offset);
+    // 34.2 Read FRU Data Command
+    // ipmitool: read_fru_area()
     ipmi_driver_cmd_set_msg(pkg, IPMI_NETFN_STORAGE_REQUEST, 0x11, 4);
-    pkg->msg_send.data[0] = f;
-    pkg->msg_send.data[1] = offset & 0xFF;
-    pkg->msg_send.data[2] = offset >> 8;
-    pkg->msg_send.data[3] = 2;
-
+    // Reading length of the string
+    pkg->msg_send.data[0] = f;             // FRU id
+    pkg->msg_send.data[1] = offset & 0xFF; // LS offset
+    pkg->msg_send.data[2] = offset >> 8;   // MS offset
+    pkg->msg_send.data[3] = 2;             // Count or bytes to return
+    fru_debug(0, 0x11, pkg->msg_send.data, 4, fru11_req_names);
     if (state_fail(ipmi_driver_cmd_send(dev->no, pkg))) {
         return 0;
     }
+    fru_debug(1, 0x11, pkg->msg_recv_data, 4, fru11_ans_names);
     if (pkg->msg_recv_data[0] != 0x00) {
         return 0;
     }
-    // DATA [0:0] Completion Code
-    // DATA [1:1] Bytes returned
-    // DATA [2:2] FRU version
-    // DATA [3:3] FRU length
+    // recv_data[0:0] CC or Completion code
+    // recv_data[1:1] Count or bytes returned
+    // recv_data[2:2] data0 or FRU version
+    // recv_data[3:3] data1 or FRU length
     fru_length = pkg->msg_recv_data[3] * 8;
     if (fru_length == 0) {
         debug("FRU%d error: length is 0", f);
@@ -147,7 +166,6 @@ calc_length:
     offset = org_offset;
     length = fru_length;
     finish = offset + length;
-
     if (length > max_length) {
         // According to IPMI documentation:
         //   - The IPMB standard overall message length for ‘non-bridging’ messages
@@ -158,14 +176,16 @@ calc_length:
     do {
         // Reading length of the string
         ipmi_driver_cmd_set_msg(pkg, IPMI_NETFN_STORAGE_REQUEST, 0x11, 4);
-        pkg->msg_send.data[0] = f;
-        pkg->msg_send.data[1] = offset & 0xFF;
-        pkg->msg_send.data[2] = offset >> 8;
-        pkg->msg_send.data[3] = length;
+        pkg->msg_send.data[0] = f;             // FRU id
+        pkg->msg_send.data[1] = offset & 0xFF; // LS offset
+        pkg->msg_send.data[2] = offset >> 8;   // MS offset
+        pkg->msg_send.data[3] = length;        // Count or bytes to return
+        fru_debug(0, 0x11, pkg->msg_send.data, 4, fru11_req_names);
         if (state_fail(ipmi_driver_cmd_send(dev->no, pkg))) {
             debug("FRU%d (len %u) reading command failed: %s", f, length, state_msg);
             return 0;
         }
+        fru_debug(1, 0x11, pkg->msg_recv_data, 4, fru11_ans_names);
         if (pkg->msg_recv_data[0] != 0x00) {
             debug("FRU%d (len %u) reading state failed: 0x%d", f, length, pkg->msg_recv_data[0]);
             // This meands that the requested data is too big so we have to reduce the requested size.
@@ -183,11 +203,11 @@ calc_length:
         // debug_fru_bytes("FRU BUFFER    DATA ", &fru_buffer[32], 32);
         // debug_fru_bytes("FRU BUFFER    DATA ", &fru_buffer[64], 32);
         //  Recalculating the batch pointers
-        // debug("offset/marker/length: %u/%u/%u (before)", offset, marker, length);
+        debug("FRU%d offset %u, marker %u, length %u, finish %u (before)", f, offset, marker, length, finish);
         offset = offset + pkg->msg_recv_data[1];
         marker = marker + pkg->msg_recv_data[1];
         length = ((finish - offset) < max_length) ? finish - offset : max_length;
-        // debug("offset/marker/length: %u/%u/%u (after)", offset, marker, length);
+        debug("FRU%d offset %u, marker %u, length %u, finish %u (after)", f, offset, marker, length, finish);
     } while (offset < finish);
     return 1;
 }
@@ -223,7 +243,6 @@ void ipmi_driver_frus_discover(ipmi_dev_t *devs, uint devs_count)
 {
     struct fru_header {
         uchar version;
-
         union {
             struct {
                 uchar internal;
@@ -232,41 +251,45 @@ void ipmi_driver_frus_discover(ipmi_dev_t *devs, uint devs_count)
                 uchar product;
                 uchar multi;
             } offset;
-
             uchar offsets[5];
         };
-
         uchar pad;
         uchar checksum;
     } header;
-
     ipmi_cmd_t pkg;
     uint holes = 0;
     uchar f;
     int d;
-
     // By now we are just reading the FRU in the INTERFACE address (or main address).
     // But in the future maybe we have to process the SDR types 10h, 11h and 12h and
     // find these devices in other addresses that includes FRU information. You can
     // see how ipmitool does it in function ipmi_fru_print().
     for (d = 0; d < devs_count; ++d) {
+        // | FRU Device Commands          | NetFn   | Command
+        // |------------------------------|---------|--------
+        // | Get FRU Inventory Area Info: | Storage | 10h
+        // | Read FRU Data:               | Storage | 11h
+        // | Write FRU Data               | Storage | 12h
         ipmi_driver_cmd_set_paddr(&pkg, &devs[d].addrs[0]);
         for (f = 0x00; f < 0xff; ++f) {
+            // 34.1 Get FRU Inventory Area Info Command
+            // ipmitool: ipmi_fru_print()
             ipmi_driver_cmd_set_msg(&pkg, IPMI_NETFN_STORAGE_REQUEST, 0x10, 1);
             pkg.msg_send.data[0] = f;
             // Sending the message
             if (state_fail(ipmi_driver_cmd_send(devs[d].no, &pkg))) {
                 break;
             }
-            // If the ID fails, we will try 10 additional times
+            // If the ID fails, we will try 3 additional times
             if (pkg.msg_recv_data[0] != 0x00) {
-                if (holes == 3)
-                    break;
-                else
-                    continue;
+                if (holes == 3) break;
+                else continue;
             }
             holes = 0;
-            // Parsing the FRU inventory if it is correct
+            // Parsing the FRU inventory if it is correct. This function returns
+            // 0 in case this FRU device is read word-by-word, or 16 bytes long
+            // and pair offsets (and by this reason you will find the &=~1 in
+            // ipmitool).
             if (!ipmi_driver_parse_fru_inventory(pkg.msg_recv_data)) {
                 continue;
             }
@@ -275,7 +298,7 @@ void ipmi_driver_frus_discover(ipmi_dev_t *devs, uint devs_count)
             pkg.msg_send.data[0] = f;    // FRU id
             pkg.msg_send.data[1] = 0x00; // LS offset
             pkg.msg_send.data[2] = 0x00; // MS offset
-            pkg.msg_send.data[3] = 0x08; // Getting 8 bytes
+            pkg.msg_send.data[3] = 0x08; // Count or asking for 8 bytes
             // Sending the message
             if (state_fail(ipmi_driver_cmd_send(devs[d].no, &pkg))) {
                 break;
@@ -283,32 +306,32 @@ void ipmi_driver_frus_discover(ipmi_dev_t *devs, uint devs_count)
             if (pkg.msg_recv_data[0] != 0x00) {
                 break;
             }
+            // Another check could be the checksum variable. The sum of the all
+            // first 8 values of the header has to be multiple of 256. Take a
+            // look to fru_calc_checksum() in ipmitool for more information.
             memcpy(&header, pkg.msg_recv_data + 2, 8);
-#if 0
+            #if 1
             debug("fru.header.version:         0x%x", header.version);
             debug("fru.header.offset.internal: 0x%x", header.offset.internal * 8);
             debug("fru.header.offset.chassis:  0x%x", header.offset.chassis  * 8);
             debug("fru.header.offset.board:    0x%x", header.offset.board    * 8);
             debug("fru.header.offset.product:  0x%x", header.offset.product  * 8);
             debug("fru.header.offset.multi:    0x%x", header.offset.multi    * 8);
-#endif
+            #endif
             // We found that if a FRU reading fails for a type offset, it will also
             // fail for the other types, so we continue to save execution time.
             if (header.offset.chassis != 0) {
                 if (!ipmi_driver_frus_read_chassis(&devs[d], &pkg, f, ((uint) header.offset.chassis) * 8)) {
                     continue;
-                }
-            }
+            }}
             if (header.offset.board != 0) {
                 if (!ipmi_driver_frus_read_board(&devs[d], &pkg, f, ((uint) header.offset.board) * 8)) {
                     continue;
-                }
-            }
+            }}
             if (header.offset.product != 0) {
                 if (!ipmi_driver_frus_read_product(&devs[d], &pkg, f, ((uint) header.offset.product) * 8)) {
                     continue;
-                }
-            }
+            }}
         }
     }
 }

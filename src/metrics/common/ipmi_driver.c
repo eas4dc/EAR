@@ -10,28 +10,30 @@
 
 // #define SHOW_DEBUGS 1
 
+// clang-format off
+// IPMI is very complex and hard to read, it would be nice to maintain the legibility.
 #define _GNU_SOURCE
-#include <common/output/debug.h>
-#include <common/string_enhanced.h>
-#include <common/system/poll.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <math.h>
-#include <metrics/common/ipmi_driver.h>
-#include <metrics/common/ipmi_driver_frusdr.h>
-#include <metrics/common/ipmi_driver_parsing.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <unistd.h>
+#include <common/system/poll.h>
+#include <common/output/debug.h>
+#include <common/string_enhanced.h>
+#include <metrics/common/ipmi_driver.h>
+#include <metrics/common/ipmi_driver_frusdr.h>
+#include <metrics/common/ipmi_driver_parsing.h>
 
 static ipmi_dev_t devs[IPMI_MAX_DEVS];
-static int devs_count;
-static int is_opened;
-static long msg_counter;
-static afd_set_t fds_group;
-static int fds_status;
+static int        devs_count;
+static int        is_opened;
+static long       msg_counter;
+static afd_set_t  fds_group;
+static int        fds_status;
 
 ipmi_addr_t *ipmi_has_addr(ipmi_dev_t *dev, int type, short channel, uchar slave_addr, uchar lun)
 {
@@ -257,10 +259,8 @@ int ipmi_driver_sensors_find(char *string, ipmi_sensor_t **sensors, uint *sensor
         }
     }
     strtoa_free(list);
-    if (sensors != NULL)
-        *sensors = alloc;
-    if (sensors_count != NULL)
-        *sensors_count = s;
+    if (sensors       != NULL) *sensors = alloc;
+    if (sensors_count != NULL) *sensors_count = s;
     return s;
 }
 

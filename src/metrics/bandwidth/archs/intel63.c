@@ -113,7 +113,6 @@ state_t bwidth_intel63_count_devices(ctx_t *c, uint *devs_count_in)
 state_t bwidth_intel63_read(ctx_t *c, bwidth_t *bw)
 {
     int p, t, i;
-    ullong cas = 0LLU;
 
     timestamp_get(&bw[devs_count].time);
     for (p = i = 0; p < pcis_count; ++p) {
@@ -122,10 +121,8 @@ state_t bwidth_intel63_read(ctx_t *c, bwidth_t *bw)
             pci_read(&pcis[p], &bw[i].cas, sizeof(ullong), ctrs_addr[t]);
             bw[i].cas = bw[i].cas & 0x0000ffffffffffff;
             debug("IMC%d/%u: %llu (read)", i, devs_count - 1, bw[i].cas);
-            cas += bw[i].cas;
         }
     }
-    debug("CAS %llu", cas);
 
     return EAR_SUCCESS;
 }

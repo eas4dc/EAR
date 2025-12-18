@@ -1111,9 +1111,13 @@ static uint pmgt_powercap_status_per_domain(uint action)
 #if USE_GPUS
     int i;
     char is_release = 0;
-    int totalok, totalrel, totalask;
-    totalok = totalrel = totalask = 0;
-    uint ret = 0, from = 0, to = 0;
+#if SHOW_DEBUGS
+    int32_t totalok = 0;
+#endif
+    int32_t totalrel = 0;
+    int32_t totalask = 0;
+
+    uint32_t ret = 0, from = 0, to = 0;
     memset(cdomain_status, 0, sizeof(domain_status_t) * NUM_DOMAINS);
     if (pmgt_limit == POWER_CAP_UNLIMITED)
         return 0;
@@ -1122,9 +1126,11 @@ static uint pmgt_powercap_status_per_domain(uint action)
         if (pcsyms_fun[i].get_powercap_status != NULL) {
             pcsyms_fun[i].get_powercap_status(&cdomain_status[i]);
             /* status = 0 when it's ok and 1 when it can release power */
-            totalok += (cdomain_status[i].ok == PC_STATUS_OK);
             totalrel += (cdomain_status[i].ok == PC_STATUS_RELEASE);
             totalask += (cdomain_status[i].ok == PC_STATUS_ASK_DEF);
+#if SHOW_DEBUGS
+            totalok += (cdomain_status[i].ok == PC_STATUS_OK);
+#endif
         }
     }
     debug("GPU has stress %u and CPU has %u. Status GPU %u CPU %u. ask %u ok %u rel %u",

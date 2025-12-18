@@ -160,7 +160,6 @@ bool _check_range_for_node(char *base, range_def_t *r, char *nodename)
 
 bool range_conf_contains_node(node_conf_t *node, char *nodename)
 {
-    char aux_name[256];
     for (int32_t i = 0; i < node->range_count; i++) {
         range_def_t *r = &node->range[i].r_def;
         // if the first letters of the prefix do not correspond, we can continue

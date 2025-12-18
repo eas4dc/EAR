@@ -48,6 +48,8 @@ src/common/config/config.h.in~
 src/common/config/config.h
 src/daemon/app_api/Makefile*
 !src/daemon/app_api/Makefile.am
+tests/daemon/Makefile*
+!tests/daemon/Makefile.am
 .dirstamp
 
 # IDE
@@ -150,6 +152,7 @@ src/common/config/config.h.in
 *erun
 *metrics_show
 *enode_info
+local_api_test
 
 src/tools/type_sizes
 src/daemon/commands/ear_check_node_test

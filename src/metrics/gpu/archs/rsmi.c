@@ -206,8 +206,10 @@ state_t gpu_rsmi_pool(void *p)
     int i;
 
     debug("Pooling");
-    //
+//
+#if SHOW_DEBUGS
     uint working = 0;
+#endif
     // Lock
     while (pthread_mutex_trylock(&lock))
         ;
@@ -234,7 +236,9 @@ state_t gpu_rsmi_pool(void *p)
         pool[i].working = metric.working;
         pool[i].correct = metric.correct;
         // Burst or not
+#if SHOW_DEBUGS
         working += pool[i].working;
+#endif
     }
     // Lock
     pthread_mutex_unlock(&lock);

@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #define _GNU_SOURCE
 #include <common/config.h>
@@ -30,6 +30,7 @@
 #include <metrics/imcfreq/imcfreq.h>
 #include <pthread.h>
 #include <sched.h>
+#include <semaphore.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -53,6 +54,10 @@
 #define ear_fd_ack_idx        2
 
 #define FDS_FILENAME          ".eard_connection_info"
+
+#ifndef TEST
+#define TEST 0
+#endif
 
 static int connecting = 0;
 
@@ -95,12 +100,18 @@ static char app_directory_pathname[MAX_PATH_SIZE];
     unlink(ear_commack);                                                                                               \
     unlink(ear_commreq);
 
+static char sem_file_global_pipe[1024];
+static sem_t *global_earl_eard_sem;
+
 static state_t create_base_path(char *base_path, size_t base_path_sz, char *tmp_path, uint job_step_id,
                                 uint app_local_id);
 
 #if WF_SUPPORT
 static state_t create_app_directory(char *path);
 #endif
+
+/** Saves EARD connection info to be restored in the case the client lose this info. */
+static state_t eards_save_connection(char *tmp, ulong job_id, ulong step_id, ulong local_id);
 
 static int eards_open(char *path, int flags, int *ear_fd_req, uint max_tries)
 {
@@ -114,8 +125,8 @@ static int eards_open(char *path, int flags, int *ear_fd_req, uint max_tries)
             tries++;
         else if (fd >= 0)
             connected = 1;
-	else
-		break;
+        else
+            break;
         if ((max_tries > 1) && (!connected))
             usleep(5000);
     } while ((tries < max_tries) && !connected);
@@ -123,67 +134,75 @@ static int eards_open(char *path, int flags, int *ear_fd_req, uint max_tries)
     return connected;
 }
 
-/** Saves EARD connection info to be restored in the case the client lose this info. */
-static state_t eards_save_connection(char *tmp, ulong job_id, ulong step_id, ulong local_id);
-
 int eards_read(int fd, char *buff, int size, uint wait_mode)
 {
 #if USE_NON_BLOCKING_IO
-    int ret;
     uint to_recv, received = 0;
     uint must_abort = 0;
     to_recv         = size;
 
-    int out_tries = 0;
-    ullong tries  = 0;
-    ullong limit_outer_tries;
-
-    if (connecting)
-        limit_outer_tries = OUTTER_MAX_PIPE_TRIES * 1000;
-    else
-        limit_outer_tries = OUTTER_MAX_PIPE_TRIES;
-
-    while (out_tries < limit_outer_tries) {
-        tries = 0;
-        do {
-            ret = read(fd, buff + received, to_recv);
-            if (ret > 0) {
-                received += ret;
-                to_recv -= ret;
-            } else if (ret < 0) {
-                if ((errno == EWOULDBLOCK) || (errno == EAGAIN))
-                    tries++;
-                else {
-                    debug("Error receiving data from eard %s,%d", strerror(errno), errno);
-                    must_abort = 1;
-                }
-            } else if (ret == 0) {
-                if (wait_mode == WAIT_DATA)
-                    tries++;
-                else
-                    must_abort = 1;
-            }
-        } while (tries < MAX_PIPE_TRIES && to_recv > 0 && must_abort == 0);
-        // Below code gives more tries. It is implemented with an outer loop due to the integer limit.
-        if (tries == MAX_PIPE_TRIES && !must_abort) {
-            out_tries++;
-        } else {
-            out_tries = limit_outer_tries;
+    long int max_ms = 500;
+    /* A modern compiler is smart enough to discard below code. */
+    if (TEST) {
+        char *max_ms_c = ear_getenv("EARD_API_TIMEOUT_MS");
+        if (max_ms_c) {
+            // No error checking needed since it will not go into production.
+            max_ms = atol(max_ms_c);
         }
-        if (out_tries != limit_outer_tries)
-            usleep(100);
     }
-    debug("limits reached %llu/%llu", tries, out_tries);
 
-    if (tries >= MAX_PIPE_TRIES) {
-        error(
-            "Error reading data, max number of tries reached. tries %llu/%llu received %u (last ret %d errno %d fd %d)",
-            tries, MAX_PIPE_TRIES, received, ret, errno, fd);
+    // Iteration period at which we are going to sleep if there is
+    // an error reading the file.
+    uint sleep_iteration_period = 10;
+    uint try_usleep_usecs       = 5000; // The sleep time per try
+
+    /* Compute the maximum number of tries based on per
+     * try usleep time and time timeout. */
+    uint max_tries = sleep_iteration_period * (max_ms * 1000) / try_usleep_usecs;
+    /* Give more time on the initial connection.
+     * TODO: This function should be generic, not taking into account
+     * the EARL conext. */
+    if (connecting)
+        max_tries *= 4;
+
+    uint tries = 0;
+    do {
+        int ret = read(fd, buff + received, to_recv);
+        if (ret > 0) {
+            /* read call was good. update control variables */
+            received += ret;
+            to_recv -= ret;
+        } else if (ret < 0) {
+            if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
+                /* If the read was bad, but because of non-block, we give another chance.*/
+                if (tries % sleep_iteration_period == 0)
+                    usleep(try_usleep_usecs); // We sleep just when we need to wait.
+            } else {
+                /* If there was a problem with the read call, we return the error. */
+                verbose(2, "%sWarning%s Reading from fd %d: %d (%s). Bytes recevied: %u. Bytes to receive: %u", COL_YLW,
+                        COL_CLR, fd, errno, strerror(errno), received, to_recv);
+                return ret;
+            }
+        } else if (ret == 0) {
+            /* We reached the end-of-file */
+            if (wait_mode == WAIT_DATA && to_recv > 0) {
+                /* WAIT_DATA mode makes wait when there are bytes pending. */
+                usleep(try_usleep_usecs); // We sleep just when we need to wait.
+            } else {
+                debug("End of file reached and not waiting for more.");
+                return received;
+            }
+        }
+        tries++;
+    } while (tries < max_tries && to_recv > 0);
+
+    if (tries == max_tries && to_recv > 0) {
+        verbose(2, "%sWarning%s Reading from fd %d. Timeout reached: %d ms. Bytes read: %u. Bytes left: %u.", COL_YLW,
+                COL_CLR, fd, max_ms, received, to_recv);
+        return -1;
     }
-    if (ret < 0)
-        return ret;
+
     return received;
-
 #else
     return read(fd, buff, size);
 #endif
@@ -192,58 +211,68 @@ int eards_read(int fd, char *buff, int size, uint wait_mode)
 int eards_write(int fd, char *buff, int size)
 {
 #if USE_NON_BLOCKING_IO
-    int ret;
-    ullong tries = 0;
-    uint to_send, sended = 0;
+    uint to_send, sent = 0;
     uint must_abort = 0;
     to_send         = size;
-    ullong limit_outer_tries;
 
-    ullong out_tries = 0;
-
-    debug("USE_NON_BLOCKING_IO Write: fd %d size %d", fd, size);
-    if (connecting)
-        limit_outer_tries = OUTTER_MAX_PIPE_TRIES * 1000;
-    else
-        limit_outer_tries = OUTTER_MAX_PIPE_TRIES;
-
-    while (out_tries < limit_outer_tries) {
-        debug("Write: fd %d size %d out_tries %llu limit_outer_tries %llu", fd, size, out_tries, limit_outer_tries);
-        tries = 0;
-        do {
-            ret = write(fd, buff + sended, size);
-            if (ret > 0) {
-                sended += ret;
-                to_send -= ret;
-            } else if (ret < 0) {
-                debug("Error sending command to eard %s,%d", strerror(errno), errno);
-                if ((errno == EWOULDBLOCK) || (errno == EAGAIN))
-                    tries++;
-                else {
-                    must_abort = 1;
-                    debug("Error sending command to eard %s,%d", strerror(errno), errno);
-                }
-            } else if (ret == 0) {
-                must_abort = 1;
-            }
-        } while (tries < MAX_PIPE_TRIES && to_send > 0 && must_abort == 0);
-
-        // Below code gives more tries. It is implemented with an outer loop due to the integer limit.
-        if (tries == MAX_PIPE_TRIES && !must_abort) {
-            out_tries++;
-        } else {
-            out_tries = limit_outer_tries;
+    long int max_ms = 500;
+    /* A modern compiler is smart enough to discard below code. */
+    if (TEST) {
+        char *max_ms_c = ear_getenv("EARD_API_TIMEOUT_MS");
+        if (max_ms_c) {
+            // No error checking needed since it will not go into production.
+            max_ms = atol(max_ms_c);
         }
-        if (out_tries != limit_outer_tries)
-            usleep(100);
-        debug("Out try ret %d (sent %u)", ret, sended);
     }
-    debug("limits reached %llu/%llu", tries, out_tries);
-    /* If there are bytes left to send, we return a 0 */
-    if (ret < 0)
-        return ret;
-    return sended;
 
+    // Iteration period at which we are going to sleep if there is
+    // an error writing to the file.
+    uint sleep_iteration_period = 10;
+    uint try_usleep_usecs       = 5000; // The sleep time per try
+
+    /* Compute the maximum number of tries based on per
+     * try usleep time and time timeout. */
+    uint max_tries = sleep_iteration_period * (max_ms * 1000) / try_usleep_usecs;
+    /* Give more time on the initial connection.
+     * TODO: This function should be generic, not taking into account
+     * the EARL conext. */
+    if (connecting)
+        max_tries *= 4;
+
+    uint tries = 0;
+    do {
+        int ret = write(fd, buff + sent, to_send);
+        if (ret > 0) {
+            /* write call was good. update control variables */
+            sent += ret;
+            to_send -= ret;
+        } else if (ret < 0) {
+            if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
+                /* If the write was bad, but because of non-block, we give another chance. */
+
+                /* Sleep every sleep_iteration_period iterations */
+                if (tries % sleep_iteration_period == 0)
+                    usleep(try_usleep_usecs); // We sleep just when we need to wait.
+            } else {
+                /* If there was a problem with the write call, we return the error. */
+                verbose(2, "%sWarning%s Error writing to fd %d: %d (%s). Bytes sent: %d. Bytes pending: %d", COL_YLW,
+                        COL_CLR, fd, errno, strerror(errno), sent, to_send);
+                return ret;
+            }
+        } else {
+            /* End of file reached. */
+            return sent;
+        }
+        tries++;
+    } while (tries < max_tries && to_send > 0);
+
+    if (tries == max_tries && to_send > 0) {
+        verbose(2, "%sWarning%s Writing fd %d. Timeout reached: %d ms. Bytes sent: %u. Bytes left: %u.", COL_YLW,
+                COL_CLR, fd, max_ms, sent, to_send);
+        return -1;
+    }
+
+    return sent;
 #else
     debug("USE_BLOCKING_IO Write: fd %d size %d", fd, size);
     return write(fd, buff, size);
@@ -339,6 +368,7 @@ int eards_connect(application_t *my_app, ulong lid)
 #if FAKE_EAR_NOT_INSTALLED
     return_print(EAR_ERROR, "FAKE_EAR_NOT_INSTALLED applied");
 #endif
+
     // These files connect EAR with EAR_COMM
     // TODO: Should we use get_ear_tmp()?
     ear_tmp = ear_getenv(ENV_PATH_TMP);
@@ -347,6 +377,14 @@ int eards_connect(application_t *my_app, ulong lid)
         if (ear_tmp == NULL) {
             ear_tmp = ear_getenv("HOME");
         }
+    }
+
+    xsnprintf(sem_file_global_pipe, sizeof(sem_file_global_pipe), "earl_eard_connect.sem", ear_tmp);
+    debug("Using semaphore %s", sem_file_global_pipe);
+    global_earl_eard_sem =
+        sem_open(sem_file_global_pipe, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, 1);
+    if (global_earl_eard_sem == SEM_FAILED) {
+        error("Creating sempahore %s (%s)", sem_file_global_pipe, strerror(errno));
     }
 
     if (gethostname(nodename, sizeof(nodename)) < 0) {
@@ -438,16 +476,32 @@ int eards_connect(application_t *my_app, ulong lid)
     req.req_service = CONNECT_EARD_NODE_SERVICES;
     req.sec         = create_sec_tag();
     debug("sec: %lu", req.sec);
-
+    verbose(2, "Trying to connect with EARD");
     if (ear_fd_req_global >= 0) {
         debug("Sending connection request to EARD\n");
+        {
+            struct timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            ts.tv_sec += 10;
+            if (sem_timedwait(global_earl_eard_sem, &ts) < 0) {
+                connecting        = 0;
+                ear_fd_req_global = -1;
+                verbose(2, "%sError%s Sem timeout....not connected (%s)", COL_RED, COL_CLR, strerror(errno));
+                return_print(EAR_ERROR, "Error sending connection request");
+            }
+        }
+        verbose(2, "Sem acquired....sending connection");
         if (warning_api(eards_write(ear_fd_req_global, (char *) &req, sizeof(req)), sizeof(req),
                         "writting req_service in ear_daemon_client_connect")) {
             connecting        = 0;
             ear_fd_req_global = -1;
+            verbose(2, "Sem released");
+            sem_post(global_earl_eard_sem);
             return_print(EAR_ERROR, "Error sending connection request");
         }
     }
+    verbose(2, "Sem released");
+    sem_post(global_earl_eard_sem);
 
     /* At this point we have sent the data for connecting with EARD */
     if (ear_fd_req_global >= 0) {
@@ -541,8 +595,7 @@ void eards_connection_failure()
 
 void eards_new_process_disconnect()
 {
-// This function closes the EARD fd for new processes to connect again
-#warning "This part is pending to be tested"
+    // This function closes the EARD fd for new processes to connect again
     close(ear_fd_req);
     close(ear_fd_req_global);
     close(ear_fd_ack);
@@ -571,6 +624,7 @@ void eards_disconnect()
     }
 
     CLOSE_LOCAL_COMM();
+    sem_close(global_earl_eard_sem);
     AFD_ZERO(&eard_api_client_fd);
 
 #if WF_SUPPORT
@@ -848,5 +902,55 @@ static state_t create_app_directory(char *path)
     }
 
     return EAR_SUCCESS;
+}
+#endif
+
+#if TEST
+/* clang-format off */
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <setjmp.h>
+#include <stdint.h>
+/* This header needs to be included after all previous ones. */
+#include <cmocka.h>
+
+/* clang-format on */
+
+ssize_t __wrap_write(int fd, const void *buf, size_t count)
+{
+    errno = EWOULDBLOCK;
+    return -1;
+}
+
+ssize_t __wrap_read(int fd, void *buf, size_t count)
+{
+    errno = EWOULDBLOCK;
+    return -1;
+}
+
+static void eards_read_timeout(void **state)
+{
+    ulong buff;
+    int ret = eards_read(0, (char *) &buff, sizeof(buff), WAIT_DATA);
+    assert_int_equal(-1, ret);
+}
+
+static void eards_write_timeout(void **state)
+{
+    int fd     = 0;
+    char *buff = "Hello world";
+    int ret    = eards_write(fd, buff, strlen(buff) + 1);
+    assert_int_equal(-1, ret);
+}
+
+int main(void)
+{
+    const struct CMUnitTest tests[] = {
+        cmocka_unit_test(eards_read_timeout),
+        cmocka_unit_test(eards_write_timeout),
+    };
+
+    return cmocka_run_group_tests(tests, NULL, NULL);
 }
 #endif

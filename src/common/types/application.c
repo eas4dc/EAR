@@ -559,13 +559,13 @@ state_t application_create_header_str(char *header_dst, size_t header_dst_size, 
                         "CYCLES;INSTRUCTIONS;STALLS_FETCH_DECODE;STALLS_RESOURCES;"
                         "STALLS_MEMORY;CPU_GFLOPS;CPU_UTIL";
 
-    char *ext_header = ";L1_MISSES;L2_MISSES;L3_MISSES;LL_MISSES;"
-                       "L1_HITS;L2_HITS;L3_HITS;LL_HITS;"
-                       "L1_ACCESSES;L2_ACCESSES;L3_ACCESSES;LL_ACCESSES;"
-                       "L1_MISSRATE;L2_MISSRATE;L3_MISSRATE;LL_MISSRATE;"
-                       "L1_HITRATE;L2_HITRATE;L3_HITRATE;LL_HITRATE;"
-                       "SPOPS_SINGLE;SPOPS_128;SPOPS_256;SPOPS_512;"
-                       "DPOPS_SINGLE;DPOPS_128;DPOPS_256;DPOPS_512";
+    char ext_header[512] = ";L1_MISSES;L2_MISSES;L3_MISSES;LL_MISSES;"
+                           "L1_HITS;L2_HITS;L3_HITS;LL_HITS;"
+                           "L1_ACCESSES;L2_ACCESSES;L3_ACCESSES;LL_ACCESSES;"
+                           "L1_MISSRATE;L2_MISSRATE;L3_MISSRATE;LL_MISSRATE;"
+                           "L1_HITRATE;L2_HITRATE;L3_HITRATE;LL_HITRATE;"
+                           "SPOPS_SINGLE;SPOPS_128;SPOPS_256;SPOPS_512;"
+                           "DPOPS_SINGLE;DPOPS_128;DPOPS_256;DPOPS_512";
     if (!is_extended) {
         memset(ext_header, 0, sizeof(ext_header));
     }

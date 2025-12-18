@@ -40,32 +40,44 @@ typedef struct mailbox_s {
 } mailbox_t;
 
 static mailbox_t zen2_mailbox = {
-    .function.address = 0x3B10534, .function.size    = 4, .function.name    = "function",
-    .response.address = 0x3B10980, .response.size    = 1, .response.name    = "response",
-    .arg0.address     = 0x3B109E0, .arg0.size        = 4, .arg0.name        = "argument",
+    .function.address = 0x3B10534,
+    .function.size    = 4,
+    .function.name    = "function",
+    .response.address = 0x3B10980,
+    .response.size    = 1,
+    .response.name    = "response",
+    .arg0.address     = 0x3B109E0,
+    .arg0.size        = 4,
+    .arg0.name        = "argument",
 };
 
 static mailbox_t zen5_mailbox = {
-    .function.address = 0x3B10934, .function.size    = 4, .function.name    = "function",
-    .response.address = 0x3B10980, .response.size    = 1, .response.name    = "response",
-    .arg0.address     = 0x3B109E0, .arg0.size        = 4, .arg0.name        = "argument",
+    .function.address = 0x3B10934,
+    .function.size    = 4,
+    .function.name    = "function",
+    .response.address = 0x3B10980,
+    .response.size    = 1,
+    .response.name    = "response",
+    .arg0.address     = 0x3B109E0,
+    .arg0.size        = 4,
+    .arg0.name        = "argument",
 };
 
 // lspci -d 0x1022:0x1480 (more information on issue 'How to find HSMP device`)
-static ushort  amd_vendor       = 0x1022; // AMD
-static char   *zen2_pci_dfs[2]  = { "00.0", NULL };
-static ushort  zen5_pci_ids[12] = { 0x1450, 0x15d0, 0x1480, 0x1630, 0x14b5, // 17H
-                                    0x14a4, 0x14d8, 0x14e8,                 // 19H
-                                    0x153a, 0x1507, 0x1122,                 // 1AH
-                                    0x00 };
-static char  **mist_pci_dfs;
+static ushort amd_vendor       = 0x1022; // AMD
+static char *zen2_pci_dfs[2]   = {"00.0", NULL};
+static ushort zen5_pci_ids[12] = {0x1450, 0x15d0, 0x1480, 0x1630, 0x14b5, // 17H
+                                  0x14a4, 0x14d8, 0x14e8,                 // 19H
+                                  0x153a, 0x1507, 0x1122,                 // 1AH
+                                  0x00};
+static char **mist_pci_dfs;
 static ushort *mist_pci_ids;
-static uint    mist_nbios_count;
+static uint mist_nbios_count;
 //
 static mailbox_t *mail;
-static uint       sockets_count;
-static uint       pcis_count;
-static pci_t     *pcis;
+static uint sockets_count;
+static uint pcis_count;
+static pci_t *pcis;
 
 state_t hsmp_pci_open(topology_t *tp, mode_t mode)
 {
@@ -80,13 +92,13 @@ state_t hsmp_pci_open(topology_t *tp, mode_t mode)
     sockets_count = tp->socket_count;
     if (tp->family >= FAMILY_ZEN5) {
         debug("ZEN5 detected");
-        mist_pci_dfs =  zen2_pci_dfs;
-        mist_pci_ids =  zen5_pci_ids;
+        mist_pci_dfs = zen2_pci_dfs;
+        mist_pci_ids = zen5_pci_ids;
         mail         = &zen5_mailbox;
     } else {
         debug("ZEN2/3/4 detected");
-        mist_pci_dfs =  zen2_pci_dfs;
-        mist_pci_ids =  zen5_pci_ids;
+        mist_pci_dfs = zen2_pci_dfs;
+        mist_pci_ids = zen5_pci_ids;
         mail         = &zen2_mailbox;
     }
     // Opening PCis
@@ -97,8 +109,8 @@ state_t hsmp_pci_open(topology_t *tp, mode_t mode)
     // to different sockets Roots.
     mist_nbios_count = pcis_count / sockets_count;
     // Test ping
-    uint args[2] = { 68, -1 };
-    uint reps[2] = {  0, -1 };
+    uint args[2] = {68, -1};
+    uint reps[2] = {0, -1};
     if (state_fail(s = hsmp_pci_send(0, HSMP_TEST, args, reps))) {
         pci_scan_close(&pcis, &pcis_count);
         return_reprint(EAR_ERROR, "HSMP test function failed: %s", state_msg);
@@ -155,7 +167,9 @@ state_t hsmp_pci_send(int socket, uint function, uint *args, uint *reps)
     mailopt_t arg;
     uint response;
     uint timeout;
-    uint intents;
+#if SHOW_DEBUGS
+    uint intents = 0;
+#endif
     state_t s;
     int a;
 
@@ -167,7 +181,6 @@ state_t hsmp_pci_send(int socket, uint function, uint *args, uint *reps)
     arg.name = mail->arg0.name;
     response = HSMP_NOT_READY;
     timeout  = 500;
-    intents  = 0;
     //
     if (state_fail(s = smn_write(&pcis[socket], &mail->response, response))) {
         return s;
@@ -193,7 +206,9 @@ retry:
             debug("HSMP didn't answer because TIMEOUT");
             return_msg(EAR_ERROR, "Timeout, waiting too long for an HSMP response");
         }
+#if SHOW_DEBUGS
         ++intents;
+#endif
         goto retry;
     }
     if (response == HSMP_INVALID_ID) {

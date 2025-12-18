@@ -47,23 +47,23 @@ void avx512_dynais_core_n(ushort sample, ushort size, ushort level)
 void avx512_dynais_core_0(ushort sample, ushort size, ushort level)
 #endif
 {
-    __m512i zmmx00; // S
-    __m512i zmmx04; // W
-    __m512i zmmx08; // Z
-    __m512i zmmx12; // I
+    __m512i zmmx00 = {0}; // S
+    __m512i zmmx04 = {0}; // W
+    __m512i zmmx08 = {0}; // Z
+    __m512i zmmx12 = {0}; // I
 #ifdef DYN_CORE_N
-    __m512i zmmx16; // A
+    __m512i zmmx16 = {0}; // A
 #endif
-    __m512i zmmx28; // Replica S
-    __m512i zmmx27; // Replica W
-    __m512i zmmx26; // Maximum Z
-    __m512i zmmx25; // Maximum I
+    __m512i zmmx28 = {0}; // Replica S
+    __m512i zmmx27 = {0}; // Replica W
+    __m512i zmmx26 = {0}; // Maximum Z
+    __m512i zmmx25 = {0}; // Maximum I
 #ifdef DYN_CORE_N
-    __m512i zmmx24; // Maximum A
+    __m512i zmmx24 = {0}; // Maximum A
 #endif
-    __mmask32 mask00;
-    __mmask32 mask01;
-    __mmask32 mask02;
+    __mmask32 mask00 = {0};
+    __mmask32 mask01 = {0};
+    __mmask32 mask02 = {0};
     //
     ushort *p_samps;
     ushort *p_zeros;

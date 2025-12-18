@@ -53,6 +53,9 @@ export FREEIPMI_LDFLAGS
 export DLB_LIBS
 export DLB_CPPFLAGS
 export DLB_LDFLAGS
+export CMOCKA_LIBS
+export CMOCKA_LDFLAGS
+export CMOCKA_CPPFLAGS
 export ROOTDIR
 export SRCDIR
 export DESTDIR

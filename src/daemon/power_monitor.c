@@ -519,12 +519,17 @@ void end_context(int cc, uint get_lock)
 /* This function will be called when job ends to be sure there is not steps pending to clean. */
 void clean_job_contexts(job_id id)
 {
-    int i, cleaned = 0;
+    int32_t i;
+#if SHOW_DEBUGS
+    int32_t cleaned = 0;
+#endif
     debug("clean_job_contexts for job %lu", id);
     for (i = 0; i <= max_context_created; i++) {
         if (current_ear_app[i] != NULL) {
             if (current_ear_app[i]->app.job.id == id) {
+#if SHOW_DEBUGS
                 cleaned++;
+#endif
                 end_context(i, 1);
             }
         }
@@ -1646,8 +1651,8 @@ void powermon_new_task(new_task_req_t *newtask)
 void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appID, uint from_mpi, uint is_job)
 {
 
-    int ccontext;
-    job_context_t *alloc;
+    int ccontext         = 0;
+    job_context_t *alloc = NULL;
 
     // New application connected
     if (appID == NULL) {
@@ -1804,11 +1809,11 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
 
     // save_eard_conf(&eard_dyn_conf);
 
-    verbose(VJOBPMON_BASIC , "%sJob created ctx %d (%lu,%lu) is_mpi %d procs %lu def_cpuf %lu%s governor '%s'",
-            COL_BLU, ccontext, current_ear_app[ccontext]->app.job.id,
-            current_ear_app[ccontext]->app.job.step_id, current_ear_app[ccontext]->app.is_mpi,
-            current_ear_app[ccontext]->app.job.procs, pmapp->settings->def_freq, pmapp->governor.name, COL_CLR);
-    verbose(VJOBPMON , "*******************");
+    verbose(VJOBPMON_BASIC, "%sJob created ctx %d (%lu,%lu) is_mpi %d procs %lu def_cpuf %lu%s governor '%s'", COL_BLU,
+            ccontext, current_ear_app[ccontext]->app.job.id, current_ear_app[ccontext]->app.job.step_id,
+            current_ear_app[ccontext]->app.is_mpi, current_ear_app[ccontext]->app.job.procs, pmapp->settings->def_freq,
+            pmapp->governor.name, COL_CLR);
+    verbose(VJOBPMON, "*******************");
 
     pmapp->sig_reported = 0;
 

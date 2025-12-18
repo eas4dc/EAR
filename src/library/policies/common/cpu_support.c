@@ -298,7 +298,7 @@ int signatures_different(signature_t *s1, signature_t *s2, char *policy, energy_
 {
     ulong best_freq, best_pstate;
     ulong *new_freq = malloc(sizeof(ulong));
-    double power_ref, time_ref, factor;
+    double power_ref, time_ref;
 
     double eff_gain = my_pol_ctx.app->settings[0];
 

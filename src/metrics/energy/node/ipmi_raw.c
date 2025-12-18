@@ -11,35 +11,37 @@
 // #define SHOW_DEBUGS 1
 // #define SHOW_DEBUGS_ULTRA 1
 
-#include <common/math_operations.h>
+// clang-format off
+#include <stdlib.h>
+#include <pthread.h>
+#include <common/system/time.h>
 #include <common/output/debug.h>
 #include <common/system/monitor.h>
-#include <common/system/time.h>
+#include <common/math_operations.h>
 #include <metrics/common/ipmi.h>
-#include <pthread.h>
-#include <stdlib.h>
 
 typedef struct consumption_s {
-    uint64_t energy;        // mJ
-    uint64_t power_current; // mW
-    uint64_t power_minimum;
-    uint64_t power_maximum;
-    uint64_t power_average;
-    uint64_t timeframe;
+    uint64_t    energy;        // mJ
+    uint64_t    power_current; // mW
+    uint64_t    power_minimum;
+    uint64_t    power_maximum;
+    uint64_t    power_average;
+    uint64_t    timeframe;
     timestamp_t timestamp; // We use our timestamp because DCMI fails
-    uint64_t samples;
+    uint64_t    samples;
 } consumption_t;
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static uint devs_count;
-static suscription_t *sus;
-static consumption_t *pool;
+static uint            devs_count;
+static suscription_t  *sus;
+static consumption_t  *pool;
+// opt array = index, pooling y/n, netfn, cmd, data len, data[0:5]
 static char opt_sd650e[11] = {1, 0, 0x3a, 0x32, 5, 0x04, 0x02, 0x00, 0x00, 0x00, 0x00}; // Lenovo SD650 (energy)
 static char opt_sd650p[11] = {2, 1, 0x3a, 0x32, 5, 0x04, 0x08, 0x00, 0x00, 0x00, 0x00}; // Lenovo SD650 (power)
-static char opt_dcmi[11]   = {3,    1,    0x2c, 0x02, 4,   0xdc,
-                              0x01, 0x00, 0x00, 0x00, 0x00}; // Data Center Manageability Interface (power)
+static char opt_dcmi[11]   = {3, 1, 0x2c, 0x02, 4, 0xdc, 0x01, 0x00, 0x00, 0x00, 0x00}; // Data Center Manageability Interface (power)
 static char opt_inmp[11]   = {4, 1, 0x2e, 0xc8, 6, 0x57, 0x01, 0x00, 0x01, 0x00, 0x00}; // Intel Node Manager (power)
 static char *opt           = NULL;
+// clang-format on
 
 static state_t energy_pool(void *data);
 
@@ -79,14 +81,14 @@ state_t energy_init(void **x)
         goto leave;
     }
     // Detecting sensors depending on hardware
-    if ((hint = getenv("EAR_ENERGY_ARG")) != NULL) {
+    if ((hint = getenv("EAR_ENERGY_ARGS")) != NULL) {
         switch (atoi(hint)) {
             case 1: opt = opt_sd650e; break;
             case 2: opt = opt_sd650p; break;
             case 3: opt = opt_dcmi;   break;
             case 4: opt = opt_inmp;   break;
         }
-        debug("EAR_ENERGY_ARG: %s", hint);
+        debug("EAR_ENERGY_ARGS: %s", hint);
     } else if (ipmi_has_hardware("SD650"))
         opt = opt_sd650e;
     else if (ipmi_has_hardware("ThinkSystem"))

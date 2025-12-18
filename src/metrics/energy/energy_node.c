@@ -45,7 +45,8 @@ state_t energy_load(char *energy_obj)
 {
     uint list_count = 0;
     char **list     = NULL;
-    state_t ret;
+    state_t ret     = EAR_SUCCESS;
+    char *var       = NULL;
 
     if (energy_loaded) {
         return_msg(EAR_ERROR, Generr.api_initialized);
@@ -53,10 +54,17 @@ state_t energy_load(char *energy_obj)
     if (!energy_obj) {
         return_msg(EAR_ERROR, Generr.input_null);
     }
+    // In case energy_obj = plugin.so:arg1:arg2:arg3
+    // - energy_obj will be rewritten as plugin.so
+    // - and EAR_ENERGY_ARGS will be arg1:arg2:arg3
+    // This is specially required in IPMI plugins. Take a look into these
+    // plugins to see how this environment variable is used.
     if (strchr(energy_obj, ':')) {
         if (strtoa((const char *) energy_obj, ':', &list, &list_count)) {
             if (list_count > 0) {
-                setenv("EAR_ENERGY_ARG", list[1], 1);
+                var = strchr(energy_obj, ':') + 1;
+                setenv("EAR_ENERGY_ARGS", var, 1);
+                debug("EAR_ENERGY_ARGS %s", var);
             }
             energy_obj = list[0];
         }
@@ -64,10 +72,14 @@ state_t energy_load(char *energy_obj)
     debug("loading shared object '%s'", energy_obj);
     if (state_fail(ret = symplug_open(energy_obj, (void **) &energy_ops, energy_names, energy_nops))) {
         debug("symplug_open() returned %d (%s)", ret, state_msg);
-        return ret;
+    } else {
+        energy_loaded = 1;
     }
-    energy_loaded = 1;
-    return EAR_SUCCESS;
+    debug("loaded shared object '%s'", energy_obj);
+    if (list != NULL) {
+        strtoa_free(list);
+    }
+    return ret;
 }
 
 state_t energy_init(ehandler_t *eh)
@@ -192,54 +204,3 @@ uint energy_data_is_null(ehandler_t *eh, edata_t e)
         return 1;
     }
 }
-
-#if TEST
-
-void *energy_alloc(void **data)
-{
-    size_t size = 0;
-    energy_datasize(NULL, &size);
-    *data = calloc(1, size);
-}
-
-void energy_copy(void *dataD, void *dataS)
-{
-    size_t size = 0;
-    energy_datasize(NULL, &size);
-    memcpy(dataD, dataS, size);
-}
-
-int main(int argc, char *argv[])
-{
-    ehandler_t ctx = {0};
-    void *energy1 = NULL;
-    void *energy2 = NULL;
-    ulong energyD = 0LU;
-    ulong units   = 0LU;
-
-    if (argc == 1) {
-        return 0;
-    }
-    if (state_fail(energy_load(argv[1]))) {
-        printf("energy_load() failed: %s\n", state_msg);
-        return 0;
-    }
-    if (state_fail(energy_init(&ctx))) {
-        printf("energy_init() failed: %s\n", state_msg);
-        return 0;
-    }
-    energy_units(&ctx, (uint *) &units);
-    energy_alloc(&energy1);
-    energy_alloc(&energy2);
-    sleep(1);
-    energy_dc_read(&ctx, energy1);
-    while (1) {
-        sleep(4);
-        energy_dc_read(&ctx, energy2);
-        energy_accumulated(&ctx, &energyD, energy1, energy2);
-        printf("######################################################### wattage: %lu W\n", energyD / (4LU*units));
-        energy_copy(energy1, energy2);
-    }
-    return 0;
-}
-#endif

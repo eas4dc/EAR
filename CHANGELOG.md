@@ -12,6 +12,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - development Updated AMD with changes for ZEN3, ZEN4 and ZEN5.
 
+## [6.1.0] - 2025-12-18
+
+## Added
+- Add the `EAR_ENERGY_ARG` envvar into `energy_node/node/ipmi_sensors.c`.
+
+## Changed
+- CI pipelines.
+- pread limits.
+
+## Fixed
+- Serialize/Deserialize at dummy cluster\_conf.
+- Resolve "Error found in HWMON class in ENERGY CPU".
+- EARD local API timeouts.
+- Resolve "Warning fixes to include -Wall -Werror to CI/CD".
+- IPMI fixes.
+
 ## v6.0 - 2025-10-29
 
 ### Added
@@ -63,6 +79,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Initialize all arrays before using them.
 - v6.0 Improving earl-eard connect to avoid blocking.
 - v6.0 Fixed socket count in acpi\_power.
+
+## 5.2.3 - 2025-12-18
+
+### Fixed
+
+- Initialize JOB\_TYPE field in CSV.
+- Sockets API.
 
 ## 5.2.2 - 2025-10-23
 
@@ -118,6 +141,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed typo in cpupow define.
 - Improved CPU governor list message.
 
+## 5.1.11 - 2025-11-18
+
+### Fixed
+- Fixed Intel MPI compatibility in EAR Loader.
+- Fixed switch error in sockets.c.
 
 ## 5.1.10 - 2025-09-02
 
