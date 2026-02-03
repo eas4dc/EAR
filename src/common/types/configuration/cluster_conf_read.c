@@ -731,6 +731,13 @@ void set_ear_conf_default(cluster_conf_t *my_conf)
 #else
     strcpy(my_conf->net_ext, "");
 #endif
+    /** If EAR_USER has been defined during the configure
+     * we use it. Use ear otherwise */
+    if (strlen(EAR_USER) == 0) {
+        strncpy(my_conf->ear_owner, "ear", GENERIC_NAME);
+    } else {
+        strncpy(my_conf->ear_owner, EAR_USER, GENERIC_NAME);
+    }
     set_default_eard_conf(&my_conf->eard);
     set_default_eargm_conf(&my_conf->eargm);
     set_default_db_conf(&my_conf->database);
@@ -744,7 +751,7 @@ int read_cluster_conf(char *conf_path,cluster_conf_t *my_conf)
     FILE *conf_file = fopen(conf_path, "r");
     if (conf_file == NULL)
     {
-        error("ERROR opening file: %s\n", conf_path);
+        error("ERROR opening file: %s", conf_path);
         return EAR_ERROR;
     }
     memset(my_conf, 0, sizeof(cluster_conf_t));
@@ -752,7 +759,7 @@ int read_cluster_conf(char *conf_path,cluster_conf_t *my_conf)
     get_cluster_config(conf_file, my_conf, CREATE_CONTENT);
     if ((my_conf->num_policies < 1) || (my_conf->num_islands < 1) || (my_conf->default_policy >TOTAL_POLICIES ))
     {
-        error( "Error: ear.conf does not contain any island or policy definition or there is no default policy specified.\n");
+        error( "Error: ear.conf does not contain any island or policy definition or there is no default policy specified.");
         return EAR_ERROR;
     }
     my_conf->cluster_num_nodes=get_num_nodes(my_conf);

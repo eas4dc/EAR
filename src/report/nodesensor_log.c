@@ -10,6 +10,7 @@
 
 
 #define _GNU_SOURCE         /* See feature_test_macros(7) */
+#include <common/system/file.h>
 #include <stdio.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -56,14 +57,12 @@ state_t report_init(report_id_t *id,cluster_conf_t *cconf)
 
 	debug("Using edcmon_sensors file %s", log_file_name_sensors);
 
-	fd_sensors 	= open(log_file_name_sensors,O_WRONLY|O_APPEND|O_CREAT, S_IRUSR|S_IWUSR|S_IROTH);
+    fd_sensors = open(log_file_name_sensors, O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW, S_IRUSR | S_IWUSR);
 
 	if (fd_sensors < 0){
-		debug("Error creating files, log plugin disabled");
+        error("[nodesensor_log report plug-in] Creating files (%d: %s), log plugin disabled.", errno, strerror(errno));
 		must_report = 0;
 	}
-
-  chmod(log_file_name_sensors, S_IRUSR|S_IWUSR|S_IROTH);
 
 	return EAR_SUCCESS;
 

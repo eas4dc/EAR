@@ -824,7 +824,7 @@ void create_shared_regions()
     /* Add here the initialization of the shared region to coordinate with external libraries such as DLB */
 #if 0
         get_ear_external_path(tmp, ID, shexternal_region_path);
-        external_mgt = create_ear_external_shared_area(shexternal_region_path);
+        external_mgt = create_ear_external_shared_area(shexternal_region_path, NULL);
         verbose_master(2, "Created shared region for external libraries! (%s)", shexternal_region_path);
 				verbose(2,"Master (PID: %d) shared regions created", getpid());
 #endif
@@ -1951,6 +1951,7 @@ void ear_init()
         verbose(1, "%sError%s EAR metrics initialization not succeed (%s), turning off EARL...", COL_RED, COL_CLR,
                 state_msg);
         eard_ok = 0;
+        lib_shared_region->earl_on = 0;
         strcpy(application.job.policy, " "); /* Cleaning policy */
         debug("Process %d not completes the initialization", my_node_id);
         return;

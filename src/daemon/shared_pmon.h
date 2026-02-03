@@ -28,14 +28,14 @@
 /* This is the job of jobs the EARD is aware of */
 
 state_t get_joblist_path(char *tmp, char *path);
-uint  * create_joblist_shared_area(char *path, int *fd, uint *joblist, int joblist_elems);
+uint *create_joblist_shared_area(char *path, int *fd, uint *joblist, int joblist_elems, char *user);
 uint  * attach_joblist_shared_area(char * path, int *fd, int *size);
 void dettach_joblib_shared_area(int fd);
 void joblist_shared_area_dispose(char *path, uint  *mem, int joblist_elems, int fd);
 
 /* This is the pmapp are for a given job context */
 state_t get_jobmon_path(char *tmp, uint ID, char *path);
-powermon_app_t  * create_jobmon_shared_area(char *path, powermon_app_t  * pmapp, int *fd);
+powermon_app_t *create_jobmon_shared_area(char *path, powermon_app_t *pmapp, int *fd, char *user);
 powermon_app_t  * attach_jobmon_shared_area(char * path, int *fd);
 void dettach_jobmon_shared_area(int fd);
 void jobmon_shared_area_dispose(char *path, powermon_app_t  *mem, int fd);

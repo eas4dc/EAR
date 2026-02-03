@@ -21,7 +21,6 @@ static int read_coefficients();
 static void signal_catcher();
 static void Usage(char *app);
 static void eard_restart();
-static void  create_tmp(char *tmp_dir);
 
 #else
 #endif

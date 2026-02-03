@@ -93,6 +93,11 @@ state_t GENERIC_parse_token(cluster_conf_t *conf,char *token,char *def_policy)
       token = strtok(token, "\n");
       remove_chars(token, ' ');
       strcpy(conf->install.obj_power_model, token);
+    } else if (!strcmp(token, "EAROWNER")) {
+        token = strtok(NULL, "=");
+        token = strtok(token, "\n");
+        remove_chars(token, ' ');
+        strcpy(conf->ear_owner, token);
     }
 		return EAR_SUCCESS;
 }

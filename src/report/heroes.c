@@ -21,6 +21,7 @@
 #include <common/types/configuration/cluster_conf.h>
 #include <common/system/time.h>
 #include <common/system/file.h>
+#include <common/system/user.h>
 #include <common/output/verbose.h>
 #include <common/output/debug.h>
 #include <report/report.h>
@@ -112,7 +113,7 @@ state_t report_init(report_id_t *id,cluster_conf_t *cconf)
             must_report = 0;
             return EAR_ERROR;
           }
-          ret = mkdir(csv_log_file_env, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+            ret = mkdir(csv_log_file_env, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
           if (ret < 0){
             error("Creating heroes app dir (%s) (%s)",csv_log_file_env, strerror(errno));
             must_report = 0;
@@ -137,6 +138,11 @@ state_t report_init(report_id_t *id,cluster_conf_t *cconf)
             must_report = 0;
             return EAR_ERROR;
           }
+            if (user_is_root()) {
+                ear_chown_path(path_dir_app, cconf->ear_owner);
+                ear_chown_path(path_dir_loops, cconf->ear_owner);
+            }
+
 					//xsnprintf(csv_log_file,sizeof(csv_log_file),"%s/%s.heroes",csv_log_file_env,nodename);
 					xsnprintf(csv_log_file,sizeof(csv_log_file),"%s/heroes.%d.csv",path_dir_app, id->master_rank);
           xsnprintf(csv_loop_log_file,sizeof(csv_loop_log_file),"%s/heroes.loops.%d.csv",path_dir_loops,id->master_rank);

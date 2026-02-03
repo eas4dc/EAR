@@ -37,6 +37,7 @@
 #include <common/system/sockets.h>
 #include <common/system/folder.h>
 #include <common/system/lock.h>
+#include <common/system/file.h>
 
 #include <common/output/verbose.h>
 #include <common/types/generic.h>
@@ -300,7 +301,8 @@ void init_contexts() {
    }
    verbose(VJOBPMON, "Shared region for jobs created '%s'", joblist_path);
    memset(eard_joblist,0, sizeof(int)*MAX_NESTED_LEVELS);
-   shared_eard_joblist = create_joblist_shared_area(joblist_path, &fd_joblist, eard_joblist, MAX_NESTED_LEVELS);
+    shared_eard_joblist = create_joblist_shared_area(joblist_path, &fd_joblist, eard_joblist, MAX_NESTED_LEVELS,
+                                                     my_cluster_conf.ear_owner);
    if (shared_eard_joblist == NULL){
                 verbose(0, "Error creating shared region for job list in path '%s', NULL address returned", joblist_path);
    }
@@ -451,7 +453,7 @@ int find_context_for_job(job_id id, job_id sid) {
 
 
 /* This function is called at job or step end. TODO: Thread-save here. */
-void end_context(int cc, uint get_lock)
+static void end_context(int cc, uint get_lock)
 {
     int ID, i;
     int new_max;
@@ -611,7 +613,7 @@ void powermon_purge_old_jobs()
 
 
 /* TODO: Thread-save here?: It's not possible because mutex is inside the context that will be created. */
-int new_context(job_id id, job_id sid, int *cc)
+static int new_context(job_id id, job_id sid, char *user, char *group, int *cc)
 {
     char shmem_path[GENERIC_NAME];
     uint ID;
@@ -682,7 +684,8 @@ int new_context(job_id id, job_id sid, int *cc)
 		// We use the new shared area rather than the allocated area
 		powermon_app_t *aux1, *aux2;
 		aux1 = current_ear_app[ccontext];
-		if ((aux2 = create_jobmon_shared_area(jobpmon_path, current_ear_app[ccontext], &current_ear_app[ccontext]->fd_shared_areas[SELF])) == NULL){
+		if ((aux2 = create_jobmon_shared_area(jobpmon_path, current_ear_app[ccontext],
+                                          &current_ear_app[ccontext]->fd_shared_areas[SELF], user)) == NULL) {
 			error("Error creating shared memory for pmon for ((%lu,%lu)", id, sid);
 			ear_unlock(&powermon_app_mutex[ccontext]);
 			return EAR_ERROR;
@@ -699,7 +702,8 @@ int new_context(job_id id, job_id sid, int *cc)
 
     get_settings_conf_path(ear_tmp, ID, shmem_path);
 
-    current_ear_app[ccontext]->settings = create_settings_conf_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[SETTINGS_AREA]);
+    current_ear_app[ccontext]->settings = create_settings_conf_shared_area(
+        shmem_path, &current_ear_app[ccontext]->fd_shared_areas[SETTINGS_AREA], my_cluster_conf.ear_owner);
     if (current_ear_app[ccontext]->settings == NULL) {
         error("Error creating shared memory between EARD & EARL for (%lu,%lu)",
               id,sid);
@@ -714,7 +718,8 @@ int new_context(job_id id, job_id sid, int *cc)
 
     get_resched_path(ear_tmp, ID, shmem_path);
 
-    current_ear_app[ccontext]->resched = create_resched_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[RESCHED_AREA]);
+    current_ear_app[ccontext]->resched =
+        create_resched_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[RESCHED_AREA], user);
 
     if (current_ear_app[ccontext]->resched == NULL) {
         error("Error creating resched shared memory between EARD & EARL for (%lu,%lu)",id,sid);
@@ -731,7 +736,8 @@ int new_context(job_id id, job_id sid, int *cc)
 
     get_app_mgt_path(ear_tmp, ID, shmem_path);
 
-    current_ear_app[ccontext]->app_info = create_app_mgt_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[APP_MGT_AREA]);
+    current_ear_app[ccontext]->app_info =
+        create_app_mgt_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[APP_MGT_AREA], user);
 
     if (current_ear_app[ccontext]->app_info == NULL) {
         error("Error creating shared memory between EARD & EARL for app_mgt (%lu,%lu)", id, sid);
@@ -744,9 +750,10 @@ int new_context(job_id id, job_id sid, int *cc)
 
     get_pc_app_info_path(ear_tmp,ID, shmem_path);
 
-    current_ear_app[ccontext]->pc_app_info = create_pc_app_info_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[PC_APP_AREA]);
+    current_ear_app[ccontext]->pc_app_info =
+        create_pc_app_info_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[PC_APP_AREA], user);
     if (current_ear_app[ccontext]->pc_app_info == NULL){
-        error("Error creating shared memory between EARD & EARL for pc_app_infoi (%lu,%lu)",id,sid);
+        error("Error creating shared memory between EARD & EARL for pc_app_info (%lu,%lu)", id, sid);
         ear_unlock(&powermon_app_mutex[ccontext]);
         return EAR_ERROR;
     }
@@ -785,31 +792,77 @@ int new_context(job_id id, job_id sid, int *cc)
 /****************** END CONTEXT MANAGEMENT ********************/
 
 
-void create_job_area(uint ID)
+/**
+ * create_job_area:
+ * Creates a unique directory for a job under the EAR temporary directory.
+ * This directory is used to store job-specific shared memory files.
+ *
+ * @ID: Unique job identifier used to name the directory.
+ * @user: Job owner.
+ */
+void create_job_area(uint ID, char *user)
 {
 	int ret;
-
 	char job_path[MAX_PATH_SIZE];
+
+    // Build the job-specific path (e.g., /tmp/ear/1234)
 	xsnprintf(job_path, sizeof(job_path), "%s/%u", ear_tmp, ID);
 
 	verbose(VJOBPMON + 1, "Creating job path %s...", job_path);
 
+    /* Set umask to 0 to ensure the directory is created with exactly 0777 permissions.
+     * This allows multiple users (e.g., 'ear' and the job user) to access the area. */
 	mode_t old_mask = umask((mode_t) 0);
-
-	ret = mkdir(job_path, 0777);
+    ret             = mkdir(job_path, 0777);
 
 	if (ret < 0 ) {
+        // If it exists, we don't treat it as a fatal error here
 		error("Could not create job path: %s", strerror(errno));
 	}
 
+    // Restore the original umask
 	umask(old_mask);
+
+    /* Enforce ownership */
+    ear_chown_path(job_path, user);
+
+    /* Security check: verify that the created/existing path is a regular directory
+     * and NOT a symbolic link. This prevents symlink-based redirection attacks. */
+    struct stat st;
+    if (lstat(job_path, &st) < 0) {
+        error("lstat failed on %s: %s", job_path, strerror(errno));
+        return;
+    }
+
+    if (S_ISLNK(st.st_mode)) {
+        error("Security error: %s is a symbolic link.", job_path);
+        return;
+    }
 }
 
-
+/**
+ * clean_job_area:
+ * Recursively removes the job-specific directory and all its contents.
+ *
+ * @ID: Unique job identifier.
+ */
 void clean_job_area(uint ID)
 {
 	char job_path[MAX_PATH_SIZE];
+
+    /*
+     * Protect the idle context (job-step 0-0, which produces ID=0).
+     * The idle context is created at daemon startup and should persist
+     * across all jobs.
+     */
+    if (ID == 0) {
+        verbose(VJOBPMON + 1, "Skipping cleanup for idle context (ID=0)");
+        return;
+    }
+
     xsnprintf(job_path, sizeof(job_path), "%s/%u", ear_tmp, ID);
+
+    // folder_remove handles recursive deletion of files and subdirectories
 	folder_remove(job_path);
 }
 
@@ -966,7 +1019,7 @@ state_t powermon_create_idle_context()
   current_ear_app[cc] = calloc(1,sizeof(powermon_app_t));
   if (current_ear_app[cc] == NULL) return EAR_ERROR;
 
-	create_job_area(0);
+    create_job_area(0, my_cluster_conf.ear_owner);
 
   pmapp = current_ear_app[cc];
   max_context_created = 0;
@@ -989,7 +1042,8 @@ state_t powermon_create_idle_context()
 		return EAR_ERROR;
 	}
 	verbose(VJOBPMON,"Self context in path '%s'", jobpmon_path);
-	if (create_jobmon_shared_area(jobpmon_path, current_ear_app[0], &current_ear_app[0]->fd_shared_areas[SELF]) == NULL){
+    if (create_jobmon_shared_area(jobpmon_path, current_ear_app[0], &current_ear_app[0]->fd_shared_areas[SELF],
+                                  my_cluster_conf.ear_owner) == NULL) {
 		return EAR_ERROR;
 	}
 	/* End of Pmon mapping */
@@ -998,20 +1052,23 @@ state_t powermon_create_idle_context()
   /* Shared memory regions for default context */
   get_settings_conf_path(ear_tmp, ID, shmem_path);
   verbose(VJOBPMON,"Settings for new context placed at %s",shmem_path);
-  pmapp->settings = create_settings_conf_shared_area(shmem_path, &pmapp->fd_shared_areas[SETTINGS_AREA]);
+    pmapp->settings =
+        create_settings_conf_shared_area(shmem_path, &pmapp->fd_shared_areas[SETTINGS_AREA], my_cluster_conf.ear_owner);
 	if (pmapp->settings == NULL){
 		verbose(VJOBPMON,"Error creating shared memory region for earl shared data");
 	}
   get_resched_path(ear_tmp, ID,shmem_path);
   verbose(VJOBPMON,"Resched area for new context placed at %s",shmem_path);
-  pmapp->resched = create_resched_shared_area(shmem_path, &pmapp->fd_shared_areas[RESCHED_AREA]);
+    pmapp->resched =
+        create_resched_shared_area(shmem_path, &pmapp->fd_shared_areas[RESCHED_AREA], my_cluster_conf.ear_owner);
 	if (pmapp->resched == NULL){
 		verbose(VJOBPMON,"Error creating shared memory region for re-scheduling data");
 	}
   reset_shared_memory(pmapp);
   get_app_mgt_path(ear_tmp, ID, shmem_path);
   verbose(VJOBPMON,"App- Mgr area for new context placed at %s",shmem_path);
-  pmapp->app_info = create_app_mgt_shared_area(shmem_path, &pmapp->fd_shared_areas[APP_MGT_AREA]);
+    pmapp->app_info =
+        create_app_mgt_shared_area(shmem_path, &pmapp->fd_shared_areas[APP_MGT_AREA], my_cluster_conf.ear_owner);
 	if (pmapp->app_info == NULL){
 		verbose(VJOBPMON,"Error creating app mgr shared region ");
 	}
@@ -1019,7 +1076,8 @@ state_t powermon_create_idle_context()
 
   get_pc_app_info_path(ear_tmp, ID, shmem_path);
   verbose(VJOBPMON,"App PC area for new context placed at %s",shmem_path);
-  pmapp->pc_app_info = create_pc_app_info_shared_area(shmem_path, &pmapp->fd_shared_areas[PC_APP_AREA]);
+    pmapp->pc_app_info =
+        create_pc_app_info_shared_area(shmem_path, &pmapp->fd_shared_areas[PC_APP_AREA], my_cluster_conf.ear_owner);
 	if (pmapp->pc_app_info == NULL){
 		verbose(VJOBPMON,"Error creating app pc shared region");
 	}
@@ -1718,7 +1776,7 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
 
     /* Creating ID folder */
 		verbose(VJOBPMON + 1, "Creating job area for %lu/%lu (%u)", appID->job.id, appID->job.step_id, new_app_id);
-    create_job_area(new_app_id);
+    create_job_area(new_app_id, appID->job.user_id);
 
     energy_tag_t *my_tag;
 
@@ -1734,7 +1792,8 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
     powercap_new_job();
 
     if (pmapp == NULL) {
-        if (new_context(appID->job.id, appID->job.step_id, &ccontext) == EAR_SUCCESS) {
+        if (new_context(appID->job.id, appID->job.step_id, appID->job.user_id, appID->job.group_id, &ccontext) ==
+            EAR_SUCCESS) {
             pmapp = current_ear_app[ccontext];
         } else {
             error("Maximum number of contexts reached, no more concurrent jobs supported.");

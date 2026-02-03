@@ -25,7 +25,8 @@
  *
  * \return NULL on error.
  * \return the shared region pointer otherwise. */
-void *create_shared_area(char *path, mode_t file_perms_bits, char *data, int area_size, int *shared_fd, int must_clean);
+void *create_shared_area(char *path, mode_t file_perms_bits, char *data, int area_size, int *shared_fd, int must_clean,
+                         char *user);
 
 
 void * attach_shared_area(char *path,int area_size,uint perm,int *shared_fd,int *s);

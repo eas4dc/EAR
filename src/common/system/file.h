@@ -105,4 +105,8 @@ void set_stack_size_limit(ulong new_limit);
 state_t ear_fd_read(int fd, char *buffer, size_t size);
 state_t ear_fd_write(int fd, const char *buffer, size_t size);
 
+/* Given a username changes the owner of the file to the UID/GID */
+state_t ear_chown_fd(int fd, char *own);
+state_t ear_chown_path(const char *path, char *own);
+
 #endif

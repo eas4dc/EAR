@@ -261,7 +261,7 @@ int job(int argc, char *argv[])
     if (!(job_id = getenv(Var.job_id.slurm))) {
         if (!(job_id = getenv("OAR_JOB_ID")))
             if (!(job_id = getenv_PBS_JOBID()))
-                if (!(job_id)) job_id = "0";
+                if (!(job_id)) job_id = "1";
         // Setting the SLURM version of the variable
         setenv(Var.job_id.slurm, job_id, 1);
     }

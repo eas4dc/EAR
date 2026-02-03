@@ -31,6 +31,7 @@
 #include <common/system/monitor.h>
 #include <common/system/execute.h>
 #include <common/output/debug.h>
+#include <common/system/folder.h>
 
 #include <report/report.h>
 
@@ -257,6 +258,10 @@ void init_frequency_list()
 				memcpy(frequencies, frequency_get_freq_rank_list(), size);
 				get_frequencies_path(my_cluster_conf.install.dir_temp, frequencies_path);
 				shared_frequencies = create_frequencies_shared_area(frequencies_path, frequencies, size);
+    if (shared_frequencies == NULL) {
+        error("Error: shared_frequencies is NULL (path: %s)", frequencies_path);
+        return;
+    }
 				for (i = 0; i < ps; i++) {
 								verbose(VEARD_INIT, "shared_frequencies[%d]=%lu", i, shared_frequencies[i]);
 				}
@@ -273,20 +278,6 @@ void set_global_eard_variables() {
 }
 
 // Lock unlock functions are used to be sure a single daemon is running per node
-
-void create_tmp(char *tmp_dir) {
-				int ret;
-				ret = mkdir(tmp_dir, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-				if ((ret < 0) && (errno != EEXIST)) {
-								error("ear tmp dir cannot be created (%s)", strerror(errno));
-								_exit(0);
-				}
-
-				if (chmod(tmp_dir, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH) < 0) {
-								warning("ear_tmp permissions cannot be set (%s)", strerror(errno));
-								_exit(0);
-				}
-}
 
 
 
@@ -774,17 +765,21 @@ int main(int argc, char *argv[])
         error(" Error reading cluster configuration\n");
         _exit(1);
     }
-    compute_default_pstates_per_policy(my_cluster_conf.num_policies, my_cluster_conf.power_policies);
 
     // Services
     services_init(&node_desc);
     services_print(&node_desc, &my_cluster_conf);
 
-    // Depcrecated frequency service (cleaning pending)
+    // Depcrecated frequency service (cleaning pending).
+    // Warning: if this is removed, the compute_default_pstates_per_policy function below will cause problems
     if (frequency_init(0) < 0) {
         verbose(VEARD_INIT, "frequency information can't be initialized");
         _exit(1);
     }
+
+    // Check the policies settings AFTER frequency init
+    compute_default_pstates_per_policy(my_cluster_conf.num_policies, my_cluster_conf.power_policies);
+
 
     // Reading Node configuration
     if ((my_node_conf = get_my_node_conf(&my_cluster_conf, nodename)) == NULL) {
@@ -821,7 +816,7 @@ int main(int argc, char *argv[])
                 eard_dyn_conf.pm_app = get_powermon_app();
                 set_global_eard_variables();
                 verbose(VEARD_INIT,"Creating tmp dir");
-                create_tmp(ear_tmp);
+    ear_create_tmp(ear_tmp, my_cluster_conf.ear_owner);
                 if (my_cluster_conf.eard.use_log) {
                     verbose(VEARD_INIT,"Creating log file");
                     create_log(my_cluster_conf.install.dir_temp, "eard", fd_my_log);
@@ -974,7 +969,7 @@ int main(int argc, char *argv[])
 #endif
                 verbose(VEARD_INIT,"EARD initialized succesfully");
                 /* This function never ends, EARD exits with SIGTERM o SIGINT */
-                eard_local_api();
+    eard_local_api(my_cluster_conf.ear_owner);
                 //eard is closed by SIGTERM signal, we should not reach this point
                 verbose(VCONF, "END EARD\n");
                 eard_close_comm(CLOSE_EARD,CLOSE_EARD);

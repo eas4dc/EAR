@@ -183,6 +183,7 @@ Verbose=0
 # If compute nodes must be accessed from login nodes with a network different than default,
 # and can be accesed using a expension, uncommmet next line and define 'netext' accordingly. 
 #NetworkExtension=netext
+#EAROwner=@USER@
 
 
 #---------------------------------------------------------------------------------------------------

@@ -23,7 +23,6 @@ repo_OBJS = report.o
 repo_BINS = \
     eard.so \
     eardbd.so \
-    csv.so \
     csv_ts.so \
     heroes.so \
     dummy.so \

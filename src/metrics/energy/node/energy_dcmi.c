@@ -67,7 +67,7 @@ static int opendev(struct ipmi_intf *intf)
 
 static void closedev(struct ipmi_intf *intf)
 {
-	if (intf->fd > 0) {
+	if (intf->fd >= 0) {
 		close(intf->fd);
 		intf->fd = -1;
 	};

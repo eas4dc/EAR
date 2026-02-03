@@ -88,6 +88,9 @@ typedef struct cluster_conf
     char **priv_groups;
     uint   num_acc;
     char **priv_acc;
+    /**@{ EAR owner of folders and files for
+     * no specific users */
+    char ear_owner[GENERIC_NAME];
     /**@}*/
     /**@{ Special cases. */
     uint min_time_perf_acc;

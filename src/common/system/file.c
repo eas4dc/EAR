@@ -22,6 +22,7 @@
 #include <common/system/file.h>
 #include <common/output/verbose.h>
 #include <common/output/debug.h>
+#include <common/system/user.h>
 
 static struct flock lock;
 
@@ -55,7 +56,10 @@ int ear_file_lock_timeout(int fd, ulong timeout)
 
 int ear_file_lock_create(char *lock_file_name)
 {
-	int fd = open(lock_file_name, O_WRONLY | O_CREAT | O_CLOEXEC, S_IWUSR);
+	mode_t oldmask = umask(0);
+	/* O_NOFOLLOW to avoid symlinks and chmod later to force permissions */
+	int fd = open(lock_file_name, O_WRONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW, S_IWUSR);
+	umask(oldmask);
 	if (fd < 0)
 		return fd;
 	lock.l_start = 0;
@@ -67,7 +71,9 @@ int ear_file_lock_create(char *lock_file_name)
 
 int ear_file_lock_master_perm(char *lock_file_name, int flag, mode_t mode)
 {
-	int fd = open(lock_file_name, flag | O_CREAT | O_EXCL, mode);
+	/* O_NOFOLLOW to avoid symlinks  and chmod later to force permissions*/
+	int fd = open(lock_file_name, flag | O_CREAT | O_EXCL | O_NOFOLLOW, mode);
+	chmod(lock_file_name, mode);
 	return fd;
 }
 
@@ -280,4 +286,39 @@ state_t ear_fd_write(int fd, const char *buffer, size_t size)
 	state_return(EAR_SUCCESS);
 }
 
+state_t ear_chown_fd(int fd, char *own)
+{
+    user_t user_ids;
+    /** If null, we don't change the owner */
+    if (own == NULL)
+        return EAR_SUCCESS;
+    if (state_fail(user_all_ids_by_user_get(&user_ids, own))) {
+        debug("ear_chown_fd: Failed to get IDs for user '%s'", own);
+        return EAR_ERROR;
+    }
+    debug("ear_chown_fd: Changing owner of fd %d to user '%s' (uid=%d, gid=%d)", fd, own, user_ids.ruid, user_ids.rgid);
+    if (fchown(fd, user_ids.ruid, user_ids.rgid) < 0) {
+        debug("ear_chown_fd: fchown failed: %s", strerror(errno));
+        return EAR_ERROR;
+    }
+    return EAR_SUCCESS;
+}
 
+state_t ear_chown_path(const char *path, char *own)
+{
+    user_t user_ids;
+    /** If null, we don't change the owner */
+    if (own == NULL)
+        return EAR_SUCCESS;
+    if (state_fail(user_all_ids_by_user_get(&user_ids, own))) {
+        debug("ear_chown_path: Failed to get IDs for user '%s'", own);
+        return EAR_ERROR;
+    }
+    debug("ear_chown_path: Changing owner of '%s' to user '%s' (uid=%d, gid=%d)", path, own, user_ids.ruid,
+          user_ids.rgid);
+    if (chown(path, user_ids.ruid, user_ids.rgid) < 0) {
+        debug("ear_chown_path: chown failed: %s", strerror(errno));
+        return EAR_ERROR;
+    }
+    return EAR_SUCCESS;
+}

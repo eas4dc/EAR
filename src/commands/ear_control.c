@@ -762,18 +762,24 @@ int main(int argc, char *argv[])
 	verb_enabled = 0;
 	if (argc < 2) usage(argv[0]);
 
-	if (get_ear_conf_path(path_name)==EAR_ERROR){
-		printf("Error getting ear.conf path\n"); //error
-		exit(1);
+	if (state_fail(get_ear_conf_path(path_name))){
+		printf("Error getting ear.conf path, load the ear module\n");
+		return EXIT_FAILURE;
 	}
-
-	if (read_cluster_conf(path_name, &my_cluster_conf) != EAR_SUCCESS) printf("ERROR reading cluster configuration\n");
+	if (state_fail(read_cluster_conf(path_name, &my_cluster_conf))) {
+        printf("Impossible to read ear.conf\n");
+		return EXIT_FAILURE;
+	}
+	if (state_fail(user_set_euid(UID_REAL))) {
+		printf("Effective user can not be switch to real: %s\n", state_msg);
+		return EXIT_FAILURE;
+	}
 
 	if (getuid() != 0 && !is_privileged_command(&my_cluster_conf))
 	{
 		printf("This command can only be executed by privileged users. Contact your admin for more info.\n");
 		free_cluster_conf(&my_cluster_conf);
-		exit(1); //error
+		exit(EXIT_FAILURE);
 	}
 
 	int option_idx = 0;
@@ -1175,7 +1181,7 @@ int main(int argc, char *argv[])
         mail_fd = open(mail_filename, O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
         if (mail_fd < 1) {
             printf("Error creating mail file (%s), exiting\n", mail_filename);
-            exit(0);
+            exit(EXIT_FAILURE);
         }
         if (dup2(mail_fd, STDOUT_FILENO) < 0) {
             printf("Error duplicating output: %s\n", strerror(errno)); 

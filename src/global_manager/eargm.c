@@ -39,6 +39,7 @@
 #include <common/output/verbose.h>
 #include <common/database/db_helper.h>
 #include <common/utils/sched_support.h>
+#include <common/system/folder.h>
 
 #include <common/types/generic.h>
 #include <common/types/gm_warning.h>
@@ -125,23 +126,6 @@ static int fd_my_log=2;
 char host[GENERIC_NAME];
 
 bool use_first_eargm_if_failed = false;
-
-
-void create_tmp(char *tmp_dir) {
-        int ret;
-        ret = mkdir(tmp_dir, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-        if ((ret < 0) && (errno != EEXIST)) {
-                error("ear tmp dir cannot be created (%s)", strerror(errno));
-                _exit(0);
-        }
-
-        if (chmod(tmp_dir, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH) < 0) {
-                warning("ear_tmp permissions cannot be set (%s)", strerror(errno));
-                _exit(0);
-        }
-}
-
-
 
 uint reload_eargm_configuration(cluster_conf_t *current,cluster_conf_t *new)
 {
@@ -791,7 +775,7 @@ int main(int argc, char *argv[])
         print_eargm_conf(&my_cluster_conf.eargm);
     }
 
-    create_tmp(my_cluster_conf.install.dir_temp);
+    ear_create_tmp(my_cluster_conf.install.dir_temp, my_cluster_conf.ear_owner);
     char buf[20];
     if (my_cluster_conf.eargm.use_log){
         char *gm_name = ear_getenv("EARGMNAME");

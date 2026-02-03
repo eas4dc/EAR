@@ -31,7 +31,7 @@ void save_eard_conf(eard_dyn_conf_t *eard_dyn_conf)
 	sprintf(checkpoint_file,"%s/%s",eard_dyn_conf->cconf->install.dir_temp,".eard_check");
 	verbose(VCHCK,"Using checkpoint file %s",checkpoint_file);
 	old_mask=umask(0);	
-	fd=open(checkpoint_file,O_WRONLY|O_CREAT|O_TRUNC,S_IRUSR|S_IWUSR);
+	fd=open(checkpoint_file,O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW|O_EXCL,S_IRUSR|S_IWUSR);
 	if (fd<0){
 		error("Error creating checkpoint file (%s)",strerror(errno));
 		return;

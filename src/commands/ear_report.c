@@ -1185,22 +1185,24 @@ int main(int argc,char *argv[])
         printf("Warning: using MySQL/MariaDB environment variables is not supported, unsetting them.\n");
     }
 
-    if (get_ear_conf_path(path_name) == EAR_ERROR)
-    {
-        printf("Error getting ear.conf path.\n"); //error
-        exit(1);
+    if (state_fail(get_ear_conf_path(path_name))) {
+        printf("Error getting ear.conf path, load the ear module\n");
+        return EXIT_FAILURE;
     }
-
-    if (read_cluster_conf(path_name, &my_conf) != EAR_SUCCESS) {
-        printf("Error reading configuration\n"); //error
-        exit(1);
+    if (state_fail(read_cluster_conf(path_name, &my_conf))) {
+        printf("Impossible to read ear.conf\n");
+        return EXIT_FAILURE;
+    }
+    if (state_fail(user_set_euid(UID_REAL))) {
+        printf("Effective user can not be switch to real: %s\n", state_msg);
+        return EXIT_FAILURE;
     }
 
     if (getuid() != 0 && !is_privileged_command(&my_conf))
     {
         printf("This command can only be executed by privileged users. Contact your admin for more info.\n");
         free_cluster_conf(&my_conf);
-        exit(1); //error
+        exit(EXIT_FAILURE);
     }
 
 #if DB_MYSQL

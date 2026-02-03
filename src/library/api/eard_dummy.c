@@ -232,7 +232,7 @@ state_t eard_dummy_earl_settings(char *ear_tmp, uint ID)
 	get_settings_conf_path(ear_tmp, ID, path);
 
 	debug("Creating settings dummy in %s", path);
-	dummy_sett = create_settings_conf_shared_area(path, NULL);
+    dummy_sett = create_settings_conf_shared_area(path, NULL, NULL);
 	check_null(dummy_sett,
 		   "create_settings_conf_shared_area returns NULL for path %s",
 		   path);
@@ -263,7 +263,7 @@ state_t eard_dummy_earl_settings(char *ear_tmp, uint ID)
 	verbose_master(2, "Dummy earl settings done %s", path);
 
 	get_resched_path(ear_tmp, ID, path);
-	dummy_resch = create_resched_shared_area(path, NULL);
+    dummy_resch = create_resched_shared_area(path, NULL, NULL);
 
 	check_null(dummy_resch, "Resched are returns NULL for path %s", path);
 
@@ -278,7 +278,7 @@ state_t eard_dummy_earl_settings(char *ear_tmp, uint ID)
 state_t eard_dummy_app_mgt(char *ear_tmp, uint ID)
 {
 	get_app_mgt_path(ear_tmp, ID, path);
-	app_mgt_t *dummy = create_app_mgt_shared_area(path, NULL);
+    app_mgt_t *dummy = create_app_mgt_shared_area(path, NULL, NULL);
 	check_null(dummy, "Error creating app_mgr in path %s ", path);
 
 	//verbose_master(2, "Dummy app_mgt area done path %s", path);
@@ -291,7 +291,7 @@ state_t eard_dummy_pc_app_info(char *ear_tmp, uint ID)
 	pc_app_info_t *dummy;
 
 	get_pc_app_info_path(ear_tmp, ID, path);
-	dummy = create_pc_app_info_shared_area(path, NULL);
+    dummy = create_pc_app_info_shared_area(path, NULL, NULL);
 	check_null(dummy, "Error creating pc area in path %s", path);
 
 	memset(dummy, 0, sizeof(pc_app_info_t));
@@ -307,7 +307,7 @@ state_t eard_dummy_pc_app_info(char *ear_tmp, uint ID)
 
 state_t eard_dummy_nodemgr(char *ear_tmp, uint ID)
 {
-	nodemgr_server_init(ear_tmp, &dummy_nodemgr);
+    nodemgr_server_init(ear_tmp, &dummy_nodemgr, NULL);
 	check_null(dummy_nodemgr, "Error creating dummy node_mgr %s", " ");
 
 	//verbose_master(2, "Dummy node mgr area done");

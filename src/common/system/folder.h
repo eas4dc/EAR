@@ -36,4 +36,11 @@ state_t folder_remove(char *path);
 
 state_t folder_rename(char *oldp, char *newp);
 
+/**
+ * @brief Recursively creates the directory structure for the given path.
+ * It ensures that the final directory (and created parents) has secure permissions (0755).
+ * It respects existing parent directories like /tmp.
+ */
+state_t ear_create_tmp(char *path, char *ear_owner);
+
 #endif //EAR_PRIVATE_FOLDER_H

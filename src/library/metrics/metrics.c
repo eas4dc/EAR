@@ -2914,7 +2914,7 @@ static state_t energy_lib_init(settings_conf_t *conf)
         ret = utils_build_valid_plugin_path(my_plug_path, sizeof(my_plug_path), "energy", conf->installation.obj_ener,
                                             conf);
         if (state_fail(ret)) {
-            verbose_error_master("Energy plug-in %s not found.", conf->installation.obj_ener);
+            verbose_error_master("Energy plug-in '%s' not found.", conf->installation.obj_ener);
             return EAR_NOT_FOUND;
         }
     }

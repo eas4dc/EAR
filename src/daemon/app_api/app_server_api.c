@@ -21,6 +21,7 @@
 //#define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/states.h>
+#include <common/system/file.h>
 #include <common/system/poll.h>
 #include <common/output/verbose.h>
 #include <common/types/generic.h>
@@ -101,6 +102,10 @@ int create_app_connection(char *root)
 			return EAR_ERROR;
         }
     }
+
+    /* Enforce non-root ownership (ear_owner) */
+    ear_chown_path(app_to_eard, my_cluster_conf.ear_owner);
+
 	umask(old_mask);
 	fd_app_to_eard=open(app_to_eard,O_RDWR);
 	if (fd_app_to_eard<0){

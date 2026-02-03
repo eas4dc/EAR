@@ -77,7 +77,7 @@ static void keeper_open()
         chown(path, getuid(), getgid());
     }
     debug("Opening %s", path);
-    if ((fd = open(path, O_RDWR | O_CREAT, PERMS(111,100,100))) < 0) {
+    if ((fd = open(path, O_RDWR | O_CREAT | O_NOFOLLOW, PERMS(111, 100, 100))) < 0) {
         debug("Failed: %s", strerror(errno));
         return;
     }

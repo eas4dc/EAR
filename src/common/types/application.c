@@ -58,7 +58,7 @@ void application_print_channel(FILE *file, application_t *app)
 
 #define APP_TEXT_FILE_FIELDS	33
 #define EXTENDED_DIFF			11
-#define PERMISSION              S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+#define PERMISSION           S_IRUSR | S_IWUSR | S_IRGRP
 #define OPTIONS                 O_WRONLY | O_CREAT | O_TRUNC | O_APPEND
 
 int read_application_text_file(char *path, application_t **apps, char is_extended)
@@ -144,15 +144,15 @@ int print_application_fd(int fd, application_t *app, int new_line, char is_exten
 int create_app_header(char * header_prefix, char *path, uint num_gpus, char is_extended, int single_column)
 {
 		/* If file already exists we will not add the header */
-		if (ear_file_is_regular(path)) return EAR_SUCCESS;
+    int fd = open(path, O_WRONLY | O_NOFOLLOW | O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        return EAR_ERROR;
+    }
 
 		char header[8192] = {0};
 		application_create_header_str(header, sizeof(header), header_prefix, num_gpus, is_extended, single_column);
 
-	  int fd = open(path, OPTIONS, PERMISSION);
-    if (fd >= 0) {
-	dprintf(fd, "%s\n", header);
-    }
+    dprintf(fd, "%s\n", header);
 	close(fd);
 
 	return EAR_SUCCESS;
@@ -161,13 +161,12 @@ int create_app_header(char * header_prefix, char *path, uint num_gpus, char is_e
 int append_application_text_file(char *path, application_t *app, char is_extended, int add_header, int single_column)
 {
     //lacking: NODENAME(node_id in loop_t), not linked to any loop
-    int fd;
 		uint num_gpus = 0;
 #if USE_GPUS
 		num_gpus = app->signature.gpu_sig.num_gpus;
 #endif
     if (add_header) create_app_header(NULL, path, num_gpus, is_extended, single_column);
-		fd = open(path, O_WRONLY | O_APPEND);
+    int fd = open(path, O_WRONLY | O_APPEND | O_CLOEXEC);
     if (fd < 0)
     {
 			return EAR_ERROR;

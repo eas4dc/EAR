@@ -185,6 +185,102 @@ state_t folder_rename(char *oldp, char *newp)
   else                       return EAR_ERROR;
 }
 
+/**
+ * ear_create_tmp:
+ * Creates a directory and all its parent components, similar to 'mkdir -p'.
+ * It also enforces specific permissions (S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH)
+ * for each created directory component.
+ *
+ * @path: The absolute or relative path of the directory to create.
+ * @return: EAR_SUCCESS on success, EAR_ERROR on failure.
+ */
+state_t ear_create_tmp(char *path, char *ear_owner)
+{
+    char tmp[MAX_PATH_SIZE];
+    char *p = NULL;
+    size_t len;
+    struct stat st;
+
+    // Validate input path
+    if (path == NULL || strlen(path) == 0) {
+        return EAR_ERROR;
+    }
+
+    // Clone the path to a local buffer for manipulation
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    len = strlen(tmp);
+
+    // Remove trailing slash to avoid empty component in the loop
+    if (tmp[len - 1] == '/') {
+        tmp[len - 1] = 0;
+    }
+
+    /* Iterate over the string, component by component.
+     * We start from tmp + 1 to skip the root '/' if the path is absolute. */
+    for (p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = 0; // Temporarily truncate the string at the current slash
+
+            // Check if the current path component exists
+            if (stat(tmp, &st) != 0) {
+                // Component does not exist, try to create it
+                if (mkdir(tmp, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) < 0) {
+                    // Check if it was created by another process in the meantime
+                    if (errno != EEXIST) {
+                        error("Error creating directory %s: %s", tmp, strerror(errno));
+                        return EAR_ERROR;
+                    }
+                } else {
+                    /* Successfully created. Enforce permissions and ownership */
+                    if (chmod(tmp, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) < 0) {
+                        debug("Warning: could not chmod %s: %s", tmp, strerror(errno));
+                    }
+                    ear_chown_path(tmp, ear_owner);
+                }
+            } else {
+                // Component exists, verify it's a directory
+                if (!S_ISDIR(st.st_mode)) {
+                    error("Error: %s is not a directory", tmp);
+                    return EAR_ERROR;
+                }
+            }
+
+            *p = '/'; // Restore the slash and continue
+        }
+    }
+
+    // Final check/creation for the last component of the path
+    if (stat(tmp, &st) != 0) {
+        if (mkdir(tmp, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) < 0) {
+            if (errno != EEXIST) {
+                error("Error creating directory %s: %s", tmp, strerror(errno));
+                return EAR_ERROR;
+            }
+        } else {
+            /* Successfully created.
+             * Set permissions to 1777 (sticky bit) to allow shared usage (e.g. by erun)
+             * while preventing users from deleting each other's files. */
+             // S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO = 01777
+            if (chmod(tmp, S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
+                 debug("Warning: could not chmod %s: %s", tmp, strerror(errno));
+            }
+            ear_chown_path(tmp, "ear");
+        }
+    } else {
+        // Ensure the final component is indeed a directory
+        if (!S_ISDIR(st.st_mode)) {
+            error("Error: %s is not a directory", tmp);
+            return EAR_ERROR;
+        }
+        /* Enforce ownership even if it exists */
+        /* Also ensure permissions are correct (1777) for shared access */
+        chmod(tmp, S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
+        ear_chown_path(tmp, "ear");
+    }
+
+    return EAR_SUCCESS;
+}
+
 /*
 folder_t f;
 

@@ -169,6 +169,13 @@ AC_DEFUN([AX_BEFORE_FEATURES],
 	AC_ARG_VAR([USER],[Sets the owner user of your installed files])
 	AC_ARG_VAR([GROUP],[Sets the owner group of your installed files])
 
+	if test -z "$USER"; then
+		USER=$(whoami)
+	fi
+	if test -z "$GROUP"; then
+		GROUP=$(id -gn)
+	fi
+
     #
     # Makefile name
     #
