@@ -169,9 +169,6 @@ int policy_name_to_nodeid(char *my_policy, my_node_conf_t *conf);
 
 int32_t node_range_get_num_nodes(node_range_t *r);
 
-void print_my_node_conf_fd_binary(int fd, my_node_conf_t *myconf);
-void read_my_node_conf_fd_binary(int fd, my_node_conf_t *myconf);
-
 /** Given a  node and policy, returns the policy configuration for that cluser,node,policy */
 policy_conf_t *get_my_policy_conf(my_node_conf_t *my_node, uint p_id);
 int is_smaller_unit(int small, int big);

@@ -7,6 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
+/* clang-format off */
 
 #ifndef METRICS_GPU_H
 #define METRICS_GPU_H

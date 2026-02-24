@@ -24,10 +24,11 @@ typedef struct consumption_s {
     timestamp_t timestamp; // We use our timestamp because DCMI fails
     uint64_t    samples;
 } consumption_t;
-
+#define MAX_SENSORS_SUPPORTED 2
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static ipmi_sensor_t  *sensors;
 static uint            sensors_count;
+static uint            data_size_sensors_count = MAX_SENSORS_SUPPORTED;
 static ipmi_reading_t *sensors_readings;
 static suscription_t  *sus;
 static consumption_t  *pool;
@@ -46,6 +47,7 @@ state_t energy_init(void **x)
     uint list_count = 0;
     char **list = NULL;
 
+	debug("energy_init");
     while (pthread_mutex_trylock(&lock));
     if (sensors_count) {
         goto leave;
@@ -59,6 +61,7 @@ state_t energy_init(void **x)
             opt_args[1] = (list_count > 1) ? atoi(list[1]): opt_args[1];
             opt_args[2] = (list_count > 2) ? atoi(list[2]): opt_args[2];
         }
+		debug("Sensor %s arg1 %s arg2 %s", list[0], (list_count > 1) ? list[1]:"no arg1", (list_count > 2) ? list[2]: "no arg2");
     }
     // Detecting sensors depending on hardware
     if (ipmi_sensors_find(sensor_env, &sensors, &sensors_count)) {
@@ -75,7 +78,11 @@ state_t energy_init(void **x)
         pthread_mutex_unlock(&lock);
         return_msg(EAR_ERROR, "No sensors found.");
     }
-    pool = calloc(sensors_count, sizeof(consumption_t));
+	if (sensors_count > data_size_sensors_count){
+        pthread_mutex_unlock(&lock);
+        return_msg(EAR_ERROR, "Too many sensors detected. Not supported");
+    }
+    pool = calloc(data_size_sensors_count, sizeof(consumption_t));
     // Monitoring
     if (opt[1]) {
         sus             = suscription();
@@ -87,6 +94,7 @@ leave:
     pthread_mutex_unlock(&lock);
     return s;
 }
+
 // clang-format on
 
 state_t energy_dispose(void **x)
@@ -115,6 +123,7 @@ static state_t energy_pool(void *data)
     double ftime;
     int s = 0;
 
+    debug("energy_pool");
     while (pthread_mutex_trylock(&lock))
         ;
     //
@@ -142,9 +151,13 @@ static state_t energy_pool(void *data)
         debug("pool->tstamp: %ld s, %ld ns", pool[s].timestamp.tv_sec, pool[s].timestamp.tv_nsec);
         debug("pool->energy: %lu mJ", pool[s].energy);
     }
+    for (s = sensors_count; s < data_size_sensors_count; s++) {
+        pool[s].samples = 0LLU;
+        pool[s].energy  = 0;
+    }
 leave:
     if (data != NULL) {
-        memcpy(data, pool, sizeof(consumption_t) * sensors_count);
+        memcpy(data, pool, sizeof(consumption_t) * data_size_sensors_count);
     }
     pthread_mutex_unlock(&lock);
     return st;
@@ -152,12 +165,19 @@ leave:
 
 state_t energy_dc_read(void *x, void *data)
 {
+    debug("energy_dc_read");
     return energy_pool(data);
 }
 
 state_t energy_datasize(size_t *size)
 {
-    *size = sizeof(consumption_t) * sensors_count;
+    *size = sizeof(consumption_t) * data_size_sensors_count;
+    return EAR_SUCCESS;
+}
+
+state_t energy_frequency(ulong *freq_us)
+{
+    *freq_us = 10000;
     return EAR_SUCCESS;
 }
 
@@ -169,15 +189,17 @@ state_t energy_units(uint *units)
 
 state_t energy_accumulated(ulong *energy_mj, void *data1, void *data2)
 {
+    debug("energy_accumulated");
     consumption_t *readings2 = (consumption_t *) data2;
     consumption_t *readings1 = (consumption_t *) data1;
     int s;
 
     *energy_mj = 0LU;
-    for (s = 0; s < sensors_count; ++s) {
-        if (readings2->samples != 0LLU && readings1->samples != 0LLU) {
+    for (s = 0; s < data_size_sensors_count; ++s) {
+        if (readings2[s].samples != 0LLU && readings1[s].samples != 0LLU) {
             *energy_mj += overflow_zeros_u64(readings2[s].energy, readings1[s].energy);
 #if SHOW_DEBUGS
+            debug("Sensor %d", s);
             double time_s =
                 (double) timestamp_fdiff(&readings2[s].timestamp, &readings1[s].timestamp, TIME_SECS, TIME_MSECS);
             debug("diff->energy: %lu mJ (%lu - %lu)", *energy_mj, readings2[s].energy, readings1[s].energy);
@@ -199,4 +221,14 @@ state_t energy_to_str(char *buffer, void *data)
 uint energy_data_is_null(void *data)
 {
     return ((consumption_t *) data)->energy == 0;
+}
+
+state_t energy_not_privileged_init()
+{
+    return EAR_SUCCESS;
+}
+
+uint energy_is_privileged()
+{
+    return 1;
 }

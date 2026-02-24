@@ -26,7 +26,8 @@ static temp_ops_t ops;
 
 void temp_load(topology_t *tp, uint force_api)
 {
-    while (pthread_mutex_trylock(&lock));
+    while (pthread_mutex_trylock(&lock))
+        ;
     if (is_loaded) {
         goto leave;
     }

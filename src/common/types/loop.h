@@ -88,4 +88,33 @@ void loop_serialize(serial_buffer_t *b, loop_t *loop);
 
 void loop_deserialize(serial_buffer_t *b, loop_t *loop);
 
+/**
+ * Creates a header string for loop data.
+ *
+ * @param header_dst A pointer to a character array where the header string will be stored.
+ * @param header_dst_size The size of the header_dst array in bytes.
+ * @param header_prefix An optional prefix string that will be prepended to the header.
+ * @param ts A flag indicating whether to include the timestamp filed in the header.
+ * @param num_gpus The number of GPUs used.
+ * @param single_column A flag indicating whether to use a single column for GPU statistics.
+ *
+ * @return EAR_SUCCESS if the header string was successfully created.
+ */
+state_t loop_create_header_str(char *header_dst, size_t header_dst_size, char *header_prefix, int ts, uint num_gpus,
+                               int single_column);
+
+/**
+ * Prints loop data to a file descriptor.
+ *
+ * @param fd The file descriptor to which the loop data will be written.
+ * @param loop A pointer to a loop_t structure containing the loop data.
+ * @param ts A flag indicating whether to include timestamps in the output.
+ * @param currtime The current timestamp.
+ * @param single_column A flag indicating whether to use a single column for GPU statistics.
+ * @param sep A separator character used to separate fields in the output.
+ *
+ * @return EAR_SUCCESS if the loop data was successfully printed, other error codes may be returned in case of errors.
+ */
+state_t loop_print_fd(int fd, loop_t *loop, int ts, ullong currtime, int single_column, char sep);
+
 #endif

@@ -15,7 +15,7 @@ void version_set(version_t *v, uint major, uint minor)
 {
     v->minor = minor;
     v->major = major;
-    v->hash = 0;
+    v->hash  = 0;
     v->hash  = (major << 16) | (minor);
     sprintf(v->str, "%u.%u", major, minor);
 }

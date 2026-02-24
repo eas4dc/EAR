@@ -76,7 +76,7 @@ core_OBJS = \
     $(SRCDIR)/common/utils/special.o \
     $(SRCDIR)/common/utils/stress.o \
     $(SRCDIR)/common/utils/sched_support.o
-
+    
 
 #    $(SRCDIR)/common/external/ear_external.o
 

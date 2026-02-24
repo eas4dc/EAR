@@ -368,7 +368,7 @@ int dynconf_red_pstates(uint p_states)
     settings_conf_t *dyn_conf;
     resched_t *resched_conf;
     uint def_pstate, max_pstate;
-    ulong new_def_freq, new_max_freq;
+    ulong new_def_freq, new_max_freq = 0;
     int variation = (int) p_states;
     for (i = 0; i <= max_context_created; i++) {
         if (current_ear_app[i] != NULL) {
@@ -889,20 +889,26 @@ state_t _dyncon_set_verbose(char *level, int32_t value)
         debug(#value " set to %s", value);                                                                             \
     }
 
-void dyncon_process_message(char *message)
+void dyncon_process_message(char *in_message)
 {
     char *type   = NULL;
     char *action = NULL;
     char *mode   = NULL;
     char *level  = NULL;
     char *values = NULL;
-    debug("received message %s", message);
+    debug("received message %s", in_message);
 
     char *key  = NULL;
     char *val  = NULL;
     char *ptr1 = NULL;
     char *ptr2 = NULL;
 
+    char *message = calloc(strlen(in_message) + 1, sizeof(char));
+    if (message == NULL) {
+        error("dyncon_process_message cannot allocate enough memory, skipping \"%s\"", in_message);
+        return;
+    }
+    memcpy(message, in_message, strlen(in_message));
     key = strtok_r(message, " ", &ptr1);
     while (key != NULL) {
         key = strtok_r(key, "=", &ptr2);
@@ -961,6 +967,7 @@ void dyncon_process_message(char *message)
     }
     if (int_values != NULL)
         free(int_values);
+    free(message);
 }
 
 state_t process_remote_requests(int clientfd)
@@ -1030,8 +1037,8 @@ state_t process_remote_requests(int clientfd)
             // do the end_jobs for the marked jobs
             if (num_contexts)
                 finish_pending_contexts(&my_eh_rapi);
-#if SHOW_DEBUGS
-            print_contexts_status();
+#if 0
+            //print_contexts_status();
 #endif
             verbose(VRAPI, "end_job command received %lu", command.my_req.end_job.jid);
             verbose(VRAPI, "*******************************************");

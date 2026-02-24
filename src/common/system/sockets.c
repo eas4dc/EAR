@@ -206,7 +206,7 @@ state_t sockets_close(socket_t *socket)
 
 state_t sockets_close_fd(int fd)
 {
-    if (fd > 0) {
+    if (fd >= 0) {
         close(fd);
     }
     return EAR_SUCCESS;
@@ -330,7 +330,6 @@ static state_t static_recv(int fd, char *buffer, ssize_t size, int block)
     ssize_t bytes_recv = 0;
     ssize_t bytes_acum = 0;
     int poll_ret       = 0;
-    int intents        = 0;
     int flags          = 0;
 
     if (!block) {
@@ -341,8 +340,8 @@ static state_t static_recv(int fd, char *buffer, ssize_t size, int block)
         if ((bytes_recv = recv(fd, (void *) &buffer[bytes_acum], bytes_left, flags)) == 0) {
             return_msg(EAR_ERROR, "Disconnected from socket");
         } else if (bytes_recv < 0) {
-            debug("fd '%d', %ld to add to %ld/%ld (intent: %d, errno: %d, strerrno: %s)", fd, bytes_recv,
-                  size - bytes_left, size, intents, errno, strerror(errno));
+            debug("fd '%d', %ld to add to %ld/%ld (errno: %d, strerrno: %s)", fd, bytes_recv, size - bytes_left, size,
+                  errno, strerror(errno));
             switch (errno) {
                 case EAGAIN:
                     if (block) {

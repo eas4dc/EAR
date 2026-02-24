@@ -84,7 +84,7 @@ For Slurm:
 \f[I]#SBATCH \-\-ear=on\f[R]
 
 module load mpi
-\
+\ 
 mkdir ear_metrics
 \f[I]# run application with ear\[aq]s default flags.\f[R]
 srun \-n $SLURM_NTASKS application
@@ -103,7 +103,7 @@ For PBS:
 \f[I]#PBS \-v \[dq]EAR=ON,EAR_USER_DB=ear_metrics/app_metrics\[dq]\f[R]
 
 module load mpi
-\
+\ 
 mkdir ear_metrics
 
 \f[I]# run application and store ear metrics in ear_metrics/app_metrics.*.csv\f[R]
@@ -439,10 +439,10 @@ Using \f[I]eacct\f[R] to retrieve loop signatures:
 [user\[at]host bin]$ module load ear
 [user\[at]host bin]$ eacct \-j 3180887 \-r
  JOB\-STEP NODE ID \  DATE \  \  POWER(W) GBS/TPI CPI \  GFLOPS/W TIME(s) AVG_F/F \ IMC_F IO(MBS) MPI% G\-POWER(T/U) \ G\-FREQ G\-UTIL(G/MEM)
-3180887\-0 \  gs02r3b66 09:08:12 825.6 \  \ 156/17 \ 0.277 0.619 \  \ 1.013 \  2.52/2.0 1.81 \ 0.0 \  \  4.2 \ 0.0 \  / \  0.0 0.00 \  0%/0% \  \  \  \
-3180887\-0 \  gs02r3b66 09:08:24 969.7 \  \ 157/17 \ 0.277 0.527 \  \ 1.240 \  2.51/2.0 1.81 \ 0.0 \  \  3.6 \ 0.0 \  / \  0.0 0.00 \  0%/0% \  \  \  \
-3180887\-0 \  gs02r3b66 09:08:47 906.7 \  \ 157/17 \ 0.277 0.563 \  \ 1.127 \  2.51/2.0 1.81 \ 0.0 \  \  3.8 \ 0.0 \  / \  0.0 0.00 \  0%/0% \  \  \  \
-3180887\-0 \  gs02r3b66 09:09:09 909.1 \  \ 157/17 \ 0.277 0.561 \  \ 1.126 \  2.51/2.0 1.81 \ 0.0 \  \  3.7 \ 0.0 \  / \  0.0 0.00 \  0%/0%
+3180887\-0 \  gs02r3b66 09:08:12 825.6 \  \ 156/17 \ 0.277 0.619 \  \ 1.013 \  2.52/2.0 1.81 \ 0.0 \  \  4.2 \ 0.0 \  / \  0.0 0.00 \  0%/0% \  \  \  \ 
+3180887\-0 \  gs02r3b66 09:08:24 969.7 \  \ 157/17 \ 0.277 0.527 \  \ 1.240 \  2.51/2.0 1.81 \ 0.0 \  \  3.6 \ 0.0 \  / \  0.0 0.00 \  0%/0% \  \  \  \ 
+3180887\-0 \  gs02r3b66 09:08:47 906.7 \  \ 157/17 \ 0.277 0.563 \  \ 1.127 \  2.51/2.0 1.81 \ 0.0 \  \  3.8 \ 0.0 \  / \  0.0 0.00 \  0%/0% \  \  \  \ 
+3180887\-0 \  gs02r3b66 09:09:09 909.1 \  \ 157/17 \ 0.277 0.561 \  \ 1.126 \  2.51/2.0 1.81 \ 0.0 \  \  3.7 \ 0.0 \  / \  0.0 0.00 \  0%/0% 
 .EE
 .PP
 Using \f[I]eacct\f[R] to retrieve job signature:
@@ -450,6 +450,6 @@ Using \f[I]eacct\f[R] to retrieve job signature:
 .EX
 [user\[at]host bin]$ eacct \-j 3180887
  JOB\-STEP USER \  \  \ APPLICATION POLICY NODES AVG/DEF/IMC(GHz) TIME(s) POWER(W) GBS \  \ CPI \ ENERGY(J) GFLOPS/W IO(MBs) MPI% G\-POW (T/U) G\-FREQ G\-UTIL(G/MEM)
-3180887\-sb \  user \  \  \  \  \  \ test \  \  \  \ NP \  \  1 \  \  2.61/2.00/\-\-\- \  \ 120.00 \ 874.49 \  \-\-\- \  \ \-\-\- \ 104939 \  \ \-\-\- \  \  \ \-\-\- \  \  \-\-\- \ \-\-\- \  \  \  \  \-\-\- \  \ \-\-\- \  \  \  \  \
+3180887\-sb \  user \  \  \  \  \  \ test \  \  \  \ NP \  \  1 \  \  2.61/2.00/\-\-\- \  \ 120.00 \ 874.49 \  \-\-\- \  \ \-\-\- \ 104939 \  \ \-\-\- \  \  \ \-\-\- \  \  \-\-\- \ \-\-\- \  \  \  \  \-\-\- \  \ \-\-\- \  \  \  \  \ 
 3180887\-0 \  \ user \  \  \  \ test \  \  \  \ MO \  \  1 \  \  2.52/2.00/1.81 \  97.72 \  913.51 \  157.12 0.28 89268 \  \  0.5578 \  0.0 \  \  3.7 \ 0.00/\-\-\- \  \ \-\-\- \  \ \-\-\-
 .EE

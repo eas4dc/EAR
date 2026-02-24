@@ -28,17 +28,23 @@ int new_service(char *service)
     verbose(0, "Checking %s file", service_name);
     pid = getpid();
 
-    if ((fd = open(service_name, O_RDWR)) >= 0) {
-        write(fd, &pid, sizeof(int));
-        must_recover = 1;
+    if ((fd = open(service_name, O_RDWR | O_NOFOLLOW)) >= 0) {
+        if (write(fd, &pid, sizeof(int)) < 0) {
+            error("Writing PID service file: %d", errno);
+        } else {
+            must_recover = 1;
+        }
         close(fd);
     } else {
-        verbose(1, "%s file doesn't exist,creating it", service_name);
-        fd = open(service_name, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+        verbose(1, "%s file doesn't exist, creating it.", service_name);
+        fd = open(service_name, O_WRONLY | O_CREAT | O_NOFOLLOW, S_IRUSR | S_IWUSR);
         if (fd < 0) {
             verbose(0, "Error, %s file cannot be created (%s)", service_name, strerror(errno));
         } else {
-            write(fd, &pid, sizeof(int));
+            chmod(service_name, S_IRUSR | S_IWUSR);
+            if (write(fd, &pid, sizeof(int)) < 0) {
+                error("Writing PID service file: %d", errno);
+            }
             close(fd);
         }
     }

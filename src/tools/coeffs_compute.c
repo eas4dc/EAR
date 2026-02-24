@@ -555,6 +555,7 @@ static state_t pstate_sort(application_t *app_list, uint app_count, pstate_t **p
     return EAR_SUCCESS;
 }
 
+#if DB_MYSQL || DB_PSQL
 static state_t db_query(int argc, char *argv[], cluster_conf_t *conf, char *host_name, application_t **apps,
                         uint *apps_count)
 {
@@ -633,6 +634,7 @@ static state_t db_query(int argc, char *argv[], cluster_conf_t *conf, char *host
 
     return EAR_SUCCESS;
 }
+#endif
 
 static state_t hostname(char *name, char *alias)
 {
@@ -798,7 +800,9 @@ int main(int argc, char *argv[])
     }
 
     state_assert(s, configuration(argc, argv, &conf, &node, host_name, &fd), return 0);
+#if DB_MYSQL || DB_PSQL
     state_assert(s, db_query(argc, argv, &conf, host_name, &app_list, &app_count), return 0);
+#endif
 #if 0
 	state_assert(s, topology_init(&topo),                                           return 0);
 	state_assert(s, mgt_cpufreq_load(&topo),                                        return 0); 

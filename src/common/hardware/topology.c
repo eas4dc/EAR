@@ -109,12 +109,12 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
     if ((fd = open(path, F_RD)) >= 0) {
         do {
             // aux2: number of bytes read. aux1: total bytes read.
-            aux2  = pread(fd, (void *) &buffer[aux1], buff_size - aux1, aux1);
+            aux2 = pread(fd, (void *) &buffer[aux1], buff_size - aux1, aux1);
             aux1 += ((aux2 > 0) ? aux2 : 0);
         } while (aux2 > 0 && aux1 < buff_size);
         // Parsing
         buffer[aux1] = '\0';
-        char *tok = strtok(buffer, ",");
+        char *tok    = strtok(buffer, ",");
         // core_id = thread from argument.
         // sibling_id = detected sibling (we are setting just one)
         while (tok != NULL) {
@@ -147,7 +147,7 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
             aux1 += (aux2 > 0 ? aux2 : 0);
         } while (aux2 > 0 && aux1 < buff_size);
         // Parsing
-        buffer[aux1] = '\0';
+        buffer[aux1]                 = '\0';
         topo->cpus[thread].socket_id = atoi(buffer);
         close(fd);
     } else {
@@ -172,7 +172,7 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
                 aux1 += (aux2 > 0 ? aux2 : 0);
             } while (aux2 > 0 && aux1 < buff_size);
             buffer[aux1] = '\0';
-            aux3 = atoi(buffer);
+            aux3         = atoi(buffer);
             close(fd);
         } else {
             // debug("Could not open '%s': %s", path, strerror(errno));
@@ -188,7 +188,7 @@ static state_t topology_init_thread(topology_t *topo, uint thread)
                 aux2 = pread(fd, (void *) &buffer[aux1], buff_size - aux1, aux1);
                 aux1 += (aux2 > 0 ? aux2 : 0);
             } while (aux2 > 0 && aux1 < buff_size);
-            buffer[aux1] = '\0';
+            buffer[aux1]                  = '\0';
             topo->cpus[thread].l[aux3].id = (atoi(buffer));
             close(fd);
         } else {

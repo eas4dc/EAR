@@ -12,16 +12,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - development Updated AMD with changes for ZEN3, ZEN4 and ZEN5.
 
+## [6.2.0] - 2026-02-24
+
+### Added
+- Add m4 files for curl, jansson and microhhtpd.
+- EAROwner added.
+
+### Changed
+- EARD security fixes.
+- Improve file permission and ownership.
+- `erun` command sets JobID to 1 by default.
+- Default CFLAGS changed to add `-Wall -Werror -O2 -g` to improve code quality.
+- Lighter CI pipeline.
+
+### Fixed
+- Prevent calling `mgt\_cpufreq\_governor\_available` when the symbol is NULL.
+- Fix multiple opened fd checks that might be zero.
+- Fixed setuid security issues in ereport, eacct, ear-info and econtrol.
+- EARD rAPI: Generic message is not propagating properly.
+- IPMI sensors.
+- Fixed "Policies default PState is overwritten in EARD's main function."
+
 ## [6.1.0] - 2025-12-18
 
-## Added
+### Added
 - Add the `EAR_ENERGY_ARG` envvar into `energy_node/node/ipmi_sensors.c`.
 
-## Changed
+### Changed
 - CI pipelines.
 - pread limits.
 
-## Fixed
+### Fixed
 - Serialize/Deserialize at dummy cluster\_conf.
 - Resolve "Error found in HWMON class in ENERGY CPU".
 - EARD local API timeouts.
@@ -79,6 +100,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Initialize all arrays before using them.
 - v6.0 Improving earl-eard connect to avoid blocking.
 - v6.0 Fixed socket count in acpi\_power.
+
+# 5.2.4 - 2026-02-03
+
+### Changed
+
+- Switch JOB_ID to 1 in ERUN.
+
+### Fixed
+
+- Prevent calling mgt\_cpufreq\_governor\_available when the symbol is NULL.
+- EAR owner/permission files fixes.
+- Check whether opened fd is >= 0.
+- Fixed setuid security issues in ereport, eacct, ear-info and econtrol.
+- Resolve "Policies default PState is overwritten in EARD's main function".
 
 ## 5.2.3 - 2025-12-18
 

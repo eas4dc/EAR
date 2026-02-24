@@ -11,7 +11,7 @@
 #include <common/system/monitor.h>
 #include <metrics/energy/energy_node.h>
 
-// gcc -I ../../ -o test energy_node_test.c ../libmetrics.a ../../common/libcommon.a -ldl -lpthread -rdynamic
+// gcc -I ../../ -o test energy_node_test.c ../libmetrics.a ../../common/libcommon.a -ldl -lpthread -rdynamic -lm
 // sudo ./test /ear_install_path/lib/plugins energy_inm_power.so
 
 #define SHOW_WARNINGS 1
@@ -39,7 +39,16 @@ int main(int argc, char *argv[])
 
     monitor_init();
 
-    if (state_fail(energy_init(&conf, &eh))) {
+    char energy_plugin[1024];
+    sprintf(energy_plugin, "%s/%s", conf.install.dir_plug, conf.install.obj_ener);
+
+    printf("Loading plugin %s \n", energy_plugin);
+    if (state_fail(energy_load(energy_plugin))) {
+        printf("energy load for plugin '%s' failure\n", energy_plugin);
+        return EXIT_FAILURE;
+    }
+
+    if (state_fail(energy_init(&eh))) {
         printf("energy_init failed: %s", state_msg);
         return EXIT_FAILURE;
     }

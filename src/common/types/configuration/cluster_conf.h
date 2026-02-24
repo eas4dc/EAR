@@ -87,6 +87,9 @@ typedef struct cluster_conf {
     char **auth_accounts;
     uint admin_users_count;
     char **admin_users;
+    /**@{ EAR owner of folders and files for
+     * no specific users */
+    char ear_owner[GENERIC_NAME];
     /**@}*/
     /**@{ Special cases. */
     uint min_time_perf_acc;
@@ -250,7 +253,8 @@ state_t serialize_cluster_conf(cluster_conf_t *conf, char **ear_conf_buf, size_t
 
 /** ear_conf_buf points to a serialized region. conf is the output. Memory is not internally allocated for it
  * \param src_version version_t of the serialized region. */
-state_t deserialize_cluster_conf(cluster_conf_t *conf, char *ear_conf_buf, size_t conf_size, const version_t *src_version);
+state_t deserialize_cluster_conf(cluster_conf_t *conf, char *ear_conf_buf, size_t conf_size,
+                                 const version_t *src_version);
 
 /** Checks if a tag with a given name is defined in ear.conf and returns its id if it exists */
 int tag_id_exists(cluster_conf_t *conf, char *tag);

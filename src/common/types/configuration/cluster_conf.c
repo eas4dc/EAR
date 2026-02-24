@@ -668,7 +668,7 @@ int get_ear_conf_path(char *ear_conf_path)
         return EAR_ERROR;
     sprintf(my_path, "%s/ear/ear.conf", my_etc);
     fd = open(my_path, O_RDONLY);
-    if (fd > 0) {
+    if (fd >= 0) {
         strcpy(ear_conf_path, my_path);
         close(fd);
         return EAR_SUCCESS;
@@ -687,7 +687,7 @@ int get_eardbd_conf_path(char *ear_conf_path)
         return EAR_ERROR;
     sprintf(my_path, "%s/ear/eardbd.conf", my_etc);
     fd = open(my_path, O_RDONLY);
-    if (fd > 0) {
+    if (fd >= 0) {
         strcpy(ear_conf_path, my_path);
         close(fd);
         return EAR_SUCCESS;

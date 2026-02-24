@@ -95,7 +95,8 @@ void print_job_fd(int fd, job_t *job)
             buf_start, buf_end, job->start_mpi_time, job->end_mpi_time, job->policy, job->th, job->procs, job->type,
             job->def_f);
 #endif
-    write(fd, job_buff, strlen(job_buff));
+    if (write(fd, job_buff, strlen(job_buff)) < 0)
+        return;
 }
 
 /** Reports the content of the job into the stderr*/
@@ -115,17 +116,6 @@ void report_job(job_t *job)
             "start time %ld end time %ld start mpi %ld end mpi %ld policy %s th "
             "%lf def_f %lu\n",
             job->start_time, job->end_time, job->start_mpi_time, job->end_mpi_time, job->policy, job->th, job->def_f);
-}
-
-void print_job_fd_binary(int fd, job_t *job)
-{
-    write(fd, job, sizeof(job_t));
-}
-
-/** Memory is already allocated for the job */
-void read_job_fd_binary(int fd, job_t *job)
-{
-    read(fd, job, sizeof(job_t));
 }
 
 void job_serialize(serial_buffer_t *b, job_t *job)

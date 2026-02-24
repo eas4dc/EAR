@@ -10,12 +10,12 @@
 
 // #define SHOW_DEBUGS 1
 
+#include <common/config.h>
 #include <common/sizes.h>
 #include <common/system/symplug.h>
 #include <library/common/utils.h>
 #include <library/common/verbose_lib.h>
 #include <library/models/energy_model.h>
-#include <common/config.h>
 
 #define freturn(call, ...)                                                                                             \
     {                                                                                                                  \

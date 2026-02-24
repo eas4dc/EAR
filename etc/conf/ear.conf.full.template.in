@@ -203,6 +203,7 @@ Verbose=0
 # If compute nodes must be accessed from login nodes with a network different than default,
 # and can be accesed using a expension, uncommmet next line and define 'netext' accordingly. 
 #NetworkExtension=netext
+#EAROwner=@USER@
 
 # ------------------------------------------------------------------------------------------------
 # Authorized Users
@@ -230,8 +231,8 @@ AdminUsers=root
 # At least a default tag is mandatory to be included in this file for a cluster to work properly.
 #
 #
-# List of accepted options is: max_avx512(GHz), max_avx2(GHz), max_power(W), min_power(W), error_power(W), coeffs(filename),
-# powercap(W), powercap_plugin(filename), energy_plugin(filename), gpu_powercap_plugin(filename), max_powercap(W), gpu_def_freq(KHz),
+# List of accepted options is: max_avx512(GHz), max_avx2(GHz), max_power(W), min_power(W), error_power(W), coeffs(filename), 
+# powercap(W), powercap_plugin(filename), energy_plugin(filename), gpu_powercap_plugin(filename), max_powercap(W), gpu_def_freq(KHz), 
 # cpu_max_pstate(0..max_pstate), imc_max_pstate(0..max_imc_pstate), energy_model(filename)
 # imc_max_freq, imc_min_freq, idle_governor(def default), idle_pstate, policy, cpu_temp_cap, gpu_temp_cap
 # If gpu_def_freq is 0, GPU frequency is not set at job init/end.
@@ -240,7 +241,7 @@ AdminUsers=root
 # minimum between the maximum permitted GPU frequency and gpu_def_freq.
 #
 #
-Tag=CPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default powercap=0 powercap_plugin=dvfs.so energy_plugin=energy_nm.so
+Tag=CPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default powercap=0 powercap_plugin=dvfs.so energy_plugin=energy_nm.so 
 Tag=GPU max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default powercap=0 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000 policy=optimize
 
 #---------------------------------------------------------------------------------------------------
@@ -308,7 +309,7 @@ Island=0 Nodes=node12[01-80] tag=GPU
 
 
 # Will use default tag. 
-Island=1 Nodes=node11[01-80] EARDBD_IP=node1181 EARDBD_MIRROR_IP=node1182
+Island=1 Nodes=node11[01-80] EARDBD_IP=node1181 EARDBD_MIRROR_IP=node1182 
 
 
 # --------------------------------------------------------------------------------------------------

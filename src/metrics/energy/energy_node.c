@@ -7,6 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
+/* clang-format off */
 
 //#define SHOW_DEBUGS 1
 

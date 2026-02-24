@@ -18,6 +18,7 @@
 #include <metrics/gpu/archs/cupti.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #define MET_N 2
@@ -131,7 +132,7 @@ static int aux_metrics_build(CUmetric *metrics)
         metrics_count = MET_N;
     }
     for (i = 0; i < metrics_count; ++i) {
-        strncpy(metrics[i].name, matrix[i], sizeof(metrics[i].name) - 1);
+        snprintf(metrics[i].name, sizeof(metrics[i].name) - 1, "%s", matrix[i]);
         debug("MET%d: '%s'", i, metrics[i].name);
         if (!strcmp(matrix[i], "flop_count_dp")) {
             metrics[i].num = METRIC_FLOPS_DP;

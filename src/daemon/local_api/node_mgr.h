@@ -36,8 +36,9 @@ typedef struct ear_njob {
  * Nodelist is internally allocated. Must be used by the EARL. */
 state_t nodemgr_job_init(char *tmp, ear_njob_t **nodelist);
 
-/** Created the lock and the shared region. To be used by EARD. */
-state_t nodemgr_server_init(char *tmp, ear_njob_t **nodelist);
+/** Created the lock and the shared region. To be used by EARD.
+ * This area is world-writable (0666) to allow cross-user job registration. */
+state_t nodemgr_server_init(char *tmp, ear_njob_t **nodelist, char *ear_owner);
 
 /** Computes the number of jobs attached. */
 state_t nodemgr_get_num_jobs_attached(uint *num_jobs);

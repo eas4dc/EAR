@@ -34,7 +34,12 @@ endif
 ener_PATH = $(DESTDIR)/lib/plugins/energy
 ener_PERM = 0775
 ener_DEPS = \
+	$(SRCDIR)/metrics/common/ipmi.o \
+	$(SRCDIR)/metrics/common/ipmi_driver.o\
+	$(SRCDIR)/metrics/common/ipmi_driver_parsing.o \
+	$(SRCDIR)/metrics/common/ipmi_driver_frusdr.o \
     $(SRCDIR)/common/libcommon.a
+
 rapl_DEPS = \
     $(SRCDIR)/metrics/common/omsr.o \
     $(SRCDIR)/metrics/energy/cpu/intel63.o

@@ -20,7 +20,7 @@ static uint cpus_count;
 state_t bwidth_bypass_load(topology_t *tp, bwidth_ops_t *ops)
 {
     return EAR_ERROR;
-#if 0
+#if 0 
 	state_t s;
 	// Pending: test if is something loaded
 	if (state_fail(s = cache_load(tp, NO_EARD))) {

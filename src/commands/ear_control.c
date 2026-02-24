@@ -120,7 +120,7 @@ int generate_node_names_from_list(cluster_conf_t *my_cluster_conf, ip_table_t **
     ip_table_t *new_ips = calloc(num_hosts, sizeof(ip_table_t));
     for (int32_t i = 0; i < num_hosts; i++) {
         my_node_conf_t *aux_node_conf;
-        strncpy(new_ips[i].name, hosts[i], strlen(hosts[i]));
+        snprintf(new_ips[i].name, strlen(hosts[i]), "%s", hosts[i]);
         aux_node_conf = get_my_node_conf(my_cluster_conf, hosts[i]);
         if (aux_node_conf == NULL)
             fprintf(stderr, "Error reading node %s configuration\n", hosts[i]);
@@ -203,14 +203,14 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
             printf("  %6s  %5s  %2s", "policy", "pfreq", "th");
         printf("\n");
     }
-    char temp[GENERIC_NAME];
-    char final[GENERIC_NAME];
+    char temp[GENERIC_NAME]  = {0};
+    char final[GENERIC_NAME] = {0};
     char step_id[12];
     for (i = 0; i < num_ips; i++) {
         if (ips[i].counter) {
             if (mode != ERR_ONLY) {
                 printf("%10s\t", ips[i].name);
-                if (ips[i].step_id == BATCH_STEP)
+                if ((uint32_t) ips[i].step_id == BATCH_STEP)
                     sprintf(step_id, "%-8s", "sbatch");
                 else if (ips[i].step_id == INTERACT_STEP)
                     sprintf(step_id, "%-8s", "interact");
@@ -555,7 +555,7 @@ int eardbd_status_all(cluster_conf_t *conf, eardbd_table_t **edbstatus)
                 break;
             }
             if (!found) {
-                strncpy(aux_t[count].name, conf->islands[i].db_ips[j], EARDBD_LEN);
+                strncpy(aux_t[count].name, conf->islands[i].db_ips[j], EARDBD_LEN - 1);
                 count++;
             }
         }
@@ -702,8 +702,8 @@ void process_app_status(int num_status, app_status_t *status, char is_master)
 void generate_ip(ip_table_t *ips, char *node_name)
 {
     my_node_conf_t *aux_node_conf;
-    strncpy(ips[0].name, node_name,
-            strlen(node_name) - strlen(my_cluster_conf.net_ext)); // remove net_ext from the actual name
+    snprintf(ips[0].name, strlen(node_name) - strlen(my_cluster_conf.net_ext), "%s",
+             node_name); // remove net_ext from the actual name
     aux_node_conf = get_my_node_conf(&my_cluster_conf, node_name);
     if (aux_node_conf == NULL)
         fprintf(stderr, "Error reading node %s configuration\n", node_name);
@@ -820,18 +820,23 @@ int main(int argc, char *argv[])
     if (argc < 2)
         usage(argv[0]);
 
-    if (get_ear_conf_path(path_name) == EAR_ERROR) {
-        printf("Error getting ear.conf path\n"); // error
-        exit(1);
+    if (state_fail(get_ear_conf_path(path_name))) {
+        printf("Error getting ear.conf path, load the ear module\n");
+        return EXIT_FAILURE;
     }
-
-    if (read_cluster_conf(path_name, &my_cluster_conf) != EAR_SUCCESS)
-        printf("ERROR reading cluster configuration\n");
+    if (state_fail(read_cluster_conf(path_name, &my_cluster_conf))) {
+        printf("Impossible to read ear.conf\n");
+        return EXIT_FAILURE;
+    }
+    if (state_fail(user_set_euid(UID_REAL))) {
+        printf("Effective user can not be switch to real: %s\n", state_msg);
+        return EXIT_FAILURE;
+    }
 
     if (getuid() != 0 && !is_privileged_command(&my_cluster_conf)) {
         printf("This command can only be executed by privileged users. Contact your admin for more info.\n");
         free_cluster_conf(&my_cluster_conf);
-        exit(1); // error
+        exit(EXIT_FAILURE);
     }
 
     int option_idx                      = 0;
@@ -1191,7 +1196,7 @@ int main(int argc, char *argv[])
         mail_fd = open(mail_filename, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         if (mail_fd < 1) {
             printf("Error creating mail file (%s), exiting\n", mail_filename);
-            exit(0);
+            exit(EXIT_FAILURE);
         }
         if (dup2(mail_fd, STDOUT_FILENO) < 0) {
             printf("Error duplicating output: %s\n", strerror(errno));
@@ -1259,7 +1264,7 @@ int main(int argc, char *argv[])
                     break;
 #if 0
 				case EAR_TYPE_FULL_STATUS:
-					if ((num_status = ear_node_get_status(&my_cluster_conf, &status)) != 1)
+					if ((num_status = ear_node_get_status(&my_cluster_conf, &status)) != 1) 
 						printf("Error doing status for node %s, returned (%d)\n", node_name, num_status);
 					process_single_status(num_status, status, node_name, FULL_STATUS);
 					break;

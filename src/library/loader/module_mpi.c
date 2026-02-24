@@ -7,6 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
+/* clang-format off */
 
 #define _GNU_SOURCE
 #include <common/config.h>

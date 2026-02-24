@@ -1,4 +1,3 @@
-/* *INDENT-OFF* */
 /***************************************************************************
  * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
  *
@@ -9,6 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+#include <limits.h>
 #include <semaphore.h>
 #include <stdio.h>
 
@@ -28,8 +28,16 @@ static ullong my_time = 0;
 static uint must_report;
 static sem_t *report_csv_sem_app;
 static sem_t *report_csv_sem_loop;
-static char sem_file_app_path[1024];
-static char sem_file_loop_path[1024];
+/*  According to sem_overview(7):
+ *  named semaphore is identified by a name of the form
+    /somename; that is, a null-terminated string of up to
+    NAME_MAX-4 (i.e., 251) characters consisting of an initial
+    slash, followed by one or more characters, none of which
+    are slashes.  Two processes can operate on the same named
+    semaphore by passing the same name to sem_open(3).
+ */
+static char sem_file_app_path[NAME_MAX - 4];
+static char sem_file_loop_path[NAME_MAX - 4];
 static uint current_ID  = 0;
 static uint sem_created = 0;
 static char nodename[128];
@@ -37,8 +45,8 @@ static char nodename[128];
 static void create_semaphore(uint ID, char *node)
 {
     /* This sem avoid simultaneous access to files */
-    xsnprintf(sem_file_app_path, sizeof(sem_file_app_path), "%s.sem_app", node);
-    xsnprintf(sem_file_loop_path, sizeof(sem_file_loop_path), "%s.sem_loop", node);
+    xsnprintf(sem_file_app_path, sizeof(sem_file_app_path), "/%s.%u.sem_app", node, ID);
+    xsnprintf(sem_file_loop_path, sizeof(sem_file_loop_path), "/%s.%u.sem_loop", node, ID);
     debug("Using sem_app %s", sem_file_app_path);
     debug("Using sem_loop %s", sem_file_loop_path);
 
@@ -50,13 +58,14 @@ static void create_semaphore(uint ID, char *node)
     if (report_csv_sem_loop == SEM_FAILED) {
         error("Creating sempahore %s (%s)", sem_file_loop_path, strerror(errno));
     }
-#if 0
+#if 0 
     if ((report_csv_sem_app == SEM_FAILED) || (report_csv_sem_loop == SEM_FAILED)){
       printf("CSV app (%s) or loop (%s) failed\n", sem_file_app_path, sem_file_loop_path);
     }else{
       printf("CSV app (%s) and loop (%s) success\n", sem_file_app_path, sem_file_loop_path);
     }
 #endif
+
     current_ID  = ID;
     sem_created = 1;
 }
@@ -81,13 +90,14 @@ state_t report_init(report_id_t *id, cluster_conf_t *cconf)
 
     snprintf(csv_log_file, sizeof(csv_log_file) - 1, "%s_%s", (csv_log_file_env) ? csv_log_file_env : "ear", nodename);
     strncpy(csv_loop_log_file, csv_log_file, sizeof(csv_log_file) - 1);
+    csv_loop_log_file[sizeof(csv_log_file) - 1] = '\0';
 
     strncat(csv_log_file, "_apps.csv", sizeof(csv_log_file) - strlen(csv_log_file) - 1);
     strncat(csv_loop_log_file, "_loops.csv", sizeof(csv_loop_log_file) - strlen(csv_loop_log_file) - 1);
 
     my_time = timestamp_getconvert(TIME_SECS);
 
-    /* We set to 0 to be sure the semaphore will be created even when the process is created with a fork */
+    /* We set to 0 to be sure the semaphore will be created even when the process is created with a fork. */
     sem_created = 0;
 
     return EAR_SUCCESS;
@@ -156,6 +166,9 @@ state_t report_dispose(report_id_t *id)
     if (sem_created) {
         sem_close(report_csv_sem_app);
         sem_close(report_csv_sem_loop);
+
+        sem_unlink(sem_file_app_path);
+        sem_unlink(sem_file_loop_path);
     }
     current_ID  = 0;
     sem_created = 0;

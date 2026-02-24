@@ -31,7 +31,7 @@ int get_ear_external_path(char *tmp, uint ID, char *path)
     return EAR_SUCCESS;
 }
 
-ear_mgt_t *create_ear_external_shared_area(char *path)
+ear_mgt_t *create_ear_external_shared_area(char *path, char *owner)
 {
     debug("Creating third party shared area in path %s...", path);
 
@@ -39,7 +39,7 @@ ear_mgt_t *create_ear_external_shared_area(char *path)
     mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
 
     ear_mgt_t mgt;
-    return (ear_mgt_t *) create_shared_area(path, perms, (char *) &mgt, sizeof(ear_mgt_t), &fd_resched, 1);
+    return (ear_mgt_t *) create_shared_area(path, perms, (char *) &mgt, sizeof(ear_mgt_t), &fd_resched, 1, owner);
 }
 
 ear_mgt_t *attach_ear_external_shared_area(char *path)

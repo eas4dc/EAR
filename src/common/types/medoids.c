@@ -15,7 +15,7 @@
  * and COPYING.EPL files.
  */
 
-#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 #include <common/config.h>
 #include <common/output/debug.h>
 #include <common/output/verbose.h>
@@ -32,6 +32,7 @@ static void create_filename(char *filename, char *path, char *prefix, char *arch
 
 void medoids_print(medoids_t *phases)
 {
+#if SHOW_DEBUGS
     double *medoid = phases->cpu_bound;
 
     debug("K-medoids data: cpu-bound medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf", CPU_BOUND,
@@ -44,6 +45,7 @@ void medoids_print(medoids_t *phases)
     medoid = phases->mix;
     debug("K-medoids data: mix medoid id -> %u cpi -> %lf tpi -> %lf gbs -> %lf gflops -> %lf", MIX, medoid[0],
           medoid[1], medoid[2], medoid[3]);
+#endif
 }
 
 #if 0

@@ -11,6 +11,8 @@
 #ifndef MANAGEMENT_CPUPOW_H
 #define MANAGEMENT_CPUPOW_H
 
+/* clang-format off */
+
 #include <common/types.h>
 #include <common/states.h>
 #include <common/hardware/topology.h>

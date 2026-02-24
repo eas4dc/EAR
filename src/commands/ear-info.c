@@ -29,7 +29,7 @@ void Usage(char *cprog)
            "\t--node-conf[=nodename]\n"
            "\t--help\n",
            cprog);
-    exit(0);
+    exit(EXIT_FAILURE);
 }
 
 void print_value(char *format, char *env, int def)
@@ -79,12 +79,19 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (get_ear_conf_path(ear_path) == EAR_ERROR) {
-        printf("Error getting ear.conf path. Is the ear module loaded?\n");
-        exit(0);
+    if (state_fail(get_ear_conf_path(ear_path))) {
+        printf("Error getting ear.conf path, load the ear module\n");
+        return EXIT_FAILURE;
+    }
+    if (state_fail(read_cluster_conf(ear_path, &my_cluster))) {
+        printf("Impossible to read ear.conf\n");
+        return EXIT_FAILURE;
+    }
+    if (state_fail(user_set_euid(UID_REAL))) {
+        printf("Effective user can not be switch to real: %s\n", state_msg);
+        return EXIT_FAILURE;
     }
 
-    read_cluster_conf(ear_path, &my_cluster);
     version_to_str(ver);
     printf("EAR version %s\n", ver);
     printf("Max CPUS supported: %d\n", MAX_CPUS_SUPPORTED);
@@ -232,5 +239,5 @@ int main(int argc, char *argv[])
 
     printf("............................................\n");
 
-    return 0;
+    return EXIT_SUCCESS;
 }

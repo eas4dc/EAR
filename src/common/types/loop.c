@@ -175,6 +175,12 @@ int append_loop_text_file(char *path, loop_t *loop, job_t *job, int add_header, 
 
 int create_loop_header(char *header, char *path, int ts, uint num_gpus, int single_column)
 {
+    int fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        debug("File %s could not be opened: (%d) %s.", path, errno, strerror(errno));
+        return EAR_ERROR;
+    }
+
 #if WF_SUPPORT
     char *HEADER_JOB = "JOBID;STEPID;APPID";
 #else
@@ -243,6 +249,7 @@ int create_loop_header(char *header, char *path, int ts, uint num_gpus, int sing
     if (ear_file_is_regular(path)) {
         debug("%s is a regular file", path);
         free(HEADER);
+        close(fd);
         return EAR_SUCCESS;
     }
 
@@ -273,17 +280,9 @@ int create_loop_header(char *header, char *path, int ts, uint num_gpus, int sing
         strncat(HEADER, HEADER_TS, header_len - strlen(HEADER) - 1);
     }
 
-    int fd = open(path, OPTIONS, PERMISSION);
-    if (fd < 0) {
-        debug("File %s could not be opened: %d", path, errno);
-        free(HEADER);
-        return EAR_ERROR;
-    }
-
     int ret = dprintf(fd, "%s\n", HEADER);
 
     free(HEADER);
-
     close(fd);
 
     if (ret < 0) {
@@ -330,7 +329,7 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop, int ts, ul
     }
 
     int fd;
-    fd = open(path, O_WRONLY | O_APPEND);
+    fd = open(path, O_WRONLY | O_APPEND | O_CLOEXEC);
     if (fd < 0) {
         error("Couldn't open loop file: %d", errno);
         return EAR_ERROR;
@@ -363,6 +362,34 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop, int ts, ul
     return EAR_SUCCESS;
 }
 
+state_t loop_print_fd(int fd, loop_t *loop, int ts, ullong currtime, int single_column, char sep)
+{
+    if (fd < 0 || !loop) {
+        return EAR_ERROR;
+    }
+
+#if WF_SUPPORT
+    dprintf(fd, "%lu;%lu;%lu;", loop->jid, loop->step_id, loop->local_id);
+#else
+    dprintf(fd, "%lu;%lu;", loop->jid, loop->step_id);
+#endif
+    dprintf(fd, "%s;", loop->node_id);
+    signature_print_fd(fd, &loop->signature, 1, single_column, sep);
+    print_loop_id_fd(fd, &loop->id);
+    if (ts) {
+        struct tm *current_t;
+        char s[256];
+        current_t = localtime((time_t *) &loop->total_iterations);
+        strftime(s, 256, "%d-%m-%Y %H:%M:%S", current_t);
+
+        dprintf(fd, "%lu;%llu;%s", loop->total_iterations, currtime, s);
+    } else {
+        dprintf(fd, "%lu", loop->total_iterations);
+    }
+    dprintf(fd, "\n");
+    return EAR_SUCCESS;
+}
+
 void loop_serialize(serial_buffer_t *b, loop_t *loop)
 {
     serial_dictionary_push_auto(b, loop->id.event);
@@ -392,3 +419,111 @@ void loop_deserialize(serial_buffer_t *b, loop_t *loop)
     serial_dictionary_pop_auto(b, loop->total_iterations);
     signature_deserialize(b, &loop->signature);
 }
+
+state_t loop_create_header_str(char *header_dst, size_t header_dst_size, char *header_prefix, int ts, uint num_gpus,
+                               int single_column)
+{
+#if WF_SUPPORT
+    char *HEADER_JOB = "JOBID;STEPID;APPID";
+#else
+    char *HEADER_JOB = "JOBID;STEPID";
+#endif // WF_SUPPORT
+
+    char *HEADER_NOTS = ";NODENAME;AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;"
+                        "ITER_TIME_SEC;CPI;TPI;MEM_GBS;IO_MBS;PERC_MPI;DC_NODE_POWER_W;"
+                        "DRAM_POWER_W;PCK_POWER_W;CYCLES;INSTRUCTIONS;STALLS_FETCH_DECODE;"
+                        "STALLS_RESOURCES;STALLS_MEMORY;GFLOPS;CPU_UTIL;"
+                        "L1_MISSES;L2_MISSES;L3_MISSES;LL_MISSES;L1_HITS;L2_HITS;L3_HITS;LL_HITS;"
+                        "L1_ACCESSES;L2_ACCESSES;L3_ACCESSES;LL_ACCESSES;"
+                        "L1_MISSRATE;L2_MISSRATE;L3_MISSRATE;LL_MISSRATE;"
+                        "L1_HITRATE;L2_HITRATE;L3_HITRATE;LL_HITRATE;"
+                        "SPOPS_SINGLE;SPOPS_128;SPOPS_256;SPOPS_512;DPOPS_SINGLE;DPOPS_128;"
+                        "DPOPS_256;DPOPS_512";
+#if WF_SUPPORT
+    uint num_sockets = MAX_SOCKETS_SUPPORTED;
+    debug("Creating header for CPU signature with %u sockets", num_sockets);
+    char cpu_sig_hdr[256] = "";
+    for (uint s = 0; s < num_sockets; s++) {
+        char temp_hdr[33];
+        snprintf(temp_hdr, sizeof(temp_hdr), ";TEMP%u;CPU_POWER%u;DRAM_POWER%u", s, s, s);
+        strcat(cpu_sig_hdr, temp_hdr);
+    }
+
+#else
+    char *cpu_sig_hdr = "";
+#endif
+
+#if USE_GPUS
+    char gpu_header[512];
+#if WF_SUPPORT
+    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"
+                           "GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS;"
+                           "GPU%d_TEMP;GPU%d_MEMTEMP";
+#else
+    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"
+                           "GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
+#endif // WF_SUPPORT
+#else
+    char HEADER_GPU_SIG[1] = "\0";
+#endif
+
+#if REPORT_TIMESTAMP
+    char *HEADER_LOOP = ";LOOPID;LOOP_NEST_LEVEL;LOOP_SIZE;TIMESTAMP";
+#else
+    char *HEADER_LOOP = ";LOOPID;LOOP_NEST_LEVEL;LOOP_SIZE;ITERATIONS";
+#endif
+
+    char HEADER_TS[16] = ";ELAPSED;DATE";
+    if (!ts) {
+        memset(HEADER_TS, 0, sizeof(HEADER_TS));
+    }
+
+    if (header_prefix != NULL)
+        strncpy(header_dst, header_prefix, header_dst_size - 1);
+
+    strncat(header_dst, HEADER_JOB, header_dst_size - strlen(header_dst) - 1);
+    strncat(header_dst, HEADER_NOTS, header_dst_size - strlen(header_dst) - 1);
+
+    /* Temperature */
+    strncat(header_dst, cpu_sig_hdr, header_dst_size - strlen(header_dst) - 1);
+
+#if USE_GPUS
+    if (single_column)
+        num_gpus = ear_min(1, num_gpus);
+    for (uint j = 0; j < num_gpus; ++j) {
+#if WF_SUPPORT
+        sprintf(gpu_header, HEADER_GPU_SIG, j, j, j, j, j, j, j, j);
+#else
+        sprintf(gpu_header, HEADER_GPU_SIG, j, j, j, j, j);
+#endif
+        strncat(header_dst, gpu_header, header_dst_size - strlen(header_dst) - 1);
+    }
+#endif // USE_GPUS
+
+    strncat(header_dst, HEADER_LOOP, header_dst_size - strlen(header_dst) - 1);
+
+    if (ts) {
+        strncat(header_dst, HEADER_TS, header_dst_size - strlen(header_dst) - 1);
+    }
+
+    header_dst[header_dst_size - 1] = '\0';
+
+    return EAR_SUCCESS;
+}
+
+#if TEST
+int main(int argc, char **argv)
+{
+    loop_t loop;
+    create_loop(&loop);
+
+    int fd = open("./loop_test.csv", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        printf("Error openning csv file: (%d) %s.\n", errno, strerror(errno));
+        return EXIT_FAILURE;
+    }
+
+    loop_print_fd(fd, &loop, 1, 0, 0, ' ');
+    return EXIT_SUCCESS;
+}
+#endif

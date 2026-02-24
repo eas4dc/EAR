@@ -39,7 +39,7 @@ state_t pci_scan(ushort vendor, ushort *ids, char **dfs, mode_t mode, pci_t **pc
     ushort rid, vid;
     uint ids_count;
     uint dfs_count;
-    char aux[8];
+    char aux[16];
 
     // Counting
     *pcis_count = 0;

@@ -244,4 +244,4 @@ Island=0 Nodes=node12[01-80] tag=GPU
 
 
 # Will use default tag 
-Island=1 Nodes=node11[01-80] EARDBD_IP=node1181 EARDBD_MIRROR_IP=node1182
+Island=1 Nodes=node11[01-80] EARDBD_IP=node1181 EARDBD_MIRROR_IP=node1182 

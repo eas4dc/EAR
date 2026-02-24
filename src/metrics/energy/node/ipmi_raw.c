@@ -7,11 +7,11 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
+/* clang-format off */
 
 // #define SHOW_DEBUGS 1
 // #define SHOW_DEBUGS_ULTRA 1
 
-// clang-format off
 #include <stdlib.h>
 #include <pthread.h>
 #include <common/system/time.h>
@@ -73,7 +73,8 @@ state_t energy_init(void **x)
     state_t s = EAR_SUCCESS;
     char *hint;
 
-    while (pthread_mutex_trylock(&lock)) ;
+    while (pthread_mutex_trylock(&lock))
+        ;
     if (devs_count) {
         goto leave;
     }
@@ -83,10 +84,18 @@ state_t energy_init(void **x)
     // Detecting sensors depending on hardware
     if ((hint = getenv("EAR_ENERGY_ARGS")) != NULL) {
         switch (atoi(hint)) {
-            case 1: opt = opt_sd650e; break;
-            case 2: opt = opt_sd650p; break;
-            case 3: opt = opt_dcmi;   break;
-            case 4: opt = opt_inmp;   break;
+            case 1:
+                opt = opt_sd650e;
+                break;
+            case 2:
+                opt = opt_sd650p;
+                break;
+            case 3:
+                opt = opt_dcmi;
+                break;
+            case 4:
+                opt = opt_inmp;
+                break;
         }
         debug("EAR_ENERGY_ARGS: %s", hint);
     } else if (ipmi_has_hardware("SD650"))
@@ -281,4 +290,10 @@ state_t energy_to_str(char *buffer, void *data)
 uint energy_data_is_null(void *data)
 {
     return ((consumption_t *) data)->energy == 0;
+}
+
+state_t energy_frequency(ulong *freq_us)
+{
+    *freq_us = 10000;
+    return EAR_SUCCESS;
 }

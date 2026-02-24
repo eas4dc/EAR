@@ -65,7 +65,8 @@ int state_no __attribute__((weak));
 
 #define return_reprint(no, ...)                                                                                        \
     {                                                                                                                  \
-        state_msg = strncpy(______buffer, state_msg, SZ_BUFFER);                                                       \
+        state_msg                   = strncpy(______buffer, state_msg, SZ_BUFFER - 1);                                 \
+        ______buffer[SZ_BUFFER - 1] = '\0';                                                                            \
         xsnprintf(state_buffer, sizeof(state_buffer), __VA_ARGS__);                                                    \
         state_msg = state_buffer;                                                                                      \
         return no;                                                                                                     \

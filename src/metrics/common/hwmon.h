@@ -86,7 +86,8 @@ hwmon_dev_t *hwmon_iter_devs(hwmon_t *chip, char *label);
 // is the average of all devices of all chips.
 void hwmon_calc_average(hwmon_t chips[], char *label);
 
-// Closes all file descriptors of files that are related to this label (or NOT in case you start the label with symbol '!')
+// Closes all file descriptors of files that are related to this label (or NOT in case you start the label with symbol
+// '!')
 void hwmon_close_labels(hwmon_t chips[], char *label);
 
 #endif // METRICS_COMMON_HWMON

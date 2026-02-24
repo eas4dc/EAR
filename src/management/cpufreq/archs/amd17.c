@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
+
 //#define SHOW_DEBUGS 1
 
 #define _GNU_SOURCE

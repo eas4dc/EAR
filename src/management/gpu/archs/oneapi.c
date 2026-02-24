@@ -20,18 +20,18 @@
 #include <unistd.h>
 
 // static pthread_mutex_t           lock = PTHREAD_MUTEX_INITIALIZER;
-static ulong         *freqs_default;
-static ulong        **freqs_avail_list;
-static uint          *freqs_avail_count;
-static ulong         *power_max_default;
+static ulong *freqs_default;
+static ulong **freqs_avail_list;
+static uint *freqs_avail_count;
+static ulong *power_max_default;
 static zes_power_limit_ext_desc_t *power_descs; // sustaineds
-static uint          *power_domains;
-static uint           devs_count;
+static uint *power_domains;
+static uint devs_count;
 static ze_handlers_t *devs;
-static ze_t           ze;
+static ze_t ze;
 
-#define DUMMY_FREQ    1000000LU
-#define NO_FREQ      -1
+#define DUMMY_FREQ 1000000LU
+#define NO_FREQ    -1
 
 #define if_fail(function, action)                                                                                      \
     if ((z = function) != ZE_RESULT_SUCCESS) {                                                                         \

@@ -167,7 +167,7 @@ void sched_local_barrier(char *file, int N)
     // Create the file and accum 1 element
     while ((fd_lock = ear_file_lock_master(lock_file)) < 0)
         ; // lock
-    fd = open(file, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    fd = open(file, O_RDWR | O_CREAT | O_NOFOLLOW, S_IRUSR | S_IWUSR);
     // Update
     if (fd >= 0) {
         int curr = 0, leido;
@@ -178,11 +178,14 @@ void sched_local_barrier(char *file, int N)
         } else { // First process
             curr = 1;
         }
-        write(fd, &curr, sizeof(int));
+        if (write(fd, &curr, sizeof(int)) < 0) {
+            error("Writing sched_local_barrier: %d", errno);
+        }
         close(fd);
     } else {
         error("sched_local_barrier timeout");
     }
+    chmod(file, S_IRUSR | S_IWUSR);
     ear_file_unlock_master(fd_lock, lock_file);
 
     debug("Waiting for processes");
@@ -194,7 +197,9 @@ void sched_local_barrier(char *file, int N)
         fd = open(file, O_RDONLY);
         // Read
         if (fd >= 0) {
-            read(fd, &value, sizeof(int));
+            if (read(fd, &value, sizeof(int)) < 0) {
+                error("Reading on sched_local_barrier: %d", errno);
+            }
             close(fd);
         } else {
             error("That should not happen! (%s)", strerror(errno));

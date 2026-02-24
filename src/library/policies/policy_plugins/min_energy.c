@@ -527,8 +527,9 @@ state_t policy_apply(polctx_t *c, signature_t *sig, node_freqs_t *freqs, int *re
                     local_penalty = 0.5;
                 } else {
                     /* Mix process : A per-process penalty is computed */
-                    //local_penalty = base_penalty + EXTRA_TH * (my_node_mpi_calls[i].perc_mpi - my_node_mpi_calls[min_mpi].perc_mpi) / 10.0;
-                    local_penalty = base_penalty ;
+                    // local_penalty = base_penalty + EXTRA_TH * (my_node_mpi_calls[i].perc_mpi -
+                    // my_node_mpi_calls[min_mpi].perc_mpi) / 10.0;
+                    local_penalty = base_penalty;
                 }
             }
             if (use_energy_models) {

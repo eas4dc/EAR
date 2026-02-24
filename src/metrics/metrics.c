@@ -9,7 +9,7 @@
  **************************************************************************/
 
 // #define SHOW_DEBUGS 1
-
+/* clang-format off */
 #include <common/config/config_install.h>
 #include <common/output/debug.h>
 #include <common/utils/overhead.h>
@@ -41,33 +41,39 @@ static int id_log;
 static int id_api;
 static int id_tpo;
 
-void metrics_load(metrics_info_t *m, topology_t *tp, char *nodepow_path, ullong mflags)
+void metrics_load(metrics_info_t *m, topology_t *tp, char *nodepow_path, uint *options)
 {
+    uint default_options[10] = {0};
     self_tp = tp;
 
+    /* clang-format off */
+    if (options == NULL) {
+        options = default_options;
+    }
+
     nodepow(load, nodepow_path);
-    cpufreq_load(tp, MFLAG_UNZIP(mflags, MET_CPUFREQ));
-    imcfreq_load(tp, MFLAG_UNZIP(mflags, MET_IMCFREQ));
-    cpupow(load, tp, MFLAG_UNZIP(mflags, MET_CPUPOW));
-    bwidth_load(tp, MFLAG_UNZIP(mflags, MET_BWIDTH));
-    cache_load(tp, MFLAG_UNZIP(mflags, MET_CACHE));
-    flops_load(tp, MFLAG_UNZIP(mflags, MET_FLOPS));
-    temp_load(tp, MFLAG_UNZIP(mflags, MET_TEMP));
-    cpi_load(tp, MFLAG_UNZIP(mflags, MET_CPI));
-    gpu_load(MFLAG_UNZIP(mflags, MET_GPU));
+    cpufreq_load(tp, options[MET_OPT_CPUFREQ]);
+    imcfreq_load(tp, options[MET_OPT_IMCFREQ]);
+     cpupow(load,tp, options[MET_OPT_CPUPOW ]);
+     bwidth_load(tp, options[MET_OPT_BWIDTH ]);
+      cache_load(tp, options[MET_OPT_CACHE  ]);
+      flops_load(tp, options[MET_OPT_FLOPS  ]);
+       temp_load(tp, options[MET_OPT_TEMP   ]);
+        cpi_load(tp, options[MET_OPT_CPI    ]);
+        gpu_load(    options[MET_OPT_GPU    ]);
 
     nodepow(init, &e_ctx);
     cpufreq_init(no_ctx);
     imcfreq_init(no_ctx);
-    cpupow(init, no_ctx);
-    bwidth_init(no_ctx);
-    cache_init(no_ctx);
-    flops_init(no_ctx);
-    temp_init();
-    cpi_init(no_ctx);
-    gpu_init(no_ctx);
+     cpupow(init, no_ctx);
+     bwidth_init(no_ctx);
+      cache_init(no_ctx);
+      flops_init(no_ctx);
+       temp_init();
+        cpi_init(no_ctx);
+        gpu_init(no_ctx);
+    /* clang-format on */
 
-    //
     metrics_info_get(m);
 }
 
@@ -203,7 +209,7 @@ static char *cpupow_data_tostr(ullong *diffs, double secs, char *buffer, size_t 
     int i, j;
 
     buffer[0] = '\0';
-    for (i = j = 0; i < self_tp->socket_count; ++i) {
+    for (i = j = 0; i < self_tp->socket_count && (size_t) j < length; ++i) {
         power = cpupow(compute_power, diffs[self_tp->socket_count + i], secs);
         j += sprintf(&buffer[j], "%0.1lf ", power);
         mean += power;
@@ -236,7 +242,7 @@ ATTR_UNUSED static void nodepow_read_copy(void *nod2, void *nod1, ulong *nodD)
 
 static char *nodepow_data_tostr(ulong avrg, char *buffer, size_t length)
 {
-    sprintf(buffer, "!%lu", avrg);
+    snprintf(buffer, length, "!%lu", avrg);
     return buffer;
 }
 
@@ -332,10 +338,6 @@ void metrics_data_copy(metrics_read_t *mrD, metrics_read_t *mrS)
     gpu_data_copy(mrD->gpu, mrS->gpu);
 }
 
-void metrics_data_null(metrics_diff_t *mrD)
-{
-}
-
 void metrics_data_print(metrics_diff_t *mrD, int fd)
 {
     char *string = metrics_data_tostr(mrD);
@@ -355,6 +357,26 @@ char *metrics_data_tostr(metrics_diff_t *mrD)
     return scprintf(&ss);
 }
 
+uint *metrics_envtoops(char *var_name, uint options_expected)
+{
+    static uint *options = NULL;
+    uint options_count   = 0;
+
+    if (getenv(var_name) != NULL) {
+        strtoat(getenv(var_name), ',', (void **) &options, &options_count, ID_UINT);
+#if SHOW_DEBUGS
+        for (int i = 0; i < options_count; i++) {
+            debug("OPT %d: %u", i, options[i]);
+        }
+#endif
+        if (options_count < options_expected) {
+            fprintf(stderr, "Number of options in the list is less than %d.\n", options_expected);
+            exit(EXIT_FAILURE);
+        }
+    }
+    return options;
+}
+
 #if TEST
 #include <common/system/monitor.h>
 #include <daemon/local_api/eard_api.h>
@@ -369,8 +391,9 @@ static metrics_diff_t mrD;
 
 static state_t metrics_apis_init(void *whatever)
 {
+    unused(whatever);
     topology_init(&tp);
-    metrics_load(&m, &tp, NULL, atoull(getenv("MFLAGS")));
+    metrics_load(&m, &tp, NULL, metrics_envtoops("OPTS", 10));
     metrics_init_screen(&m, &tp);
     metrics_data_alloc(&mr1, &mr2, &mrD);
     metrics_read(&mr1);
@@ -379,6 +402,7 @@ static state_t metrics_apis_init(void *whatever)
 
 static state_t metrics_apis_update(void *whatever)
 {
+    unused(whatever);
     metrics_read_copy(&mr2, &mr1, &mrD);
     metrics_data_print(&mrD, 0);
     return EAR_SUCCESS;

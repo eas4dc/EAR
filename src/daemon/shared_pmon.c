@@ -36,7 +36,7 @@ state_t get_joblist_path(char *tmp, char *path)
     return EAR_SUCCESS;
 }
 
-uint *create_joblist_shared_area(char *path, int *fd, uint *joblist, int joblist_elems)
+uint *create_joblist_shared_area(char *path, int *fd, uint *joblist, int joblist_elems, char *user)
 {
     uint *sh_joblist;
     int fd_joblist;
@@ -45,7 +45,7 @@ uint *create_joblist_shared_area(char *path, int *fd, uint *joblist, int joblist
         return NULL;
     mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     sh_joblist =
-        (uint *) create_shared_area(path, perms, (char *) joblist, joblist_elems * sizeof(uint), &fd_joblist, 0);
+        (uint *) create_shared_area(path, perms, (char *) joblist, joblist_elems * sizeof(uint), &fd_joblist, 0, user);
 
     if (fd != NULL)
         *fd = fd_joblist;
@@ -85,16 +85,25 @@ state_t get_jobmon_path(char *tmp, uint ID, char *path)
     return EAR_SUCCESS;
 }
 
-powermon_app_t *create_jobmon_shared_area(char *path, powermon_app_t *pmapp, int *fd)
+/**
+ * create_jobmon_shared_area:
+ * Creates the powermon application info region for a given job context.
+ * This area is owned by the user but is world-readable (0644) to allow
+ * monitoring tools (e.g. node_manager_info) to display job status for all users.
+ */
+powermon_app_t *create_jobmon_shared_area(char *path, powermon_app_t *pmapp, int *fd, char *user)
 {
+    int fd_pmapp;
+
     if (path == NULL)
         return NULL;
 
-    int fd_pmapp;
-    mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    /* Permissions: 0644 (Read-Write for owner and group, Read for others).
+     * S_IROTH allows non-privileged monitoring tools to read job status. */
+    mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 
     powermon_app_t *sh_pmapp =
-        (powermon_app_t *) create_shared_area(path, perms, (char *) pmapp, sizeof(powermon_app_t), &fd_pmapp, 0);
+        (powermon_app_t *) create_shared_area(path, perms, (char *) pmapp, sizeof(powermon_app_t), &fd_pmapp, 0, user);
 
     /* We don't the fd when we create the shared area. So the current fd
      * is 0. It is needed to update it. */

@@ -216,16 +216,6 @@ void compute_ssig_vpi2(double *vpi, ssig_t *sig)
         *vpi = 0;
 }
 
-void print_signature_fd_binary(int fd, signature_t *sig)
-{
-    write(fd, sig, sizeof(signature_t));
-}
-
-void read_signature_fd_binary(int fd, signature_t *sig)
-{
-    read(fd, sig, sizeof(signature_t));
-}
-
 void adapt_signature_to_node(signature_t *dest, signature_t *src, float ratio_PPN)
 {
     signature_copy(dest, src);

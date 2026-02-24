@@ -79,21 +79,19 @@ typedef struct metrics_diff_s {
     ulong nod_avrg; // Total node energy
 } metrics_diff_t;
 
-#define MET_CPUFREQ                0LLU  // 0x0000000001
-#define MET_IMCFREQ                4LLU  // 0x0000000010
-#define MET_BWIDTH                 8LLU  // 0x0000000100
-#define MET_FLOPS                  12LLU // 0x0000001000
-#define MET_CACHE                  16LLU // 0x0000010000
-#define MET_TEMP                   20LLU // 0x0000100000
-#define MET_CPI                    24LLU // 0x0001000000
-#define MET_GPU                    28LLU // 0x0010000000
-#define MET_CPUPOW                 32LLU // 0x0100000000
-#define MET_NODEPOW                36LLU // 0x1000000000
-
-#define MFLAG_UNZIP(mflag, metric) (int) ((mflag >> metric) & 0xF)
+#define MET_OPT_CPUFREQ 0
+#define MET_OPT_IMCFREQ 1
+#define MET_OPT_BWIDTH  2
+#define MET_OPT_FLOPS   3
+#define MET_OPT_CACHE   4
+#define MET_OPT_TEMP    5
+#define MET_OPT_CPI     6
+#define MET_OPT_GPU     7
+#define MET_OPT_CPUPOW  8
+#define MET_OPT_NODEPOW 9
 
 // This function contains load() and init() functions of the different metrics.
-void metrics_load(metrics_info_t *m, topology_t *tp, char *nodepow_path, ullong mflags);
+void metrics_load(metrics_info_t *m, topology_t *tp, char *nodepow_path, uint *options);
 
 // This function is composed by get_info() functions of the different metrics.
 // It is perfectly safe to call metrics_info_get() or single xxx_get_info()
@@ -118,5 +116,8 @@ void metrics_data_copy(metrics_read_t *mrD, metrics_read_t *mrS);
 void metrics_data_print(metrics_diff_t *mrD, int fd);
 
 char *metrics_data_tostr(metrics_diff_t *mrD);
+
+// Helper function to convert an environment variable to array of options.
+uint *metrics_envtoops(char *var_name, uint options_expected);
 
 #endif // METRICS_H

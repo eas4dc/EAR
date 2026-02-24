@@ -7,17 +7,17 @@
 #
 # SPDX-License-Identifier: EPL-2.0
 ############################################################################
-#
+# 
 # This program is part of the EAR software.
-#
+# 
 # EAR provides a dynamic, transparent and ligth-weigth solution for
 # Energy management. It has been developed in the context of the
 # Barcelona Supercomputing Center (BSC)&Lenovo Collaboration project.
-#
-#
+# 
+# 
 # BSC Contact   mailto:ear-support@bsc.es
-#
-#
+# 
+# 
 # EAR is an open source software, and it is licensed under both the BSD-3 license
 # and EPL-1.0 license. Full text of both licenses can be found in COPYING.BSD
 # and COPYING.EPL files.
@@ -36,7 +36,7 @@ AC_DEFUN([X_AC_CMOCKA],
 			AS_IF([test "x$with_cmocka" != xno],
 				  [
 					AX_VAR_PUSHVALUE([LDFLAGS], ["-L$with_cmocka/lib"])
-					AX_VAR_PUSHVALUE([LIBS])
+		   		   	AX_VAR_PUSHVALUE([LIBS])
 
 					# check availability of -lcmocka
 					AC_SEARCH_LIBS([cmocka_set_message_output], [cmocka],

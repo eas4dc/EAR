@@ -352,8 +352,8 @@ static state_t set_current_list(uint *max_list, uint *min_list)
     pstate_t buffer_min[128];
     ullong aux_max;
     ullong aux_min;
-    int max_valid;
-    int min_valid;
+    int max_valid = 0;
+    int min_valid = 0;
     state_t r;
     int i;
 

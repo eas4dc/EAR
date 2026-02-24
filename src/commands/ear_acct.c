@@ -940,7 +940,7 @@ void read_events(char *user, query_adds_t *q_a)
         fd = open(csv_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP);
     }
 
-    if (fd > 0) {
+    if (fd >= 0) {
         strcpy(query, EVENTS_QUERY_RAW);
     } else {
         strcpy(query, EVENTS_QUERY);
@@ -1032,7 +1032,7 @@ void read_jobs_from_loops(query_adds_t *q_a)
         char *aux = strrchr(csv_path, '/');
         if (aux != NULL) {
             aux++; // move the pointer from the '/' to the next part
-            strncpy(tmp_path, csv_path, strlen(csv_path) - strlen(aux));
+            snprintf(tmp_path, strlen(csv_path) - strlen(aux), "%s", csv_path);
             strcat(tmp_path, "out_jobs.");
             strcat(tmp_path, aux);
         } else {
@@ -1283,19 +1283,23 @@ int main(int argc, char *argv[])
         printf("Warning: using MySQL/MariaDB environment variables is not supported, unsetting them.\n");
     }
 
-    if (get_ear_conf_path(path_name) == EAR_ERROR) {
-        fprintf(stderr, "Error getting ear.conf path\n");
-        exit(1);
+    if (state_fail(get_ear_conf_path(path_name))) {
+        fprintf(stderr, "Error getting ear.conf path, load the ear module\n");
+        return EXIT_FAILURE;
     }
-
-    if (read_cluster_conf(path_name, &my_conf) != EAR_SUCCESS) {
-        fprintf(stderr, "ERROR reading cluster configuration\n");
+    if (state_fail(read_cluster_conf(path_name, &my_conf))) {
+        fprintf(stderr, "Impossible to read ear.conf\n");
+        return EXIT_FAILURE;
+    }
+    if (state_fail(user_set_euid(UID_REAL))) {
+        fprintf(stderr, "Effective user can not be switch to real: %s\n", state_msg);
+        return EXIT_FAILURE;
     }
 
     user_t user_info;
-    if (user_all_ids_get(&user_info) != EAR_SUCCESS) {
+    if (user_get_ids(&user_info) != EAR_SUCCESS) {
         fprintf(stderr, "Failed to retrieve user data\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     char *user = user_info.ruid_name;
@@ -1433,7 +1437,7 @@ int main(int argc, char *argv[])
                 query_adds.end_time = mktime(&tinfo);
                 break;
             case 'F':
-                strncpy(format, optarg, sizeof(format));
+                strncpy(format, optarg, sizeof(format) - 1);
                 break;
             case 'h':
                 free_cluster_conf(&my_conf);

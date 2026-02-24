@@ -7,6 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
+/* clang-format off */
 
 //#define SHOW_DEBUGS 1
 
@@ -193,3 +194,4 @@ uint energy_is_privileged()
     // We should call the static read and check state
     return 0;
 }
+

@@ -18,9 +18,9 @@
 static char *err1 = "Incorrect result when asking for frequency by HSMP";
 static ullong freqs_khz[4];
 static ullong freqs_mhz[4];
-static uint   sockets_count;
-static uint   pstate_count;
-static uint   family;
+static uint sockets_count;
+static uint pstate_count;
+static uint family;
 
 static uint test_ps(uint ps, uint intent)
 {
@@ -31,8 +31,10 @@ static uint test_ps(uint ps, uint intent)
     uint i;
 
     // In ZEN5, APBDisable has an output argument
-    if (family >= FAMILY_ZEN ) i = 2;
-    if (family >= FAMILY_ZEN5) i = 1;
+    if (family >= FAMILY_ZEN)
+        i = 2;
+    if (family >= FAMILY_ZEN5)
+        i = 1;
     // Arg0 is the P_STATE for the APBDisable function (0x0d).
     args[0] = ps;
     // Function APBDisable (0x0d).
@@ -62,7 +64,7 @@ state_t mgt_imcfreq_amd17_load(topology_t *tp, mgt_imcfreq_ops_t *ops)
     }
     //
     sockets_count = tp->socket_count;
-    family = tp->family;
+    family        = tp->family;
     // Getting the list of available frequencies
     uint ps_num = 4;
     uint ps1;
@@ -100,13 +102,13 @@ state_t mgt_imcfreq_amd17_load(topology_t *tp, mgt_imcfreq_ops_t *ops)
     uint reps[1] = {-1};
     hsmp_send(0, HSMP_SET_AUTO_DF_PSTATE, &args[0], &reps[0]);
     //
-    replace_ops(ops->init,               mgt_imcfreq_amd17_init);
-    replace_ops(ops->dispose,            mgt_imcfreq_amd17_dispose);
+    replace_ops(ops->init, mgt_imcfreq_amd17_init);
+    replace_ops(ops->dispose, mgt_imcfreq_amd17_dispose);
     replace_ops(ops->get_available_list, mgt_imcfreq_amd17_get_available_list);
-    replace_ops(ops->get_current_list,   mgt_imcfreq_amd17_get_current_list);
-    replace_ops(ops->set_current_list,   mgt_imcfreq_amd17_set_current_list);
-    replace_ops(ops->set_current,        mgt_imcfreq_amd17_set_current);
-    replace_ops(ops->set_auto,           mgt_imcfreq_amd17_set_auto);
+    replace_ops(ops->get_current_list, mgt_imcfreq_amd17_get_current_list);
+    replace_ops(ops->set_current_list, mgt_imcfreq_amd17_set_current_list);
+    replace_ops(ops->set_current, mgt_imcfreq_amd17_set_current);
+    replace_ops(ops->set_auto, mgt_imcfreq_amd17_set_auto);
     replace_ops(ops->get_current_ranged_list, mgt_imcfreq_amd17_get_current_ranged_list);
     replace_ops(ops->set_current_ranged_list, mgt_imcfreq_amd17_set_current_ranged_list);
 
@@ -180,8 +182,8 @@ state_t mgt_imcfreq_amd17_get_current_list(ctx_t *c, pstate_t *list)
 
 static state_t set(uint pstate_index, int socket)
 {
-    uint args[2] = { 0, -1 };
-    uint reps[2] = { 0, -1 };
+    uint args[2] = {0, -1};
+    uint reps[2] = {0, -1};
     uint function, a, r;
     state_t s;
 
@@ -196,7 +198,7 @@ static state_t set(uint pstate_index, int socket)
         // Function APBDisable (0x0d)
         function = HSMP_SET_DF_PSTATE;
         a        = 0;
-        r        = (family >= FAMILY_ZEN5) ? 0: 1;
+        r        = (family >= FAMILY_ZEN5) ? 0 : 1;
     }
     args[0] = pstate_index;
     debug("Setting P%u (%u) to socket %d", pstate_index, args[0], socket);

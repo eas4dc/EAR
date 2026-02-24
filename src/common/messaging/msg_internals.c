@@ -1206,9 +1206,9 @@ void send_command_all(request_t command, cluster_conf_t *my_cluster_conf)
 
 request_header_t data_all_nodes(request_t *command, cluster_conf_t *my_cluster_conf, void **data)
 {
-    int i, j, k, rc, total_ranges, final_size = 0, default_type = EAR_ERROR, num_sfds = 0, offset_send = 0,
-                                   offset_read = 0;
-    int **ips, *ip_counts, *sfds;
+    int i = 0, j = 0, k = 0, rc = 0, total_ranges = 0, final_size = 0, default_type = EAR_ERROR, num_sfds = 0,
+        offset_send = 0, offset_read = 0;
+    int **ips = NULL, *ip_counts = NULL, *sfds = NULL;
     struct sockaddr_in temp;
     request_header_t head;
     char *temp_data, *all_data = NULL;

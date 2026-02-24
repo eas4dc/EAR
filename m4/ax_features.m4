@@ -103,6 +103,10 @@ AC_DEFUN([AX_BEFORE_FEATURES],
     FEAT_MPI_LIBRARY=1
     FEAT_MPI_LOADER=1
 
+	if test -z "$CC_FLAGS"; then
+		CC_FLAGS="-Wall -Werror -O2 -g"
+	fi
+
 	if test -z "$MPICC"; then
 		if which mpicc &> /dev/null; then
 			MPICC="`which mpicc`"
@@ -168,6 +172,13 @@ AC_DEFUN([AX_BEFORE_FEATURES],
 	#
 	AC_ARG_VAR([USER],[Sets the owner user of your installed files])
 	AC_ARG_VAR([GROUP],[Sets the owner group of your installed files])
+
+	if test -z "$USER"; then
+		USER=$(whoami)
+	fi
+	if test -z "$GROUP"; then
+		GROUP=$(id -gn)
+	fi
 
     #
     # Makefile name

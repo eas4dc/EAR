@@ -1,6 +1,6 @@
 #!/bin/bash
 
-####################### Configuration starts here #######################
+####################### Configuration starts here ####################### 
 
 
 # Specify source path
@@ -67,7 +67,7 @@ openmpi_modules=""
 
 
 
-####################### Configuration ends here #######################
+####################### Configuration ends here ####################### 
 
 # Start preparing environment
 
@@ -87,7 +87,7 @@ autoreconf -i
 
 ### Compile warning: This script assumes the compilation node is architectural compatible with the compute node. If not, some
 ### modifications are needed, for example enabling some instructions or disabling it. For example, compiling in Rome node to
-### support Intel AVX512 requires extra cflags options
+### support Intel AVX512 requires extra cflags options 
 ### extra_cflags="-msse4.1  -msse4.2 -msse3 -mavx512dq -mavx512f -mavx"
 
 
@@ -148,3 +148,4 @@ fi
 
 
 echo "******************************** EAR installation ends here ********************************"
+

@@ -394,44 +394,6 @@ int policy_name_to_nodeid(char *my_policy, my_node_conf_t *conf)
     return EAR_ERROR;
 }
 
-void print_my_node_conf_fd_binary(int fd, my_node_conf_t *myconf)
-{
-    // this function needs to be revwritten
-    int coef_len;
-    int part1, part2;
-    part1 = sizeof(uint) * 2 + sizeof(ulong) + NODE_PREFIX * 2;
-    part2 = sizeof(uint) + sizeof(policy_conf_t) * myconf->num_policies + sizeof(double) * 3;
-    write(fd, (char *) myconf, part1);
-    if (myconf->coef_file != NULL) {
-        coef_len = strlen(myconf->coef_file);
-        write(fd, (char *) &coef_len, sizeof(int));
-        write(fd, myconf->coef_file, coef_len);
-    } else {
-        coef_len = 0;
-        write(fd, (char *) &coef_len, sizeof(int));
-    }
-    write(fd, (char *) myconf + part1 + sizeof(char *), part2);
-}
-
-void read_my_node_conf_fd_binary(int fd, my_node_conf_t *myconf)
-{
-    // this function needs to be revwritten
-    int coef_len;
-    int part1, part2;
-    part1 = sizeof(uint) * 2 + sizeof(ulong) + NODE_PREFIX * 2;
-    part2 = sizeof(uint) + sizeof(policy_conf_t) * TOTAL_POLICIES + sizeof(double) * 3;
-    read(fd, (char *) myconf, part1);
-    read(fd, (char *) &coef_len, sizeof(int));
-    if (coef_len > 0) {
-        myconf->coef_file           = (char *) malloc(coef_len + 1);
-        myconf->coef_file[coef_len] = '\0';
-        read(fd, myconf->coef_file, coef_len);
-    } else {
-        myconf->coef_file = NULL;
-    }
-    read(fd, (char *) myconf + part1 + sizeof(char *), part2);
-}
-
 /** Given a  node and policy_id, returns the policy configuration (or NULL) */
 policy_conf_t *get_my_policy_conf(my_node_conf_t *my_node, uint p_id)
 {

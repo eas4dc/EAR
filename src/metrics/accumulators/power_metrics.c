@@ -457,7 +457,9 @@ void report_periodic_power(int fd, power_data_t *my_power)
 #else
     sprintf(my_buffer, "%s: avg. power (W) for node %.2lf%s%s\n", s, my_power->avg_dc, spdram, spcpu);
 #endif
-    write(fd, my_buffer, strlen(my_buffer));
+    if (write(fd, my_buffer, strlen(my_buffer)) < 0) {
+        debug("Error writing to fd %d: (%d) %s", fd, errno, strerror(errno));
+    }
 }
 
 /*
@@ -482,7 +484,7 @@ static rapl_data_t diff_RAPL_energy(rapl_data_t end, rapl_data_t init)
 void alloc_energy_data(energy_data_t *e)
 {
     // Node
-    e->DC_node_energy = (edata_t *) malloc(node_size);
+    e->DC_node_energy = (edata_t *) calloc(1, node_size);
     // CPU/DRAM
     e->DRAM_energy = (rapl_data_t *) calloc(num_packs, sizeof(rapl_data_t));
     e->CPU_energy  = (rapl_data_t *) calloc(num_packs, sizeof(rapl_data_t));

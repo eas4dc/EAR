@@ -69,10 +69,6 @@ void print_job_fd(int fd, job_t *job);
 /** Reports the content of the job into the stderr*/
 void report_job(job_t *job);
 
-void print_job_fd_binary(int fd, job_t *job);
-/** Memory is already allocated for the job */
-void read_job_fd_binary(int fd, job_t *job);
-
 void job_serialize(serial_buffer_t *b, job_t *job);
 
 void job_deserialize(serial_buffer_t *b, job_t *job);

@@ -232,7 +232,7 @@ static state_t static_read_power(uint i, uint *num_rows, uint expected_items)
 declr_up_action_periodic(_nodesensors)
 {
     debug("nodesensors action");
-    uint curr_items;
+    uint curr_items = 0;
 
     edcmon_info.num_items = 0;
     // Get instanteneous metrics

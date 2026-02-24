@@ -35,7 +35,9 @@ static ullong mrsf_zero()
         if ((file = fopen(path, "r")) == NULL) {                                                                       \
             return 0;                                                                                                  \
         }                                                                                                              \
-        fscanf(file, "%s", buffer);                                                                                    \
+        if (fscanf(file, "%s", buffer) == EOF) {                                                                       \
+            return 0;                                                                                                  \
+        }                                                                                                              \
         var = (ullong) strtoll(&buffer[2], NULL, 16);                                                                  \
         debug("read '%s': %llu", path, var);                                                                           \
         fclose(file);                                                                                                  \

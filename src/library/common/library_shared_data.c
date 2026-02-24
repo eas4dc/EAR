@@ -85,9 +85,9 @@ int get_shared_signatures_path(char *tmp, uint ID, uint AID, char *path)
 lib_shared_data_t *create_lib_shared_data_area(char *path)
 {
     lib_shared_data_t sh_data, *my_area;
-    mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
+    mode_t perms = S_IRUSR | S_IWUSR;
     my_area      = (lib_shared_data_t *) create_shared_area(path, perms, (char *) &sh_data, sizeof(lib_shared_data_t),
-                                                            &fd_conf, 1);
+                                                            &fd_conf, 1, NULL);
     return my_area;
 }
 
@@ -121,7 +121,7 @@ shsignature_t *create_shared_signatures_area(char *path, int np)
 
     my_sig       = (shsignature_t *) malloc(sizeof(shsignature_t) * np);
     mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
-    p2           = create_shared_area(path, perms, (char *) my_sig, sizeof(shsignature_t) * np, &fd_signatures, 1);
+    p2 = create_shared_area(path, perms, (char *) my_sig, sizeof(shsignature_t) * np, &fd_signatures, 1, NULL);
     free(my_sig);
     return p2;
 }

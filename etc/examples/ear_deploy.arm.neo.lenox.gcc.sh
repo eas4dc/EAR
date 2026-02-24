@@ -3,9 +3,9 @@ source /etc/profile.d/lmod.sh
 module purge
 module load eb-env Prefix/Production
 
-####################### Configuration starts here #######################
+####################### Configuration starts here ####################### 
 
-## Add here the external features you want to enable in all the cases.
+## Add here the external features you want to enable in all the cases. 
 
 # Enable DCGMI metrics and allows ear-lite support
 EAR_FEATURES="DCGMI=1 FEAT_EARL_LITE=1"
@@ -103,7 +103,7 @@ openmpi_modules="gompi/2023b"
 
 
 
-####################### Configuration ends here #######################
+####################### Configuration ends here ####################### 
 
 # Start preparing environment
 
@@ -119,7 +119,7 @@ autoreconf -i
 
 ### Compile warning: This script assumes the compilation node is architectural compatible with the compute node. If not, some
 ### modifications are needed, for example enabling some instructions or disabling it. For example, compiling in Rome node to
-### support Intel AVX512 requires extra cflags options
+### support Intel AVX512 requires extra cflags options 
 ### extra_cflags="-msse4.1  -msse4.2 -msse3 -mavx512dq -mavx512f -mavx"
 
 

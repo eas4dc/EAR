@@ -70,15 +70,21 @@ void mgt_intel_pstate_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
         }
     }
     // It worked so we can save the value for next loads
-    if (freq_max0 != 0LLU) keeper_save_uint64("AcpiCpufreqMaxFrequency", freq_max0);
-    if (freq_min0 != 0LLU) keeper_save_uint64("AcpiCpufreqMinFrequency", freq_min0);
-    if (freq_max0 == 0LLU) freq_max0 = avail_list[0];
-    if (freq_min0 == 0LLU) freq_min0 = avail_list[avail_list_count - 1];
+    if (freq_max0 != 0LLU)
+        keeper_save_uint64("AcpiCpufreqMaxFrequency", freq_max0);
+    if (freq_min0 != 0LLU)
+        keeper_save_uint64("AcpiCpufreqMinFrequency", freq_min0);
+    if (freq_max0 == 0LLU)
+        freq_max0 = avail_list[0];
+    if (freq_min0 == 0LLU)
+        freq_min0 = avail_list[avail_list_count - 1];
     // Set check
     set_frequency = filemagic_can_mwrite(PATH_SMF, tp->cpu_count, &fds_smf);
     set_governor  = filemagic_can_mwrite(PATH_SGV, tp->cpu_count, &fds_sgv);
-    if (!set_frequency && !filemagic_can_mread(PATH_SMF, tp->cpu_count, &fds_smf)) return;
-    if (!set_governor  && !filemagic_can_mread(PATH_SGV, tp->cpu_count, &fds_sgv)) return;
+    if (!set_frequency && !filemagic_can_mread(PATH_SMF, tp->cpu_count, &fds_smf))
+        return;
+    if (!set_governor && !filemagic_can_mread(PATH_SGV, tp->cpu_count, &fds_sgv))
+        return;
     // Getting base frequency and boost
     cpufreq_base_init(tp, &bf);
     // Saving some required data

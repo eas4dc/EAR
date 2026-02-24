@@ -541,6 +541,13 @@ void set_ear_conf_default(cluster_conf_t *my_conf)
 #else
     strcpy(my_conf->net_ext, "");
 #endif
+    /** If EAR_USER has been defined during the configure
+     * we use it. Use ear otherwise */
+    if (strlen(EAR_USER) == 0) {
+        strncpy(my_conf->ear_owner, "ear", GENERIC_NAME);
+    } else {
+        strncpy(my_conf->ear_owner, EAR_USER, GENERIC_NAME);
+    }
     set_default_eard_conf(&my_conf->eard);
     set_default_eargm_conf(&my_conf->eargm);
     set_default_db_conf(&my_conf->database);

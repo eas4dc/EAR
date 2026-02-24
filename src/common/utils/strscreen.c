@@ -123,7 +123,7 @@ void scsprintf(strscreen_t *s, int div_index, int append, int set_title, char *b
 
 static void clean_tag(strscreen_t *s, char *tag, char *new_string, uint spaces)
 {
-    static char *thirty_spaces = "                              ";
+    // static char *thirty_spaces = "                              ";
     char *ct; // Color tag
     ulong i, j, k;
 
@@ -137,9 +137,10 @@ static void clean_tag(strscreen_t *s, char *tag, char *new_string, uint spaces)
         // Copying the text after the <tag> before the color and the spaces
         strcpy(&s->buffer_final[i + k + spaces], s->buffer_bench);
         // Copying the color in the place where the tag was
-        strncpy(&s->buffer_final[i], new_string, strlen(new_string));
+        strcpy(&s->buffer_final[i], new_string);
         // Copying the spaces
-        strncpy(&s->buffer_final[i + k], thirty_spaces, spaces);
+        // strncpy(&s->buffer_final[i + k], thirty_spaces, spaces);
+        memset(&s->buffer_final[i + k], ' ', spaces);
     }
 }
 

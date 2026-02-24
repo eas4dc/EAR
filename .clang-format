@@ -9,8 +9,8 @@ IndentWidth: 4
 #align assignments variable=value
 AlignConsecutiveAssignments:
   Enabled: true
-  AcrossEmptyLines: false
-  AcrossComments: false
+  AcrossEmptyLines: false 
+  AcrossComments: false 
 
 #align variable declarations
 #AlignConsecutiveDeclarations:
@@ -25,8 +25,8 @@ AlignConsecutiveMacros:
 #if newline is inserted before or after {
 BreakBeforeBraces: Custom
 BraceWrapping:
-  AfterEnum: false
-  AfterStruct: false
+  AfterEnum: false 
+  AfterStruct: false 
   AfterControlStatement: Never
   BeforeElse: false
 
@@ -46,9 +46,9 @@ SeparateDefinitionBlocks: Always
 SpaceBeforeAssignmentOperators: true
 
 #removes spaces after cast-> (double)variable
-SpaceAfterCStyleCast: true
+SpaceAfterCStyleCast: true 
 
-SpacesInLineCommentPrefix:
+SpacesInLineCommentPrefix: 
   Minimum : 1
   Maximum : 2
 

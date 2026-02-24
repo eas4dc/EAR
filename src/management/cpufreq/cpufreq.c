@@ -33,7 +33,8 @@ static uint api;
 state_t mgt_cpufreq_load(topology_t *tp, int force_api)
 {
     state_t s;
-    while (pthread_mutex_trylock(&lock));
+    while (pthread_mutex_trylock(&lock))
+        ;
     if (api != API_NONE) {
         pthread_mutex_unlock(&lock);
         return EAR_SUCCESS;

@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
     }
     mgt_cpufreq_prio_data_print(prios, devs, 0);
 
-#if 0
+#if 0 
     if (state_fail(s = mgt_cpufreq_prio_set_current(0, all_cpus))) {
         serror("mgt_cpufreq_prio_set_current");
     }

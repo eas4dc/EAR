@@ -81,6 +81,7 @@ extern char nodename[MAX_PATH_SIZE];
 extern int eard_must_exit;
 extern ulong eard_max_freq;
 extern pthread_barrier_t setup_barrier;
+extern cluster_conf_t my_cluster_conf;
 #if USE_GPUS
 extern char gpu_str[256];
 #endif
@@ -127,7 +128,7 @@ void services_init(topology_t *tp)
 {
     state_t s;
 
-    management_load(&man, tp, API_FREE);
+    management_load(&man, tp, NULL);
 
     cpufreq_load(tp, NO_EARD);
     imcfreq_load(tp, NO_EARD);
@@ -947,13 +948,25 @@ void create_global_connector(char *ear_tmp, char *nodename)
     sprintf(ear_commreq_global, "%s/.ear_comm.globalreq", ear_tmp);
     verbose(VEARD_LAPI, "Global connector placed at %s", ear_commreq_global);
     // ear_comreq files will be used to send requests from the library to the eard
+    /* Try to create anyway */
     if (mknod(ear_commreq_global, S_IFIFO | S_IRUSR | S_IRGRP | S_IWUSR | S_IWGRP | S_IROTH | S_IWOTH, 0) < 0) {
         if (errno != EEXIST) {
             error("Error creating ear global communicator for requests %s\n", strerror(errno));
+        } else {
+            /* Testing file */
+            struct stat commreq_stat;
+            fstatat(-1, ear_commreq_global, &commreq_stat, AT_SYMLINK_NOFOLLOW);
+            if (!S_ISFIFO(commreq_stat.st_mode)) {
+                error("Error creating ear global communicator for requests at %s, File exists and it is not a pipe",
+                      ear_commreq_global);
+            }
         }
     }
     if (chmod(ear_commreq_global, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH) < 0) {
         error("Error setting privileges for eard-earl connection");
+    }
+    if (state_fail(ear_chown_path(ear_commreq_global, my_cluster_conf.ear_owner))) {
+        error("Error setting owner for eard-earl connection");
     }
     global_req_fd = open(ear_commreq_global, O_RDWR);
     if (global_req_fd < 0) {
@@ -1079,12 +1092,14 @@ void eard_close_comm(int req_fd, int ack_fd)
         verbose(VEARD_LAPI, "Cleaning files for job %lu/%lu/%lu", jid, sid, lid);
         verbose(VEARD_LAPI, "Deleting %s", ear_commack);
         ret = unlink(ear_commack);
-        if (ret != ENOENT)
+        if (ret < 0 && errno != ENOENT) {
             verbose(VEARD_LAPI, "Error deleting file %s", strerror(errno));
+        }
         verbose(VEARD_LAPI, "Deleting %s", ear_commreq);
         ret = unlink(ear_commreq);
-        if (ret != ENOENT)
+        if (ret < 0 && errno != ENOENT) {
             verbose(VEARD_LAPI, "Error deleting file %s", strerror(errno));
+        }
         was_anonymous = eard_local_conn[id].anonymous;
         if (req_fd != -1) {
             close(req_fd);
@@ -1492,7 +1507,7 @@ void service_select(int req_fd, int ack_fd)
     service_close(req_fd, ack_fd);
 }
 
-state_t eard_local_api()
+state_t eard_local_api(char *ear_owner)
 {
     ear_njob_t *eard_jobs_list;
     uint rapl_count;
@@ -1503,7 +1518,7 @@ state_t eard_local_api()
     num_packs = node_desc.socket_count;
 
     verbose(VEARD_LAPI, "Creating node_mgr data");
-    if (nodemgr_server_init(ear_tmp, &eard_jobs_list) != EAR_SUCCESS) {
+    if (nodemgr_server_init(ear_tmp, &eard_jobs_list, ear_owner) != EAR_SUCCESS) {
         verbose(VEARD_LAPI, "Error creating shared memory region for node_mgr");
         exit(1);
     }

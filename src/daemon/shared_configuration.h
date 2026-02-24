@@ -75,8 +75,7 @@ int get_settings_conf_path(char *tmp, uint ID, char *path);
 /** Creates the shared mmemory. It is used by EARD (server)
  *	@param ear_conf_path specifies the path (folder) to create the file used by mmap
  */
-
-settings_conf_t *create_settings_conf_shared_area(char *path, int *fd);
+settings_conf_t *create_settings_conf_shared_area(char *path, int *fd, char *user);
 
 /** Connects with a previously created shared memory region. It is used by EARLib (client)
  *	@param path specifies the path (folder) where the mapped file were created
@@ -103,8 +102,7 @@ int get_resched_path(char *tmp, uint ID, char *path);
 /** Creates the shared mmemory. It is used by EARD (server)
  * *   @param ear_conf_path specifies the path (folder) to create the file used by mmap
  * */
-
-resched_t *create_resched_shared_area(char *path, int *fd);
+resched_t *create_resched_shared_area(char *path, int *fd, char *user);
 
 /** Connects with a previously created shared memory region. It is used by EARLib (client)
  * *   @param ear_conf_path specifies the path (folder) where the mapped file were created
@@ -129,8 +127,7 @@ int get_app_mgt_path(char *tmp, uint ID, char *path);
 /** Creates the shared mmemory. It is used by EARD and APP. App puts information here
  *  * *   @param ear_conf_path specifies the path (folder) to create the file used by mmap
  *   * */
-
-app_mgt_t *create_app_mgt_shared_area(char *path, int *fd);
+app_mgt_t *create_app_mgt_shared_area(char *path, int *fd, char *user);
 
 /** Connects with a previously created shared memory region. It is used by EARLib (client)
  *  * *   @param ear_conf_path specifies the path (folder) where the mapped file were created
@@ -148,22 +145,31 @@ void app_mgt_shared_area_dispose(char *path, app_mgt_t *mem, int fd);
 /***************** COEFFICIENTS **********/
 int get_coeffs_path(char *tmp, char *path);
 
+/** Creates the shared memory area for coefficients. Owned by 'ear' (0644). */
 coefficient_t *create_coeffs_shared_area(char *path, coefficient_t *coeffs, int size);
 
+/** Attaches to a coefficients shared memory area. */
 coefficient_t *attach_coeffs_shared_area(char *path, int *size);
 
+/** Disposes of a coefficients shared memory area. */
 void coeffs_shared_area_dispose(char *path);
 
+/** Detaches from the coefficients shared memory area. */
 void dettach_coeffs_shared_area();
 
+/** Returns the path for the default coefficients shared memory area. */
 int get_coeffs_default_path(char *tmp, char *path);
 
+/** Creates the shared memory area for default coefficients. Owned by 'ear' (0644). */
 coefficient_t *create_coeffs_default_shared_area(char *path, coefficient_t *coeffs, int size);
 
+/** Attaches to a default coefficients shared memory area. */
 coefficient_t *attach_coeffs_default_shared_area(char *path, int *size);
 
+/** Disposes of a default coefficients shared memory area. */
 void coeffs_default_shared_area_dispose(char *path);
 
+/** Detaches from the default coefficients shared memory area. */
 void dettach_coeffs_default_shared_area();
 
 /*** SERVICES ***/
@@ -171,8 +177,8 @@ void dettach_coeffs_default_shared_area();
 /** Sets in path the path for the services configuration in the shared memory */
 int get_services_conf_path(char *tmp, char *path);
 
-/** Creates and maps the shared memory region for services, to be used by eard. path if created using
- * get_services_conf_path */
+/** Creates and maps the shared memory region for services, to be used by eard.
+ * Owned by 'ear' (0644). path is created using get_services_conf_path */
 services_conf_t *create_services_conf_shared_area(char *path);
 
 /** Maps the shared memory region for services, to be used by ear plugin or any other component.path if created using
@@ -190,7 +196,8 @@ void dettach_services_conf_shared_area();
 /** Sets un path the path fort the list of frequencies in the shared memory */
 int get_frequencies_path(char *tmp, char *path);
 
-/** Creates and maps the shared memory region for list of frequencies. size is the input size */
+/** Creates and maps the shared memory region for list of frequencies.
+ * Owned by 'ear' (0644). size is the input size. */
 ulong *create_frequencies_shared_area(char *path, ulong *f, int size);
 
 /** Maps the shared memory region for list of frequencies. size is vector size in butes, num_pstates=size/sizeof(ulong)
@@ -204,14 +211,26 @@ void frequencies_shared_area_dispose(char *path);
 void dettach_frequencies_shared_area();
 
 /************** PC_APP_INFO_T ****************/
+
+/** Returns the path for the powercap application info shared memory area. */
 int get_pc_app_info_path(char *tmp, uint ID, char *path);
-pc_app_info_t *create_pc_app_info_shared_area(char *path, int *fd);
+
+/** Creates the shared memory area for powercap info. Owned by user (0660). */
+pc_app_info_t *create_pc_app_info_shared_area(char *path, int *fd, char *user);
+
+/** Attaches to the powercap application info shared memory area. */
 pc_app_info_t *attach_pc_app_info_shared_area(char *path);
+
+/** Detaches from the powercap application info shared memory area. */
 void dettach_pc_app_info_shared_area();
+
+/** Disposes of a powercap application info shared memory area. */
 void pc_app_info_shared_area_dispose(char *path, pc_app_info_t *mem, int fd);
 
 /******************** ear conf ****************************/
 int get_ser_cluster_conf_path(char *tmp, char *path);
+/** Creates the shared memory area for serializing the cluster configuration.
+ * Owned by 'ear' (0644). */
 char *create_ser_cluster_conf_shared_area(char *path, char *cconf, size_t size);
 char *attach_ser_cluster_conf_shared_area(char *path, size_t *size);
 void dettach_ser_cluster_conf_shared_area();

@@ -184,10 +184,10 @@ static char *creport_earl_events;
 uint ear_periodic_mode   = PERIODIC_MODE_OFF;
 uint mpi_calls_in_period = 10000;
 uint mpi_calls_per_second;
-static unsigned long long int __attribute__((unused))total_mpi_calls = 0;
-static unsigned long __attribute__((unused)) dynais_calls            = 0;
-static uint dynais_timeout = MAX_TIME_DYNAIS_WITHOUT_SIGNATURE;
-uint lib_period            = PERIOD;
+static unsigned long long int __attribute__((unused)) total_mpi_calls = 0;
+static unsigned long __attribute__((unused)) dynais_calls             = 0;
+static uint dynais_timeout                                            = MAX_TIME_DYNAIS_WITHOUT_SIGNATURE;
+uint lib_period                                                       = PERIOD;
 
 // MPI_CALLS_TO_CHECK_PERIODIC is defined to MAX_MPI_CALLS_SECOND
 static uint check_every = MPI_CALLS_TO_CHECK_PERIODIC;
@@ -825,7 +825,7 @@ void create_shared_regions()
     /* Add here the initialization of the shared region to coordinate with external libraries such as DLB */
 #if 0
         get_ear_external_path(tmp, ID, shexternal_region_path);
-        external_mgt = create_ear_external_shared_area(shexternal_region_path);
+        external_mgt = create_ear_external_shared_area(shexternal_region_path, NULL);
         verbose_master(2, "Created shared region for external libraries! (%s)", shexternal_region_path);
 				verbose(2,"Master (PID: %d) shared regions created", getpid());
 #endif
@@ -990,26 +990,6 @@ void attach_shared_regions()
     exclusive = (current_jobs_in_node == 1);
 
     verbose(VPROC_INIT, "%sEARL[%d][%d] Attached task to shared region%s", COL_BLU, ear_my_rank, getpid(), COL_CLR);
-}
-
-static void release_shared_memory_areas()
-{
-
-    verbose(WF_SUPPORT_VERB, "EARL[%d] releasing shared memory regions", getpid());
-    return;
-
-#if WF_SUPPORT
-
-    /* WARNING */
-
-    verbose(WF_SUPPORT_VERB, "EARL[%d] sig_shared_region", getpid());
-    munmap(sig_shared_region, lib_shared_region->num_processes * sizeof(shsignature_t));
-    verbose(WF_SUPPORT_VERB, "EARL[%d] lib_shared_region", getpid());
-    munmap(lib_shared_region, sizeof(lib_shared_data_t));
-    verbose(WF_SUPPORT_VERB, "EARL[%d] external_mgt", getpid());
-    munmap(external_mgt, sizeof(ear_mgt_t));
-    verbose(WF_SUPPORT_VERB, "EARL[%d] end releasing shared memory regions", getpid());
-#endif
 }
 
 /****************************************************************************************************************************************************************/
@@ -1921,7 +1901,7 @@ void ear_init()
     debug("Using ser cconf path %s", ser_cluster_conf_path);
     ser_cluster_conf = attach_ser_cluster_conf_shared_area(ser_cluster_conf_path, &ser_cluster_conf_size);
     debug("Serialized cluster conf requires %lu bytes", ser_cluster_conf_size);
-    verbose(2, "Deserializing the cluster conf %s size %u", ser_cluster_conf_path, ser_cluster_conf_size);
+    verbose(2, "Deserializing the cluster conf %s size %lu", ser_cluster_conf_path, ser_cluster_conf_size);
     memset(&cconf, 0, sizeof(cluster_conf_t));
     deserialize_cluster_conf(&cconf, ser_cluster_conf, ser_cluster_conf_size, &eard_conf.version);
 
@@ -1962,7 +1942,8 @@ void ear_init()
     if (metrics_load(&arch_desc.top) != EAR_SUCCESS) {
         verbose(1, "%sError%s EAR metrics initialization not succeed (%s), turning off EARL...", COL_RED, COL_CLR,
                 state_msg);
-        eard_ok = 0;
+        eard_ok                    = 0;
+        lib_shared_region->earl_on = 0;
         strcpy(application.job.policy, " "); /* Cleaning policy */
         debug("Process %d not completes the initialization", my_node_id);
         return;
@@ -3066,6 +3047,26 @@ void ear_fork_prolog()
 
 void ear_fork_epilog()
 {
+}
+
+static void release_shared_memory_areas()
+{
+
+    verbose(WF_SUPPORT_VERB, "EARL[%d] releasing shared memory regions", getpid());
+    return;
+
+#if WF_SUPPORT
+
+    /* WARNING */
+
+    verbose(WF_SUPPORT_VERB, "EARL[%d] sig_shared_region", getpid());
+    munmap(sig_shared_region, lib_shared_region->num_processes * sizeof(shsignature_t));
+    verbose(WF_SUPPORT_VERB, "EARL[%d] lib_shared_region", getpid());
+    munmap(lib_shared_region, sizeof(lib_shared_data_t));
+    verbose(WF_SUPPORT_VERB, "EARL[%d] external_mgt", getpid());
+    munmap(external_mgt, sizeof(ear_mgt_t));
+    verbose(WF_SUPPORT_VERB, "EARL[%d] end releasing shared memory regions", getpid());
+#endif
 }
 
 static void reset_earl_environment()

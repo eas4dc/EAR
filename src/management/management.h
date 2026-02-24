@@ -26,7 +26,12 @@ typedef struct manages_info_s {
     apinfo_t gpu; // gpu
 } manages_info_t;
 
-void management_load(manages_info_t *man, topology_t *tp, ullong force_api);
+#define MGT_OPT_CPUFREQ 0
+#define MGT_OPT_IMCFREQ 1
+#define MGT_OPT_GPU     2
+#define MGT_OPT_CPUPOW  3
+
+void management_load(manages_info_t *man, topology_t *tp, uint *options);
 
 void management_info_get(manages_info_t *m);
 

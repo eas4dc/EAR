@@ -757,7 +757,7 @@ state_t pmgt_reset_pdomain()
 
 state_t pmgt_get_powercap_value(pwr_mgt_t *phandler, uint pid, ulong *powercap)
 {
-    state_t ret, gret;
+    state_t ret, gret = EAR_ERROR;
     uint parc;
     int i;
     if (powercap == NULL)

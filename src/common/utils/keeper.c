@@ -82,10 +82,12 @@ static void keeper_open()
     sprintf(path, "%s/ear-dyn.conf", tmp);
     // If we are root, we change the user and group of the keeper file.
     if (getuid() == 0) {
-        chown(path, getuid(), getgid());
+        if (chown(path, getuid(), getgid()) < 0) {
+            debug("Error changing owner of %s: (%d) %s", path, errno, strerror(errno));
+        }
     }
     debug("Opening %s", path);
-    if ((fd = open(path, O_RDWR | O_CREAT, PERMS(111, 100, 100))) < 0) {
+    if ((fd = open(path, O_RDWR | O_CREAT | O_NOFOLLOW, PERMS(111, 100, 100))) < 0) {
         debug("Failed: %s", strerror(errno));
         return;
     }
@@ -128,7 +130,9 @@ static void keeper_save()
         return;
     }
     // Position 0 of the file
-    ftruncate(fd, 0);
+    if (ftruncate(fd, 0) < 0) {
+        debug("Error truncating fd %d: (%d) %s", fd, errno, strerror(errno));
+    }
     lseek(fd, 0, SEEK_SET);
 
     while (i < lines_count) {

@@ -76,6 +76,7 @@ void print_cluster_conf(cluster_conf_t *conf)
     verbose(VCCONF, ">>>>> Default plug-ins <<<<<");
     verbose(VCCONF, "      Energy: %s\nPower models: %s", conf->install.obj_ener, conf->install.obj_power_model);
 
+    verbosen(VCCONF, "Default policy %u", conf->default_policy);
     if (strlen(conf->net_ext) > 1) {
         verbosen(
             VCCONF, "\nVerbose: %u\n--->Default_policy: %s\n--->Min_time_perf_acc: %u\n--->Network_extension: %s\n",
@@ -107,6 +108,8 @@ void print_cluster_conf(cluster_conf_t *conf)
     verbose(VCCONF, "Admin users");
     for (i = 0; i < conf->admin_users_count; i++)
         verbose(VCCONF, "--->admin: %s", conf->admin_users[i]);
+
+    verbose(VCCONF, "EAR files owner: %s", conf->ear_owner);
 
     verbosen(VCCONF, ">>>>> Specific node configurations section <<<<<");
     for (i = 0; i < conf->num_nodes; i++)

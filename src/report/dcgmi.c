@@ -61,7 +61,11 @@ static sem_t *report_csv_sem_loop;
 
 static uint current_ID;
 
-static int fd_flags = O_WRONLY | O_APPEND | O_CLOEXEC;
+static int fd_flags = O_WRONLY | O_APPEND | O_CLOEXEC | O_NOFOLLOW;
+static mode_t mode  = S_IRUSR | S_IWUSR;
+
+static int fd_apps  = -1;
+static int fd_loops = -1;
 
 static void create_semaphore(uint ID, char *node);
 
@@ -108,90 +112,6 @@ state_t report_init(report_id_t *id, cluster_conf_t *cconf)
 
         dcgmi_verbose(2, "DCGMI paths app`%s loops %s", csv_log_file, csv_loop_log_file);
 
-#if 0
-static char path_dir_app[1024], path_dir_loops[1024];
-		/*
-		 * Commented since I'm trying to mimic the code of csv_ts.c plug-in.
-		 */
-		/* Loop filename is automatically generated */
-		if (csv_log_file_env) {
-			int ret;
-			debug("Using PATH: %s", csv_log_file_env);
-			if (!ear_file_is_directory(csv_log_file_env)) {
-				if (ear_file_is_regular(csv_log_file_env)) {
-					error
-					    ("DCGMI report plug-in: Invalid path. It must be a directory, not a regular file (%s).",
-					     csv_log_file_env);
-					must_report = 0;
-					return EAR_ERROR;
-				}
-
-				ret =
-				    mkdir(csv_log_file_env,
-					  S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP
-					  | S_IXGRP | S_IROTH | S_IXOTH);
-				if (ret < 0) {
-					error
-					    ("DCGMI report plug-in: Creating output directory %s (%s).",
-					     csv_log_file_env, strerror(errno));
-					must_report = 0;
-					return EAR_ERROR;
-				}
-			}
-
-			if (ear_file_is_directory(csv_log_file_env)
-			    || (csv_log_file_env[strlen(csv_log_file_env) - 1]
-				== '/')) {
-				debug("%s is directory", csv_log_file_env);
-
-				sprintf(path_dir_app, "%s/dcgmi_app_logs",
-					csv_log_file_env);
-
-				ret =
-				    mkdir(path_dir_app,
-					  S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP
-					  | S_IXGRP | S_IROTH | S_IXOTH);
-				if (ret < 0 && errno != EEXIST) {
-					error
-					    ("DCGMI report plug-in: Creating application output directory %s (%s).",
-					     path_dir_app, strerror(errno));
-					must_report = 0;
-					return EAR_ERROR;
-				}
-
-				sprintf(path_dir_loops, "%s/dcgmi_loop_logs",
-					csv_log_file_env);
-
-				ret =
-				    mkdir(path_dir_loops,
-					  S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP
-					  | S_IXGRP | S_IROTH | S_IXOTH);
-				if (ret < 0 && errno != EEXIST) {
-					error
-					    ("DCGMI report plug-in: Creating loops output directory %s (%s).",
-					     path_dir_loops, strerror(errno));
-					must_report = 0;
-					return EAR_ERROR;
-				}
-
-				xsnprintf(csv_log_file, sizeof(csv_log_file),
-					  "%s/dcgmi.%d.csv", path_dir_app,
-					  id->master_rank);
-				xsnprintf(csv_loop_log_file,
-					  sizeof(csv_loop_log_file),
-					  "%s/dcgmi.loops.%d.csv",
-					  path_dir_loops, id->master_rank);
-
-				debug("csv_log_file %s", csv_log_file);
-				debug("csv_loop_log_file %s",
-				      csv_loop_log_file);
-			}
-		} else {
-			must_report = 0;
-			return EAR_ERROR;
-		}
-#endif
-
         my_time = timestamp_getconvert(TIME_SECS);
 
         debug("Done.");
@@ -203,9 +123,6 @@ static char path_dir_app[1024], path_dir_loops[1024];
 
     return EAR_SUCCESS;
 }
-
-// static uint file_app_created = 0;
-static int fd_app = -1;
 
 state_t report_applications(report_id_t *id, application_t *apps, uint count)
 {
@@ -229,40 +146,35 @@ state_t report_applications(report_id_t *id, application_t *apps, uint count)
 
     sem_wait(report_csv_sem_app);
 
-    /*
-     * fd_app negative means we haven't opened the file.
-     * If file_is_regular we don't need to create the header.
-     * So we just create the header if we don't have the file opened and the
-     * file doesn't exist.
-     */
-    if (fd_app < 0 && !ear_file_is_regular(csv_log_file)) {
-        debug("Creating application header");
+    if (fd_apps < 0) {
+        /* We just let to create the file. */
+        fd_apps = open(csv_log_file, fd_flags | O_CREAT | O_EXCL, mode);
+        if (fd_apps >= 0) {
+            /* The file was created, print first the header. */
 #if DCGMI
-        dcgmi_lib_dcgmi_sig_csv_header(extra_header_app, sizeof(extra_header_app));
-        strcat(extra_header_app, ";");
+            dcgmi_lib_dcgmi_sig_csv_header(extra_header_app, sizeof(extra_header_app));
+            strcat(extra_header_app, ";");
 #endif
-        strcpy(app_header, extra_header_app);
 
-        /* Headers for phases */
-        for (uint ph = 1; ph < EARL_MAX_PHASES; ph++) {
-            strcat(app_header, phase_to_str(ph));
-            strcat(app_header, ";");
-        }
+            /* Headers for phases */
+            for (uint ph = 1; ph < EARL_MAX_PHASES; ph++) {
+                strcat(extra_header_app, phase_to_str(ph));
+                strcat(extra_header_app, ";");
+            }
 
-        create_app_header(app_header, csv_log_file, num_gpus, 1, 0);
-        // file_app_created = 1;
-        fd_app = open(csv_log_file, fd_flags);
-        debug("app csv file: %d", fd_app);
-        if (fd_app < 0) {
-            debug("Error opening csv %s file: %s", csv_log_file, strerror(errno));
-        }
-    }
-
-    /* Open the file if we didn't it yet. */
-    if (fd_app < 0) {
-        fd_app = open(csv_log_file, fd_flags);
-        if (fd_app < 0) {
-            debug("Error opening csv %s file: %s", csv_log_file, strerror(errno));
+            application_create_header_str(app_header, sizeof(app_header), extra_header_app, num_gpus, 1, 0);
+            dprintf(fd_apps, "%s\n", app_header);
+        } else if (errno == EEXIST) {
+            /* The file already exists, therefore we open it again and we won't print the header. */
+            fd_apps = open(csv_log_file, fd_flags, mode);
+            if (fd_apps < 0) {
+                error("Opening file %s: (%d) %s", csv_log_file, errno, strerror(errno));
+                return EAR_ERROR;
+            }
+        } else {
+            /* Another error ocurred. */
+            error("Opening file %s: (%d) %s", csv_log_file, errno, strerror(errno));
+            return EAR_ERROR;
         }
     }
 
@@ -271,29 +183,28 @@ state_t report_applications(report_id_t *id, application_t *apps, uint count)
             continue;
         }
         debug("Reporting app %u", i);
-        if (fd_app >= 0) {
 #if DCGMI
-            sigex  = (sig_ext_t *) apps[i].signature.sig_ext;
-            dcgmis = (dcgmi_sig_t *) &sigex->dcgmis;
+        sigex  = (sig_ext_t *) apps[i].signature.sig_ext;
+        dcgmis = (dcgmi_sig_t *) &sigex->dcgmis;
 
-            debug("Set count: %u", dcgmis->set_cnt);
-            if (dcgmis->set_cnt && num_gpus) {
-                dcgmi_lib_dcgmi_sig_to_csv(dcgmis, extra_metrics, sizeof(extra_metrics));
-                dprintf(fd_app, "%s;", extra_metrics);
-            }
+        debug("Set count: %u", dcgmis->set_cnt);
+        if (dcgmis->set_cnt && num_gpus) {
+            dcgmi_lib_dcgmi_sig_to_csv(dcgmis, extra_metrics, sizeof(extra_metrics));
+            dprintf(fd_apps, "%s;", extra_metrics);
+        }
 #endif
 
-            if (apps[i].signature.sig_ext) {
-                debug("Adding phases");
-                sigex = (sig_ext_t *) apps[i].signature.sig_ext;
-                for (uint ph = 1; ph < EARL_MAX_PHASES; ph++) {
-                    dprintf(fd_app, "%llu;", sigex->earl_phase[ph].elapsed);
-                }
+        if (apps[i].signature.sig_ext) {
+            debug("Adding phases");
+            sigex = (sig_ext_t *) apps[i].signature.sig_ext;
+            for (uint ph = 1; ph < EARL_MAX_PHASES; ph++) {
+                dprintf(fd_apps, "%llu;", sigex->earl_phase[ph].elapsed);
             }
         }
         debug("Reporting signature");
-        append_application_text_file(csv_log_file, &apps[i], 1, 0, 0);
+        print_application_fd(fd_apps, &apps[i], 1, 1, 0);
     }
+
     sem_post(report_csv_sem_app);
     return EAR_SUCCESS;
 }
@@ -305,9 +216,6 @@ state_t report_misc(report_id_t *id, uint type, const char *data, uint count)
     }
     return EAR_SUCCESS;
 }
-
-// static uint file_loop_created = 0;
-static int fd_loops = -1;
 
 state_t report_loops(report_id_t *id, loop_t *loops, uint count)
 {
@@ -333,22 +241,32 @@ state_t report_loops(report_id_t *id, loop_t *loops, uint count)
     }
     sem_wait(report_csv_sem_loop);
 
-    /* The same logic as with report_applications. */
-    if (fd_loops < 0 && !ear_file_is_regular(csv_loop_log_file)) {
-        debug("dcgmi creating loop header");
-
+    if (fd_loops < 0) {
+        fd_loops = open(csv_loop_log_file, fd_flags | O_CREAT | O_EXCL, mode);
+        if (fd_loops >= 0) {
+            /* The file was created, print first the header. */
 #if DCGMI
-        dcgmi_lib_dcgmi_sig_csv_header(extra_header, sizeof(extra_header));
-        strcat(extra_header, ";");
+            dcgmi_lib_dcgmi_sig_csv_header(extra_header, sizeof(extra_header));
+            strcat(extra_header, ";");
 #endif
 
-        create_loop_header(extra_header, csv_loop_log_file, 1, num_gpus, 0);
-        debug("Header file created");
-        fd_loops = open(csv_loop_log_file, fd_flags);
-    }
+            char loop_header[8192];
+            memset(loop_header, 0, sizeof(loop_header));
 
-    if (fd_loops < 0)
-        fd_loops = open(csv_loop_log_file, fd_flags);
+            loop_create_header_str(loop_header, sizeof(loop_header), extra_header, 1, num_gpus, 0);
+            dprintf(fd_loops, "%s\n", loop_header);
+        } else if (errno == EEXIST) {
+            /* The file already exists, therefore we open it again and we won't print the header. */
+            fd_loops = open(csv_loop_log_file, fd_flags, mode);
+            if (fd_loops < 0) {
+                error("Opening file %s: (%d) %s.", csv_loop_log_file, errno, strerror(errno));
+                return EAR_ERROR;
+            }
+        } else {
+            error("Opening file %s: (%d) %s.", csv_loop_log_file, errno, strerror(errno));
+            return EAR_ERROR;
+        }
+    }
 
     ullong sec = timestamp_getconvert(TIME_SECS);
     currtime   = sec - my_time;
@@ -356,18 +274,16 @@ state_t report_loops(report_id_t *id, loop_t *loops, uint count)
         if (!check_ID(create_ID(loops[i].jid, loops[i].step_id))) {
             continue;
         }
-        // TODO: we could return EAR_ERROR in case the below functions returns EAR_ERROR
-        if (fd_loops >= 0) {
 #if DCGMI
-            sigex  = (sig_ext_t *) loops[i].signature.sig_ext;
-            dcgmis = (dcgmi_sig_t *) &sigex->dcgmis;
-            if (num_gpus) {
-                dcgmi_lib_dcgmi_sig_to_csv(dcgmis, extra_metrics, sizeof(extra_metrics));
-                dprintf(fd_loops, "%s;", extra_metrics);
-            }
-#endif
+        sigex  = (sig_ext_t *) loops[i].signature.sig_ext;
+        dcgmis = (dcgmi_sig_t *) &sigex->dcgmis;
+        if (num_gpus) {
+            dcgmi_lib_dcgmi_sig_to_csv(dcgmis, extra_metrics, sizeof(extra_metrics));
+            dprintf(fd_loops, "%s;", extra_metrics);
         }
-        append_loop_text_file_no_job_with_ts(csv_loop_log_file, &loops[i], currtime, 0, 0, ' ');
+#endif
+        // append_loop_text_file_no_job_with_ts(csv_loop_log_file, &loops[i], currtime, 0, 0, ' ');
+        loop_print_fd(fd_loops, &loops[i], 1, currtime, 0, ' ');
     }
     sem_post(report_csv_sem_loop);
     return EAR_SUCCESS;
@@ -378,17 +294,24 @@ state_t report_dispose(report_id_t *id)
     if (sem_created) {
         sem_close(report_csv_sem_app);
         sem_close(report_csv_sem_loop);
+
+        sem_unlink(sem_file_app_path);
+        sem_unlink(sem_file_loop_path);
     }
+
     current_ID  = 0;
     sem_created = 0;
-    if (fd_app) {
-        close(fd_app);
-        fd_app = -1;
-    }
-    if (fd_loops) {
+
+    if (fd_loops >= 0) {
         close(fd_loops);
         fd_loops = -1;
     }
+
+    if (fd_apps >= 0) {
+        close(fd_apps);
+        fd_apps = -1;
+    }
+
     return EAR_SUCCESS;
 }
 

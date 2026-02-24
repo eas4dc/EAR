@@ -34,6 +34,6 @@ declr_up_action_init(_conf)
 declr_up_action_init(_management)
 {
     *data_alloc = &m;
-    management_load(&m.mi, &conf->tp, atoull(getenv("MFLAGS")));
+    management_load(&m.mi, &conf->tp, NULL);
     return rsprintf("Management plugin initialized correctly");
 }

@@ -807,7 +807,7 @@ void states_new_iteration(int my_id, uint period, uint iterations, uint level, u
         /* If the policy is ok, we are in stable state and we increase
          * the number of iterations to compute the signature. */
         case SIGNATURE_STABLE:
-            verbose_master(4,"SIGNATURE_STABLE");
+            verbose_master(4, "SIGNATURE_STABLE");
 
             if (!lib_shared_region->master_ready) {
                 if (!dynais_used && ((iterations - begin_iter) < mpi_calls_iter)) {

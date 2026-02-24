@@ -230,7 +230,7 @@ state_t mpi_app_init(polctx_t *c)
         char *stats = ear_getenv(FLAG_GET_MPI_STATS);
         if (stats != NULL) {
             get_mpi_stats = 1;
-            strncpy(mpi_stats_prefix, stats, sizeof(mpi_stats_prefix));
+            strncpy(mpi_stats_prefix, stats, sizeof(mpi_stats_prefix) - 1);
         }
 #endif
 
@@ -313,8 +313,8 @@ state_t mpi_app_end(polctx_t *c)
 #if MPI_STATS
         if (get_mpi_stats) {
 
-            char mpi_stats_per_call_filename[256];
-            char mpi_stats_filename[256];
+            char mpi_stats_per_call_filename[512];
+            char mpi_stats_filename[512];
 
             if (state_fail(
                     build_mpi_ear_stats_filenames(mpi_stats_prefix, mpi_stats_filename, mpi_stats_per_call_filename))) {

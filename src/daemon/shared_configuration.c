@@ -69,16 +69,23 @@ int get_coeffs_default_path(char *tmp, char *path)
 
 //// SETTINGS
 
-// Creates a shared memory region between eard and ear_lib. returns NULL if error.
-settings_conf_t *create_settings_conf_shared_area(char *path, int *fd)
+/**
+ * create_settings_conf_shared_area:
+ * Creates the shared memory region for dynamic power settings between eard and ear_lib.
+ * This area is owned by the "ear" user (daemon) and is world-readable so that
+ * the library (running as job user) can always read its configuration.
+ */
+settings_conf_t *create_settings_conf_shared_area(char *path, int *fd, char *user)
 {
     settings_conf_t my_settings;
 
-    // Read and write permission for the owner. Read permission for the group and others.
+    /* Perimissions: 0644 (Read-Write for owner, Read for group and others).
+     * S_IROTH is required because these files are owned by the "ear" user,
+     * but must be readable by the library running as the job user. */
     mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 
     settings_conf_t *mem = (settings_conf_t *) create_shared_area(path, perms, (char *) &my_settings,
-                                                                  sizeof(my_settings), &fd_settings, 1);
+                                                                  sizeof(my_settings), &fd_settings, 1, user);
     if (fd) {
         *fd = fd_settings;
     }
@@ -129,13 +136,13 @@ void print_settings_conf(settings_conf_t *setting)
 /// RESCHED
 
 // Creates a shared memory region between eard and ear_lib. returns NULL if error.
-resched_t *create_resched_shared_area(char *path, int *fd)
+resched_t *create_resched_shared_area(char *path, int *fd, char *user)
 {
     resched_t my_settings;
-    mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    mode_t perms = S_IRUSR | S_IWUSR;
 
     resched_t *mem =
-        (resched_t *) create_shared_area(path, perms, (char *) &my_settings, sizeof(my_settings), &fd_resched, 1);
+        (resched_t *) create_shared_area(path, perms, (char *) &my_settings, sizeof(my_settings), &fd_resched, 1, user);
 
     if (fd != NULL) {
         *fd = fd_resched;
@@ -183,13 +190,14 @@ int get_app_mgt_path(char *tmp, uint ID, char *path)
 
 /** Creates the shared mmemory. It is used by EARD and APP. App puts information here
  * @param ear_conf_path specifies the path (folder) to create the file used by mmap. */
-app_mgt_t *create_app_mgt_shared_area(char *path, int *fd)
+app_mgt_t *create_app_mgt_shared_area(char *path, int *fd, char *user)
 {
     app_mgt_t my_app_data;
-    mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    mode_t perms = S_IRUSR | S_IWUSR;
 
     app_mgt_t *mem;
-    mem = (app_mgt_t *) create_shared_area(path, perms, (char *) &my_app_data, sizeof(my_app_data), &fd_app_mgt, 1);
+    mem =
+        (app_mgt_t *) create_shared_area(path, perms, (char *) &my_app_data, sizeof(my_app_data), &fd_app_mgt, 1, user);
 
     if (fd) {
         *fd = fd_app_mgt;
@@ -233,13 +241,14 @@ int get_pc_app_info_path(char *tmp, uint ID, char *path)
     return EAR_SUCCESS;
 }
 
-pc_app_info_t *create_pc_app_info_shared_area(char *path, int *fd)
+pc_app_info_t *create_pc_app_info_shared_area(char *path, int *fd, char *user)
 {
     pc_app_info_t my_data;
-    mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    mode_t perms = S_IRUSR | S_IWUSR;
 
     pc_app_info_t *mem;
-    mem = (pc_app_info_t *) create_shared_area(path, perms, (char *) &my_data, sizeof(my_data), &fd_pc_app_info, 1);
+    mem =
+        (pc_app_info_t *) create_shared_area(path, perms, (char *) &my_data, sizeof(my_data), &fd_pc_app_info, 1, user);
 
     if (fd) {
         *fd = fd_pc_app_info;
@@ -273,13 +282,15 @@ void pc_app_info_shared_area_dispose(char *path, pc_app_info_t *mem, int fd)
 coefficient_t *create_coeffs_shared_area(char *path, coefficient_t *coeffs, int size)
 {
     mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    return (coefficient_t *) create_shared_area(path, perms, (char *) coeffs, size, &fd_coeffs, 0);
+    /** TODO: This should be owned by ear_owner */
+    return (coefficient_t *) create_shared_area(path, perms, (char *) coeffs, size, &fd_coeffs, 0, NULL);
 }
 
 coefficient_t *create_coeffs_default_shared_area(char *path, coefficient_t *coeffs, int size)
 {
     mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    return (coefficient_t *) create_shared_area(path, perms, (char *) coeffs, size, &fd_coeffs, 0);
+    /** TODO: This should be owned by ear_owner */
+    return (coefficient_t *) create_shared_area(path, perms, (char *) coeffs, size, &fd_coeffs, 0, NULL);
 }
 
 coefficient_t *attach_coeffs_shared_area(char *path, int *size)
@@ -327,8 +338,9 @@ services_conf_t *create_services_conf_shared_area(char *path)
     if (path == NULL)
         return NULL;
     mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    /** TODO: This should be owned by ear_owner */
     return (services_conf_t *) create_shared_area(path, perms, (char *) &my_services, sizeof(services_conf_t),
-                                                  &fd_services, 1);
+                                                  &fd_services, 1, NULL);
 }
 
 services_conf_t *attach_services_conf_shared_area(char *path)
@@ -365,7 +377,8 @@ ulong *create_frequencies_shared_area(char *path, ulong *f, int size)
         return NULL;
 
     mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    return (ulong *) create_shared_area(path, perms, (char *) f, size, &fd_freq, 0);
+    /** TODO: This should be owned by ear_owner */
+    return (ulong *) create_shared_area(path, perms, (char *) f, size, &fd_freq, 0, NULL);
 }
 
 ulong *attach_frequencies_shared_area(char *path, int *size)
@@ -401,7 +414,8 @@ int fd_cconf;
 char *create_ser_cluster_conf_shared_area(char *path, char *cconf, size_t size)
 {
     mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    return (char *) create_shared_area(path, perms, (char *) cconf, size, &fd_cconf, 0);
+    /** TODO: This should be owned by ear_owner */
+    return (char *) create_shared_area(path, perms, (char *) cconf, size, &fd_cconf, 0, NULL);
 }
 
 char *attach_ser_cluster_conf_shared_area(char *path, size_t *size)

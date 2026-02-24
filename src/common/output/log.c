@@ -10,6 +10,7 @@
 
 #include <common/output/error.h>
 #include <common/output/verbose.h>
+#include <common/system/file.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -28,8 +29,8 @@ int log_open(char *path, char *service_name)
     sprintf(logfile, "%s/%s.log", path, service_name);
     my_mask = umask(0);
     unlink(logfile);
-    fd = open(logfile, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    chmod(logfile, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    fd = open(logfile, O_CREAT | O_WRONLY | O_TRUNC | O_NOFOLLOW, S_IRUSR | S_IWUSR);
+    chmod(logfile, S_IRUSR | S_IWUSR);
     umask(my_mask);
 
     if (fd >= 0) {

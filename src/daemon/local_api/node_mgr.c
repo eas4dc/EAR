@@ -39,7 +39,7 @@ state_t nodemgr_lock_init(char *tmp)
 
     if (fd_node_mgr_lck >= 0)
         close(fd_node_mgr_lck);
-    strncpy(node_mgr_tmp, tmp, sizeof(node_mgr_tmp));
+    strncpy(node_mgr_tmp, tmp, sizeof(node_mgr_tmp) - 1);
     xsnprintf(node_mgr_lock, sizeof(node_mgr_lock), "%s/%s", node_mgr_tmp, LOCK_NODE_MGR_LCK);
 
     if (ear_file_is_regular(node_mgr_lock)) {
@@ -91,8 +91,13 @@ state_t nodemgr_job_init(char *tmp, ear_njob_t **nodelist)
     return EAR_SUCCESS;
 }
 
-/* Created the lock and the shared region. To be used by eard */
-state_t nodemgr_server_init(char *tmp, ear_njob_t **nodelist)
+/**
+ * nodemgr_server_init:
+ * Initializes the coordination area for node jobs. This area is owned by "ear"
+ * but must be world-writable (0666) because it allows multiple different users
+ * (running the library) to register their own jobs into this global list.
+ */
+state_t nodemgr_server_init(char *tmp, ear_njob_t **nodelist, char *ear_owner)
 {
     if (tmp == NULL)
         return EAR_ERROR;
@@ -103,6 +108,12 @@ state_t nodemgr_server_init(char *tmp, ear_njob_t **nodelist)
         verbose(WF_SUPPORT_VERB, " EAR Error, nodemgr_lock cannot be initialized");
         return EAR_ERROR;
     }
+
+    /* Enforce non-root ownership (ear_owner)
+     * we are doing it here and not in nodemgr_lock_init
+     * becasue nodemgr_lock_init is called by both the daemon
+     * and the library. */
+    ear_chown_path(node_mgr_lock, ear_owner);
 
     node_jobs_list = (ear_njob_t *) calloc(MAX_CPUS_SUPPORTED, sizeof(ear_njob_t));
     if (node_jobs_list == NULL) {
@@ -119,12 +130,15 @@ state_t nodemgr_server_init(char *tmp, ear_njob_t **nodelist)
     if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES))
         return EAR_ERROR;
 
-    /* The eard will create this area */
+    /* The eard will create this area.
+     * Permissions: 0666 (Read-Write for everyone).
+     * Necessary so different job users can register themselves in the shared list. */
     debug("NODE MGR INFO %s\n", node_mgr_info);
-    mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
-                   S_IWOTH; // Read and write permission for the owner user. Read permission for group and others.
-    node_jobs_list = (ear_njob_t *) create_shared_area(node_mgr_info, perms, (char *) node_jobs_list,
-                                                       sizeof(ear_njob_t) * MAX_CPUS_SUPPORTED, &fd_node_mgr_info, 0);
+    /** Review perms */
+    mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    node_jobs_list =
+        (ear_njob_t *) create_shared_area(node_mgr_info, perms, (char *) node_jobs_list,
+                                          sizeof(ear_njob_t) * MAX_CPUS_SUPPORTED, &fd_node_mgr_info, 0, ear_owner);
 
     ear_file_unlock(fd_node_mgr_lck);
     *nodelist = node_jobs_list;
