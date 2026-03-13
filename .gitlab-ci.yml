@@ -114,10 +114,5 @@ apply_patch:
   stage: build
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
-  needs:
-    - project: EAR_team/ear_private
-      job: release_job
-      ref: public-release
-      artifacts: true
   script:
-    - cat release.patch
+    - git diff $(git describe --abbrev=0 --tags HEAD~) > release.patch
