@@ -117,6 +117,6 @@ apply_patch:
   image: alpine:3
   script:
     - apk add git
-    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.bsc.ces/ear_team/ear_private
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.bsc.es/ear_team/ear_private
     - cd ear_private
     - git diff $(git describe --abbrev=0 --tags HEAD~)
