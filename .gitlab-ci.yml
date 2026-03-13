@@ -119,4 +119,15 @@ apply_patch:
     - apk add git
     - git clone --branch=public-release https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.bsc.es/ear_team/ear_private
     - cd ear_private
-    - git diff $(git describe --abbrev=0 --tags HEAD~)
+    - git diff $(git describe --abbrev=0 --tags HEAD~) > ../release.diff
+    - cd ..
+    - git apply --whitespace=fix --reject release.diff
+    - rm -rf ear_private
+    - git add .
+    - git commit -m "Next release patch" # TODO get the tag and add to the commit message.
+  artifacts:
+    untracked: false
+    when: on_success
+    expire_in: 30 days
+    paths:
+       - release.diff
