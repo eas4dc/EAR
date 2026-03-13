@@ -114,5 +114,7 @@ apply_patch:
   stage: build
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
+  image: alpine:3
   script:
-    - git diff $(git describe --abbrev=0 --tags HEAD~) > release.patch
+    - apk add git
+    - git diff $(git describe --abbrev=0 --tags HEAD~)
