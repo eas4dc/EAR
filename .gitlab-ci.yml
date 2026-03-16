@@ -6,17 +6,24 @@ workflow:
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
       when: never
     - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
 
 # Currently there is just on stage: build. Different jobs compile different versions of EAR by using
 # compile.sh script provided in the ear_ci repository: https://gitlab.bsc.es/ear_team/ear-ci
 stages:          # List of stages for jobs, and their order of execution
   - build
   - test
+  - release
 
 image: registry.gitlab.bsc.es/ear_team/ear-ci
 
 compile-no-mpi-loader:
   stage: build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_COMMIT_TAG
+      when: never
+    - when: always
   script:
     - export CONFIG_SITE="$TESTDIR/config-sites/config.no-mpi-loader.site"
     - CONFIGURE_FLAGS="--prefix=$PWD/ear-no-mpi-loader" $TESTDIR/compile.sh
@@ -30,12 +37,20 @@ compile-no-mpi-loader:
 
 compile-no-mpi:
   stage: build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_COMMIT_TAG
+      when: never
+    - when: always
   script:
     - export CONFIG_SITE="$TESTDIR/config-sites/config.no-mpi.site"
     - MAKE_FEATURES="MPI_CFLAGS='$(pkgconf ompi-c --cflags)'" $TESTDIR/compile.sh
 
 compile-mpi:
   stage: build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_COMMIT_TAG
+      when: never
+    - when: always
   script:
     - export CONFIG_SITE="$TESTDIR/config-sites/config.ompi.site"
     - MAKE_FEATURES="MPI_CFLAGS='$(pkgconf ompi-c --cflags)'" CONFIGURE_FLAGS="--prefix=$PWD/ear-ompi" $TESTDIR/compile.sh
@@ -48,6 +63,10 @@ compile-mpi:
 
 test-install-no-mpi-loader:
   stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_COMMIT_TAG
+      when: never
+    - when: always
   needs: [compile-no-mpi-loader]
   script:
     - echo "Checking installation for no MPI Loader installation"
@@ -56,8 +75,53 @@ test-install-no-mpi-loader:
 
 test-install-mpi:
   stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_COMMIT_TAG
+      when: never
+    - when: always
   needs: [compile-mpi]
   script:
     - echo "Checking installation for MPI installation"
     - $TESTDIR/test_install.sh ear-ompi
     - test -f ear-ompi/lib/libear.ompi.so
+
+release_job:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG                 # Run this job when a tag is created
+  script:
+    - apk add --no-cache python3
+    - python3 etc/release/get_latest_tag_changelog.py CHANGELOG.md > changelog.txt
+  release:
+    tag_name: '$CI_COMMIT_TAG'
+    description: ./changelog.txt
+  artifacts:
+    paths:
+      - changelog.txt
+
+publish_patch:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_PROJECT_NAME == "ear"
+      when: never
+    - if: $CI_COMMIT_TAG
+  needs:
+    - job: release_job
+      artifacts: true
+  variables:
+    GIT_STRATEGY: clone
+  script:
+    - git diff $(git describe --abbrev=0 --tags --exclude="$(git describe --abbrev=0 --tags)") > release.patch
+    - git clone --branch=release-v5 https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.bsc.es/ear_team/ear
+    - cd ear
+    - git apply --whitespace=fix --reject ../release.patch
+    - git add .
+    - git config user.name "CI Pipeline"
+    - git config user.email $GITLAB_USER_EMAIL
+    - git commit --file=../changelog.txt
+    - git tag $CI_COMMIT_TAG
+    - git remote set-url origin https://oauth2:$AUTOMATION_ACCESS_TOKEN@gitlab.bsc.es/ear_team/ear
+    - git push
+    - git push --tags

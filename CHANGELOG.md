@@ -42,6 +42,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 Several minor fixes in IMCFreq amd19 management API.
 - v6.0 Fixed errors with ereport's -G option.
 
+## [5.2.5] - 2026-03-16
+
+### Added
+
+- Automatic release done through Gitlab CI.
+
+### Changed
+
+- The rpm spec file installs the doc directory and module file.
+
+### Fixed
+
+- Resolve "Hardcoded ear user in ear_create_tmp_folder".
+
 # 5.2.4 - 2026-02-03
 
 ### Changed
