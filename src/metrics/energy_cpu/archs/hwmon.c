@@ -72,6 +72,10 @@ state_t energy_cpu_hwmon_load(topology_t *tp_in)
         chips_open(&chips_sysio , "SysIO Power Socket");
     } else {
         chips_open(&chips_pkg, NULL); // Is like acpi_power.c
+        // In case the PKGs opened are less, the counters are not for the PKG energy
+        if (chips_pkg.chips_count != tp_in->socket_count) {
+            return chips_close_all(EAR_ERROR);
+        }
     }
     if (!chips_pkg.chips_count) {
         return chips_close_all(EAR_ERROR);

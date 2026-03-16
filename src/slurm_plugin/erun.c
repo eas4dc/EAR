@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
 #include <common/utils/args.h>
 #include <slurm_plugin/erun_lock.h>
 #include <slurm_plugin/erun_signals.h>
@@ -358,7 +359,6 @@ int main(int argc, char *argv[])
         // Cleaning $EAR_TMP/erun folder
         plug_verbose(_sp, 0, "cleaning erun folder");
         all_clean(path_tmp);
-
         return 0;
     }
 
@@ -369,7 +369,6 @@ int main(int argc, char *argv[])
         pipeline(_argc, _argv, Context.error, Action.init);
         // no context finalization
         pipeline(_argc, _argv, Context.error, Action.exit);
-
         return 0;
     }
 
@@ -377,23 +376,26 @@ int main(int argc, char *argv[])
     if (_error) {
         if (_error == 1) { // Environment variable missing
             if ((sd.erun.is_master = lock_master(path_tmp, sd.erun.job_id))) {
-                plug_verbose(_sp, 0,
-                             "missing environment vars, is the EAR module loaded? (only master prints this message)");
-                //
+                plug_verbose(_sp, 0, "missing environment vars, is the EAR module loaded? (only master prints this message)");
+                // Returning -1 is serious, so we announce that in all processes.
                 sleep(2);
-                //
-                folder_clean(sd.erun.job_id);
+                // But only the real master can do the cleaning
+                if (sd.erun.is_master == 1) {
+                    folder_clean(sd.erun.job_id);
+                }
             }
             return 0;
         }
         if (_error == 2) { // Going inactive because detected SRUN
-            if ((sd.erun.is_master = lock_master(path_tmp, sd.erun.job_id))) {
+            if ((sd.erun.is_master = lock_master(path_tmp, sd.erun.job_id)) == 1) {
                 plug_verbose(_sp, 0, "detected SRUN, going inactive (only master prints this message)");
+            } else if (sd.erun.is_master == -1) {
+                plug_verbose(_sp, 0, "detected SRUN, but there is an error %s", state_msg);
             }
-            //
+            // All processes of type master/slave/error launch the program
             execute(_argc, _argv);
-            //
-            if (sd.erun.is_master) {
+            // But only the real master can do the cleaning
+            if (sd.erun.is_master == 1) {
                 folder_clean(sd.erun.job_id);
             }
             return 0;
@@ -408,14 +410,14 @@ int main(int argc, char *argv[])
             sd.erun.step_id = master_getstep(sd.erun.job_id, sd.erun.step_id);
             break;
         case 0: // Case not master
-            plug_verbose(_sp, 3, "subject '%d' is erun master? '%d' (missed the lock file and then spinlock)", getpid(),
-                         sd.erun.is_master);
+            plug_verbose(_sp, 3, "subject '%d' is erun master? '%d' (missed the lock file and then spinlock)", getpid(), sd.erun.is_master);
             // Spinlock over lock.slave
             spinlock_slave(sd.erun.job_id);
             // Get slave.step.id
             sd.erun.step_id = slave_getstep(sd.erun.job_id, sd.erun.step_id);
             break;
         case -1: // Case some error with lock files
+            plug_error(_sp, "%s", state_msg);
             execute(_argc, _argv);
             return 0;
     }

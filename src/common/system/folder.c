@@ -196,7 +196,7 @@ state_t ear_create_tmp(char *path, char *ear_owner)
     struct stat st;
 
     // Validate input path
-    if (path == NULL || strlen(path) == 0) {
+    if (!path || !strlen(path) || !ear_owner) {
         return EAR_ERROR;
     }
 
@@ -258,7 +258,7 @@ state_t ear_create_tmp(char *path, char *ear_owner)
             if (chmod(tmp, S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
                 debug("Warning: could not chmod %s: %s", tmp, strerror(errno));
             }
-            ear_chown_path(tmp, "ear");
+            ear_chown_path(tmp, ear_owner);
         }
     } else {
         // Ensure the final component is indeed a directory
@@ -269,7 +269,7 @@ state_t ear_create_tmp(char *path, char *ear_owner)
         /* Enforce ownership even if it exists */
         /* Also ensure permissions are correct (1777) for shared access */
         chmod(tmp, S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
-        ear_chown_path(tmp, "ear");
+        ear_chown_path(tmp, ear_owner);
     }
 
     return EAR_SUCCESS;
