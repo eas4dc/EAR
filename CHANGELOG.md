@@ -42,6 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 Several minor fixes in IMCFreq amd19 management API.
 - v6.0 Fixed errors with ereport's -G option.
 
+## [5.2.6] - Unreleased
+
+### Changed
+
+- Disable data center monitor's `conf` plugin if there is some trouble when reading configuration.
+- Updated v5.2.4's CHANGELOG to mention security issues were found by [REQON B.V.]((https://reqon.nl)).
+
 ## [5.2.5] - 2026-03-16
 
 ### Added
@@ -65,9 +72,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Prevent calling mgt\_cpufreq\_governor\_available when the symbol is NULL.
-- EAR owner/permission files fixes.
+- EAR owner/permission files fixes (This vulnerability was responsible disclosed by [REQON B.V.](https://reqon.nl)).
 - Check whether opened fd is >= 0.
-- Fixed setuid security issues in ereport, eacct, ear-info and econtrol.
+- Fixed setuid security issues in ereport, eacct, ear-info and econtrol (This vulnerability was responsible disclosed by [REQON B.V.](https://reqon.nl)).
 - Resolve "Policies default PState is overwritten in EARD's main function".
 
 ## 5.2.3 - 2025-12-18

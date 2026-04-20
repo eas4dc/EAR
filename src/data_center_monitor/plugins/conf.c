@@ -30,8 +30,7 @@ declr_up_action_init(_conf)
     topology_init(&conf.tp); // It doesn't fail
     // Getting hostname
     if (gethostname(conf.hostname_full, sizeof(conf.hostname_full)) < 0) {
-        sprintf(buffer, "Error getting node name (%s)", strerror(errno));
-        return buffer;
+        return rsprintf("[D] Error getting the hostname: %s", strerror(errno));
     }
     strcpy(conf.hostname, conf.hostname_full);
     strtok(conf.hostname, "."); // Alias
@@ -41,15 +40,15 @@ declr_up_action_init(_conf)
     }
     debug("Reading ear.conf in '%s' in node '%s'", buffer, conf.hostname);
     if (state_fail(read_cluster_conf(buffer, &conf.cluster))) {
-        return "Error while reading ear.conf file";
+        return rsprintf("[D] Error while reading ear.conf file.");
     }
     if ((conf.node = get_my_node_conf(&conf.cluster, conf.hostname)) == NULL) {
         if ((conf.node = get_my_node_conf(&conf.cluster, conf.hostname_full)) == NULL) {
-            return "Node not found in ear.conf";
+            return rsprintf("[D] Node not found in ear.conf.");
         }
     }
     strcpy(conf.cluster.install.obj_ener,conf.node->energy_plugin);
     conf.cluster_loaded = 1;
     debug("database: %s", conf.cluster.database.database);
-    return "Configuration plugin loaded correctly";
+    return rsprintf("Configuration plug-in correctly loaded.");
 }
