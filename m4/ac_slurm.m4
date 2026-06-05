@@ -49,65 +49,38 @@ AC_DEFUN([X_AC_SLURM],
 
     AC_ARG_WITH(
         [slurm],
-        AS_HELP_STRING(--with-slurm=PATH,Specify path to SLURM installation. Use no to disable),
-        [
-		    if test "x$withval" = "xno"; then
-                _x_ac_slurm_force="no"
-    		else
-			    _x_ac_slurm_dirs_root="$withval"
-                _x_ac_slurm_aux="$withval"
-	    		_x_ac_slurm_custom="yes"
-            fi
-		]
-    )
-   
-    # Forced no through --without-slurm 
-    if test "x$_x_ac_slurm_force" != "xno"; then
-    AC_CACHE_CHECK(
-        [for SLURM root directory],
-        [_cv_slurm_dir_root],
-        [
-			X_AC_SLURM_FIND_ROOT_DIR([])
+        [AS_HELP_STRING([--with-slurm=<PATH>], [Specify path to SLURM installation (enabled by default).])],
+        [],
+				[with_slurm=yes]
+		)
 
-                # If not found the SLURM dir in dirs provided by 
-                # top definition or by --with-slurm, then use
-                # the LD_LIBRARY_PATH dirs
-				if test -z "$_cv_slurm_dir_root"; then
-					_x_ac_slurm_dirs_root="${_ax_ld_dirs_root}"
-					_x_ac_slurm_custom="yes"
+		HAVE_SLURM_H=0
+		AS_IF([test "x$with_slurm" != "xno"],
+					[
+						dnl Check for the presence of headers
+						dnl Push CPPFLAGS if a custom path is provided
+						AS_IF([test "x$with_slurm" != xyes],
+									[AX_VAR_PUSHVALUE([CPPFLAGS], ["-I$with_slurm/include"])])
 
-					X_AC_SLURM_FIND_ROOT_DIR([])
-				fi
-        ]
-    )
-    else
-        if test "x$SCHED_NAME" = "xSLURM"; then
-            SCHED_NAME=""
-        fi
-    fi
-
-    # Force custom (if custom = yes but dir (not dirs) root is empty)
-    if test "x$_x_ac_slurm_custom" = "xyes" && test -z "$_cv_slurm_dir_root"; then
-        _cv_slurm_dir_root="$_x_ac_slurm_aux"
-	fi
-
-    if test -z "$_cv_slurm_dir_root"; then
-        echo checking for SLURM compiler link... no
-    else
-        SLURM_DIR=$_cv_slurm_dir_root
-		if test "x$_x_ac_slurm_custom" = "xyes"; then
-       		SLURM_CFLAGS="-I$SLURM_DIR/include"
-		fi
-
-        echo checking for SLURM compiler link... yes
-        echo checking for SLURM CFLAGS... $SLURM_CFLAGS
+						AC_CHECK_HEADERS([slurm/slurm.h slurm/spank.h],
+														 [
+															 ],
+															 [AC_MSG_ERROR([Either slurm.h or spank.h header file not found.], [1])]
+															)
+						dnl If reached this section, that means headers were found.
+						HAVE_SLURM_H=1
+						SCHED_NAME=SLURM
+						dnl If a specific slurm path was specified, set SLURM_CPPFLAGS
+						dnl and restore the original CPPFLAGS variable
+						AS_IF([test "x$with_slurm" != xyes],
+									[
+										AC_MSG_NOTICE([Found both slurm.h and spank.h at $with_slurm/include])
+										AC_SUBST([SLURM_CPPFLAGS], ["-I$with_slurm/include"])
+										AX_VAR_POPVALUE([CPPFLAGS])
+									])
+					]
+				 )
 	
-        SCHED_DIR=$SLURM_DIR	
-        SCHED_NAME=SLURM
-    fi
-
-    AC_SUBST(SLURM_CFLAGS)
-    AC_SUBST(SLURM_DIR)
-
-    AM_CONDITIONAL(WITH_SLURM, test -n "$_cv_slurm_dir_root")
+    AC_SUBST(SLURM_CPPFLAGS)
+		AC_SUBST(HAVE_SLURM_H)
 ])

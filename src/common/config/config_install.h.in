@@ -56,4 +56,8 @@
 /* Defined to the path of libcntd.so. Defined to 0 if EAR not configured with Countdown support. */
 #define COUNTDOWN_BASE @LIBCOUNTDOWN_BASE@
 
+// SLURM
+/** Defined to 1 if both <slurm.h> and <spank.h> header files are available to be included. */
+#define HAVE_SLURM_H @HAVE_SLURM_H@
+
 #endif // CONFIG_INSTALLATION_H

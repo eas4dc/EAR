@@ -1,4 +1,4 @@
-CFLAGS  = -fPIC $(SLURM_CFLAGS) -I$(SRCDIR) $(CONSTANTS)
+CFLAGS  = -fPIC $(SLURM_CPPFLAGS) -I$(SRCDIR) $(CONSTANTS)
 LDFLAGS = -lm
 
 ######## INSTALLATION
@@ -7,7 +7,7 @@ erun_BINS = erun
 erun_PATH = $(DESTDIR)/bin
 erun_PERM = 0775
 
-ifdef SLURM_BASE
+ifeq ($(FEAT_SLURM), 1)
 plug_BINS = earplug.so
 endif
 plug_PATH = $(DESTDIR)/lib

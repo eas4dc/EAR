@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
-
+// #define SHOW_DEBUGS 1
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -221,6 +221,13 @@ void remove_local_barrier(char *file)
 
 /* Functions to parse and to process SLURM-like nodelists */
 
+int is_range(const char *list)
+{
+    if (strstr(list, "["))
+        return 1;
+    return 0;
+}
+
 /*
  * This function returns an array of (potentially) linked lists.
  * Each
@@ -407,8 +414,12 @@ int32_t parse_range_list(const char *source, range_def_t **range_list)
             goto next;
         }
 
-        current_range->prefix[offset] = *source;
-        offset++;
+        if (offset >= NODE_PREFIX - 1) {
+            warning("Node prefix has been shortened to %s and will not be copied further", current_range->prefix);
+        } else {
+            current_range->prefix[offset] = *source;
+            offset++;
+        }
 
     next:
         source++;
@@ -525,7 +536,11 @@ void free_range_list(int32_t num_ranges, range_def_t list[num_ranges])
 
 int32_t expand_list(const char *source, size_t target_length, char target[target_length])
 {
-    range_def_t *list  = NULL;
+    range_def_t *list = NULL;
+
+    if (!is_range(source)) {
+        printf("Warning, \'%s\' is not a range\n", source);
+    }
     int32_t num_ranges = parse_range_list(source, &list);
 
     int32_t cut_nodes = 0;
@@ -541,8 +556,21 @@ int32_t expand_list(const char *source, size_t target_length, char target[target
 
 int32_t expand_list_alloc(const char *source, char **target)
 {
-    range_def_t *list  = NULL;
+    range_def_t *list = NULL;
+    // If source is already a list we don't need to parse
+    if (!is_range(source)) {
+        if (!target)
+            return 0;
+        // In that case we just copy from source
+        printf("Source: \'%s\' is not a range\n", source);
+        *target = calloc(1, strlen(source) + 1);
+        strcpy(*target, source);
+        return 0;
+    }
     int32_t num_ranges = parse_range_list(source, &list);
+
+    debug("Source list of nodes:%s", source);
+    debug("Num ranges %u", num_ranges);
 
     size_t buff_length = 1024;
 

@@ -51,30 +51,34 @@ AC_DEFUN([X_AC_FREEIPMI],
 		]
 	)
 
-    AC_CACHE_CHECK(
-        [for FREEIPMI root directory],
-        [_cv_freeipmi_dir_root],
-        [
-            X_AC_FREEIPMI_FIND_ROOT_DIR([])
-        
-            if test -z "$_cv_freeipmi_dir_root"; then
-                _x_ac_freeipmi_dirs_root="${_ax_ld_dirs_root}"
-                _x_ac_freeipmi_custom="yes"
-            
-                X_AC_FREEIPMI_FIND_ROOT_DIR([])
-            fi
-        ]
-    )
+	AS_IF([test "x$with_freeipmi" != "xno"],
+				[
+					AC_CACHE_CHECK(
+							[for FREEIPMI root directory],
+							[_cv_freeipmi_dir_root],
+							[
+									X_AC_FREEIPMI_FIND_ROOT_DIR([])
 
-	if test -z "$_cv_freeipmi_dir_root"; then
-		echo checking for FREEIPMI CFLAGS... no
-	else
-		FREEIPMI_DIR=$_cv_freeipmi_dir_root
-		FREEIPMI_CFLAGS="-I\$(FREEIPMI_BASE)/include -DFREEIPMI_BASE=\\\"\$(FREEIPMI_BASE)\\\""
-		FREEIPMI_LDFLAGS="-L\$(FREEIPMI_BASE)/lib -lfreeipmi -Wl,-rpath,\$(FREEIPMI_BASE)/lib -rdynamic"
-		echo checking for FREEIPMI CFLAGS... $FREEIPMI_CFLAGS
-		echo checking for FREEIPMI LDFLAGS... $FREEIPMI_LDFLAGS
-	fi
+									if test -z "$_cv_freeipmi_dir_root"; then
+											_x_ac_freeipmi_dirs_root="${_ax_ld_dirs_root}"
+											_x_ac_freeipmi_custom="yes"
+
+											X_AC_FREEIPMI_FIND_ROOT_DIR([])
+									fi
+							]
+					)
+
+				if test -z "$_cv_freeipmi_dir_root"; then
+					echo checking for FREEIPMI CFLAGS... no
+				else
+					FREEIPMI_DIR=$_cv_freeipmi_dir_root
+					FREEIPMI_CFLAGS="-I\$(FREEIPMI_BASE)/include -DFREEIPMI_BASE=\\\"\$(FREEIPMI_BASE)\\\""
+					FREEIPMI_LDFLAGS="-L\$(FREEIPMI_BASE)/lib -lfreeipmi -Wl,-rpath,\$(FREEIPMI_BASE)/lib -rdynamic"
+					echo checking for FREEIPMI CFLAGS... $FREEIPMI_CFLAGS
+					echo checking for FREEIPMI LDFLAGS... $FREEIPMI_LDFLAGS
+				fi
+				]
+			 )
 
 	AC_SUBST(FREEIPMI_DIR)
 	AC_SUBST(FREEIPMI_CFLAGS)

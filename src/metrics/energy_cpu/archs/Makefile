@@ -18,7 +18,7 @@ temp_OBJS = \
 all: $(temp_OBJS)
 
 %.o: %.c %.h
-	$(CC) $(CFLAGS) -c $<
+	$(CC) -Wno-unused-result $(CFLAGS) -c $<
 
 ######## OPTIONS
 

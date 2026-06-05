@@ -268,8 +268,8 @@ static node_sharing_strategy_t node_sharing_strategy = node;
 /* Checks whether the job-step folder was created.
  * This folder should be created by EARD (?).
  * If not, try to create it.
- */
 static state_t check_job_folder();
+ */
 
 static uint must_masters_synchronize();
 

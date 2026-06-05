@@ -69,7 +69,7 @@ coeffs_show: coeffs_show.c $(comm_OBJS)
 	$(CCC) -I$(SRCDIR) -o $@ $< $(comm_OBJS)
 
 coeffs_null: coeffs_null.c $(comm_OBJS)
-	$(CCC) -I$(SRCDIR) -o $@ $< $(comm_OBJS)
+	$(CCC) -Wno-unused-result -I$(SRCDIR) -o $@ $< $(comm_OBJS)
 
 coeffs_default: coeffs_default.c $(comm_OBJS)
 	$(CCC) -I$(SRCDIR) -o $@ $< $(comm_OBJS)

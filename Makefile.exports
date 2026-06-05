@@ -16,6 +16,7 @@ export FEAT_WF_SUPPORT
 export FEAT_DLB
 export FEAT_EARL_LITE
 export DCGMI
+export FEAT_SLURM
 export CC
 export CC_FLAGS
 export MPICC
@@ -26,8 +27,7 @@ export MPI_VERSION
 export GSL_BASE
 export GSL_CFLAGS
 export GSL_LDFLAGS
-export SLURM_BASE
-export SLURM_CFLAGS
+export SLURM_CPPFLAGS
 export DB_BASE
 export DB_CFLAGS
 export DB_LDFLAGS

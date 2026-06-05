@@ -64,7 +64,7 @@ typedef struct pair {
  * by *next
  * */
 typedef struct range_def {
-    char prefix[32]; // should be enough??
+    char prefix[NODE_PREFIX]; // should be enough??
     pair *numbers;
     int32_t numbers_count;
     struct range_def *next;
