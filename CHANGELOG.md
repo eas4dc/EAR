@@ -12,6 +12,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - development Updated AMD with changes for ZEN3, ZEN4 and ZEN5.
 
+## [6.3.1] - 2026-06-04
+
+### Changed
+
+- Disable data center monitor's `conf` plugin if there is some trouble when reading configuration.
+- Updated v5.2.4's CHANGELOG to mention security issues were found by [REQON B.V.]((https://reqon.nl)).
+
+### Fixed
+
+- Fixed `--with-slurm` configure flag management.
+- Node parsing error.
+- Search for cmocka libs in lib64 too.
+- Prevent checking for freeipmi if not requested at configure time.
+- Fixed CPUPOW\_F\_POWERCAP\_GET(mgt\_cpupow\_amd17\_powercap\_get) function reps initialization.
+- Econtrol fixes:
+    - Ranges loop when sending message to whole cluster. There was an error coming from the extension to support ranges with ranges.
+    - When using --host the len of the hostnames was truncated becuase \\0 character was not taken into account.
+
 ## [6.3.0] - 2026-03-16
 
 ### Added
