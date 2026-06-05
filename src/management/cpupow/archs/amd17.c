@@ -362,8 +362,10 @@ CPUPOW_F_POWERCAP_GET(mgt_cpupow_amd17_powercap_get)
     }
     // Iterating
     for (i = 0; i < d->tp->cpu_count; ++i) {
+reps[0] = 0;
         if (state_fail(hsmp_send(d->tp->cpus[i].socket_id, d->pl_address_read, args, reps))) {
-            debug("Failed while sending HSMP_%s_POWER_LIMIT: %s", d->name, state_msg);
+            error("Failed while sending HSMP_%s_POWER_LIMIT: %s", d->name, state_msg);
+continue;
         }
         watts[i] = reps[0] / 1000U;
         debug("%s[%02d]: %u W of current powercap", d->name, d->tp->cpus[i].id, watts[i]);

@@ -62,7 +62,7 @@ eard: eard.c $(eard_OBJS)
 	$(CC) $(CFLAGS) $(DB_CFLAGS) -o $@ $< $(eard_LDFLAGS) $(eard_OBJS) $(LDFLAGS) -lpthread
 
 power_monitor.o: power_monitor.c power_monitor.h 
-	$(CC) $(CFLAGS) -c $<  $(SLURM_CFLAGS)
+	$(CC) $(CFLAGS) -c $<  $(SLURM_CPPFLAGS)
 
 node_metrics.o:node_metrics.c node_metrics.h
 	$(CC) $(CFLAGS) -c $<

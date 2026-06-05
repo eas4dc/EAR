@@ -49,10 +49,10 @@ all: $(helper_OBJS) $(com1_BINS) $(com2_BINS)
 	$(CC) $(CC_FLAGS) $(CFLAGS) -c $<
 
 eacct: ear_acct.c $(db_OBJS) $(comm_OBJS) $(helper_OBJS)
-	$(CCC) $(SLURM_CFLAGS) $(DB_CFLAGS) -o $@ $< $(db_OBJS) $(comm_OBJS) $(helper_OBJS) $(DB_LDFLAGS) $(LDFLAGS)
+	$(CCC) $(SLURM_CPPFLAGS) $(DB_CFLAGS) -o $@ $< $(db_OBJS) $(comm_OBJS) $(helper_OBJS) $(DB_LDFLAGS) $(LDFLAGS)
 
 econtrol: ear_control.c $(rapi_OBJS) $(comm_OBJS)
-	$(CCC) $(SLURM_CFLAGS) -o $@ $< $(rapi_OBJS) $(comm_OBJS) $(LDFLAGS)
+	$(CCC) $(SLURM_CPPFLAGS) -o $@ $< $(rapi_OBJS) $(comm_OBJS) $(LDFLAGS)
 
 ear-info: ear-info.c $(comm_OBJS)
 	$(CCC) $(CFLAGS) -o $@ $< $(comm_OBJS)

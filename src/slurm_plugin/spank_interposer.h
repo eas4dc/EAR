@@ -11,10 +11,16 @@
 #ifndef EAR_PRIVATE_SPANK_INTERPOSER_H
 #define EAR_PRIVATE_SPANK_INTERPOSER_H
 
+#ifndef HAVE_SLURM_H
+#define HAVE_SLURM_H 0
+#endif
+
 #ifndef ERUN
 #include <common/config/config_sched.h>
+#if HAVE_SLURM_H
 #include <slurm/slurm.h>
 #include <slurm/spank.h>
+#endif
 #else
 #endif
 

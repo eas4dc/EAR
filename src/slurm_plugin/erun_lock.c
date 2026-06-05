@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
 #include <common/system/file.h>
 #include <slurm_plugin/slurm_plugin.h>
 #include <slurm_plugin/slurm_plugin_environment.h>
@@ -28,21 +29,18 @@ static int fd_master = -1;
 // Master/slave 1
 int lock_master(char *path_tmp, int job_id)
 {
+    int fd = -1;
     plug_verbose(_sp, 3, "function lock_master");
     // Creating temp folder
     if ((access(path_tmp, W_OK) != 0) && (errno == ENOENT)) {
         if ((mkdir(path_tmp, PERMS(111, 110, 110)) != 0) && (errno != EEXIST)) {
-            plug_error(_sp, "while creating TMP folder: %s", strerror(errno));
-            // exit(0);
-            return -1;
+            return_print(-1, "while creating TMP folder %s", strerror(errno)); // Other error, do not continue
         }
     }
     // Creating job folder
     sprintf(path_job, "%s/erun%d", path_tmp, job_id);
     if ((mkdir(path_job, PERMS(111, 110, 110)) != 0) && (errno != EEXIST)) {
-        plug_error(_sp, "while creating job folder: %s", strerror(errno));
-        // exit(0);
-        return -1;
+        return_print(-1, "while creating job folder %s", strerror(errno)); // Other error, do not continue
     }
     // Setting the paths
     xsprintf(path_master_lock, "%s/master.lock", path_job);
@@ -51,11 +49,18 @@ int lock_master(char *path_tmp, int job_id)
     xsprintf(path_slave_step, "%s/slave.step", path_job);
     //
     plug_verbose(_sp, 3, "Trying to get the lock %s", path_master_lock);
-    if ((fd_master = ear_file_lock_master(path_master_lock)) < 0) {
-        plug_error(_sp, "while taking lock_master %s", strerror(errno));
+    // O_CREAT   : If path does not exist, create it as a regular file.
+    // O_EXCL    : if this flag is specified in conjunction with O_CREAT, and
+    //             path already exists, then open() fails with the error EEXIST.
+    // O_NOFOLLOW: If the trailing component of path is a symbolic link, then
+    //             the open fails, with the error ELOOP.
+    if ((fd = open(path_master_lock, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, S_IWUSR)) < 0) {
+        if (errno == EEXIST) {
+            return 0; // Not master
+        }
+        return_print(-1, "while creating lock master: %s", strerror(errno)); // Other error, do not continue
     }
-    // Returning FD means it got the unique master lock
-    return fd_master >= 0;
+    return 1; // Master
 }
 
 // Master 2

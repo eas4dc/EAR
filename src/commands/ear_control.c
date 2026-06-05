@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+// #define SHOW_DEBUGS 1
+
 #include <arpa/inet.h>
 #include <common/config.h>
 #include <common/config/config_sched.h>
@@ -27,6 +29,7 @@
 #include <errno.h>
 #include <getopt.h>
 #include <global_manager/eargm_rapi.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -120,7 +123,8 @@ int generate_node_names_from_list(cluster_conf_t *my_cluster_conf, ip_table_t **
     ip_table_t *new_ips = calloc(num_hosts, sizeof(ip_table_t));
     for (int32_t i = 0; i < num_hosts; i++) {
         my_node_conf_t *aux_node_conf;
-        snprintf(new_ips[i].name, strlen(hosts[i]), "%s", hosts[i]);
+        snprintf(new_ips[i].name, strlen(hosts[i]) + 1, "%s", hosts[i]);
+        debug("Copying %s -> %s", hosts[i], new_ips[i].name);
         aux_node_conf = get_my_node_conf(my_cluster_conf, hosts[i]);
         if (aux_node_conf == NULL)
             fprintf(stderr, "Error reading node %s configuration\n", hosts[i]);
@@ -146,13 +150,22 @@ int generate_node_names(cluster_conf_t *my_cluster_conf, ip_table_t **ips)
     int32_t **ip_ints    = NULL;
     int32_t *num_ip_ints = NULL;
 
-    get_ip_and_names_from_ranges(my_cluster_conf, &num_ip_ints, &ip_ints, &hostnames);
+    int total_ranges = get_ip_and_names_from_ranges(my_cluster_conf, &num_ip_ints, &ip_ints, &hostnames);
+    debug("Total ranges %d", total_ranges);
+    if (total_ranges == 0) {
+        return total_ranges;
+    }
+    int curr_range = 0;
 
     for (uint32_t i = 0; i < my_cluster_conf->num_islands; i++) {
+        debug("Nodes for island %u", i);
         for (uint32_t j = 0; j < my_cluster_conf->islands[i].num_ranges; j++) {
+            debug("Num ips %u for range %u", num_ip_ints[j], j);
+            debug("Prefix[%d] %s ", j, my_cluster_conf->islands[i].ranges[j].r_def.prefix);
             int32_t tag_id = 0;
 
             for (int32_t n = 0; n < my_cluster_conf->islands[i].ranges[j].num_tags; n++) {
+                debug("tags for island %u tag %u", i, n);
                 tag_id = tag_id_exists(
                     my_cluster_conf,
                     my_cluster_conf->islands[i].specific_tags[my_cluster_conf->islands[i].ranges[j].specific_tags[n]]);
@@ -163,13 +176,14 @@ int generate_node_names(cluster_conf_t *my_cluster_conf, ip_table_t **ips)
             if (tag_id < 0) {
                 tag_id = default_tag;
             }
-
-            for (int32_t k = 0; k < num_ip_ints[j]; k++) {
-                strcpy(node_name, hostnames[j][k]);
+            debug("Curr range %d, total ips %d ", curr_range, num_ip_ints[curr_range]);
+            for (int32_t k = 0; k < num_ip_ints[curr_range]; k++) {
+                debug("Node[%u][%u] %s", curr_range, k, hostnames[curr_range][k]);
+                strcpy(node_name, hostnames[curr_range][k]);
 
                 new_ips = realloc(new_ips, sizeof(ip_table_t) * (num_ips + 1));
-                strcpy(new_ips[num_ips].name, hostnames[j][k]);
-                new_ips[num_ips].ip_int = ip_ints[j][k];
+                strcpy(new_ips[num_ips].name, hostnames[curr_range][k]);
+                new_ips[num_ips].ip_int = ip_ints[curr_range][k];
 
                 if (tag_id >= 0) { // still need to check
                     new_ips[num_ips].max_power = my_cluster_conf->tags[tag_id].error_power;
@@ -186,6 +200,7 @@ int generate_node_names(cluster_conf_t *my_cluster_conf, ip_table_t **ips)
 
                 num_ips++;
             }
+            curr_range++;
         }
     }
     *ips = new_ips;
@@ -196,11 +211,11 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
 {
     int i, j, counter = 0;
     if (mode != ERR_ONLY) {
-        printf("%10s\t", "hostname");
+        printf("|%15s", "Hostname");
         if (mode == NODE_ONLY || mode == FULL_STATUS)
-            printf("%5s\t%4s\t%4s\t%4s\t%6s\t%8s", "power", "temp", "maxf", "freq", "job_id", "stepid");
+            printf("| ST |%5s|%4s|%4s|%4s|%6s|%8s|", "power", "temp", "maxf", "freq", "job_id", "stepid");
         if (mode == FULL_STATUS || mode == POLICY_ONLY)
-            printf("  %6s  %5s  %2s", "policy", "pfreq", "th");
+            printf("| ST |%6s|%5s|%2s|", "policy", "pfreq", "th");
         printf("\n");
     }
     char temp[GENERIC_NAME]  = {0};
@@ -209,16 +224,16 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
     for (i = 0; i < num_ips; i++) {
         if (ips[i].counter) {
             if (mode != ERR_ONLY) {
-                printf("%10s\t", ips[i].name);
-                if ((uint32_t) ips[i].step_id == BATCH_STEP)
-                    sprintf(step_id, "%-8s", "sbatch");
+                printf("|%4s|%15s", COL_GRE " OK " COL_CLR, ips[i].name);
+                if ((uint32_t) ips[i].step_id == (uint32_t) BATCH_STEP)
+                    sprintf(step_id, "|%-8s|", "sbatch");
                 else if (ips[i].step_id == INTERACT_STEP)
-                    sprintf(step_id, "%-8s", "interact");
+                    sprintf(step_id, "|%-8s|", "interact");
                 else
-                    sprintf(step_id, "%-8d", ips[i].step_id);
+                    sprintf(step_id, "|%-8d|", ips[i].step_id);
 
                 if (mode == NODE_ONLY || mode == FULL_STATUS) {
-                    printf("%5d\t%3dC\t%.2lf\t%.2lf\t%6d\t%8s", ips[i].power, ips[i].temp,
+                    printf("|%5d|%3dC|%.2lf|%.2lf|%6d|%8s|", ips[i].power, ips[i].temp,
                            (double) ips[i].max_freq / 1000000.0, (double) ips[i].current_freq / 1000000.0,
                            ips[i].job_id, step_id);
                 }
@@ -227,7 +242,7 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
                     for (j = 0; j < TOTAL_POLICIES; j++) {
                         policy_id_to_name(ips[i].policies[j].id, temp, &my_cluster_conf);
                         get_short_policy(final, temp, &my_cluster_conf);
-                        printf("  %6s  %.2lf  %3u", final, (double) ips[i].policies[j].freq / 1000000.0,
+                        printf("|%6s|%.2lf|%3u|", final, (double) ips[i].policies[j].freq / 1000000.0,
                                ips[i].policies[j].th);
                     }
                 }
@@ -242,34 +257,37 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
     if (counter < num_ips && !no_error) {
         if (mode != ERR_ONLY)
             printf("\n\nINACTIVE NODES\n");
+
+        printf("|%15s|%15s|%5s|%60s|\n", "Hostname", "IP", "ST", "Reason");
         char first_node = 1;
         for (i = 0; i < num_ips; i++) {
+            char reason[60];
+            char *ST = COL_RED " ERR " COL_CLR;
             if (mode == ERR_ONLY) {
                 if (!ips[i].counter || !ips[i].power || ips[i].power > ips[i].max_power) {
                     if (!first_node)
                         printf(",");
                     else
                         first_node = 0;
-                    printf("%8s", ips[i].name);
+                    printf("|%15s", ips[i].name);
                 }
             } else {
                 if (!ips[i].counter) {
                     int rc;
                     if ((rc = remote_connect(ips[i].ip, my_cluster_conf.eard.port)) < 0) {
-                        printf("%10s\t%10s -> connection fails\n", ips[i].name, ips[i].ip);
+                        snprintf(reason, sizeof(reason), "connection failure");
                     } else {
                         if (!ear_node_ping()) {
-                            printf("%10s\t%10s -> connected, but ping fails\n", ips[i].name, ips[i].ip);
+                            snprintf(reason, sizeof(reason), "connected, but ping fails");
                         } else {
-                            printf("%10s\t%10s -> node is responding, but data is not present\n", ips[i].name,
-                                   ips[i].ip);
+                            snprintf(reason, sizeof(reason), "node is responding, but data is not present");
                         }
                     }
                 } else if (!ips[i].power || ips[i].power > ips[i].max_power) {
-                    printf("%10s\t%10s\t->connected, but power error (reported %dW)\n", ips[i].name, ips[i].ip,
-                           ips[i].power);
+                    snprintf(reason, sizeof(reason), "connected, but power error (reported %dW)", ips[i].power);
                 }
             }
+            printf("|%15s|%15s|%5s|%60s|\n", ips[i].name, ips[i].ip, ST, reason);
         }
         printf("\n");
     }
@@ -287,38 +305,45 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
 
 void usage(char *app)
 {
-    printf(
-        "Usage: %s [options]"
-        "\nCOMMANDS"
-        "\n\t--status \t\t\t\t->requests the current status for all nodes. The ones responding show the current "
-        "\n\t\t\t\t\t\t\tpower, IP address and policy configuration. A list with the ones not"
-        "\n\t\t\t\t\t\t\tresponding is provided with their hostnames and IP address."
-        "\n\t\t\t\t\t\t\t--status=node_name retrieves the status of that node individually."
-        "\n\t--type \t\t[status_type]\t\t->specifies what type of status will be requested: hardware,"
-        "\n\t\t\t\t\t\t\tpolicy, full (hardware+policy), app_node, app_master, eardbd, eargm or power. "
-        "[default:hardware]"
-        "\n\t--power \t\t\t\t->requests the current power for the cluster. "
-        "\n\t\t\t\t\t\t\t--power=node_name retrieves the current power of that node individually."
-        "\n\t--ping	\t\t\t\t->pings all nodes to check whether the nodes are up or not. Additionally,"
-        "\n\t\t\t\t\t\t\t--ping=node_name pings that node individually."
-        "\n\t--set-freq \t[newfreq]\t\t->sets the frequency of all nodes to the requested one"
-        "\n\t--set-def-freq \t[newfreq]  [pol_name]\t->sets the default frequency for the selected policy "
-        "\n\t--set-max-freq \t[newfreq]\t\t->sets the maximum frequency"
-        "\n\t--set-powercap \t[new_cap]\t\t->sets the powercap of all nodes to the given value. A node can be specified"
-        "\n\t\t\t\t\t\t\t after the value to only target said node."
-        "\n\t--restore-conf \t\t\t\t->restores the configuration for all nodes"
+    printf("Usage: %s [options]"
+           "\nCOMMANDS"
+           "\n\t--status \t\t\t\t->requests the current status for all nodes. The ones responding show the "
+           "current "
+           "\n\t\t\t\t\t\t\tpower, IP address and policy configuration. A list with the ones not"
+           "\n\t\t\t\t\t\t\tresponding is provided with their hostnames and IP address."
+           "\n\t\t\t\t\t\t\t--status=node_name retrieves the status of that node individually."
+           "\n\t--type \t\t[status_type]\t\t->specifies what type of status will be requested: hardware,"
+           "\n\t\t\t\t\t\t\tpolicy, full (hardware+policy), app_node, app_master, eardbd, eargm or power. "
+           "[default:hardware]"
+           "\n\t--power \t\t\t\t->requests the current power for the cluster. "
+           "\n\t\t\t\t\t\t\t--power=node_name retrieves the current power of that node individually."
+           "\n\t--ping	\t\t\t\t->pings all nodes to check whether the nodes are up or not. Additionally,"
+           "\n\t\t\t\t\t\t\t--ping=node_name pings that node individually."
+           "\n\t--set-freq \t[newfreq]\t\t->sets the frequency of all nodes to the requested one"
+           "\n\t--set-def-freq \t[newfreq]  [pol_name]\t->sets the default frequency for the selected policy "
+           "\n\t--set-max-freq \t[newfreq]\t\t->sets the maximum frequency"
+           "\n\t--set-powercap \t[new_cap]\t\t->sets the powercap of all nodes to the given value. A node can be "
+           "specified"
+           "\n\t\t\t\t\t\t\t after the value to only target said node."
+           "\n\t--restore-conf \t\t\t\t->restores the configuration for all nodes"
 
-        "\n\nMODIFIERS"
-        "\n\t--hosts \t[hostlist]\t\t->sends the command only to the specified hosts. "
-        "\n\t--domain [domain:target]\t\t->sends the requested command to the requested targets, effectively filtering"
-        "\n\t\t\t\t\t\t\twhich nodes receive the message. Available domains are: tag, node, subcluster/eargmid, island."
-        "\n\t--conf-path \t[path_name]\t\t->specifies the ear.conf path. [default: $EAR_ETC/ear/ear.conf]"
-        "\n\t--mail [address] \t\t\t->sends the output of the program to address."
-        "\n\t--active-only \t\t\t\t->supresses inactive nodes from the output in hardware status."
-        "\n\t--health-check \t\t\t\t->checks all EARDs and EARDBDs for errors and prints all that are unresponsive."
-        "\n\t--version \t\t\t\t->displays current EAR version."
-        "\n\n\t--help \t\t\t\t\t->displays this message.",
-        app);
+           "\n\nMODIFIERS"
+           "\n\t--hosts \t[hostlist]\t\t->sends the command only to the specified hosts. "
+           "\n\t--domain [domain:target]\t\t->sends the requested command to the requested targets, effectively "
+           "filtering"
+           "\n\t\t\t\t\t\t\twhich nodes receive the message. Available domains are: tag, "
+#if 0
+           "\n\t\t\t\t\t\t\twhich nodes receive the message. Available domains are: tag, node,"
+#endif
+           "subcluster/eargmid, island."
+           "\n\t--conf-path \t[path_name]\t\t->specifies the ear.conf path. [default: $EAR_ETC/ear/ear.conf]"
+           "\n\t--mail [address] \t\t\t->sends the output of the program to address."
+           "\n\t--active-only \t\t\t\t->supresses inactive nodes from the output in hardware status."
+           "\n\t--health-check \t\t\t\t->checks all EARDs and EARDBDs for errors and prints all that are "
+           "unresponsive."
+           "\n\t--version \t\t\t\t->displays current EAR version."
+           "\n\n\t--help \t\t\t\t\t->displays this message.",
+           app);
 #if EXT_OPT
     printf(""
            "\n\t--reset-powercap\t\t\t->Resets the powercap value of all nodes to their default one."
@@ -331,7 +356,8 @@ void usage(char *app)
            "\n\t--set-th \t[new_th] [pol_name]\t->sets the threshold for all nodes"
            "\n\t--red-def-freq \t[n_pstates]\t\t->reduces the default and max frequency by n pstates"
            "\n\t--send-message \t[command]\t\t->sends the command to the daemon to be processed"
-           "\n\t--set-risk \t[level] [target] [node]\t->sends a warning to all nodes or the a specific node (optional)"
+           "\n\t--set-risk \t[level] [target] [node]\t->sends a warning to all nodes or the a specific node "
+           "(optional)"
            "\n\t\t\t\t\t\t\t->levels: WARNING1/WARNING2/PANIC \ttarget: ENERGY/POWER");
 
 #endif
@@ -396,21 +422,21 @@ void check_app_status(app_status_t status, ip_table_t *ips, int num_ips, char is
                 sprintf(job_id, "%s", "-");
                 sprintf(step_id, "%s", "-");
             } else {
-                sprintf(job_id, "%-7lu", status.job_id);
-                if (status.step_id == BATCH_STEP)
+                sprintf(job_id, "%-7" PRId32, status.job_id);
+                if (status.step_id == (int32_t) BATCH_STEP)
                     sprintf(step_id, "%-8s", "batch");
-                else if (status.step_id == INTERACT_STEP)
+                else if (status.step_id == (int32_t) INTERACT_STEP)
                     sprintf(step_id, "%-8s", "interact");
                 else
-                    sprintf(step_id, "%-8ld", status.step_id);
+                    sprintf(step_id, "%-8" PRId32, status.step_id);
             }
             if (is_master)
                 printf("%-7s-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf", job_id, step_id, status.nodes,
                        status.signature.DC_power, status.signature.CPI, status.signature.GBS, status.signature.Gflops,
                        status.signature.time, (double) status.signature.avg_f / 1000000);
             else
-                printf("%15s %7lu-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf", ips[i].name, status.job_id,
-                       step_id, status.master_rank, status.signature.DC_power, status.signature.CPI,
+                printf("%15s %7" PRId32 "-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf", ips[i].name,
+                       status.job_id, step_id, status.master_rank, status.signature.DC_power, status.signature.CPI,
                        status.signature.GBS, status.signature.Gflops, status.signature.time,
                        (double) status.signature.avg_f / 1000000);
 #if USE_GPUS
@@ -447,7 +473,8 @@ void process_powercap_status(powercap_status_t *powerstatus, int num_status)
             else
                 sprintf(state_name, "disabled");
             printf("Powercap information[%d]:\nStatus: %s\nTotal idle_nodes: %d\nPotential power to be released: "
-                   "%d\nTotal number of greedy nodes : %d \nTotal extra power requested: %d\nTotal power used %u W\n",
+                   "%d\nTotal number of greedy nodes : %d \nTotal extra power requested: %d\nTotal power used %u "
+                   "W\n",
                    i, state_name, powerstatus[i].idle_nodes, powerstatus[i].released, powerstatus[i].num_greedy,
                    powerstatus[i].requested, powerstatus[i].current_power);
 
@@ -468,10 +495,10 @@ void process_policy_status(int num_status, policy_status_t *status)
         ip_table_t *ips = NULL;
         num_ips         = generate_node_names(&my_cluster_conf, &ips);
         clean_ips(ips, num_ips);
-        // idea to improve this: add an index to ips, sort the list by the ip_int to do the search, resort the list
-        // by the indexes to print the list -> nlogn + mlogn + nlogn
-        // alternatively: pass all the statuses sorted, and search each ip there once -> nlogm + mlogm
-        // it seems the second idea is better in terms of complexity (the second sort kills the first option)
+        // idea to improve this: add an index to ips, sort the list by the ip_int to do the search, resort the
+        // list by the indexes to print the list -> nlogn + mlogn + nlogn alternatively: pass all the statuses
+        // sorted, and search each ip there once -> nlogm + mlogm it seems the second idea is better in terms of
+        // complexity (the second sort kills the first option)
         for (i = 0; i < num_status; i++)
             check_ip_policy(&status[i], ips, num_ips);
         print_ips(ips, num_ips, POLICY_ONLY);
@@ -492,10 +519,10 @@ void process_status(int num_status, status_t *status, char error_only, char **ho
             num_ips = generate_node_names(&my_cluster_conf, &ips);
         }
         clean_ips(ips, num_ips);
-        // idea to improve this: add an index to ips, sort the list by the ip_int to do the search, resort the list
-        // by the indexes to print the list -> nlogn + mlogn + nlogn
-        // alternatively: pass all the statuses sorted, and search each ip there once -> nlogm + mlogm
-        // it seems the second idea is better in terms of complexity (the second sort kills the first option)
+        // idea to improve this: add an index to ips, sort the list by the ip_int to do the search, resort the
+        // list by the indexes to print the list -> nlogn + mlogn + nlogn alternatively: pass all the statuses
+        // sorted, and search each ip there once -> nlogm + mlogm it seems the second idea is better in terms of
+        // complexity (the second sort kills the first option)
         for (i = 0; i < num_status; i++)
             check_ip(&status[i], ips, num_ips);
         print_ips(ips, num_ips, error_only);
@@ -753,7 +780,8 @@ void _parse_domain(const char *optarg, char ***hosts, int32_t *num_hosts, cluste
             if (current_pos >= MAX_DOMAIN_LEN) {
                 printf("Error: domain type or name cannot be longer than %d characters\n", MAX_DOMAIN_LEN);
                 if (!strcasecmp(domain_type, "NODE")) {
-                    printf("For domain \"node\" the preferred option is the --hosts argument, which accepts a list of "
+                    printf("For domain \"node\" the preferred option is the --hosts argument, which accepts a "
+                           "list of "
                            "unlimited length\n");
                 }
                 exit(0);
@@ -784,6 +812,13 @@ void _parse_domain(const char *optarg, char ***hosts, int32_t *num_hosts, cluste
     } else {
         printf("Error: domain type \"%s\" not supported\n", domain_type);
         exit(0);
+    }
+}
+
+void print_list_of_nodes(char **nodes, int num_nodes)
+{
+    for (int i = 0; i < num_nodes; i++) {
+        printf("Node[%d] = %s\n", i, nodes[i]);
     }
 }
 
@@ -1206,6 +1241,9 @@ int main(int argc, char *argv[])
     if (preparsed_nodes != NULL) {
         expand_list_alloc(preparsed_nodes, &expanded_list);
         str_cut_list(expanded_list, &nodes, &num_nodes, ",");
+#if SHOW_DEBUGS
+        print_list_of_nodes(nodes, num_nodes);
+#endif
     }
 
     if (send_message) {
@@ -1380,8 +1418,14 @@ int main(int argc, char *argv[])
         }
     }
     if (mail != NULL) {
-        snprintf(mail_command, strlen(mail_command) - 1, "mailx -s \"EAR health check report\" %s < %s", mail,
-                 mail_filename);
+        /* clang-format off */
+        int ret = snprintf(mail_command, sizeof(mail_command),
+													 "mailx -s \"EAR health check report\" %s < %s",
+													 mail, mail_filename);
+				if ((ret > (int) sizeof(mail_command) - 1) || ret < 0) {
+					printf("Warning! Mail command truncated.\n");
+				}
+        /* clang-format on */
         execute(mail_command);
     }
 

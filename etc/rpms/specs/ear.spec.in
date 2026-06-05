@@ -9,9 +9,9 @@ Version:        @PACKAGE_VERSION@
 # The number of times this version of the software was released. Normally, set
 # the initial value to 1%{?dist}, and increment it with each new release of the
 # package. Reset to 1 when a new Version of the software is built.
-Release:        3%{?dist}
+Release:        1%{?dist}
 # A brief, one-line summary of the package.
-Summary:        Energy Aware Runtime - %{version} ready to be deployed on a service node.
+Summary:        Energy Aware Runtime - %{version} ready to be deployed on a compute node.
 
 License: EPL-2.0 license
 URL: https://gitlab.bsc.es/ear_team/ear
@@ -43,10 +43,15 @@ mkdir -p %{buildroot}%{_includedir}
 cp -r %{_ear_path}/include/* %{buildroot}%{_includedir}
 
 mkdir -p %{buildroot}%{_sysconfdir}
-cp -r %{_ear_etc}/ear %{buildroot}%{_sysconfdir}
+cp -r %{_ear_etc}/ear %{_ear_etc}/module %{buildroot}%{_sysconfdir}
+rm %{buildroot}%{_sysconfdir}/module/ear-lite
+
+mkdir -p %{buildroot}%{_datadir}/ear
+cp -r %{_ear_path}/doc/* %{buildroot}%{_datadir}/ear
+
+mkdir -p %{buildroot}%{_prefix}
 
 %files
-# %%license LICENSE
 %{_bindir}/eacct
 %{_bindir}/ereport
 %{_bindir}/econtrol
@@ -68,20 +73,33 @@ cp -r %{_ear_etc}/ear %{buildroot}%{_sysconfdir}
 %{_includedir}/ear*.h
 
 %{_sysconfdir}/ear
+%{_sysconfdir}/module
+
+%{_datadir}/ear
 
 %post
 
-chmod +s %{_bindir}/eacct %{_bindir}/ereport %{_bindir}/econtrol
+chmod +s ${RPM_INSTALL_PREFIX0}/bin/eacct ${RPM_INSTALL_PREFIX0}/bin/ereport ${RPM_INSTALL_PREFIX0}/bin/econtrol
 
 # Check whether we installed the etcdir in a place different to what it was configured.
 # If so, we need to update the configured paths.
 if [[ "$RPM_INSTALL_PREFIX1" != %{_ear_etc} ]]; then
-	sed -i -e "s:\(CoefficientsDir=\)\(.\+\)\(/ear/coeffs\):\1${RPM_INSTALL_PREFIX1}\3:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
-	sed -i -e "s:\(EtcDir=\)\(.\+\):\1${RPM_INSTALL_PREFIX1}:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+	sed -i "s:\(CoefficientsDir=\)\(.\+\)\(/ear/coeffs\):\1${RPM_INSTALL_PREFIX1}\3:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+	sed -i "s:\(EtcDir=\)\(.\+\):\1${RPM_INSTALL_PREFIX1}:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+
+	# Change the EAR_ETC environment variable in the ear module
+	sed -i -E "s:(EAR_ETC[[:blank:]]+)([[:graph:]]+):\1${RPM_INSTALL_PREFIX1}:" ${RPM_INSTALL_PREFIX1}/module/ear
 fi
 
 if [[ "$RPM_INSTALL_PREFIX0" != %{_ear_path} ]]; then
-	sed -i -e "s:\(InstDir=\)\(.\+\):\1${RPM_INSTALL_PREFIX0}:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+	# Change the InstDir field of the ear.conf.
+	sed -i "s:\(InstDir=\)\(.\+\):\1${RPM_INSTALL_PREFIX0}:" ${RPM_INSTALL_PREFIX1}/ear/ear.conf
+
+	# Change the EAR_INSTALL_PATH environment variable in the ear module
+	sed -i -E "s:(EAR_INSTALL_PATH[[:blank:]]+)([[:graph:]]+):\1${RPM_INSTALL_PREFIX0}:" ${RPM_INSTALL_PREFIX1}/module/ear
+
+	# Change the PATH environment variable in the ear module
+	sed -i -E "s:(^prepend-path[[:blank:]]+PATH[[:blank:]]+)([[:graph:]]+):\1${RPM_INSTALL_PREFIX0}/bin:" ${RPM_INSTALL_PREFIX1}/module/ear
 fi
 
 # By default, rpm sets _libdir as _prefix/lib64, but EAR components

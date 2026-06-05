@@ -246,15 +246,11 @@ int create_loop_header(char *header, char *path, int ts, uint num_gpus, int sing
     // Allocate exactly what we need
     char *HEADER = calloc(header_len, sizeof(char));
 
-    if (ear_file_is_regular(path)) {
-        debug("%s is a regular file", path);
-        free(HEADER);
-        close(fd);
-        return EAR_SUCCESS;
+    if (header != NULL) {
+        memcpy(HEADER, header, strlen(header));
+        HEADER[strlen(header)] = '\0';
     }
 
-    if (header != NULL)
-        strncpy(HEADER, header, header_len - 1);
     strncat(HEADER, HEADER_JOB, header_len - strlen(HEADER) - 1);
     strncat(HEADER, HEADER_NOTS, header_len - strlen(HEADER) - 1);
 

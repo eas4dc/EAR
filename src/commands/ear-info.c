@@ -219,22 +219,27 @@ int main(int argc, char *argv[])
     if (my_node_conf) {
         printf("\nValidating status of EARD in node  (econtrol --status=%s)\n\n", nodename);
         sprintf(buffer, "econtrol --status=%s", nodename);
-        system(buffer);
+        if (system(buffer) < 0) {
+            return EXIT_FAILURE;
+        }
         printf("Validating status of power status in node  (econtrol --status=%s --type=power)\n", nodename);
         sprintf(buffer, "econtrol --status=%s --type=power", nodename);
-        system(buffer);
+        if (system(buffer))
+            return EXIT_FAILURE;
     }
     printf("............................................\n");
     if (e_def) {
         printf("\nValidating status of EARGM in node (econtrol --status --type=eargm --hosts=%s\n\n", nodename);
         sprintf(buffer, "econtrol --status --type=eargm --hosts=%s", nodename);
-        system(buffer);
+        if (system(buffer))
+            return EXIT_FAILURE;
     }
     printf("............................................\n");
     if (mode) {
         printf("\nValidating status of EARDBD in node (econtrol --status --type=eardbd --hosts=%s\n\n", nodename);
         sprintf(buffer, "econtrol --status --type=eardbd --hosts=%s", nodename);
-        system(buffer);
+        if (system(buffer))
+            return EXIT_FAILURE;
     }
 
     printf("............................................\n");

@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - development Updated AMD with changes for ZEN3, ZEN4 and ZEN5.
 
+## [6.3.0] - 2026-03-16
+
+### Added
+
+- Automatic release done through Gitlab CI.
+
+### Changed
+
+- The rpm spec file installs the doc directory and module file.
+
+### Fixed
+
+- Resolve "Policies default PState is overwritten in EARD's main function".
+- Resolve "Hardcoded ear user in ear\_create\_tmp\_folder".
+- Fix the HWMON ARCH in ENERGY\_CPU when the NODE energy is PKG energy is mistaken for NODE energy.
+- Resolve "erun  blocked when no having permission to access job directory".
+
 ## [6.2.0] - 2026-02-24
 
 ### Added
@@ -101,6 +118,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 Improving earl-eard connect to avoid blocking.
 - v6.0 Fixed socket count in acpi\_power.
 
+## [5.2.6] - Unreleased
+
+### Changed
+
+- Disable data center monitor's `conf` plugin if there is some trouble when reading configuration.
+- Updated v5.2.4's CHANGELOG to mention security issues were found by [REQON B.V.]((https://reqon.nl)).
+
+## [5.2.5] - 2026-03-16
+
+### Added
+
+- Automatic release done through Gitlab CI.
+
+### Changed
+
+- The rpm spec file installs the doc directory and module file.
+
+### Fixed
+
+- Resolve "Hardcoded ear user in ear_create_tmp_folder".
+
 # 5.2.4 - 2026-02-03
 
 ### Changed
@@ -110,9 +148,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Prevent calling mgt\_cpufreq\_governor\_available when the symbol is NULL.
-- EAR owner/permission files fixes.
+- EAR owner/permission files fixes (This vulnerability was responsible disclosed by [REQON B.V.](https://reqon.nl)).
 - Check whether opened fd is >= 0.
-- Fixed setuid security issues in ereport, eacct, ear-info and econtrol.
+- Fixed setuid security issues in ereport, eacct, ear-info and econtrol (This vulnerability was responsible disclosed by [REQON B.V.](https://reqon.nl)).
 - Resolve "Policies default PState is overwritten in EARD's main function".
 
 ## 5.2.3 - 2025-12-18

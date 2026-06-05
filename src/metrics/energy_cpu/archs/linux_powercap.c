@@ -114,8 +114,12 @@ state_t linux_powercap_load(topology_t *tp_in)
                 int fd = open(aux_folder_name, O_RDONLY);
                 if (fd >= 0) {
                     memset(devname, 0, sizeof(devname));
-                    read(fd, devname, sizeof(devname));
-                    debug("device name %s", devname);
+                    int ret = read(fd, devname, sizeof(devname));
+                    if (ret < 0) {
+                        debug("error reading device name fd %d: %s", fd, strerror(errno));
+                        close(fd);
+                        return EAR_ERROR;
+                    }
                     if (strcmp(devname, pck_name) == 0) {
                         debug("Folder for pack %d (%s) found", j, pck_name);
                         close(fd);
@@ -152,7 +156,12 @@ state_t linux_powercap_load(topology_t *tp_in)
                 int fd = open(aux_folder_name, O_RDONLY);
                 if (fd >= 0) {
                     memset(devname, 0, sizeof(devname));
-                    read(fd, devname, sizeof(devname));
+                    int ret = read(fd, devname, sizeof(devname));
+                    if (ret < 0) {
+                        debug("error reading dram device name fd %d: %s", fd, strerror(errno));
+                        close(fd);
+                        return EAR_ERROR;
+                    }
                     debug("uncore device name %s", devname);
                     if (strcmp(devname, linux_powercap_dram_name) == 0) {
                         debug("Folder for dram %d (%s) found", j, linux_powercap_dram_name);
@@ -218,7 +227,11 @@ state_t linux_powercap_read(ctx_t *c, ullong *values)
             if (linux_powercap_core_fds[s] > 0) {
                 lseek(linux_powercap_core_fds[s], 0, SEEK_SET);
                 memset(energy_uj, 0, sizeof(energy_uj));
-                read(linux_powercap_core_fds[s], energy_uj, sizeof(energy_uj));
+                int ret = read(linux_powercap_core_fds[s], energy_uj, sizeof(energy_uj));
+                if (ret < 0) {
+                    debug("Error reading linux_powercap_core fd %d: %s", linux_powercap_core_fds[s], strerror(errno));
+                    return EAR_ERROR;
+                }
                 values[my_topo.cpu_count + s] = (ullong) atoll(energy_uj) * 1000;
                 debug("CORE energy[%d]  %llu nJ", s, values[my_topo.cpu_count + s]);
             }
@@ -226,7 +239,12 @@ state_t linux_powercap_read(ctx_t *c, ullong *values)
             if (linux_powercap_uncore_fds[s] > 0) {
                 lseek(linux_powercap_uncore_fds[s], 0, SEEK_SET);
                 memset(energy_uj, 0, sizeof(energy_uj));
-                read(linux_powercap_uncore_fds[s], energy_uj, sizeof(energy_uj));
+                int ret = read(linux_powercap_uncore_fds[s], energy_uj, sizeof(energy_uj));
+                if (ret < 0) {
+                    debug("Error reading linux_powercap_uncore fd %d: %s", linux_powercap_uncore_fds[s],
+                          strerror(errno));
+                    return EAR_ERROR;
+                }
                 values[s] = (ullong) atoll(energy_uj) * 1000;
                 debug("UNCORE enrgy[%d] %llu nJ", s, values[s]);
             }
