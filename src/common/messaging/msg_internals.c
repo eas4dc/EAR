@@ -7,7 +7,6 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
-
 // #define SHOW_DEBUGS 1
 
 #define _GNU_SOURCE
@@ -35,6 +34,11 @@
 #include <common/messaging/msg_conf.h>
 #include <common/messaging/msg_internals.h>
 
+#ifdef OPENSSL_SUPPORT
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#endif
+
 int remote_connected = 0;
 int eards_sfd        = -1;
 
@@ -53,6 +57,191 @@ uint32_t _get_sec_key()
 #endif
 
 static uint64_t max_socket_tries = MAX_SOCKET_COMM_TRIES;
+
+#ifdef OPENSSL_SUPPORT
+#if USE_SEC_KEY_RC != 1
+#warning Compiling OpenSSL functions without a secret key (USE_SEC_KEY_RC) set to 1!
+#endif
+
+static state_t handle_errors()
+{
+    uint64_t err_code;
+    while ((err_code = ERR_get_error())) {
+        char *err = ERR_error_string(err_code, NULL);
+        error("%s\n", err);
+    }
+    return EAR_ERROR;
+}
+
+/*
+ * Encrypts the buffer in_buffer with size buff_len.
+ * The encrypted message will be placed in out_buffer, and its size will be in out_len.
+ * ALLOCATES MEMORY in out_buffer.
+ */
+static state_t _msg_encrypt_buffer(const size_t buff_len, const unsigned char in_buffer[static buff_len],
+                                   unsigned char **out_buffer, size_t *out_len, unsigned char tag[OPENSSL_TAG_SZ])
+{
+
+    int32_t local_out_len                 = 0;
+    EVP_CIPHER_CTX *ctx                   = EVP_CIPHER_CTX_new();
+    const EVP_CIPHER *cipher              = EVP_aes_256_gcm();
+    unsigned char tmp_tag[OPENSSL_TAG_SZ] = {0};
+
+    if (cipher == NULL) {
+        error("Error getting SSL cipher");
+        return EAR_ERROR;
+    }
+
+    /*This should be more than enough; EVP_EncryptUpdate's manpage states that the out block will be of size
+     * in_size + ciper block size at most (and if using wrap), so we allocate that just to be safe. */
+    unsigned char *tmp_buffer = calloc(sizeof(char), buff_len + EVP_CIPHER_block_size(cipher));
+
+    /*
+     * Bogus key and IV: we'd normally set these from
+     * another source.
+     * IMPORTANT, the key and IV sizes MUST MATCH with the type of encryption being used.
+     * GCM requires an IV of len 12 (92-bits), and AES_256 a key of 32 (256-bits)
+     */
+    unsigned char key[32] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+#if USE_SEC_KEY_RC
+    uint32_t sec_key = _get_sec_key();
+    if (sec_key != 0) {
+        memcpy(key, &sec_key, sizeof(uint32_t));
+    }
+#endif
+    unsigned char iv[12] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+    /* Init the cipher with they key and initial values */
+    if (!EVP_EncryptInit_ex2(ctx, cipher, key, iv, NULL)) {
+        error("Error in encrypt_init");
+        EVP_CIPHER_CTX_free(ctx);
+        return handle_errors();
+    }
+
+    /* Encrypt using the cipher  */
+    if (!EVP_EncryptUpdate(ctx, tmp_buffer, &local_out_len, in_buffer, buff_len)) {
+        error("Error in encrypt_update");
+        EVP_CIPHER_CTX_free(ctx);
+        return handle_errors();
+    }
+
+    int32_t tmplen = 0;
+    /*
+     * Buffer passed to EVP_EncryptFinal() must be after data just
+     * encrypted to avoid overwriting it.
+     */
+    if (1 != EVP_EncryptFinal_ex(ctx, tmp_buffer + local_out_len, &tmplen)) {
+        error("Error in encrypt_final");
+        EVP_CIPHER_CTX_free(ctx);
+        return handle_errors();
+    }
+    local_out_len += tmplen;
+
+    /* Get the tag necessary for decryption */
+    if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, sizeof(tmp_tag), tmp_tag)) {
+        error("Error getting tag");
+        EVP_CIPHER_CTX_free(ctx);
+        return handle_errors();
+    }
+
+    memcpy(tag, tmp_tag, sizeof(unsigned char) * OPENSSL_TAG_SZ);
+
+    *out_len    = local_out_len;
+    *out_buffer = tmp_buffer;
+
+    EVP_CIPHER_CTX_free(ctx);
+    return EAR_SUCCESS;
+}
+
+/*
+ * Decrypts the buffer in_buffer with size buff_len.
+ * The encrypted message will be placed in out_buffer, and its size will be in out_len.
+ * ALLOCATES MEMORY in out_buffer.
+ */
+static state_t _msg_decrypt_buffer(const size_t buff_len, unsigned char in_buffer[static buff_len],
+                                   unsigned char **out_buffer, size_t *out_len, unsigned char tag[OPENSSL_TAG_SZ])
+{
+    int32_t decrypted_len    = 0;
+    EVP_CIPHER_CTX *ctx      = EVP_CIPHER_CTX_new();
+    const EVP_CIPHER *cipher = EVP_aes_256_gcm();
+    if (cipher == NULL) {
+        error("Error getting SSL cipher");
+        return EAR_ERROR;
+    }
+    // This should be more than enough; the out buffer _should_ be smaller than the encrypted one, but to be safe
+    unsigned char *tmp_buffer = calloc(sizeof(char), buff_len + EVP_CIPHER_block_size(cipher));
+
+    unsigned char key[32] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+#if USE_SEC_KEY_RC
+    uint32_t sec_key = _get_sec_key();
+    if (sec_key != 0) {
+        memcpy(key, &sec_key, sizeof(uint32_t));
+    }
+#endif
+    unsigned char iv[12] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+    /* Init the cipher with the key and initial values */
+    if (!EVP_DecryptInit_ex2(ctx, cipher, key, iv, NULL)) {
+        error("Error in decrypt_init");
+        EVP_CIPHER_CTX_free(ctx);
+        return handle_errors();
+    }
+
+    /* Set the decryption tag */
+    if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, sizeof(unsigned char) * OPENSSL_TAG_SZ, tag)) {
+        error("Error setting tag");
+        EVP_CIPHER_CTX_free(ctx);
+        return handle_errors();
+    }
+
+    /* Execute decryption */
+    if (!EVP_DecryptUpdate(ctx, tmp_buffer, &decrypted_len, in_buffer, buff_len)) {
+        error("Error in decrypt_update");
+        EVP_CIPHER_CTX_free(ctx);
+        return handle_errors();
+    }
+
+    int32_t tmplen = 0;
+    /* Decryption checks */
+    if (!EVP_DecryptFinal_ex(ctx, tmp_buffer + decrypted_len, &tmplen)) {
+        error("Error in decrypt_final");
+        EVP_CIPHER_CTX_free(ctx);
+        return handle_errors();
+    }
+
+    EVP_CIPHER_CTX_free(ctx);
+
+    decrypted_len += tmplen;
+
+    *out_len    = decrypted_len;
+    *out_buffer = tmp_buffer;
+
+    return EAR_SUCCESS;
+}
+
+static void inline _msg_buffer_cleanup(char *buffer)
+{
+    free(buffer);
+}
+#else
+static state_t _msg_encrypt_buffer(const size_t buff_len, unsigned char in_buffer[static buff_len],
+                                   unsigned char **out_buffer, size_t *out_len, unsigned char *tag)
+{
+    *out_buffer = in_buffer;
+    *out_len    = buff_len;
+    return EAR_SUCCESS;
+}
+
+static state_t _msg_decrypt_buffer(const size_t buff_len, unsigned char in_buffer[static buff_len],
+                                   unsigned char **out_buffer, size_t *out_len, unsigned char *tag)
+{
+    *out_buffer = in_buffer;
+    *out_len    = buff_len;
+    return EAR_SUCCESS;
+}
+
+#define _msg_buffer_cleanup(buffer)
+#endif
 
 int _read(int fd, void *data, size_t ssize)
 {
@@ -222,7 +411,7 @@ void close_server_socket(int sock)
 
 int read_command(int s, request_t *command)
 {
-    request_header_t head;
+    request_header_t head = {0};
     char *tmp_command;
     size_t aux_size = 0;
 
@@ -450,20 +639,38 @@ int send_non_block_data(int fd, size_t size, char *data, int type)
     // uint to_send,sent=0;
     // uint must_abort=0;
 
+    char *out_buffer                  = NULL;
+    size_t out_len                    = 0;
+    unsigned char tag[OPENSSL_TAG_SZ] = {0};
+
+    /* Encrypt buffer (if OPENSSL is not configured, it will simply initialize the pointer and size) */
+    if (!state_ok(_msg_encrypt_buffer(size, (unsigned char *) data, (unsigned char **) &out_buffer, &out_len, tag))) {
+        verbose(VAPI, "send_non_block_data: error encrypting message, returning");
+        return EAR_ERROR;
+    }
+
     /* Prepare header */
-    request_header_t head;
-    head.type = type;
-    head.size = size;
+    request_header_t head = {0};
+    head.type             = type;
+    head.size             = out_len;
+#if OPENSSL_SUPPORT
+    memcpy(head.tag, tag, sizeof(unsigned char) * OPENSSL_TAG_SZ);
+#endif
 
     /* Send header, blocking */
     ret = _write(fd, &head, sizeof(request_header_t));
 
     if (ret < sizeof(request_header_t)) {
         verbose(VAPI, "send_non_block_data:error sending request_header in non_block command");
+        _msg_buffer_cleanup(out_buffer);
         return 0;
     }
 
-    ret = _write(eards_sfd, data, size);
+    ret = _write(eards_sfd, out_buffer, out_len);
+
+    // do the cleanup here so we don't have to control the return statements
+    _msg_buffer_cleanup(out_buffer);
+
     if (ret < size) {
         debug("send_non_block_data: return non blocking command with EAR_ERROR");
         return EAR_ERROR;
@@ -474,18 +681,35 @@ int send_non_block_data(int fd, size_t size, char *data, int type)
 int send_data(int fd, size_t size, char *data, int type)
 {
     int32_t ret;
-    request_header_t head;
-    head.size = size;
-    head.type = type;
+
+    char *out_buffer                  = NULL;
+    size_t out_len                    = 0;
+    unsigned char tag[OPENSSL_TAG_SZ] = {0};
+
+    /* Encrypt buffer (if OPENSSL is not configured, it will simply initialize the pointer and size) */
+    if (!state_ok(_msg_encrypt_buffer(size, (unsigned char *) data, (unsigned char **) &out_buffer, &out_len, tag))) {
+        verbose(VAPI, "send_non_block_data: error encrypting message, returning");
+        return EAR_ERROR;
+    }
+    request_header_t head = {0};
+    head.size             = out_len;
+    head.type             = type;
+#if OPENSSL_SUPPORT
+    memcpy(head.tag, tag, sizeof(unsigned char) * OPENSSL_TAG_SZ);
+#endif
 
     debug("send_data: sending data of size %lu and type %d", size, type);
     debug("send_data: data sizes: %lu and %lu", sizeof(head.size), sizeof(head.type));
     ret = write(fd, &head, sizeof(request_header_t));
-    if (ret < sizeof(request_header_t))
+    if (ret < sizeof(request_header_t)) {
+        _msg_buffer_cleanup(out_buffer);
         return EAR_ERROR;
+    }
     debug("send_data: sent head, %d bytes", ret);
 
-    ret = write(fd, data, size);
+    ret = write(fd, out_buffer, out_len);
+
+    _msg_buffer_cleanup(out_buffer);
     if (ret < size)
         return EAR_ERROR;
     debug("send_data: sent data, %d bytes", ret);
@@ -503,7 +727,7 @@ char is_valid_type(int type)
 request_header_t receive_data(int fd, void **data)
 {
     int32_t ret;
-    request_header_t head;
+    request_header_t head = {0};
     char *read_data;
     head.type = 0;
     head.size = 0;
@@ -547,7 +771,25 @@ request_header_t receive_data(int fd, void **data)
         head.size = 0;
         return head;
     }
-    *data = read_data;
+
+    char *out_buff = NULL;
+    size_t out_len = 0;
+#ifdef OPENSSL_SUPPORT
+    unsigned char *tag = head.tag;
+#else
+    unsigned char *tag = NULL;
+#endif
+    if (!state_ok(
+            _msg_decrypt_buffer(head.size, (unsigned char *) read_data, (unsigned char **) &out_buff, &out_len, tag))) {
+        free(read_data);
+        head.type = EAR_ERROR;
+        head.size = 0;
+        verbose(VAPI, "Error decrypting message");
+        return head;
+    }
+    *data = out_buff;
+    _msg_buffer_cleanup(read_data);
+    head.size = out_len;
 
     debug("receive_data: returning from receive_data with type %d and size %u", head.type, head.size);
     return head;
@@ -576,6 +818,7 @@ int remote_connect(char *nodename, uint port)
     char port_number[50]; // that size needs to be validated
     int sfd, s;
     afd_set_t rw_set = {0};
+    state_t ret      = EAR_ERROR;
 
     /*if (remote_connected){
         debug("Connection already done!");
@@ -590,8 +833,8 @@ int remote_connect(char *nodename, uint port)
     sprintf(port_number, "%d", port);
     s = getaddrinfo(nodename, port_number, &hints, &result);
     if (s != 0) {
-        debug("getaddrinfo fail for %s and %s", nodename, port_number);
-        return EAR_ERROR;
+        debug("getaddrinfo fail for %s and %s ret EAR_ERROR", nodename, port_number);
+        return ret;
     }
 
     struct timeval timeout;
@@ -641,6 +884,8 @@ int remote_connect(char *nodename, uint port)
             } else {
                 debug("Timeout connecting to %s node", nodename);
                 close(sfd);
+                ret = EAR_TIMEOUT;
+                sfd = -1;
                 continue;
             }
             set_socket_block(sfd, 1);
@@ -651,8 +896,8 @@ int remote_connect(char *nodename, uint port)
     freeaddrinfo(result); /* No longer needed */
 
     if (rp == NULL) { /* No address succeeded */
-        debug("Failing in connecting to remote eards");
-        return EAR_ERROR;
+        debug("Failing in connecting to remote eards ret %d", ret);
+        return ret;
     }
 
     char conection_ok = 0;
@@ -668,17 +913,21 @@ int remote_connect(char *nodename, uint port)
     if (read(sfd, &conection_ok, sizeof(char)) > 0) {
         debug("Handshake with server completed.");
     } else {
-        debug("Couldn't complete handshake with server, closing conection.");
+        debug("Couldn't complete handshake with server, closing conection. ret %d", ret);
         close(sfd);
-        return EAR_ERROR;
+        return ret;
     }
 
     memset(&timeout, 0, sizeof(struct timeval));
     setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, (void *) (&timeout), sizeof(timeout));
 
-    remote_connected = 1;
-    eards_sfd        = sfd;
-    return sfd;
+    if (sfd >= 0)
+        remote_connected = 1;
+    eards_sfd = sfd;
+    debug("remote connect %s ret %d", (remote_connected ? "connected" : "not connected"), ret);
+    if (sfd >= 0)
+        return sfd;
+    return ret;
 }
 
 int remote_disconnect()
@@ -816,17 +1065,17 @@ void correct_error(int target_idx, uint32_t total_ips, int *ips, request_t *comm
     }
 }
 
-void correct_error_nodes(request_t *command, int self_ip, uint port)
+state_t correct_error_nodes(request_t *command, int self_ip, uint port)
 {
 
     request_t tmp_command;
     int i;
 
     if (command->num_nodes < 1)
-        return;
+        return EAR_ERROR;
     else { // if there is only one node and it is the current one nothing needs to be done
         if (command->num_nodes == 1 && command->nodes[0] == self_ip)
-            return;
+            return EAR_ERROR;
         // if not, we remove the current node from the list
         for (i = 0; i < command->num_nodes; i++) {
             if (command->nodes[i] == self_ip) {
@@ -840,10 +1089,11 @@ void correct_error_nodes(request_t *command, int self_ip, uint port)
     memcpy(&tmp_command, command, sizeof(request_t));
     int base_distance = command->num_nodes / NUM_PROPS + 1;
 
-    internal_send_command_nodes(command, port, base_distance, NUM_PROPS);
+    state_t ret = internal_send_command_nodes(command, port, base_distance, NUM_PROPS);
 
     // we set num_nodes to 0 to prevent unknown errors, but memory is freed in request_propagation
     command->num_nodes = 0;
+    return ret;
 }
 
 request_header_t correct_data_prop_nodes(request_t *command, int self_ip, uint port, void **data)
@@ -978,12 +1228,13 @@ int get_max_prop_group(int num_props, int max_depth, int num_nodes)
     return num_props;
 }
 
-void internal_send_command_nodes(request_t *command, int port, int base_distance, int num_sends)
+state_t internal_send_command_nodes(request_t *command, int port, int base_distance, int num_sends)
 {
     int i, rc;
     struct sockaddr_in temp;
     char next_ip[256];
     request_t tmp_command;
+    state_t ret = EAR_SUCCESS;
 
     memcpy(&tmp_command, command, sizeof(request_t));
 #if SHOW_DEBUGS
@@ -1015,22 +1266,25 @@ void internal_send_command_nodes(request_t *command, int port, int base_distance
         rc = remote_connect(next_ip, port);
         if (rc < 0) {
             debug("internal_send_command_nodes: Error connecting with node %s, trying to correct it", next_ip);
-            correct_error_nodes(&tmp_command, command->nodes[base_distance * i], port);
+            ret = correct_error_nodes(&tmp_command, command->nodes[base_distance * i], port);
+            if ((ret != EAR_SUCCESS) && (rc == EAR_TIMEOUT))
+                ret = rc;
         } else {
             debug("internal_send_command_nodes: Node %s with %d num_nodes contacted!", next_ip, tmp_command.num_nodes);
             if (!send_command(&tmp_command)) {
                 debug("internal_send_command_nodes: Error sending command to node %s, trying to correct it", next_ip);
                 remote_disconnect();
-                correct_error_nodes(&tmp_command, command->nodes[i * base_distance], port);
+                ret = correct_error_nodes(&tmp_command, command->nodes[i * base_distance], port);
             } else
-                remote_disconnect();
+                ret = remote_disconnect();
         }
         free(tmp_command.nodes);
         tmp_command.num_nodes = 0;
     }
+    return ret;
 }
 
-void send_command_nodelist(request_t *command, cluster_conf_t *my_cluster_conf)
+state_t send_command_nodelist(request_t *command, cluster_conf_t *my_cluster_conf)
 {
     int base_distance, num_sends;
 
@@ -1050,7 +1304,7 @@ void send_command_nodelist(request_t *command, cluster_conf_t *my_cluster_conf)
           num_sends);
 
     /* Inner functionality for initial communication has been moved to its own function to avoid code replication */
-    internal_send_command_nodes(command, my_cluster_conf->eard.port, base_distance, num_sends);
+    return internal_send_command_nodes(command, my_cluster_conf->eard.port, base_distance, num_sends);
 }
 
 request_header_t internal_data_nodes(request_t *command, int port, int base_distance, int num_sends, void **data)

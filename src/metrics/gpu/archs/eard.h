@@ -13,19 +13,7 @@
 
 #include <metrics/gpu/gpu.h>
 
-void gpu_eard_load(gpu_ops_t *ops, int eard);
-
-void gpu_eard_get_info(apinfo_t *info);
-
-void gpu_eard_get_devices(gpu_devs_t **devs, uint *devs_count);
-
-state_t gpu_eard_init(ctx_t *c);
-
-state_t gpu_eard_dispose(ctx_t *c);
-
-state_t gpu_eard_read(ctx_t *c, gpu_t *data);
-
-state_t gpu_eard_read_raw(ctx_t *c, gpu_t *data);
+GPU_DEFINES(eard);
 
 int gpu_eard_is_supported();
 

@@ -24,9 +24,9 @@ static int devs_count;
 static const ulong **freq_list; // KHz
 static ulong *freq_list_set;
 static const uint *freq_list_count;
-static ulong *pcap_list_max; // W
-static ulong *pcap_list_min;
-static ulong *pcap_list_set;
+static uint32_t *pcap_list_max; // W
+static uint32_t *pcap_list_min;
+static uint32_t *pcap_list_set;
 static int *list_doing;
 static uint *list_accum;
 static int flopped;
@@ -52,7 +52,7 @@ declr_up_action_init(_test_gpu)
     int i;
 
     // Counting devices
-    gpu_count_devices(no_ctx, &devs_count_met);
+    gpu_get_devices(NULL, &devs_count_met);
     mgt_gpu_count_devices(no_ctx, &devs_count_mgt);
     // If number of GPU devices differ
     if (devs_count_met != devs_count_mgt) {
@@ -60,17 +60,17 @@ declr_up_action_init(_test_gpu)
     }
     devs_count = devs_count_mgt;
     // Allocating space
-    mgt_gpu_data_alloc(&pcap_list_min);
-    mgt_gpu_data_alloc(&pcap_list_max);
-    mgt_gpu_data_alloc(&pcap_list_set);
-    mgt_gpu_data_alloc(&freq_list_set);
+    mgt_gpu_power_data_alloc(&pcap_list_min);
+    mgt_gpu_power_data_alloc(&pcap_list_max);
+    mgt_gpu_power_data_alloc(&pcap_list_set);
+    mgt_gpu_freq_data_alloc(&freq_list_set);
     mgt_gpu_freq_get_available(no_ctx, &freq_list, &freq_list_count);
     mgt_gpu_power_cap_get_rank(no_ctx, pcap_list_min, pcap_list_max);
     mgt_gpu_power_cap_get_rank(no_ctx, pcap_list_min, pcap_list_set);
     //
     for (i = 0; i < devs_count; ++i) {
         freq_list_set[i] = freq_list[i][0];
-        fprintf(stderr, "GPU%d: %lu-%lu KHz, %lu-%lu W\n", i, freq_list[i][0], freq_list[i][freq_list_count[i] - 1],
+        fprintf(stderr, "GPU%d: %lu-%lu KHz, %u-%u W\n", i, freq_list[i][0], freq_list[i][freq_list_count[i] - 1],
                 pcap_list_max[i], pcap_list_min[i]);
     }
     //
@@ -215,11 +215,11 @@ declr_up_action_periodic(_metrics)
         if (pcap_list_set[dev] != pcap_list_max[dev])
             set_wat = "*";
 
-        tprintf2(&table, "%llu||%d|||%4lu%s||%lu%s|||%u||%lu||%lu||%lu||%lu||%lu||%lu||%lu|||%lu", mr2.samples, dev,
+        tprintf2(&table, "%llu||%d|||%4lu%s||%u%s|||%u||%lu||%lu||%lu||%lu||%lu||%lu||%lu|||%lu", mr2.samples, dev,
                  freq_list_set[dev] / 1000LU, set_mhz, pcap_list_set[dev], set_wat, mrD.gpu_diff[dev].working,
                  mrD.gpu_diff[dev].freq_gpu / 1000LU, mrD.gpu_diff[dev].freq_mem / 1000LU, mrD.gpu_diff[dev].util_gpu,
                  mrD.gpu_diff[dev].util_mem, mrD.gpu_diff[dev].temp_gpu, mrD.gpu_diff[dev].temp_mem,
-                 (ulong) mrD.gpu_diff[dev].power_w, mrD.nod_avrg);
+                 (ulong) mrD.gpu_diff[dev].power_w, mrD.nodepow_avrg);
     }
     return NULL;
 }

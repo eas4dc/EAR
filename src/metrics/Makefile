@@ -42,6 +42,7 @@ mets_OBJS = \
     $(SRCDIR)/metrics/bandwidth/archs/likwid.o \
     $(SRCDIR)/metrics/bandwidth/archs/perf.o \
     $(SRCDIR)/metrics/cache/cache.o \
+    $(SRCDIR)/metrics/cache/archs/demo.o \
     $(SRCDIR)/metrics/cache/archs/dummy.o \
     $(SRCDIR)/metrics/cache/archs/perf.o \
     $(SRCDIR)/metrics/cpi/cpi.o \
@@ -74,16 +75,20 @@ mets_OBJS = \
     $(SRCDIR)/metrics/imcfreq/archs/dummy.o \
     $(SRCDIR)/metrics/imcfreq/archs/intel63.o \
     $(SRCDIR)/metrics/proc/stat.o \
+    $(SRCDIR)/metrics/proc/proc.o \
+    $(SRCDIR)/metrics/proc/archs/dummy.o \
+    $(SRCDIR)/metrics/proc/archs/stat_file.o \
     $(SRCDIR)/metrics/gpu/gpu.o \
     $(SRCDIR)/metrics/gpu/gpuproc.o \
     $(SRCDIR)/metrics/gpu/gpuprof.o \
     $(SRCDIR)/metrics/gpu/archs/cupti.o \
     $(SRCDIR)/metrics/gpu/archs/dcgmi.o \
+    $(SRCDIR)/metrics/gpu/archs/demo.o \
     $(SRCDIR)/metrics/gpu/archs/dummy.o \
     $(SRCDIR)/metrics/gpu/archs/eard.o \
     $(SRCDIR)/metrics/gpu/archs/nvml.o \
     $(SRCDIR)/metrics/gpu/archs/oneapi.o \
-    $(SRCDIR)/metrics/gpu/archs/pvc_power_hwmon.o \
+    $(SRCDIR)/metrics/gpu/archs/hwmon_pvc.o \
     $(SRCDIR)/metrics/gpu/archs/rsmi.o \
     $(SRCDIR)/metrics/gpu/archs/gpuprof_nvml.o \
     $(SRCDIR)/metrics/gpu/archs/gpuprof_dcgmi.o \
@@ -93,15 +98,14 @@ mets_OBJS = \
     $(SRCDIR)/metrics/temperature/archs/hwmon.o \
     $(SRCDIR)/metrics/temperature/archs/intel63.o \
     $(SRCDIR)/metrics/temperature/archs/dummy.o \
-    $(SRCDIR)/metrics/io/io.o
+    $(SRCDIR)/metrics/io/io.o \
+    $(SRCDIR)/metrics/io/io_old.o \
+    $(SRCDIR)/metrics/io/archs/dummy.o \
+    $(SRCDIR)/metrics/io/archs/proc_file.o
 
 ######## RULES
 
-all: all.components metrics.o libmetrics.a 
-
-post: test
-	@ $(MAKE) -C 'gpu' post || exit
-	@ $(MAKE) -C 'common' post || exit
+all: all.components metrics.o libmetrics.a
 
 metrics.o: metrics.c
 	$(CC) $(CC_FLAGS) -I$(SRCDIR) -fPIC -c $<
@@ -109,8 +113,14 @@ metrics.o: metrics.c
 libmetrics.a: metrics.o $(mets_OBJS)
 	$(AR) rvs $@ $^
 
+post: test libmetrics.so
+	@ $(MAKE) -C 'gpu' post || exit
+
+libmetrics.so: libmetrics.a
+	$(CC) $(CC_FLAGS) -I$(SRCDIR) -fPIC -shared -o $@ $(call whole,libmetrics.a) -L ../common -lcommon
+
 test: metrics.c
-	$(CC) -I $(SRCDIR) -DTEST=1 -fPIC -o $@ $^ libmetrics.a ../daemon/local_api/libeard.a ../common/libcommon.a -lm -lpthread -ldl
+	$(CC) $(CC_FLAGS) -I$(SRCDIR) -DTEST=1 -fPIC -o $@ $^ libmetrics.a ../daemon/local_api/libeard.a ../common/libcommon.a -lm -lpthread -ldl
 
 ######## OPTIONS
 
@@ -121,7 +131,7 @@ devel.install: devel.install.components;
 %.install: %.install.components;
 
 clean: clean.components rclean
-	rm -f test
+	rm -f test libcommon.so
 
 ######## SUBFOLDERS
 
@@ -140,7 +150,6 @@ clean: clean.components rclean
 	@ $(MAKE) -C 'temperature'  $* || exit
 	@ $(MAKE) -C 'energy_cpu'   $* || exit
 	@ $(MAKE) -C 'energy'       $* || exit
-
 
 ######## DEPENDENCIES
 

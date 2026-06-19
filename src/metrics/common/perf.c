@@ -8,26 +8,24 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+// clang-format off
 // #define SHOW_DEBUGS 1
-
-#include <asm/unistd.h>
-#include <common/output/debug.h>
-#include <common/string_enhanced.h>
-#include <common/system/file.h>
-#include <common/system/folder.h>
-#include <common/utils/string.h>
 #include <errno.h>
-#include <metrics/common/file.h>
-#include <metrics/common/perf.h>
+#include <unistd.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
-#include <unistd.h>
+#include <asm/unistd.h>
+#include <common/system/file.h>
+#include <common/output/debug.h>
+#include <common/utils/string.h>
+#include <common/system/folder.h>
+#include <common/string_enhanced.h>
+#include <metrics/common/file.h>
+#include <metrics/common/perf.h>
 
-// Future TO-DO:
-// - Add a control and static manager for already open events (duplicates are
-//   bad because there are limited counters in each CPU).
-// - Convert to thead safe class (what happens when reading the same FD?).
+static int working = -1;
 
 static int test_paranoid()
 {
@@ -78,32 +76,35 @@ state_t perf_open_cpu(perf_t *perf, perf_t *group, pid_t pid, uint type, ulong e
     if (cpu < 0) {
         perf->attr.exclusive = options;
         perf->attr.disabled  = 1;
-#if ESTIMATE_PERF == 0
+        #if ESTIMATE_PERF == 0
         perf->attr.inherit = 1;
-#if PERF_ATTR_SIZE_VER6
+        #if PERF_ATTR_SIZE_VER6
         perf->attr.inherit_thread = 1;
-#endif
-#endif
+        #endif
+        #endif
         perf->attr.exclude_kernel = 1;
         perf->attr.exclude_hv     = 1;
     }
     perf->attr.read_format = PERF_FORMAT_TOTAL_TIME_ENABLED | PERF_FORMAT_TOTAL_TIME_RUNNING | gp_flag;
-    perf->fd               = syscall(__NR_perf_event_open, &perf->attr, pid, cpu, gp_fd, 0);
-    // Used in some cases
-    perf->scale = 1.0;
-
-#ifdef SHOW_DEBUGS
-    debug("input: event 0x%lx, group %p and fd %d type %u size %u cpu %d group fd %d", event, group, perf->fd,
-          perf->attr.type, perf->attr.size, cpu, gp_fd);
+    perf->fd    = syscall(__NR_perf_event_open, &perf->attr, pid, cpu, gp_fd, 0);
+    perf->pid   = pid;
+    perf->cpu   = cpu;
+    perf->scale = 1.0; // Used in some cases
+    memset(&perf->value     , 0, sizeof(perf_value_t));
+    memset(&perf->value_last, 0, sizeof(perf_value_t));
+    #ifdef SHOW_DEBUGS
+    debug("input: event 0x%lx, group %p and fd %d type %u size %u cpu %d group fd %d",
+          event, group, perf->fd, perf->attr.type, perf->attr.size, cpu, gp_fd);
     if (perf->fd == -1) {
-        debug("error (no: %d, str: %s)", errno, strerror(errno));
+        debug("error %s", strerror(errno));
     } else {
         debug("ok");
     }
-#endif
+    #endif
     if (perf->fd == -1) {
         return_msg(EAR_ERROR, strerror(errno));
     }
+    working = 1;
     return EAR_SUCCESS;
 }
 
@@ -113,6 +114,7 @@ state_t perf_close(perf_t *perf)
         close(perf->fd);
     }
     memset(perf, 0, sizeof(perf_t));
+    perf->fd = -1;
     return EAR_SUCCESS;
 }
 
@@ -187,46 +189,75 @@ state_t perf_stop(perf_t *perf)
 
 state_t perf_read(perf_t *perf, llong *value)
 {
-    struct read_format_s {
-        ullong nrval;
-        ullong time_enabled;
-        ullong time_running;
-        ullong values[8];
-    } value_s;
+    #define _47BITS 0x400000000000ULL // We found sometimes 48b-1, so we choose 47 bits
+    uint64_t delta_value;
+    uint64_t delta_time;
+    double   dtime_multiplier = 0.0;
+    double   dtime_enabled = 0.0;
+    double   dtime_running = 0.0;
+    double   dvalue;
+    double   dtotal;
+    ssize_t  ret;
+    int      i;
 
-    double time_act = 0.0;
-    double time_run = 0.0;
-    double time_mul = 0.0;
-    double value_d;
-    double total_d;
-    int ret;
-    int i;
-
-    memset(&value_s, 0, sizeof(struct read_format_s));
-    ret = read(perf->fd, &value_s, sizeof(struct read_format_s));
-    debug("PERF read val/ret/err: %llu %d %d", value_s.nrval, ret, errno);
-    //
-    if (ret == -1) {
+    *value = 0LL;
+    if ((ret = read(perf->fd, &perf->value, sizeof(perf_value_t))) <= 0) {
+        debug("read returned %ld: %s", ret, strerror(errno));
         return_msg(EAR_ERROR, strerror(errno));
     }
-    if (value_s.time_running > 0) {
-        time_act = (double) value_s.time_enabled;
-        time_run = (double) value_s.time_running;
-        time_mul = time_act / time_run;
+debug("read value: %lu %lu %lu (%ld) %d", perf->value.nrval, perf->value.time_enabled, perf->value.time_running, ret, perf->fd);
+    if (perf->value.time_running == 0) {
+        debug("time running is 0");
+        return_msg(EAR_ERROR, "Running time is 0");
     }
-    debug("PERF time act/run/mul: %0.2lf %0.2lf %0.2lf (group %p)", time_act, time_run, time_mul, perf->group);
-
+    // 6 GHz (six ticks per nano-second) in one hour is 21.600.000.000.000 (45 bit number). A 48 bit number (1<<47)
+    // would need 39 hours to be reached. To fill a 64 bit word, it will require more tan 100.000 days. The overflow
+    // couldn't happen because perf converts narrow counters into 64 bits virtual registers. In case it happens, it
+    // is an error.
+    if (perf->value_last.nrval > 0 && perf->value_last.nrval > perf->value.nrval) {
+        return_msg(EAR_ERROR, "Perf glitch found (decreasing value)");
+    }
+    // This is required because by controlling the running time we can 
+    if (perf->value.time_running > 0) {
+        dtime_enabled    = (double) perf->value.time_enabled;
+        dtime_running    = (double) perf->value.time_running;
+        dtime_multiplier = dtime_enabled / dtime_running;
+    }
+debug("read value: %lu %lu %lu %lf (%ld) %d", perf->value.nrval, perf->value.time_enabled, perf->value.time_running, dtime_multiplier, ret, perf->fd);
     if (perf->group == NULL) {
-        value_d = (double) value_s.nrval;
-        total_d = value_d * time_mul;
-        *value  = (llong) total_d;
-        debug("PERF final value     : %lld", *value);
-    } else
-        for (i = 0; i < value_s.nrval && i < 8; ++i) {
-            value_d  = (double) value_s.values[i];
-            total_d  = value_d * time_mul;
-            value[i] = (llong) total_d;
+        // We detected this error only when monitoring other processes
+        if (perf->pid > 0 && perf->value.nrval >= _47BITS) {
+            delta_value = perf->value.nrval        - perf->value_last.nrval;
+            delta_time  = perf->value.time_running - perf->value_last.time_running;
+            // We think the most growing event is the frequency, and the frequency will not increase at a rate of
+            // running time * 6 (6 GHz). So we consider this delta as an error. 
+            if (delta_value >= (delta_time*6)) {
+                *value = 0LL;
+debug("read value: %lld %lu %lu %lf (glitch)", *value, perf->value.time_enabled, perf->value.time_running, dtime_multiplier);
+                // We return because copying the glitched value into last_value could
+                // affect the difference between a correct value and last_value.
+                return_msg(EAR_ERROR, "Perf glitch found (48-bit)");
+            }
         }
+        dvalue = (double) perf->value.nrval;
+        dtotal = dvalue * dtime_multiplier;
+        *value = (llong) dtotal;
+//debug("read value: %lld %lu %lu %lf", *value, perf->value.time_enabled, perf->value.time_running, dtime_multiplier);
+    } else for (i = 0; i < perf->value.nrval && i < 8; ++i) {
+        // In case of Perf Group, we reject all values in case we found a glitched one
+        if (perf->pid > 0 && perf->value.values[i] >= _47BITS) {
+            delta_value = perf->value.values[i]    - perf->value_last.values[i];
+            delta_time  = perf->value.time_running - perf->value_last.time_running;
+            if (delta_value >= (delta_time*6)) {
+                memset(value, 0, perf->value.nrval*sizeof(llong));
+                return_msg(EAR_ERROR, "Perf glitch found (48-bit)");
+            }
+        }
+        dvalue   = (double) perf->value.values[i];
+        dtotal   = dvalue * dtime_multiplier;
+        value[i] = (llong) dtotal;
+    }
+    memcpy(&perf->value_last, &perf->value, sizeof(perf_value_t));
     return EAR_SUCCESS;
 }
 
@@ -545,4 +576,28 @@ void perf_set_scale(perf_t *perfs, uint perfs_count, char *ev_name, double scale
             perfs[i].scale = scale;
         }
     }
+}
+
+int perf_is_working()
+{
+    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    perf_t perf = {0};
+
+    while (pthread_mutex_trylock(&lock));
+    #define ptest(type, event) \
+    if (state_ok(perf_open(&perf, NULL, 0, type, event))) { \
+        perf_close(&perf); \
+        goto okey; \
+    }
+    if (working == -1) {
+        working = 1;
+        ptest(PERF_TYPE_SOFTWARE, PERF_COUNT_SW_DUMMY);
+        ptest(PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK);
+        ptest(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
+        ptest(PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES);
+        working = 0;
+    }
+okey:
+    pthread_mutex_unlock(&lock);
+    return working;
 }

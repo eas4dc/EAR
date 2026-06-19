@@ -8,13 +8,13 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
 // #define SHOW_DEBUGS 1
-
-#include <common/output/debug.h>
-#include <common/states.h>
-#include <data_center_monitor/plugins/keyboard.h>
-#include <data_center_monitor/plugins/management.h>
 #include <string.h>
+#include <common/states.h>
+#include <common/output/debug.h>
+#include <data_center_monitor/plugins/management.h>
+#include <data_center_monitor/plugins/tests/keyboard.h>
 
 static manages_info_t *m;
 static char buffer[4096];

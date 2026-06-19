@@ -32,6 +32,11 @@ static uint imc_ctrs_count;
 static void **imc_maps;
 static uint *imc_ctrs;
 
+static void close_all()
+{
+    pci_scan_close(&pcis, &pcis_count);
+}
+
 static state_t load_icelake()
 {
     addr_t addr_hi;
@@ -53,7 +58,6 @@ static state_t load_icelake()
         }
         addr_hi = (addr_hi & 0x1FFFFFFF) << 23;
         debug("PCI%u base address 0x%lx", p, addr_hi);
-
         for (i = 0; i < 4; ++i) {
             addr_lo = 0x00;
             // MEMx_BA
@@ -75,34 +79,40 @@ static state_t load_icelake()
     return EAR_SUCCESS;
 }
 
-state_t bwidth_intel106_load(topology_t *tp, bwidth_ops_t *ops)
+BWIDTH_F_LOAD(intel106)
 {
     state_t s;
+
+    if (api_already_loaded(ops)) {
+        return;
+    }
     // If AMD or model previous to Intel Haswell
-    if (tp->vendor == VENDOR_AMD || tp->model != MODEL_ICELAKE_X) {
-        return_msg(EAR_ERROR, Generr.api_incompatible);
+    if (tp->vendor != VENDOR_INTEL || tp->model != MODEL_ICELAKE_X) {
+        return;
     }
     debug("Detected Intel Ice Lake");
     if (state_fail(s = pci_scan(0x8086, ice_ids, ice_dfs, O_RDONLY, &pcis, &pcis_count))) {
         serror("pci_scan");
-        return s;
+        return;
     }
     // It is shared by all Intel's architecture from Haswell to Skylake
     debug("PCIs count: %d", pcis_count);
-
     if (state_fail(s = load_icelake())) {
-        return s;
+        close_all();
+        return;
     }
     // In the future it can be initialized in read only mode
+    apis_put(ops->unload, bwidth_intel106_unload);
     apis_put(ops->get_info, bwidth_intel106_get_info);
-    apis_put(ops->init, bwidth_intel106_init);
-    apis_put(ops->dispose, bwidth_intel106_dispose);
     apis_put(ops->read, bwidth_intel106_read);
-
-    return EAR_SUCCESS;
 }
 
-BWIDTH_F_GET_INFO(bwidth_intel106_get_info)
+BWIDTH_F_UNLOAD(intel106)
+{
+    close_all();
+}
+
+BWIDTH_F_GET_INFO(intel106)
 {
     info->api         = API_INTEL106;
     info->scope       = SCOPE_NODE;
@@ -110,38 +120,21 @@ BWIDTH_F_GET_INFO(bwidth_intel106_get_info)
     info->devs_count  = imc_ctrs_count + 1;
 }
 
-state_t bwidth_intel106_init(ctx_t *c)
-{
-    return EAR_SUCCESS;
-}
-
-state_t bwidth_intel106_dispose(ctx_t *c)
-{
-    return EAR_SUCCESS;
-}
-
-state_t bwidth_intel106_count_devices(ctx_t *c, uint *devs_count_in)
-{
-    *devs_count_in = imc_ctrs_count + 1;
-    return EAR_SUCCESS;
-}
-
-state_t bwidth_intel106_read(ctx_t *c, bwidth_t *bw)
+BWIDTH_F_READ(intel106)
 {
     addr_t addr0;
     addr_t addr1;
     int i, j;
 
-    timestamp_get(&bw[imc_ctrs_count].time);
-
+    timestamp_get(&b[imc_ctrs_count].time);
     for (i = j = 0; i < imc_maps_count; ++i, j += 2) {
-        addr0         = ((addr_t) imc_maps[i]) + ((addr_t) imc_ctrs[j + 0]);
-        addr1         = ((addr_t) imc_maps[i]) + ((addr_t) imc_ctrs[j + 1]);
-        bw[j + 0].cas = (ullong) * ((ullong *) (addr0));
-        bw[j + 1].cas = (ullong) * ((ullong *) (addr1));
-        bw[j + 0].cas = bw[j + 0].cas & 0x0000ffffffffffff;
-        bw[j + 1].cas = bw[j + 1].cas & 0x0000ffffffffffff;
-        debug("IMC%d: %llu %llu cas", i, bw[j + 0].cas, bw[j + 1].cas);
+        addr0        = ((addr_t) imc_maps[i]) + ((addr_t) imc_ctrs[j + 0]);
+        addr1        = ((addr_t) imc_maps[i]) + ((addr_t) imc_ctrs[j + 1]);
+        b[j + 0].cas = (ullong) * ((ullong *) (addr0));
+        b[j + 1].cas = (ullong) * ((ullong *) (addr1));
+        b[j + 0].cas = b[j + 0].cas & 0x0000ffffffffffff;
+        b[j + 1].cas = b[j + 1].cas & 0x0000ffffffffffff;
+        debug("IMC%d: %llu %llu cas", i, b[j + 0].cas, b[j + 1].cas);
     }
     return EAR_SUCCESS;
 }

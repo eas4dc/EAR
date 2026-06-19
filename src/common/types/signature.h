@@ -17,7 +17,7 @@
 #include <metrics/cpi/cpi.h>
 #include <metrics/flops/flops.h>
 #include <metrics/gpu/gpu.h>
-#include <metrics/io/io.h>
+#include <metrics/io/io_old.h>
 
 // 0: float
 // 1: 128 float

@@ -58,8 +58,7 @@ static state_t state_global()
 
 static state_t static_send(uint type, char *content, ssize_t size)
 {
-    packet_header_t header;
-
+    ullong extra = 0LLU;
     // If not initialized
     if (!eardbd_is_initialized()) {
         return_msg(EAR_ERROR, "server and mirror are not enabled/initialized");
@@ -67,24 +66,18 @@ static state_t static_send(uint type, char *content, ssize_t size)
     // Preparing the states
     server_s = EAR_SUCCESS;
     mirror_s = EAR_SUCCESS;
-    // Cleaning headers
-    sockets_header_clean(&header);
-    sockets_header_update(&header);
-    // Set the content
-    header.content_type = type;
-    header.content_size = size;
     // Debugging
     debug("server %s:%d, enabled %d, fd %d", server_sock.host, server_sock.port, server_enabled, server_sock.fd);
     debug("mirror %s:%d, enabled %d, fd %d", mirror_sock.host, mirror_sock.port, mirror_enabled, mirror_sock.fd);
     // Sending the data through sockets
     if (server_enabled) {
-        if (state_fail(server_s = __sockets_send(&server_sock, &header, content))) {
+        if (state_fail(server_s = sockets_send(server_sock.fd, type, content, size, key_add(extra)))) {
             server_err = state_msg;
         }
         debug("server send returned '%d'", server_s);
     }
     if (mirror_enabled) {
-        if (state_fail(mirror_s = __sockets_send(&mirror_sock, &header, content))) {
+        if (state_fail(mirror_s = sockets_send(mirror_sock.fd, type, content, size, key_add(extra)))) {
             mirror_err = state_msg;
         }
         debug("mirror send returned '%d'", mirror_s);
@@ -262,7 +255,7 @@ state_t eardbd_status(char *host, uint port, eardbd_status_t *status)
     if (state_fail(s = static_connect(&socket, host, port, TCP))) {
         return static_disconnect(&socket, s);
     }
-    if (state_fail(s = sockets_send(socket.fd, EDB_TYPE_STATUS, NULL, 0, 0))) {
+    if (state_fail(s = sockets_send(socket.fd, EDB_TYPE_STATUS, NULL, 0, key_add(0)))) {
         return static_disconnect(&socket, s);
     }
     // Receiving (in blocking mode, but with 5 seconds of timeout)

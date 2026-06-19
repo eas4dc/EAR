@@ -11,62 +11,20 @@
 
 // #define SHOW_DEBUGS 1
 
-#include <common/hardware/bithack.h>
-#include <common/math_operations.h>
+#include <stdlib.h>
+#include <pthread.h>
 #include <common/output/debug.h>
 #include <common/system/monitor.h>
-#include <metrics/bandwidth/archs/amd19.h>
+#include <common/math_operations.h>
+#include <common/hardware/bithack.h>
 #include <metrics/common/hsmp.h>
-#include <pthread.h>
-#include <stdlib.h>
+#include <metrics/bandwidth/archs/amd19.h>
 
 static pthread_mutex_t  lock = PTHREAD_MUTEX_INITIALIZER;
-static topology_t       tp;
-static uint             fun; // Address
-static suscription_t   *sus;
+static topology_t       tp_own;
+static suscription_t   *sus = NULL;
 static bwidth_t        *pool;
 static double           line_size;
-
-BWIDTH_F_LOAD(bwidth_amd19_load)
-{
-    uint reps[2] = {0, -1};
-    uint args[1] = {-1};
-
-    if (tpo->vendor != VENDOR_AMD || tpo->family < FAMILY_ZEN) {
-        return_msg(, Generr.api_incompatible);
-    }
-    if (state_fail(hsmp_open(tpo, HSMP_RD))) {
-        debug("hsmp_open failed: %s", state_msg);
-        return;
-    }
-    // Testing if the function is compatible
-    if (state_fail(hsmp_send(0, HSMP_GET_DDR_BANDWIDTH, args, reps))) {
-        debug("hsmp_send failed: %s", state_msg);
-        return;
-    }
-    if (state_fail(topology_select(tpo, &tp, TPSelect.socket, TPGroup.merge, 0))) {
-        return;
-    }
-    // ZEN3
-    fun       = HSMP_GET_DDR_BANDWIDTH;
-    line_size = (double) tpo->cache_line_size;
-    //
-    pool = calloc(tp.cpu_count + 1, sizeof(bwidth_t));
-
-    apis_put(ops->get_info, bwidth_amd19_get_info);
-    apis_put(ops->init    , bwidth_amd19_init);
-    apis_put(ops->dispose , bwidth_amd19_dispose);
-    apis_put(ops->read    , bwidth_amd19_read);
-    debug("Loaded AMD19");
-}
-
-BWIDTH_F_GET_INFO(bwidth_amd19_get_info)
-{
-    info->api         = API_AMD19;
-    info->scope       = SCOPE_NODE;
-    info->granularity = GRANULARITY_SOCKET;
-    info->devs_count  = tp.cpu_count + 1;
-}
 
 static state_t multiread(bwidth_t *bws)
 {
@@ -78,14 +36,14 @@ static state_t multiread(bwidth_t *bws)
     int sock;
 
     // Getting old time
-    time = bws[tp.cpu_count].time;
+    time = bws[tp_own.cpu_count].time;
     // Getting new time
-    timestamp_get(&bws[tp.cpu_count].time);
+    timestamp_get(&bws[tp_own.cpu_count].time);
     // Working in seconds with the precission of USECS
-    secs = timestamp_fdiff(&bws[tp.cpu_count].time, &time, TIME_SECS, TIME_USECS);
+    secs = timestamp_fdiff(&bws[tp_own.cpu_count].time, &time, TIME_SECS, TIME_USECS);
     // Reading HSMP
-    for (sock = 0; sock < tp.cpu_count; ++sock) {
-        hsmp_send(sock, fun, args, reps);
+    for (sock = 0; sock < tp_own.cpu_count; ++sock) {
+        hsmp_send(sock, HSMP_GET_DDR_BANDWIDTH, args, reps);
         // Converting GB/s to GBytes since last read
         fcas = (double) getbits32(reps[0], 19, 8);
         fcas *= (double) 1E9;
@@ -99,38 +57,84 @@ static state_t multiread(bwidth_t *bws)
 
 static state_t multipool(void *something)
 {
-    while (pthread_mutex_trylock(&lock))
-        ;
+    while (pthread_mutex_trylock(&lock));
     multiread(pool);
     pthread_mutex_unlock(&lock);
     return EAR_SUCCESS;
 }
 
-BWIDTH_F_INIT(bwidth_amd19_init)
+static void close_all()
 {
-    // Init
-    timestamp_get(&pool[tp.cpu_count].time);
+    hsmp_close();
+    topology_close(&tp_own);
+    if (sus && sus->suscribe != NULL) {
+        // It's protected inside
+        monitor_unregister(sus);
+    }
+    if (pool != NULL) {
+        free(pool);
+        pool = NULL;
+    }
+}
+
+BWIDTH_F_LOAD(amd19)
+{
+    uint reps[2] = {0, -1};
+    uint args[1] = {-1};
+
+    if (tp->vendor != VENDOR_AMD || tp->family < FAMILY_ZEN) {
+        return_msg(, Generr.api_incompatible);
+    }
+    if (state_fail(hsmp_open(tp, HSMP_RD))) {
+        debug("hsmp_open failed: %s", state_msg);
+        close_all();
+        return;
+    }
+    // Testing if the function is compatible
+    if (state_fail(hsmp_send(0, HSMP_GET_DDR_BANDWIDTH, args, reps))) {
+        debug("hsmp_send failed: %s", state_msg);
+        close_all();
+        return;
+    }
+    // ZEN3
+    topology_select(tp, &tp_own, TPSelect.socket, TPGroup.merge, 0);
+    line_size = (double) tp_own.cache_line_size;
+    // Old init
+    pool = calloc(tp_own.cpu_count + 1, sizeof(bwidth_t));
+    timestamp_get(&pool[tp_own.cpu_count].time);
     // Pool suscription
     sus             = suscription();
     sus->call_init  = NULL;
     sus->call_main  = multipool;
     sus->time_relax = 5000;
     sus->time_burst = 5000;
-    return sus->suscribe(sus);
+    sus->suscribe(sus);
+    //
+    apis_put(ops->unload  , bwidth_amd19_unload);
+    apis_put(ops->get_info, bwidth_amd19_get_info);
+    apis_put(ops->read    , bwidth_amd19_read);
+    debug("Loaded AMD19");
 }
 
-BWIDTH_F_DISPOSE(bwidth_amd19_dispose)
+BWIDTH_F_UNLOAD(amd19)
 {
-    return EAR_SUCCESS;
+    close_all();
 }
 
-BWIDTH_F_READ(bwidth_amd19_read)
+BWIDTH_F_GET_INFO(amd19)
+{
+    info->api         = API_AMD19;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_SOCKET;
+    info->devs_count  = tp_own.cpu_count + 1;
+}
+
+BWIDTH_F_READ(amd19)
 {
     // Update pool
     multipool(NULL);
-    while (pthread_mutex_trylock(&lock))
-        ;
-    memcpy(bws, pool, sizeof(bwidth_t) * (tp.cpu_count + 1));
+    while (pthread_mutex_trylock(&lock));
+    memcpy(b, pool, sizeof(bwidth_t) * (tp_own.cpu_count + 1));
     pthread_mutex_unlock(&lock);
     return EAR_SUCCESS;
 }

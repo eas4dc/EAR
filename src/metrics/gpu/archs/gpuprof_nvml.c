@@ -133,10 +133,7 @@ GPUPROF_F_LOAD(gpuprof_nvml_load)
         return;
     }
     debug("gpuprof_nvml_load get devices");
-    if (state_fail(nvml_get_devices(&devs, &devs_count))) {
-        debug("nvml_get_devices failed: %s", state_msg);
-        return;
-    }
+    nvml_get_handlers(&devs, &devs_count);
     debug("NVML_dcgmi: %d devices detected", devs_count);
     if (!support_test()) {
         debug("Unsupported NVML profiling functions");

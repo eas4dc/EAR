@@ -29,6 +29,7 @@ typedef struct eargm_def {
     long energy;
     long power;
     char node[GENERIC_NAME];
+    char plugins[GENERIC_NAME];
     int num_subs;
     int *subs; // eargms under that meta_eargm
 } eargm_def_t;

@@ -7,10 +7,9 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
+
 /* clang-format off */
-
-//#define SHOW_DEBUGS 1
-
+// #define SHOW_DEBUGS 1
 #define _GNU_SOURCE
 #include <fcntl.h>
 #include <stdlib.h>
@@ -23,8 +22,8 @@
 
 static int file_read(char *path, int *fd, int close_on_read, char *buffer, size_t buffer_length)
 {
-    int i = 0;
-    int r = 0;
+    int acc = 0;
+    int ret = 0;
     // No file descriptor and no path
     if (*fd < 0 && path[0] == 'f' && path[1] == 'd') {
         return 0;
@@ -36,23 +35,26 @@ static int file_read(char *path, int *fd, int close_on_read, char *buffer, size_
         }
     }
     lseek(*fd, 0, SEEK_SET);
-    while (r < buffer_length) {
-        if ((r = read(*fd, &buffer[r], buffer_length)) <= 0) {
+    while (buffer_length-1 > 0) {
+        if ((ret = read(*fd, &buffer[acc], buffer_length-1)) <= 0) {
             break;
         }
-        buffer_length -= r;
-        i += r;
+        buffer_length -= ret;
+        acc += ret;
     }
-    buffer[i] = '\0';
-    if (buffer[strlen(buffer) - 1] == '\n') {
-        buffer[strlen(buffer) - 1] = '\0';
+    buffer[acc] = '\0';
+    if (acc > 0) {
+        if (buffer[strlen(buffer) - 1] == '\n') {
+            buffer[strlen(buffer) - 1] = '\0';
+            acc -= 1;
+        }
     }
     debug("HWMON read from '%s': %s (fd%d)", path, buffer, *fd);
-    if (close_on_read) {
+    if (acc == 0 || close_on_read) {
         close(*fd);
-        *fd = -2; // We are using the -1 to count unopened items
+        *fd = (acc == 0)? -1: -2; // We are using the -1 to count unopened items
     }
-    return 1;
+    return acc;
 }
 
 static int read_device_item(char *folder_path, char *type_number, char *item_name, ullong address, int close)
@@ -106,7 +108,7 @@ static void open_devices(char *folder_path, char *devs_name, char *label, hwmon_
         // Cleaning
         memset(&(*devs)[i], 0, sizeof(hwmon_dev_t));
         sprintf((*devs)[i].label, "no-label");
-        (*devs)[i].number              = d + 1;
+        (*devs)[i].number              = i + 1;
         (*devs)[i].input_fd            = -1;
         (*devs)[i].label_fd            = -1;
         (*devs)[i].max_fd              = -1;
@@ -135,8 +137,8 @@ static void open_devices(char *folder_path, char *devs_name, char *label, hwmon_
             }
             missing = 0;
         } else {
-            // 4 device holes is too much
-            if (++missing == 4) {
+            // 25 device holes is too much
+            if (++missing == 25) {
                 break;
             }
         }
@@ -186,7 +188,7 @@ int test_chip_labels(char *folder_path, char *devs_name, char *label)
         sprintf(type_number, "%s%d", devs_name, d + 1);
         if (!(completed = read_device_item(folder_path, type_number, "label", (ullong) &aux.aux_fd, 1))) {
             if (!(completed = read_device_item(folder_path, type_number, "oem_info", (ullong) &aux.aux_fd, 1))) {
-                if (++missing == 4) {
+                if (++missing == 25) {
                     break;
                 }
                 continue;
@@ -310,15 +312,19 @@ int hwmon_count_items(hwmon_t chips[], char *item_name, char *label)
 
 void hwmon_read(hwmon_t *chips)
 {
+    hwmon_dev_t *dev = NULL;
     int c = 0; // c of chip
     int d = 0; // d of device
     while (!chips[c].is_null) {
         d = 0;
         while (!chips[c].devs[d].is_null) {
-            #define offset(var) (ullong) & chips[c].devs[d].var
-            read_device_item(NULL, NULL, NULL, offset(input_fd), 0);
-            read_device_item(NULL, NULL, NULL, offset(average_fd), 0);
+            dev = &chips[c].devs[d];
+            if (dev->input_fd   >= 0)
+                read_device_item(NULL, NULL, NULL, (ullong) &dev->input_fd, 0);
+            if (dev->average_fd >= 0)
+                read_device_item(NULL, NULL, NULL, (ullong) &dev->average_fd, 0);
             ++d;
+
         }
         ++c;
     }
@@ -339,8 +345,8 @@ void hwmon_calc_average(hwmon_t *chips, char *label)
         while (!chips[c].devs[d].is_null) {
             debug("- CHIP%d DEV%d comparing labels '%s' == '%s'", c, d, chips[c].devs[d].label, label);
             if (label == NULL || strcasestr(chips[c].devs[d].label, label) != NULL) {
-                debug("   - input  : acc + %u = %u", chips[c].devs_avg.input_toint  , chips[c].devs[d].input_toint  );
-                debug("   - average: acc + %u = %u", chips[c].devs_avg.average_toint, chips[c].devs[d].average_toint);
+                debug("   - input  : %-12u (acc %u)", chips[c].devs[d].input_toint, chips[c].devs_avg.input_toint    );
+                debug("   - average: %-12u (acc %u)", chips[c].devs[d].average_toint, chips[c].devs_avg.average_toint);
                 chips[c].devs_avg.input_toint   += chips[c].devs[d].input_toint;
                 chips[c].devs_avg.max_toint     += chips[c].devs[d].max_toint;
                 chips[c].devs_avg.min_toint     += chips[c].devs[d].min_toint;
@@ -350,15 +356,18 @@ void hwmon_calc_average(hwmon_t *chips, char *label)
             }
             ++d;
         }
-        debug("   - input  : %5u / %u = ??", chips[c].devs_avg.input_toint  , m);
-        debug("   - average: %5u / %u = ??", chips[c].devs_avg.average_toint, m);
-        chips[c].devs_avg.input_toint   /= m;
-        chips[c].devs_avg.max_toint     /= m;
-        chips[c].devs_avg.min_toint     /= m;
-        chips[c].devs_avg.average_toint /= m;
-        chips[c].devs_avg.average_interval_toint /= m;
-        debug("   - input  : ?? = %u", chips[c].devs_avg.input_toint  );
-        debug("   - average: ?? = %u", chips[c].devs_avg.average_toint);
+        if (m > 0) {
+            debug("- CHIP%d DEVS_AVG (%d values)", c, m);
+            debug("   - input  : %u", chips[c].devs_avg.input_toint  );
+            debug("   - average: %u", chips[c].devs_avg.average_toint);
+            chips[c].devs_avg.input_toint   /= m;
+            chips[c].devs_avg.max_toint     /= m;
+            chips[c].devs_avg.min_toint     /= m;
+            chips[c].devs_avg.average_toint /= m;
+            chips[c].devs_avg.average_interval_toint /= m;
+            debug("   - input  : %-12u (after division)", chips[c].devs_avg.input_toint  );
+            debug("   - average: %-12u (after division)", chips[c].devs_avg.average_toint);
+        }
         ++c;
     }
 }
@@ -430,10 +439,15 @@ void hwmon_close_labels(hwmon_t chips[], char *label)
         }
     }
     while (!chips[c].is_null) {
+        d = 0;
         while (!chips[c].devs[d].is_null) {
             match = (label == NULL) ? 1 : (strcasestr(chips[c].devs[d].label, label) != NULL);
             if ((!negative && match) || (negative && !match)) {
                 debug("closing '%s' file descriptors", chips[c].devs[d].label);
+                chips[c].devs[d].input_toint   = 0;
+                chips[c].devs[d].average_toint = 0;
+                chips[c].devs[d].input[0]      = '\0';
+                chips[c].devs[d].average[0]    = '\0';
                 close_dev(chips[c].devs[d].input_fd);
                 close_dev(chips[c].devs[d].label_fd);
                 close_dev(chips[c].devs[d].max_fd);
@@ -454,8 +468,8 @@ int main(int argc, char *argv[])
     uint cores_count = 0;
     hwmon_t *chips   = NULL;
 
-     if (state_fail(hwmon_open("coretemp", "temp", &chips, &chips_count))) {
-    //if (state_fail(hwmon_open("power_meter", "power", &chips, &chips_count))) {
+    if (state_fail(hwmon_open("coretemp", "temp", NULL, &chips, &chips_count))) {
+    //if (state_fail(hwmon_open("power_meter", "power", NULL, &chips, &chips_count))) {
         debug("Failed: %s", state_msg);
         return 0;
     }
@@ -467,9 +481,8 @@ int main(int argc, char *argv[])
     printf("Detected %d Core inputs\n", cores_count);
     //printf("Detected %d averages\n", cores_count);
     hwmon_read(chips);
-     hwmon_calc_average(chips, "Core");
+    hwmon_calc_average(chips, "Core");
     //hwmon_calc_average(chips, "Grace");
-    printf("The average Core temperature of Socket 0 is %dº\n", chips[0].devs_avg.input_toint / 1000);
     //printf("The average power is %d xW\n", chips[1].devs_avg.average_toint);
     // 1 by 1 iteration
     hwmon_dev_t *dev = NULL;

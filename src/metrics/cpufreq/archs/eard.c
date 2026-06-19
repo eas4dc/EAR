@@ -15,37 +15,50 @@
 #include <metrics/cpufreq/archs/eard.h>
 #include <stdlib.h>
 
-static uint cpu_count;
+static uint cpus_count;
 
-state_t cpufreq_eard_status(topology_t *tp, cpufreq_ops_t *ops, int eard)
+CPUFREQ_F_LOAD(eard)
 {
     uint eard_api;
     state_t s;
 
-    if (!eard) {
-        return_msg(EAR_ERROR, "EARD (daemon) not required");
+    if (ops->read != NULL) {
+        return;
+    }
+    if (!API_IS(options, API_EARD)) {
+        return;
     }
     if (!eards_connected()) {
-        return_msg(EAR_ERROR, "EARD (daemon) not connected");
+        return_msg(, "EARD (daemon) not connected");
     }
     if (state_fail(s = eard_rpc(RPC_MET_CPUFREQ_GET_API, NULL, 0, (char *) &eard_api, sizeof(uint)))) {
         debug("RPC RPC_MET_CPUFREQ_GET_API returned: %s (%d)", state_msg, s);
-        return s;
+        return;
     }
     if (eard_api == API_NONE || eard_api == API_DUMMY) {
-        return_msg(EAR_ERROR, "EARD (daemon) has loaded DUMMY/NONE API");
+        return_msg(, "EARD (daemon) has loaded DUMMY/NONE API");
     }
-    //
-    cpu_count = tp->cpu_count;
-    //
-    replace_ops(ops->read, cpufreq_eard_read);
-
-    return EAR_SUCCESS;
+    cpus_count = tp->cpu_count;
+    apis_put(ops->unload, cpufreq_eard_unload);
+    apis_put(ops->get_info, cpufreq_eard_get_info);
+    apis_put(ops->read, cpufreq_eard_read);
 }
 
-state_t cpufreq_eard_read(ctx_t *c, cpufreq_t *list)
+CPUFREQ_F_UNLOAD(eard)
+{
+}
+
+CPUFREQ_F_GET_INFO(eard)
+{
+    info->api         = API_EARD;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_CPU;
+    info->devs_count  = cpus_count;
+}
+
+CPUFREQ_F_READ(eard)
 {
     debug("cpufreq_eard_read");
-    memset((void *) list, 0, sizeof(cpufreq_t) * cpu_count);
-    return eard_rpc(RPC_MET_CPUFREQ_GET_CURRENT, NULL, 0, (char *) list, sizeof(cpufreq_t) * cpu_count);
+    memset((void *) f, 0, sizeof(cpufreq_t) * cpus_count);
+    return eard_rpc(RPC_MET_CPUFREQ_GET_CURRENT, NULL, 0, (char *) f, sizeof(cpufreq_t) * cpus_count);
 }

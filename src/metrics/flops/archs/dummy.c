@@ -8,48 +8,46 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+// clang-format off
 // #define SHOW_DEBUGS 1
-
+#include <string.h>
 #include <common/output/debug.h>
 #include <metrics/flops/archs/dummy.h>
-#include <string.h>
 
-void flops_dummy_load(topology_t *tp, flops_ops_t *ops)
+FLOPS_F_LOAD(dummy)
 {
-    apis_put(ops->get_info, flops_dummy_get_info);
-    apis_put(ops->init, flops_dummy_init);
-    apis_put(ops->dispose, flops_dummy_dispose);
-    apis_put(ops->read, flops_dummy_read);
+    apis_put(ops->unload   , flops_dummy_unload);
+    apis_put(ops->update   , flops_dummy_update);
+    apis_put(ops->get_info , flops_dummy_get_info);
+    apis_put(ops->read     , flops_dummy_read);
     apis_put(ops->data_diff, flops_dummy_data_diff);
     apis_put(ops->internals_tostr, flops_dummy_internals_tostr);
 }
 
-void flops_dummy_get_info(apinfo_t *info)
+FLOPS_F_UNLOAD(dummy)
+{
+}
+
+FLOPS_F_UPDATE(dummy)
+{
+    return EAR_SUCCESS;
+}
+
+FLOPS_F_GET_INFO(dummy)
 {
     info->api         = API_DUMMY;
-    info->scope       = SCOPE_PROCESS;
+    info->scope       = SCOPE_DUMMY;
     info->granularity = GRANULARITY_PROCESS;
     info->devs_count  = 1;
-    info->bits        = 0;
 }
 
-state_t flops_dummy_init()
-{
-    return EAR_SUCCESS;
-}
-
-state_t flops_dummy_dispose()
-{
-    return EAR_SUCCESS;
-}
-
-state_t flops_dummy_read(flops_t *fl)
+FLOPS_F_READ(dummy)
 {
     memset(fl, 0, sizeof(flops_t));
     return EAR_SUCCESS;
 }
 
-void flops_dummy_data_diff(flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs)
+FLOPS_F_DATA_DIFF(dummy)
 {
     // Cleaning
     if (gfs != NULL) {
@@ -60,7 +58,7 @@ void flops_dummy_data_diff(flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs
     }
 }
 
-void flops_dummy_internals_tostr(char *buffer, int length)
+FLOPS_F_INTERNALS_TOSTR(dummy)
 {
     sprintf(buffer, "FLOPS X86 : loaded event DUMMY\n");
 }

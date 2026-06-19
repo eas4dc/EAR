@@ -18,7 +18,6 @@
 extern cluster_conf_t conf_clus;
 
 // Buffers
-extern packet_header_t input_header;
 extern char input_buffer[SZ_BUFFER];
 extern char extra_buffer[SZ_BUFFER];
 
@@ -65,9 +64,9 @@ extern uint samples_count[EDB_NTYPES];
 // Sockets info
 extern uint sockets_accepted;
 extern uint sockets_online;
-extern uint sockets_disconnected;
-extern uint sockets_unrecognized;
-extern uint sockets_timeout;
+extern uint sockets_err_disconnected;
+extern uint sockets_err_other;
+extern uint sockets_err_timeout;
 
 // Times (alarms)
 extern struct timeval timeout_insr;
@@ -111,8 +110,8 @@ static void manage_alarms(struct timeval *timeout_slct)
 
                 if (q->n_samples > 0) {
                     if (verbosity >= 2) {
-                        verb_who("completed the aggregation number '%lu' with energy '%lu'", samples_index[index_aggrs],
-                                 q->DC_energy);
+                        verb1("completed the aggregation number '%lu' with energy '%lu'", samples_index[index_aggrs],
+                              q->DC_energy);
                     }
                     // Aggregation time done, so new aggregation incoming
                     storage_sample_add(NULL, type_alloc_len[index_aggrs], &samples_index[index_aggrs], NULL, 0,
@@ -132,7 +131,7 @@ static void manage_alarms(struct timeval *timeout_slct)
                 sync_answer_t answer;
                 // Asking the question
                 // In case of fail the mirror have to insert the data
-                if (state_fail(sync_question(EDB_SYNC_ALL, veteran, &answer))) {
+                if (state_fail(sync_send_question(EDB_SYNC_ALL, veteran, &answer))) {
                     insert_hub(EDB_SYNC_ALL, EDB_INSERT_BY_TIME);
                     // In case I'm veteran and the server is not
                 } else if (!answer.veteran && veteran) {
@@ -167,6 +166,9 @@ static int body_new_connection(int fd)
 
 static void manage_sockets()
 {
+    uint type;
+    size_t input_size;
+    ullong extra;
     int fd_old;
     int fd_new;
     state_t s;
@@ -177,7 +179,6 @@ static void manage_sockets()
     if (updating) {
         return;
     }
-
     for (i = fds_active.fd_min; i <= fds_active.fd_max && listening; i++) {
         if (listening && AFD_ISSET(i, &fds_active)) // we got one!!
         {
@@ -200,7 +201,7 @@ static void manage_sockets()
                         if (sync_fd_exists(ip, &fd_old)) {
                             // log("multiple connections from host '%s', disconnecting previous", extra_buffer);
                             if (verbosity) {
-                                verb_who("disconnecting from host '%s' (host was previously connected)", extra_buffer);
+                                verb1("disconnecting from host '%s' (host was previously connected)", extra_buffer);
                             }
                             sync_fd_disconnect(fd_old);
                         }
@@ -210,33 +211,35 @@ static void manage_sockets()
                     // condition disconnect inmediately.
                     if (!sync_fd_is_mirror(i) && sockets_online >= EDB_MAX_CONNECTIONS) {
                         if (verbosity) {
-                            verb_who("disconnecting from host '%s' (maximum connections reached)", extra_buffer);
+                            verb1("disconnecting from host '%s' (maximum connections reached)", extra_buffer);
                         }
                         sync_fd_disconnect(fd_new);
                     } else {
                         sync_fd_add(fd_new, ip);
                         if (verbosity) {
-                            verb_who("accepted fd '%d' from host '%s'", fd_new, extra_buffer);
+                            verb1("accepted fd '%d' from host '%s'", fd_new, extra_buffer);
                         }
                     }
                 } while (state_ok(s));
                 // Handle data transfers
             } else {
-                if (state_ok(s = __sockets_recv(i, &input_header, input_buffer, sizeof(input_buffer), 0))) {
-                    //
-                    storage_sample_receive(i, &input_header, input_buffer);
-                } else {
+                if (state_ok(s = sockets_recv_header(i, &type, &input_size, &extra, 0))) {
+                    if (state_ok(s = sockets_recv(i, input_buffer, input_size, 0))) {
+                        s = storage_sample_receive(i, type, input_buffer, extra);
+                    }
+                }
+                if (state_fail(s)) {
                     if (state_is(s, EAR_SOCK_DISCONNECTED)) {
-                        sockets_disconnected += 1;
+                        sockets_err_disconnected += 1;
                     }
                     if (state_is(s, EAR_TIMEOUT)) {
-                        sockets_timeout += 1;
+                        sockets_err_timeout += 1;
                     } else {
-                        sockets_unrecognized += 1;
+                        sockets_err_other += 1;
                     }
                     if (verbosity) {
                         sockets_get_hostname_fd(i, extra_buffer, SZ_BUFFER);
-                        verb_who("disconnecting from host %s: %s)", extra_buffer, state_msg);
+                        verb1("disconnecting from host %s: %s", extra_buffer, state_msg);
                     }
                     sync_fd_disconnect(i);
                 }

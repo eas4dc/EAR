@@ -29,7 +29,6 @@
 // Configuration
 cluster_conf_t conf_clus;
 // Input buffers
-packet_header_t input_header;
 char input_buffer[SZ_BUFFER];
 char extra_buffer[SZ_BUFFER];
 // Sockets
@@ -42,9 +41,9 @@ socket_t *socket_sync02 = &sockets[3]; // Sync connector
 eardbd_status_t status;
 uint sockets_accepted;
 uint sockets_online;
-uint sockets_disconnected;
-uint sockets_unrecognized;
-uint sockets_timeout;
+uint sockets_err_disconnected;
+uint sockets_err_other;
+uint sockets_err_timeout;
 // Descriptors
 struct sockaddr_storage addr_new;
 afd_set_t fds_active;
@@ -69,6 +68,8 @@ int mirror_enabled;
 int master_iam; // Master is who speaks
 int server_iam;
 int mirror_iam;
+ullong extra_key;
+
 // PID
 char *path_pid;
 process_data_t proc_server;
@@ -77,10 +78,8 @@ pid_t server_pid;
 pid_t mirror_pid;
 pid_t others_pid;
 // Synchronization data
-packet_header_t header_question;
-packet_header_t header_answer;
-sync_question_t data_question;
-sync_answer_t data_answer;
+sync_question_t sync_question;
+sync_answer_t sync_answer;
 // Types & metrics
 time_t time_recv1[EDB_NTYPES];    // Time between first and last sample start
 time_t time_recv2[EDB_NTYPES];    // Time between first and last sample stop
@@ -112,7 +111,7 @@ int forked;
 int forced = 0;
 // Extras
 char *str_who[2] = {"server", "mirror"};
-int verbosity    = 0;
+int verbosity    = 2;
 static float total_alloc;
 sigset_t ear_sigset;
 
@@ -154,28 +153,18 @@ static void init_general_configuration(int argc, char **argv, cluster_conf_t *co
         edb_error("while getting ear.conf path");
     }
 
-    verb_master("reading '%s' configuration file", extra_buffer);
+    verb2("reading '%s' configuration file", extra_buffer);
     read_cluster_conf(extra_buffer, conf_clus);
-
-#if 0
-	// Database configuration (activated in the past through USE_EARDBD_CONF)
-	if (get_eardbd_conf_path(extra_buffer) == EAR_ERROR){
-		edb_error("while getting eardbd.conf path");
-	}
-
-	verb_master("reading '%s' database configuration file", extra_buffer);
-	read_eardbd_conf(extra_buffer, conf_clus->database.user, conf_clus->database.pass);
-#endif
 
     ear_create_tmp(conf_clus->install.dir_temp, conf_clus->ear_owner);
 
     // Output redirection
     if (conf_clus->db_manager.use_log) {
-        verb_master("redirecting output to '%s'", conf_clus->install.dir_temp);
+        verb2("- redirecting '%s/eardbd.server/mirror.log'", conf_clus->install.dir_temp);
     }
-
     /* Reporting plugin */
-    if (state_fail(report_load(conf_clus->install.dir_plug, conf_clus->db_manager.plugins))) {
+    if (state_fail(report_load(conf_clus->install.dir_plug, "dummy.so"))) {
+        // if (state_fail(report_load(conf_clus->install.dir_plug, conf_clus->db_manager.plugins))){
         edb_error("Report error during loading: %s", state_msg);
         exit(EXIT_FAILURE);
     }
@@ -186,7 +175,7 @@ static void init_general_configuration(int argc, char **argv, cluster_conf_t *co
         edb_error("Report error during initialization: %s", state_msg);
         exit(EXIT_FAILURE);
     }
-    debug("dbcon info: '%s'    plugin", conf_clus->db_manager.plugins);
+    debug("dbcon info: '%s' plugin", conf_clus->db_manager.plugins);
     if (strcmp(conf_clus->db_manager.plugins, "mysql.so") == 0) {
         debug("dbcon info: '%s@%s' access", conf_clus->database.database, conf_clus->database.user);
         debug("dbcon info: '%s:%d' socket", conf_clus->database.ip, conf_clus->database.port);
@@ -269,8 +258,8 @@ static void init_general_configuration(int argc, char **argv, cluster_conf_t *co
     }
 #endif
     // Server & mirror verbosity
-    verb_master("enabled cache server: %s", server_enabled ? "OK" : "NO");
-    verb_master("enabled cache mirror: %s (of server '%s')", mirror_enabled ? "OK" : "NO", server_host);
+    verb2("enabled cache server: %s", server_enabled ? "OK" : "NO");
+    verb2("enabled cache mirror: %s (of server '%s')", mirror_enabled ? "OK" : "NO", server_host);
 }
 
 static void init_time_configuration(int argc, char **argv, cluster_conf_t *conf_clus)
@@ -280,11 +269,11 @@ static void init_time_configuration(int argc, char **argv, cluster_conf_t *conf_
     time_aggr = (time_t) conf_clus->db_manager.aggr_time;
 
     if (time_insr == 0) {
-        verb_master("insert time can't be 0, using 300 seconds (default)");
+        verb2("insert time can't be 0, using 300 seconds (default)");
         time_insr = 300;
     }
     if (time_aggr == 0) {
-        verb_master("aggregation time can't be 0, using 60 seconds (default)");
+        verb2("aggregation time can't be 0, using 60 seconds (default)");
         time_aggr = 60;
     }
 
@@ -294,8 +283,8 @@ static void init_time_configuration(int argc, char **argv, cluster_conf_t *conf_
     time_reset_timeout_slct();
 
     // Times verbosity
-    verb_master("insertion time:   %lu seconds", time_insr);
-    verb_master("aggregation time: %lu seconds", time_aggr);
+    verb2("insertion time:   %lu seconds", time_insr);
+    verb2("aggregation time: %lu seconds", time_aggr);
 }
 
 static int init_sockets_single(socket_t *socket, char *host, int port, int bind)
@@ -353,8 +342,8 @@ static void init_sockets(int argc, char **argv, cluster_conf_t *conf_clus)
     tprintf("server sync||%d||TCP||%s||%d||%d", socket_sync01->port, status[st3], fd3, errno3);
     tprintf("mirror sync||%d||TCP||%s||%d||%d", socket_sync02->port, status[st4], fd4, errno4);
     //
-    verb_master("TIP! mirror sync socket opens and closes intermittently");
-    verb_master("maximum #connections per process: %u", EDB_MAX_CONNECTIONS);
+    verb2("TIP! mirror sync socket opens and closes intermittently");
+    verb2("maximum #connections per process: %u", EDB_MAX_CONNECTIONS);
 }
 
 static void init_fork(int argc, char **argv, cluster_conf_t *conf_clus)
@@ -381,8 +370,8 @@ static void init_fork(int argc, char **argv, cluster_conf_t *conf_clus)
 
     // Verbosity
     char *status[2] = {"(just sleeps)", ""};
-    verb_master("cache server pid: %d %s", server_pid, status[server_enabled]);
-    verb_master("cache mirror pid: %d", mirror_pid);
+    verb2("cache server pid: %d %s", server_pid, status[server_enabled]);
+    verb2("cache mirror pid: %d", mirror_pid);
 }
 
 static void init_signals()
@@ -410,22 +399,22 @@ static void init_signals()
     action.sa_flags     = SA_SIGINFO;
 
     if (sigaction(SIGUSR1, &action, NULL) < 0) {
-        verb_who("sigaction error on signal %d (%s)", SIGUSR1, strerror(errno));
+        verb1("sigaction error on signal %d (%s)", SIGUSR1, strerror(errno));
     }
     if (sigaction(SIGUSR2, &action, NULL) < 0) {
-        verb_who("sigaction error on signal %d (%s)", SIGUSR1, strerror(errno));
+        verb1("sigaction error on signal %d (%s)", SIGUSR1, strerror(errno));
     }
     if (sigaction(SIGCHLD, &action, NULL) < 0) {
-        verb_who("sigaction error on signal %d (%s)", SIGUSR1, strerror(errno));
+        verb1("sigaction error on signal %d (%s)", SIGUSR1, strerror(errno));
     }
     if (sigaction(SIGTERM, &action, NULL) < 0) {
-        verb_who("sigaction error on signal %d (%s)", SIGTERM, strerror(errno));
+        verb1("sigaction error on signal %d (%s)", SIGTERM, strerror(errno));
     }
     if (sigaction(SIGINT, &action, NULL) < 0) {
-        verb_who("sigaction error on signal %d (%s)", SIGINT, strerror(errno));
+        verb1("sigaction error on signal %d (%s)", SIGINT, strerror(errno));
     }
     if (sigaction(SIGHUP, &action, NULL) < 0) {
-        verb_who("sigaction error on signal %d (%s)", SIGHUP, strerror(errno));
+        verb1("sigaction error on signal %d (%s)", SIGHUP, strerror(errno));
     }
 }
 
@@ -545,17 +534,7 @@ static void init_process_configuration(int argc, char **argv, cluster_conf_t *co
                      type_alloc_mbs[index_aggrs];
 
     tprintf("TOTAL||%0.2f MBs", mb_total);
-
-    verb_master("TIP! this allocated space is per process server/mirror");
-
-    // Synchronization headers
-    sockets_header_clean(&header_answer);
-    sockets_header_clean(&header_question);
-    // Setting up headers (one time only)
-    header_answer.content_type   = EDB_TYPE_SYNC_ANSWER;
-    header_answer.content_size   = sizeof(sync_answer_t);
-    header_question.content_type = EDB_TYPE_SYNC_QUESTION;
-    header_question.content_size = sizeof(sync_question_t);
+    verb2("TIP! this allocated space is per process server/mirror");
 }
 
 static void init_pid_files(int argc, char **argv)
@@ -563,7 +542,6 @@ static void init_pid_files(int argc, char **argv)
 #if !PID_FILES
     return;
 #endif
-
     // Process PID save file
     if (server_iam && server_enabled) {
         process_update_pid(&proc_mirror);
@@ -585,7 +563,7 @@ static void init_pid_files(int argc, char **argv)
 static void init_output_redirection(int argc, char **argv, cluster_conf_t *conf_clus)
 {
     if (listening) {
-        verb_master_line("phase 7: listening (processing every %lu s)", time_insr);
+        verb3("phase 7: listening (processing every %lu s)", time_insr);
     }
     log_handler(conf_clus, 0);
 }
@@ -643,48 +621,40 @@ static void change_limits()
 
 int main(int argc, char **argv)
 {
-    //
     if (usage(argc, argv)) {
         return 0;
     }
-
     change_limits();
+
     while (!exitting) {
         //
-        verb_master_line("phase 1: general configuration");
+        verb3("phase 1: general configuration");
         init_general_configuration(argc, argv, &conf_clus);
         //
-        verb_master_line("phase 2: time configuration");
+        verb3("phase 2: time configuration");
         init_time_configuration(argc, argv, &conf_clus);
         //
-        verb_master_line("phase 3: sockets initialization");
+        verb3("phase 3: sockets initialization");
         init_sockets(argc, argv, &conf_clus);
         //
-        verb_master_line("phase 4: processes fork");
+        verb3("phase 4: processes fork");
         init_fork(argc, argv, &conf_clus);
         // Initializing signal handler
         init_signals();
         //
-        verb_master_line("phase 6: process configuration & allocation");
+        verb3("phase 6: process configuration & allocation");
         init_process_configuration(argc, argv, &conf_clus);
         // Creating PID files
         init_pid_files(argc, argv);
         // Output file
         init_output_redirection(argc, argv, &conf_clus);
-
         /*
          * Running
          */
-
-        //
         body();
-        //
         release();
-        //
         dream();
     }
-
-    verb_master_line("Bye");
-
+    verb3("Bye");
     return 0;
 }

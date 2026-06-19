@@ -37,10 +37,10 @@
 #define CPUPOW_F_COUNT_DEVICES(name)       int name (int domain)
 #define CPUPOW_F_POWERCAP_IS_CAPABLE(name) int name (int domain)
 #define CPUPOW_F_POWERCAP_IS_ENABLED(name) state_t name (int domain, uint *enabled)
-#define CPUPOW_F_POWERCAP_GET(name)        state_t name (int domain, uint *watts)
-#define CPUPOW_F_POWERCAP_SET(name)        state_t name (int domain, uint *watts)
+#define CPUPOW_F_POWERCAP_GET(name)        state_t name (int domain, uint32_t *watts)
+#define CPUPOW_F_POWERCAP_SET(name)        state_t name (int domain, uint32_t *watts)
 #define CPUPOW_F_POWERCAP_RESET(name)      state_t name (int domain)
-#define CPUPOW_F_TDP_GET(name)             state_t name (int domain, uint *watts)
+#define CPUPOW_F_TDP_GET(name)             state_t name (int domain, uint32_t *watts)
 
 #define CPUPOW_DEFINES(name) \
 CPUPOW_F_LOAD                (mgt_cpupow_ ##name ##_load); \
@@ -76,19 +76,19 @@ int mgt_cpupow_powercap_is_capable(int domain);
 
 state_t mgt_cpupow_powercap_is_enabled(int domain, uint *enabled);
 
-state_t mgt_cpupow_powercap_get(int domain, uint *watts);
+state_t mgt_cpupow_powercap_get(int domain, uint32_t *watts);
 
-state_t mgt_cpupow_powercap_set(int domain, uint *watts);
+state_t mgt_cpupow_powercap_set(int domain, uint32_t *watts);
 
 // Reset the whole domain to its starting state.
 state_t mgt_cpupow_powercap_reset(int domain, int reset_mode);
 
-state_t mgt_cpupow_tdp_get(int domain, uint *watts);
+state_t mgt_cpupow_tdp_get(int domain, uint32_t *watts);
 
-void mgt_cpupow_tdp_print(int domain, uint *watts, char *buffer, int length);
+void mgt_cpupow_tdp_print(int domain, uint32_t *watts, char *buffer, int length);
 
-void mgt_cpupow_tdp_tostr(int domain, uint *watts, char *buffer, int length);
+void mgt_cpupow_tdp_tostr(int domain, uint32_t *watts, char *buffer, int length);
 
-void mgt_cpupow_data_alloc(int domain, uint **list);
+void mgt_cpupow_data_alloc(int domain, uint32_t **list);
 
 #endif

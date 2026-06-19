@@ -52,8 +52,9 @@ int help(int argc, char *argv[])
     printf("Usage: %s [OPTIONS]\n", argv[0]);
     printf("\nOptions:\n");
     //	printf("\t--job-id=<arg>\t\tSet the JOB_ID.\n");
-    printf("\t--nodes=<arg>\t\tSets the number of nodes.\n");
-    printf("\t--program=<arg>\t\tSets the program to run.\n");
+    printf("\t--nodes=<num>\t\tSets the number of nodes.\n");
+    printf("\t--args <args>\t\tSets the program to run and its arguments.\n");
+    printf("\t--program=<arg>\t\tSets the program to run. (Deprecated).\n");
     //	printf("\t--plugstack [ARGS]\tSet the SLURM's plugstack arguments. I.e:\n");
     //	printf("\t\t\t\t--plugstack prefix=/hpc/opt/ear default=on...\n");
     printf("\t--force\t\t\tForces the ERUN execution when has already passed by SRUN.\n");
@@ -112,31 +113,57 @@ int print_argv(int argc, char *argv[])
     return 0;
 }
 
-static void program_parse(char *program, char *args[])
+static void parse_program(char *program, char *args[])
 {
-    int len = strlen(program);
-    int i;
-    int j;
+    int length = strlen(program);
+    int i; // Character iterator
+    int j; // Argument iterator
 
     args[0] = program;
-    for (i = 0, j = 1; i < len; ++i) {
-        if (program[i] == ' ') {
+    for (i = 0, j = 1; i < length; ++i) {
+        if (program[i] == ' ' || program[i] == '\n') {
+            // If detected space, we split the string by setting EOF
             program[i] = '\0';
-            if (program[i + 1] != '\0' && program[i + 1] != ' ') {
+            // If next character is not EOF, space, new line or backlash,
+            // we consider it as argument.
+            if (program[i + 1] != '\0' && program[i + 1] != ' ' &&
+                program[i + 1] != '\n' && program[i + 1] != '\\') {
                 args[j] = &program[i + 1];
                 ++j;
             }
         }
     }
     args[j] = NULL;
-
     plug_verbose(_sp, 4, "ERUN --program decomposition:");
     for (i = 0; args[i] != NULL; ++i) {
-        plug_verbose(_sp, 4, "%d: %s", i, args[i]);
+        plug_verbose(_sp, 4, "%d: '%s'", i, args[i]);
     }
 }
 
-static char *getenv_PBS_JOBID()
+static int parse_args(char *argv[], char *program, char *args[])
+{
+    int j = 0; // Argument iterator
+    while (argv != NULL && *argv != NULL) {
+        if (strncmp(*argv, "--args", 6) == 0) {
+            break;
+        }
+        ++argv;
+    }
+    if (strncmp(*argv, "--args=", 7) == 0) {
+        if (strlen(&(*argv)[7]) == 0) {
+            return 0;
+        }
+        args[j++] = &(*argv)[7];
+    }
+    ++argv;
+    while (argv != NULL && *argv != NULL) {
+        args[j++] = *argv;
+        ++argv;
+    }
+    return 0;
+}
+
+static char *getenv_pbs_jobid()
 {
     static char job_id[32];
     char *c;
@@ -181,14 +208,15 @@ int job(int argc, char *argv[])
         _force = 1;
     }
     if ((p = args_get(argc, argv, "program", NULL)) != NULL) {
-        // Setting the job name
         sprintf(path_app, "%s", p);
-        program_parse(path_app, args);
+        parse_program(path_app, args);
+        // This is safe because the parsing has already split the program string
         setenv(Var.name_app.slurm, path_app, 1);
+    } else if ((p = args_get(argc, argv, "args", NULL)) != NULL) {
+        parse_args(argv, p, args);
     } else {
         _help = !_clean;
     }
-
     // Converting configuration enrivonment variables
     // (INSTALL_PATH, ETC, TMP) in input parameters.
     _argc           = argc + 4;
@@ -256,7 +284,7 @@ int job(int argc, char *argv[])
     // Patching other job managers
     if (!(job_id = getenv(Var.job_id.slurm))) {
         if (!(job_id = getenv("OAR_JOB_ID")))
-            if (!(job_id = getenv_PBS_JOBID()))
+            if (!(job_id = getenv_pbs_jobid()))
                 if (!(job_id))
                     job_id = "0";
         // Setting the SLURM version of the variable

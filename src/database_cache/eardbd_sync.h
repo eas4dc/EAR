@@ -33,8 +33,8 @@ void sync_fd_get_ip(int fd, long *ip);
 
 void sync_fd_disconnect(int fd);
 
-int sync_question(uint sync_option, int veteran, sync_answer_t *answer);
+int sync_send_question(uint sync_option, int veteran, sync_answer_t *answer);
 
-int sync_answer(int fd, int veteran);
+int sync_send_answer(int fd, int veteran);
 
 #endif // EAR_EARDBD_SYNC_H

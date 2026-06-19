@@ -9,11 +9,14 @@
  **************************************************************************/
 
 // #define SHOW_DEBUGS 1
+
 #include <common/output/debug.h>
 #include <common/system/file.h>
 #include <common/system/folder.h>
 #include <common/types/generic.h>
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 

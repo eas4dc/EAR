@@ -8,15 +8,15 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+// clang-format off
 // #define SHOW_DEBUGS 1
-
-#include <common/output/debug.h>
 #include <ctype.h>
-#include <data_center_monitor/plugins/keyboard.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <common/output/debug.h>
+#include <data_center_monitor/plugins/tests/keyboard.h>
 
 typedef struct keyboard_s {
     cchar *command;
@@ -65,14 +65,15 @@ void command_register(cchar *command, cchar *format, callback_t callback)
     keys[keys_count].format       = format;
     keys[keys_count].callback     = callback;
     keys[keys_count].params_count = format_count(format);
-    debug("Registered command %s with %u parameters", keys[keys_count].command, keys[keys_count].params_count);
+    debug("Registered command %s with %u parameters",
+        keys[keys_count].command, keys[keys_count].params_count);
     ++keys_count;
 }
 
 static void command_exit(char **params)
 {
     is_closing = 1;
-    plugin_manager_close();
+    plugin_manager_exit();
 }
 
 static int is(char *s1, const char *s2)
@@ -84,7 +85,7 @@ static void *command_read(void *x)
 {
     static char command[128];
     static char *params[4];
-    int k, p;
+    int k, p, n1, n2;
 
     params[0] = calloc(128, sizeof(char));
     params[1] = calloc(128, sizeof(char));
@@ -96,19 +97,21 @@ static void *command_read(void *x)
     while (!is_closing) {
         printf("Enter command: ");
         fflush(stdout);
-        scanf("%s", command);
-        for (k = 0; k < keys_count; ++k) {
+        n1 = scanf("%s", command);
+        for (k = 0; n1 > 0 && k < keys_count; ++k) {
             if (is(command, keys[k].command)) {
+                n2 = 0;
                 for (p = 0; p < keys[k].params_count; ++p) {
-                    scanf("%s", params[p]);
+                    n2 += scanf("%s", params[p]);
                 }
-                keys[k].callback(params);
+                if (n2 == keys[k].params_count) {
+                    keys[k].callback(params);
+                }
             }
         }
     }
     // Waiting here until the parent dies
-    while (is_closing)
-        ;
+    while (is_closing);
     return NULL;
 }
 

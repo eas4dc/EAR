@@ -11,13 +11,14 @@
 
 // #define SHOW_DEBUGS 1
 
-#include <common/environment_common.h>
-#include <common/output/debug.h>
-#include <common/system/symplug.h>
-#include <metrics/common/oneapi.h>
-#include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <common/output/debug.h>
+#include <common/system/symplug.h>
+#include <common/environment_common.h>
+#include <metrics/common/oneapi.h>
+
 
 // Provisional
 #define HACK_ONEAPI_FILE "HACK_ONEAPI_FILE"
@@ -74,28 +75,24 @@ static const char *ze_names[] = {
 };
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static ze_handlers_t *hs;
-static uint hs_count;
-static uint initialized;
-static ze_t ze;
+static void           *handler;
+static ze_handlers_t  *hs;
+static uint            hs_count;
+static uint            counter;
+static ze_t            ze;
 
-static state_t static_open()
+static state_t library_open()
 {
-    static uint opened = 0;
-
-#define _open_test(path)                                                                                               \
-    debug("openning %s", path);                                                                                        \
-    if (state_ok(plug_open(path, (void **) &ze, ze_names, ZE_N, RTLD_NOW | RTLD_LOCAL))) {                             \
-        opened = 1;                                                                                                    \
-        return EAR_SUCCESS;                                                                                            \
+    #define _open_test(path)                                                                         \
+    debug("openning %s", path);                                                                      \
+    if ((handler = plug_open2(path, (void **) &ze, ze_names, ZE_N, RTLD_NOW | RTLD_LOCAL)) != NULL) { \
+        return EAR_SUCCESS;                                                                          \
     }
-#define open_test(path)                                                                                                \
-    _open_test(path ZE_LIB);                                                                                           \
+
+    #define open_test(path)         \
+    _open_test(path ZE_LIB);        \
     _open_test(path ZE_LIB ".1");
 
-    if (opened) {
-        return EAR_SUCCESS;
-    }
     // Looking for level zero library in tipical paths.
     _open_test(ear_getenv(HACK_ONEAPI_FILE));
     open_test(ZE_PATH "/targets/x86_64-linux/lib/");
@@ -110,6 +107,7 @@ static state_t static_open()
 }
 
 #define reterr return EAR_ERROR;
+
 #define if_fail(function, action)                                                                                      \
     if ((z = function) != ZE_RESULT_SUCCESS) {                                                                         \
         debug("Failed " #function ": %s (0x%x)", oneapi_strerror(z), z);                                               \
@@ -180,11 +178,10 @@ static void print_sysman_device_info(int h)
           hs[hs_count].sengines_count, hs[hs_count].stemps_count);
 }
 
-static void oneapi_reorder_by_pci(uint devices_count, zes_device_handle_t *devices_tmp, zes_device_handle_t *devices,
-                                  ze_handlers_t *hs)
+static void oneapi_reorder_by_pci(uint devices_count, zes_device_handle_t *devices_tmp, zes_device_handle_t *devices, ze_handlers_t *hs)
 {
-    uint dv, dvaux;
     uint *gpu_done = calloc(devices_count, sizeof(uint));
+    uint dv, dvaux;
     uint min_pci;
 
     for (dv = 0; dv < devices_count; dv++) {
@@ -196,8 +193,9 @@ static void oneapi_reorder_by_pci(uint devices_count, zes_device_handle_t *devic
     for (dv = 0; dv < devices_count; dv++) {
         min_pci = 0;
         // reference is the first not already ordered
-        while (gpu_done[min_pci] && min_pci < devices_count)
+        while (gpu_done[min_pci] && min_pci < devices_count) {
             min_pci++;
+        }
         debug("Current min pci element %u", min_pci);
         // Comparing with the others
         for (dvaux = 0; dvaux < devices_count; dvaux++) {
@@ -208,9 +206,10 @@ static void oneapi_reorder_by_pci(uint devices_count, zes_device_handle_t *devic
         debug("Moving GPU handler in %u to %u", min_pci, dv);
         memcpy(&devices[dv], &devices_tmp[min_pci], sizeof(zes_device_handle_t));
     }
+    free(gpu_done);
 }
 
-static state_t static_core_init()
+static state_t library_core_init()
 {
     ze_driver_handle_t *drivers;
     ze_device_handle_t *devices;
@@ -279,7 +278,7 @@ static state_t static_core_init()
     return EAR_SUCCESS;
 }
 
-static state_t static_sysman_init()
+static state_t library_sysman_init()
 {
     zes_driver_handle_t *drivers;
     zes_device_handle_t *devices;
@@ -414,64 +413,131 @@ static state_t static_sysman_init()
     return EAR_SUCCESS;
 }
 
-static state_t static_init(ze_t *ze_in, int sysman)
+static void library_close()
 {
-    static state_t s = EAR_ERROR;
-#ifndef ONEAPI_BASE
+    int i;
+
+    #define FREE(p) if (p != NULL) { free(p); p = NULL; }
+    // OneAPI Level Zero seems to not provide a close/destroy function
+    for (i = 0; i < hs_count; ++i) {
+        FREE(hs[i].spowers);
+        FREE(hs[i].sfreqs);
+        FREE(hs[i].sengines);
+        FREE(hs[i].stemps);
+        FREE(hs[i].spsus);
+        FREE(hs[i].spowers_props);
+        FREE(hs[i].sfreqs_props);
+        FREE(hs[i].sengines_props);
+        FREE(hs[i].stemps_props);
+    }
+    FREE(hs);
+    dlclose(handler);
+    handler = NULL;
+}
+
+static state_t oneapi_open(ze_t *ze_in, int sysman)
+{
+    state_t s = EAR_SUCCESS;
+    #ifndef ONEAPI_BASE
+    debug("No ONEAPI_BASE path provided");
     return EAR_ERROR;
-#endif
+    #endif
     while (pthread_mutex_trylock(&lock));
-    if (initialized) {
-        goto leave;
+    if (counter) {
+        ++counter;
+        goto fini;
     }
-    if (state_ok(s = static_open())) {
-        if (!sysman) s = static_core_init();
-        if ( sysman) s = static_sysman_init();
-    }
-    initialized = 1;
-leave:
-    pthread_mutex_unlock(&lock);
-    if (state_ok(s)) {
-        if (ze_in != NULL) {
-            memcpy(ze_in, &ze, sizeof(ze_t));
+    if (state_ok(s = library_open())) {
+        if (!sysman) s = library_core_init();
+        if ( sysman) s = library_sysman_init();
+        if (state_ok(s)) {
+            debug("Initialized ONEAPI");
+            counter = 1;
         }
+    }
+    if (state_fail(s)) {
+        library_close();
+    }
+fini:
+    pthread_mutex_unlock(&lock);
+    if (counter && ze_in != NULL) {
+        memcpy(ze_in, &ze, sizeof(ze_t));
     }
     return s;
 }
 
 state_t oneapi_open_core(ze_t *ze_in)
 {
-    return static_init(ze_in, 0);
+    return oneapi_open(ze_in, 0);
 }
 
 state_t oneapi_open_sysman(ze_t *ze_in)
 {
-    return static_init(ze_in, 1);
+    return oneapi_open(ze_in, 1);
 }
 
-state_t oneapi_get_handlers(ze_handlers_t **devs, uint *devs_count)
+void oneapi_close()
 {
-    if (devs != NULL) {
-        *devs = calloc(hs_count, sizeof(ze_handlers_t));
-        memcpy(*devs, hs, sizeof(ze_handlers_t) * hs_count);
+    if (counter > 0) {
+        if (counter == 1) {
+            library_close();
+        }
+        --counter;
     }
+}
+
+state_t oneapi_get_handlers(ze_handlers_t **handlers, uint *handlers_count)
+{
+    if (handlers != NULL) {
+        *handlers = calloc(hs_count, sizeof(ze_handlers_t));
+        memcpy(*handlers, hs, sizeof(ze_handlers_t) * hs_count);
+    }
+    if (handlers_count != NULL) {
+        *handlers_count = hs_count;
+    }
+    return EAR_SUCCESS;
+}
+
+void oneapi_free_handlers(ze_handlers_t **handlers, uint *handlers_count)
+{
+    if (handlers != NULL && *handlers != NULL) {
+        free(*handlers);
+        *handlers = NULL;
+    }
+    if (handlers_count != NULL) {
+        *handlers_count = 0;
+    }
+}
+
+void oneapi_get_devices(gpu_devs_t **devs, uint *devs_count)
+{
+    int i;
+
     if (devs_count != NULL) {
         *devs_count = hs_count;
     }
-    return EAR_SUCCESS;
+    if (devs == NULL) {
+        return;
+    }
+    *devs = calloc(hs_count, sizeof(gpu_devs_t));
+    for (i = 0; i < hs_count; ++i) {
+        (*devs)[i].index            =  i;
+        (*devs)[i].index_device     = -1;
+        (*devs)[i].is_readable      =  1;
+        (*devs)[i].is_subdevice     =  0;
+        (*devs)[i].has_subdevices   =  0;
+        (*devs)[i].subdevices_count =  0;
+        (*devs)[i].serial           = hs[i].uuid;
+    }
 }
 
 char *oneapi_strerror(ze_result_t z)
 {
     // ze.StrError(devs[dv].driver, (const char **) &pointer);
-    if (z == 0x78000001)
-        return "uninitialized driver";
-    if (z == 0x78000003)
-        return "unsupported feature";
-    if (z == 0x78000004)
-        return "invalid argument";
-    if (z == 0x78000005)
-        return "invalid handler";
+    if (z == 0x78000001) return "uninitialized driver";
+    if (z == 0x78000003) return "unsupported feature";
+    if (z == 0x78000004) return "invalid argument";
+    if (z == 0x78000005) return "invalid handler";
     return "unknown error";
 }
 

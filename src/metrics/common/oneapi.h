@@ -17,8 +17,9 @@
 #include <level_zero/zes_api.h>
 #include <level_zero/zes_ddi.h>
 #endif
-#include <common/states.h>
 #include <common/types.h>
+#include <common/states.h>
+#include <metrics/gpu/gpu.h>
 
 #ifndef ONEAPI_BASE
 #define ZE_RESULT_SUCCESS                         0
@@ -228,7 +229,13 @@ state_t oneapi_open_core(ze_t *ze);
 
 state_t oneapi_open_sysman(ze_t *ze);
 
+void oneapi_close();
+
 state_t oneapi_get_handlers(ze_handlers_t **handlers, uint *devs_count);
+
+void oneapi_free_handlers(ze_handlers_t **handlers, uint *devs_count);
+
+void oneapi_get_devices(gpu_devs_t **devs, uint *devs_count);
 
 char *oneapi_strerror(ze_result_t z);
 

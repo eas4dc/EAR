@@ -20,7 +20,6 @@
 //  __ARM_ARCH
 //  __ARM_ARCH_8A
 // You can check it by "gcc -march=native -dM -E - < /dev/null"
-
 #if defined(ARCH_ARM) || defined(ARCH_ARM64) || defined(__ARM_ARCH)
 #define __ARCH_ARM 1
 #else

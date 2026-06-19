@@ -40,6 +40,7 @@ typedef struct job {
     ulong procs;
     job_type type; // uchar
     ulong def_f;
+    ulong def_gpu_f;
 } job_t;
 
 // Function declarations

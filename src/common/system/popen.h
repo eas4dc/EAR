@@ -10,8 +10,21 @@
 
 #ifndef METRICS_COMMON_POPEN_H
 #define METRICS_COMMON_POPEN_H
+/* clang-format off */
 
 #include <common/states.h>
+
+// Popen opens a process, executes a command and reads its output.
+// Example:
+//     char *values[15];
+//     popen_t p;
+//     popen_open("ls -l", 0, 1, &p);
+//     while (popen_read(&p, "S", &values)) {
+//         while(i < 15) {
+//             printf("%s", values[i]);
+//         }
+//     }
+//     popen_close(&p);
 
 typedef struct popen_s {
     char table[512][16][128];
@@ -69,4 +82,5 @@ uint popen_count_read(popen_t *p);
 // Count the number of lines pending.
 uint popen_count_pending(popen_t *p);
 
+/* clang-format on */
 #endif // METRICS_COMMON_POPEN_H

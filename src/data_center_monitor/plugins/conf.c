@@ -8,11 +8,11 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
 // #define SHOW_DEBUGS 1
-
+#include <stdio.h>
 #include <common/output/debug.h>
 #include <data_center_monitor/plugins/conf.h>
-#include <stdio.h>
 
 static conf_t conf;
 
@@ -50,5 +50,9 @@ declr_up_action_init(_conf)
     strcpy(conf.cluster.install.obj_ener, conf.node->energy_plugin);
     conf.cluster_loaded = 1;
     debug("database: %s", conf.cluster.database.database);
+    // File configuration in dictionary style
+    if ((conf.ear_conf = ear_conf_read(buffer)) == NULL) {
+        return "File configuration reading failed";
+    }
     return rsprintf("Configuration plug-in correctly loaded.");
 }

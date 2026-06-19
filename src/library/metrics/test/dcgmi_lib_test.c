@@ -17,7 +17,6 @@ int main(int argc, char **argv)
 {
     verb(0, "Loading GPU API...");
     gpu_load(0); // 0 means no forcing any API
-    gpu_init(no_ctx);
 
     VERB_SET_LV(4);
 

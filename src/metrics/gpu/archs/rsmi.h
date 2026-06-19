@@ -13,21 +13,8 @@
 
 #include <metrics/gpu/gpu.h>
 
-void gpu_rsmi_load(gpu_ops_t *ops, int eard);
-
-void gpu_rsmi_get_info(apinfo_t *info);
-
-void gpu_rsmi_get_devices(gpu_devs_t **devs, uint *devs_count);
-
-state_t gpu_rsmi_init(ctx_t *c);
-
-state_t gpu_rsmi_dispose(ctx_t *c);
+GPU_DEFINES(rsmi);
 
 state_t gpu_rsmi_pool(void *c);
-
-state_t gpu_rsmi_read(ctx_t *c, gpu_t *data);
-
-/* Reads the data directly from the GPU API (not preprocessed data). */
-state_t gpu_rsmi_read_raw(ctx_t *c, gpu_t *data);
 
 #endif

@@ -472,6 +472,8 @@ int send_mail(uint level, double energy)
     char command[4400];
     char mail_filename[SZ_PATH];
     int fd;
+    size_t buff_size;
+    ssize_t written;
     if (strcmp(my_cluster_conf.eargm.mail, "nomail")) {
         sprintf(buff, "Detected WARNING level %u, %lfi %% of energy from the total energy limit\n", level, energy);
         sprintf(mail_filename, "%s/warning_mail.txt", my_cluster_conf.install.dir_temp);
@@ -480,7 +482,14 @@ int send_mail(uint level, double energy)
             error("Warning mail file cannot be created at %s (%s)", mail_filename, strerror(errno));
             return 0;
         }
-        write(fd, buff, strlen(buff));
+        buff_size = strlen(buff);
+        written   = write(fd, buff, buff_size);
+        if (written != (ssize_t) buff_size) {
+            error("Warning mail file cannot be written at %s (%s)", mail_filename,
+                  written < 0 ? strerror(errno) : "short write");
+            close(fd);
+            return 0;
+        }
         close(fd);
         sprintf(command, "mailx -s \"Energy limit warning\" %s < %s", my_cluster_conf.eargm.mail, mail_filename);
         execute_with_fork(command);

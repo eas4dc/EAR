@@ -70,6 +70,11 @@ void parse_EARGM_specific(eargm_conf_t *conf, char *line)
             strclean(token, '\n');
             remove_chars(token, ' ');
             strcpy(conf->eargms[local_idx].node, token);
+        } else if (!strcmp(token, "PLUGINS")) {
+            token = strtok_r(NULL, " ", &main_ptr);
+            strclean(token, '\n');
+            remove_chars(token, ' ');
+            strcpy(conf->eargms[local_idx].plugins, token);
         } else if (!strcmp(token, "PORT")) {
             token                        = strtok_r(NULL, " ", &main_ptr);
             conf->eargms[local_idx].port = atoi(token);

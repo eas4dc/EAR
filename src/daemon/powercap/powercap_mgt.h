@@ -36,12 +36,13 @@ state_t pmgt_disable(pwr_mgt_t *phandler);
 state_t pmgt_handler_alloc(pwr_mgt_t **phandler);
 state_t pmgt_disable_policy(pwr_mgt_t *phandler, uint pid);
 state_t pmgt_disable_policies(pwr_mgt_t *phandler);
-state_t pmgt_set_powercap_value(pwr_mgt_t *phandler, uint pid, uint domain, ulong limit);
+state_t pmgt_set_powercap_value(pwr_mgt_t *phandler, uint pid, uint domain, uint32_t limit);
 
 void pmgt_process_message(char *domain, int32_t num_values, int32_t values[num_values]);
 
 /* Sets in powercap the powercap per domain : 3 domains in CPU only systems and 4 in CPU+GPU */
-state_t pmgt_get_powercap_value(pwr_mgt_t *phandler, uint pid, ulong *powercap);
+state_t pmgt_get_powercap_value(pwr_mgt_t *phandler, uint pid, uint32_t *powercap);
+state_t pmgt_get_powercap_value_per_device(uint domain, uint32_t *powercaps);
 uint pmgt_is_powercap_enabled(pwr_mgt_t *phandler, uint pid);
 void pmgt_print_powercap_value(pwr_mgt_t *phandler, int fd);
 void pmgt_powercap_to_str(pwr_mgt_t *phandler, char *b);
@@ -68,6 +69,11 @@ void pmgt_powercap_node_reallocation();
 
 /* Returns the current node status using its domains status */
 void pmgt_get_status(pmgt_status_t *status);
+
+/* Get number of devices that can be power capped for each domain */
+uint pmgt_get_cpu_devices();  // Returns number of CPU sockets that can be power capped
+uint pmgt_get_dram_devices(); // Returns number of DRAM devices that can be power capped
+uint pmgt_get_gpu_devices();  // Returns number of GPUs that can be power capped
 
 #if SYN_TEST
 void pmgt_set_burst(int b);

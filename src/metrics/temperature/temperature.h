@@ -15,35 +15,30 @@
 #include <common/plugins.h>
 #include <common/states.h>
 
-#define TEMP_F_LOAD(name)     void temp_##name##_load(topology_t *tp, temp_ops_t *ops, uint force_api)
+typedef struct temp_ops_s {
+    void (*unload)();
+    void (*get_info)(apinfo_t *info);
+    state_t (*read)(llong *temp, llong *average);
+} temp_ops_t;
+
+#define TEMP_F_LOAD(name)     void temp_##name##_load(topology_t *tp, temp_ops_t *ops, int options)
+#define TEMP_F_UNLOAD(name)   void temp_##name##_unload()
 #define TEMP_F_GET_INFO(name) void temp_##name##_get_info(apinfo_t *info)
-#define TEMP_F_INIT(name)     state_t temp_##name##_init()
-#define TEMP_F_DISPOSE(name)  void temp_##name##_dispose()
 #define TEMP_F_READ(name)     state_t temp_##name##_read(llong *temp, llong *average)
 
 #define TEMP_DEFINES(name)                                                                                             \
     TEMP_F_LOAD(name);                                                                                                 \
+    TEMP_F_UNLOAD(name);                                                                                               \
     TEMP_F_GET_INFO(name);                                                                                             \
-    TEMP_F_INIT(name);                                                                                                 \
-    TEMP_F_DISPOSE(name);                                                                                              \
     TEMP_F_READ(name);
 
-typedef struct temp_ops_s {
-    void (*get_info)(apinfo_t *info);
-    state_t (*init)();
-    void (*dispose)();
-    state_t (*read)(llong *temp, llong *average);
-} temp_ops_t;
+void temp_load(topology_t *tp, int options);
 
-void temp_load(topology_t *tp, uint force_api);
+void temp_unload();
 
 void temp_get_info(apinfo_t *info);
 
-state_t temp_init();
-
-void temp_dispose();
-
-/** Reads the last temperature value and the average per device. */
+// Reads the last temperature value and the all devices average.
 state_t temp_read(llong *temp_list, llong *average);
 
 state_t temp_read_copy(llong *t2, llong *t1, llong *tD, llong *average);

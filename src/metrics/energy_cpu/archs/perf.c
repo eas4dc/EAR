@@ -303,7 +303,12 @@ static state_t perf_rapl_read_conf()
 
     pthread_mutex_lock(&perf_rapl_lock);
 
-    fscanf(fconfig, "%d", &perf_type);
+    if (fscanf(fconfig, "%d", &perf_type) != 1) {
+        debug("perf_rapl: type file %s cannot be parsed", cfile);
+        fclose(fconfig);
+        pthread_mutex_unlock(&perf_rapl_lock);
+        return EAR_ERROR;
+    }
     fclose(fconfig);
     debug("perf_rapl: type for rapl events detected %d", perf_type);
 
@@ -316,7 +321,12 @@ static state_t perf_rapl_read_conf()
         pthread_mutex_unlock(&perf_rapl_lock);
         return EAR_ERROR;
     }
-    fscanf(fconfig, "%lf", &pkg_scale);
+    if (fscanf(fconfig, "%lf", &pkg_scale) != 1) {
+        debug("perf_rapl: pkg scale file cannot be parsed");
+        fclose(fconfig);
+        pthread_mutex_unlock(&perf_rapl_lock);
+        return EAR_ERROR;
+    }
     debug("perf_rapl: scale for pkg %E", pkg_scale);
     fclose(fconfig);
 
@@ -329,7 +339,12 @@ static state_t perf_rapl_read_conf()
         pthread_mutex_unlock(&perf_rapl_lock);
         return EAR_ERROR;
     }
-    fscanf(fconfig, "%lf", &ram_scale);
+    if (fscanf(fconfig, "%lf", &ram_scale) != 1) {
+        debug("perf_rapl: ram scale file cannot be parsed");
+        fclose(fconfig);
+        pthread_mutex_unlock(&perf_rapl_lock);
+        return EAR_ERROR;
+    }
     debug("perf_rapl: scale for ram %E", ram_scale);
     fclose(fconfig);
     pthread_mutex_unlock(&perf_rapl_lock);

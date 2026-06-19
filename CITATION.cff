@@ -1,0 +1,100 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Energy Aware Runtime
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Julita
+    family-names: Corbalan
+    email: julita.corbalan@bsc.es
+    affiliation: Barcelona Supercomputing Center
+  - given-names: Jordi
+    family-names: Aneas
+    email: jordi.aneas@bsc.es
+    affiliation: Barcelona Supercomputing Center
+  - given-names: Lluís
+    family-names: Alonso
+    email: lluis.alonso@bsc.es
+    affiliation: Barcelona Supercomputing Center
+  - given-names: Oriol
+    family-names: Vidal
+    email: oriol.vidal@bsc.es
+    affiliation: Barcelona Supercomputing Center
+  - given-names: Cristian
+    family-names: Sánchez
+    email: cristian.sanchez@bsc.es
+    affiliation: Barcelona Supercomputing Center
+identifiers:
+  - type: doi
+    value: 10.1109/CLUSTER49012.2020.00067
+    description: >-
+      J. Corbalan, L. Alonso, J. Aneas and L. Brochard,
+      "Energy Optimization and Analysis with EAR," 2020 IEEE
+      International Conference on Cluster Computing
+      (CLUSTER), 2020, pp. 464-472
+  - type: doi
+    value: 10.1109/Cluster48925.2021.00089
+    description: >-
+      J. Corbalan, O. Vidal, L. Alonso and J. Aneas,
+      "Explicit uncore frequency scaling for energy
+      optimisation policies with EAR in Intel
+      architectures," 2021 IEEE International Conference on
+      Cluster Computing (CLUSTER), 2021, pp. 572-581
+  - type: doi
+    value: 10.1109/IGSC55832.2022.9969360
+    description: >-
+      J. Corbalan, L. Alonso, C. Navarrete and C. Guillen,
+      "Soft Cluster Powercap at SuperMUC-NG with EAR," 2022
+      IEEE 13th International Green and Sustainable
+      Computing Conference (IGSC), Pittsburgh, PA, USA,
+      2022, pp. 1-8, doi: 10.1109/IGSC55832.2022.9969360
+repository-code: 'https://gitlab.bsc.es/ear_team/ear'
+abstract: >
+  EAR is a system software for energy management, accounting
+  and optimization for super computers. This features are
+  offered by EAR application manager together with a
+  scheduler plugin. The scheduler plugin (SPANK plugin in
+  the case of SLURM) offers a transparent and fully
+  integrated solution into the scheduler so the user doesn't
+  have to specify any submission flag, hint or application
+  modification. EAR supports three scopes of accounting:
+  first, at job level, so system reports can be generated
+  with exhaustive information about energy consumption per
+  jobs, users, groups, accounts etc. Second, at application
+  process scope, a detailed and powerful performance and
+  power monitoring that can be used later for detailed
+  accounting, application analysis and static optimization
+  and finally at runtime (per-process), where runtime
+  signatures measured to compute the process signatures and
+  to apply the energy optimization are also reported.
+
+  Node and system monitoring are also provided by the EAR
+  services: EAR node manager (EARD), EAR DB manager (EARDBD)
+  and EAR System power manager (EARGM). 
+
+  The EARDBD is a distributed service offering buffering and
+  aggregation of data, minimising the number of connections
+  with the DB server. It can be considered as part of the
+  monitoring services because it generates aggregated energy
+  records.
+
+  EAR supports a powerful and flexible configuration where
+  different architectures with different power limits can be
+  configured in the same cluster. CPU and CPU+GPU nodes are
+  supported.
+keywords:
+  - hpc
+  - datacenter
+  - green computing
+  - energy
+  - runtime
+  - monitoring
+  - accounting
+  - optimization
+  - system software
+  - performance
+license: EPL-2.0

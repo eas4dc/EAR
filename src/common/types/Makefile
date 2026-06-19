@@ -19,6 +19,9 @@ install: install.components
 
 clean: clean.components rclean;
 
+post:
+	@ $(MAKE) -C 'configuration' $@ || exit
+
 ######## SUBFOLDERS
 
 %.components:

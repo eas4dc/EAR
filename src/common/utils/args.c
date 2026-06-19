@@ -8,10 +8,11 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <common/utils/args.h>
-#include <common/utils/string.h>
+/* clang-format off */
 #include <stdio.h>
 #include <string.h>
+#include <common/utils/args.h>
+#include <common/utils/string.h>
 
 char *args_get(int argc, char *argv[], const char *arg_in, char *buffer)
 {
@@ -57,7 +58,8 @@ char *args_get(int argc, char *argv[], const char *arg_in, char *buffer)
         // Is equal, check if has value
         curr_value = (strlen(argv[i]) > strlen(arg));
         // Check if next is value
-        next_value = (i < (argc - 1)) && ((strncmp(argv[i + 1], "--", 2) != 0) && (strncmp(argv[i + 1], "-", 1) != 0));
+        next_value = (i < (argc - 1)) && ((strncmp(argv[i + 1], "--", 2) != 0) &&
+                                          (strncmp(argv[i + 1], "-" , 1) != 0));
         // Check if has equal symbol (=)
         has_equal = (strchr(argv[i], '=') != NULL);
         // Is type -fValue

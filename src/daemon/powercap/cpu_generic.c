@@ -31,12 +31,13 @@
 #include <management/cpufreq/cpufreq.h>
 #include <management/cpupow/cpupow.h>
 
+#include <daemon/powercap/powercap.h>
 #include <daemon/powercap/powercap_mgt.h>
 #include <daemon/powercap/powercap_status.h>
 #include <daemon/powercap/powercap_status_conf.h>
 
 static topology_t node_desc;
-static uint current_limit     = POWER_CAP_UNLIMITED;
+static uint32_t current_limit = POWER_CAP_UNLIMITED;
 static uint pc_on             = 0;
 static uint num_pstates       = 0;
 static uint current_status    = 0;
@@ -159,6 +160,7 @@ static state_t _set_per_device_powercap_value(uint pid, uint32_t *limit, uint32_
             limit[i] = POWERCAP_DISABLE;
         }
         cpu_power[i] = limit[i];
+        powercap_set_stored_device_value(DOMAIN_CPU, i, cpu_power[i]);
         debug("power assigned to cpu%d: %u", i, cpu_power[i]);
     }
     state_t ret = EAR_ERROR;
@@ -177,16 +179,20 @@ static state_t _set_single_powercap_value(uint pid, uint32_t limit, uint32_t *cp
         return EAR_SUCCESS;
 
     if (limit == POWER_CAP_UNLIMITED) {
+        powercap_update_all_device_storage(DOMAIN_CPU, POWER_CAP_UNLIMITED);
+        powercap_update_all_device_storage(DOMAIN_DRAM, POWER_CAP_UNLIMITED);
         mgt_cpupow_powercap_reset(CPUPOW_DRAM, RESET_DEFAULT);
         return mgt_cpupow_powercap_reset(CPUPOW_SOCKET, RESET_DEFAULT);
     }
 
     for (int32_t i = 0; i < num_cpus; i++) {
         cpu_power[i] = (limit * cpu_weight) / num_cpus;
+        powercap_set_stored_device_value(DOMAIN_CPU, i, cpu_power[i]);
         debug("power assigned to cpu%d: %u", i, cpu_power[i]);
     }
     for (int32_t i = 0; i < num_dram; i++) {
         dram_power[i] = (limit * dram_weight) / num_dram;
+        powercap_set_stored_device_value(DOMAIN_DRAM, i, dram_power[i]);
         debug("power assigned to dram%d: %u", i, dram_power[i]);
     }
 

@@ -88,7 +88,7 @@
 #include <daemon/local_api/node_mgr.h>
 #include <daemon/shared_configuration.h>
 
-#include <metrics/io/io.h>
+#include <metrics/io/io_old.h>
 #include <metrics/proc/stat.h>
 
 #include <report/report.h>
@@ -2951,8 +2951,8 @@ state_t earl_periodic_actions_init(void *no_arg)
     }
     pthread_setname_np(pthread_self(), "EARL_monitor");
 
-    overhead_suscribe("earl_monitor", &id_ovh_earl_monitor);
-    overhead_suscribe("earl_monitor_new_iteartion", &id_ovh_earl_monitor_new_iteartion);
+    overhead_subscribe("earl_monitor", &id_ovh_earl_monitor);
+    overhead_subscribe("earl_monitor_new_iteartion", &id_ovh_earl_monitor_new_iteartion);
 
     configure_sigactions();
 

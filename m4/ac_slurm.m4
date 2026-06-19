@@ -64,7 +64,7 @@ AC_DEFUN([X_AC_SLURM],
 
 						AC_CHECK_HEADERS([slurm/slurm.h slurm/spank.h],
 														 [
-															 ],
+						 									 ],
 															 [AC_MSG_ERROR([Either slurm.h or spank.h header file not found.], [1])]
 															)
 						dnl If reached this section, that means headers were found.

@@ -148,7 +148,6 @@ static void goto_time(queue_t *reg, int *sleep_units, int *sleep_reason, int pas
         reg->sleep_units.burst = reg->saved_units.burst;
     if (reg->sleep_units.relax <= 0)
         reg->sleep_units.relax = reg->saved_units.relax;
-
     // If current sleep units is greater than our burst/relax pending units,
     // current wait units will be replaced by the suscription counter.
     if (is_bursting && reg->sleep_units.burst < *sleep_units) {

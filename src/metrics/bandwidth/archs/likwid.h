@@ -13,18 +13,6 @@
 
 #include <metrics/bandwidth/bandwidth.h>
 
-state_t bwidth_likwid_load(topology_t *tp, bwidth_ops_t *ops);
-
-BWIDTH_F_GET_INFO(bwidth_likwid_get_info);
-
-state_t bwidth_likwid_init(ctx_t *c);
-
-state_t bwidth_likwid_dispose(ctx_t *c);
-
-state_t bwidth_likwid_get_granularity(ctx_t *c, uint *granularity);
-
-state_t bwidth_likwid_count_devices(ctx_t *c, uint *devs_count);
-
-state_t bwidth_likwid_read(ctx_t *c, bwidth_t *b);
+BWIDTH_DEFINES(likwid);
 
 #endif

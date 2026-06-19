@@ -56,8 +56,6 @@ cluster_conf_t my_conf;
 int32_t full_length      = 0;
 int32_t verbose          = 0;
 int32_t all_pow_sig      = 0;
-int32_t avx              = 0;
-int32_t print_gpus       = 1;
 int32_t loop_extended    = 0;
 bool display_user_column = false;
 char csv_path[256]       = "";
@@ -103,34 +101,32 @@ static void select_color_by_phase(double CPI, double GBS, double IO, double GFLO
 void usage(char *app)
 {
 #if USE_DB
-    printf("Usage: %s [Optional parameters]\n"
-           "\tOptional parameters: \n"
-           "\t\t-h\tdisplays this message\n"
-           "\t\t-v\tdisplays current EAR version\n"
-           "\t\t-j\tspecifies the job id and step id to retrieve with the format [jobid.stepid] or the format "
-           "[jobid1,jobid2,...,jobid_n].\n"
-           "\t\t-l\tshows the information for each node for each job instead of the global statistics for said job.\n"
-           "\t\t-r\tshows the EAR loop signatures. Users, job ids, and step ids can be specified as if were showing "
-           "job information.\n"
-           "\t\t-F\tspecifies the format string to be used. See manpage for more information.\n"
-           "\t\t-a\tspecifies the application names that will be retrieved. [default: all app_ids]\n"
-           "\t\t-c\tspecifies the file where the output will be stored in CSV format. If the argument is \"no_file\" "
-           "the output will be printed to STDOUT [default: off]\n"
-           "\t\t-t\tspecifies the energy_tag of the jobs that will be retrieved. [default: all tags].\n"
-           "\t\t-s\tspecifies the minimum start time of the jobs that will be retrieved in YYYY-MM-DD. [default: no "
-           "filter].\n"
-           "\t\t-e\tspecifies the maximum end time of the jobs that will be retrieved in YYYY-MM-DD. [default: no "
-           "filter].\n"
-           "\t\t-x\tshows the last EAR events. Users, start and end times, job ids, and step ids can be specified as "
-           "if were showing job information.\n"
-           "\t\t-m\tprints EARD signatures regardless of whether EARL signatures are available or not.\n"
-           "\t\t-u\tspecifies the user whose applications will be retrieved. Only available to privileged users. "
-           "[default: all users]\n"
-           "\t\t\t\tA user can only retrieve its own jobs unless said user is privileged. [default: all jobs]\n",
-           app);
-    printf("\t\t-n\tspecifies the number of jobs to be shown, starting from the most recent one. [default: %d][to get "
-           "all jobs use -n all]\n",
-           DEFAULT_QUERY_LIMIT);
+    printf("Usage: %s [options]\n", app);
+    printf("\nOptions:\n");
+    printf("  %-32s %s\n", "-h, --help", "Displays this message.");
+    printf("  %-32s %s\n", "-v, --version", "Displays the current EAR version.");
+    printf("  %-32s %s\n", "-b, --verbose", "Enables verbose mode for debugging purposes.");
+    printf("\nFilters:\n");
+    printf("  %-32s %s\n", "-j, --jobs <jobid[.stepid]>", "Filters by job ID and optional step ID.");
+    printf("  %-32s %s\n", "", "Also accepts comma-separated job IDs: jobid1,jobid2,...,jobidN.");
+    printf("  %-32s %s\n", "-u, --user <user>", "Filters by username, only for authorized users.");
+    printf("  %-32s %s\n", "", "Non-privileged users can only retrieve their own jobs.");
+    printf("  %-32s %s\n", "-a, --app-name <app_id>", "Filters by application ID. Default: all applications.");
+    printf("  %-32s %s\n", "-s, --start-time <YYYY-MM-DD>", "Filters by start time. Default: no filter.");
+    printf("  %-32s %s\n", "-e, --end-time <YYYY-MM-DD>", "Filters by end time. Default: no filter.");
+    printf("  %-32s %s\n", "-t, --energy-tag", "Filter by energy tag.");
+    printf("  %-32s %s\n", "-n, --limit <num|all>", "Limits the number of jobs shown, from the most recent.");
+    printf("  %-32s Default: %d.\n", "", DEFAULT_QUERY_LIMIT);
+    printf("\nOutput:\n");
+    printf("  %-32s %s\n", "-l, --long-apps", "Shows per-node metrics.");
+    printf("  %-32s %s\n", "-r, --loops", "Shows EAR runtime signatures.");
+    printf("  %-32s %s\n", "-o, --ext_loops", "Shows extended loop information. Use with --loops.");
+    printf("  %-32s %s\n", "-p, --eard-power-signatures",
+           "Prints EARD signatures even when EARL signatures are available.");
+    printf("  %-32s %s\n", "-F, --format <format>", "Uses a custom format string. See the man page.");
+    printf("  %-32s %s\n", "-c, --csv <path|no_file>", "Generates CSV output.");
+    printf("  %-32s %s\n", "", "Use 'no_file' to print CSV output to STDOUT. Default: off.");
+    printf("  %-32s %s\n", "-x, --events [job filter]", "Shows the last EAR events.");
 #endif
     exit(0);
 }
@@ -659,6 +655,7 @@ void print_header_format(char *fmt, uint32_t type)
         fmt++;
     }
     printf("\n");
+    fflush(stdout);
 }
 
 void print_full_apps(application_t *apps, int num_apps, bool is_csv, char *format)
@@ -735,6 +732,7 @@ void print_loop_format(loop_t *loop, char *fmt)
                 print_format_custom("%sunknown format char %c%s\n", COL_RED, fmt[i], COL_CLR);
                 break;
         }
+        fflush(stdout);
     }
     print_format_custom("\n");
 
@@ -1131,6 +1129,8 @@ void read_loops(char *user, query_adds_t *q_a, char *format)
     if (strlen(csv_path) > 0) {
         int i;
         if (!strcmp(csv_path, "no_file")) {
+            // ts = 1, num_gpus= MAX_GPUS_SUPPORTED, single_column =
+            create_loop_header(NULL, "stdout", 1, MAX_GPUS_SUPPORTED, 0);
             for (i = 0; i < num_loops; i++)
                 print_loop_fd(STDOUT_FILENO, &loops[i]);
         } else {
@@ -1140,6 +1140,7 @@ void read_loops(char *user, query_adds_t *q_a, char *format)
         }
     } else {
         print_header_format(format, LOOP_TYPE);
+        fflush(stdout);
         for (int32_t i = 0; i < num_loops; i++)
             print_loop_format(&loops[i], format);
         // print_loops(loops, num_loops, format);
@@ -1170,7 +1171,7 @@ void read_applications_from_database(char *user, query_adds_t *q_a, char *format
     }
 
     sprintf(query, "SELECT Applications.* FROM Applications join Jobs on Applications.job_id=Jobs.job_id and "
-                   "Applications.step_id = Jobs.step_id and Jobs.local_id = Applications.local_id where Jobs.job_id in "
+                   "Applications.step_id = Jobs.step_id and Jobs.app_id = Applications.app_id where Jobs.job_id in "
                    "(select job_id from (select distinct(job_id) from Jobs");
     application_t *apps;
     if (q_a->job_id >= 0)
@@ -1272,7 +1273,6 @@ int main(int argc, char *argv[])
 
     char path_name[256] = {0};
     char format[256]    = {0};
-    char *file_name     = NULL;
 
     struct tm tinfo = {0};
 
@@ -1303,7 +1303,7 @@ int main(int argc, char *argv[])
     }
 
     char *user = user_info.ruid_name;
-    if (getuid() == 0 || is_privileged_command(&my_conf)) {
+    if (getuid() == 0 || is_authorized_command(&my_conf)) {
         user                = NULL; // by default, privilegd users or root will query all user jobs
         display_user_column = true;
     }
@@ -1311,16 +1311,23 @@ int main(int argc, char *argv[])
     char *token;
     int option_idx;
     static struct option long_options[] = {
-        {"help", no_argument, 0, 'h'},           {"version", no_argument, 0, 'v'},
-        {"no-mpi", no_argument, 0, 'm'},         {"avx", no_argument, 0, 'p'},
-        {"verbose", no_argument, 0, 'b'},        {"show-gpus", no_argument, 0, 'g'},
-        {"long-apps", no_argument, 0, 'l'},      {"loops", no_argument, 0, 'r'},
-        {"ext_loops", no_argument, 0, 'o'},      {"help", no_argument, 0, 'h'},
-        {"limit", required_argument, 0, 'n'},    {"user", required_argument, 0, 'u'},
-        {"jobs", required_argument, 0, 'j'},     {"events", required_argument, 0, 'x'},
-        {"csv", required_argument, 0, 'c'},      {"tag", required_argument, 0, 't'},
-        {"app-id", required_argument, 0, 'a'},   {"start-time", required_argument, 0, 's'},
-        {"end-time", required_argument, 0, 'e'}, {"format", required_argument, 0, 'F'},
+        {"help", no_argument, 0, 'h'},
+        {"version", no_argument, 0, 'v'},
+        {"eard-power-signatures", no_argument, 0, 'p'},
+        {"verbose", no_argument, 0, 'b'},
+        {"long-apps", no_argument, 0, 'l'},
+        {"loops", no_argument, 0, 'r'},
+        {"ext_loops", no_argument, 0, 'o'},
+        {"limit", required_argument, 0, 'n'},
+        {"user", required_argument, 0, 'u'},
+        {"jobs", required_argument, 0, 'j'},
+        {"events", required_argument, 0, 'x'},
+        {"csv", required_argument, 0, 'c'},
+        {"app-name", required_argument, 0, 'a'},
+        {"start-time", required_argument, 0, 's'},
+        {"end-time", required_argument, 0, 'e'},
+        {"format", required_argument, 0, 'F'},
+        {"energy-tag", required_argument, 0, 't'},
     };
 
 #if COLORS
@@ -1328,7 +1335,7 @@ int main(int argc, char *argv[])
 #endif
 
     while (1) {
-        c = getopt_long(argc, argv, "n:u:j:f:t:voma:pbglrs:e:c:hF:x::", long_options, &option_idx);
+        c = getopt_long(argc, argv, "hvpblron:u:j:x::c:a:s:e:F:t:", long_options, &option_idx);
 
         if (c == -1)
             break;
@@ -1388,12 +1395,6 @@ int main(int argc, char *argv[])
             case 'o':
                 loop_extended = 1;
                 break;
-            case 'g':
-                print_gpus = 1;
-                break;
-            case 'f':
-                file_name = optarg;
-                break;
             case 'l':
                 full_length = 1;
                 break;
@@ -1405,17 +1406,11 @@ int main(int argc, char *argv[])
                 print_version();
                 exit(0);
                 break;
-            case 'm':
+            case 'p':
                 all_pow_sig = 1;
                 break;
             case 'c':
                 strcpy(csv_path, optarg);
-                break;
-            case 't':
-                strcpy(query_adds.e_tag, optarg);
-                break;
-            case 'p':
-                avx = 1;
                 break;
             case 'a':
                 strcpy(query_adds.app_id, optarg);
@@ -1457,9 +1452,7 @@ int main(int argc, char *argv[])
             strcpy(format, "jxuapNrtgCseG");
     }
 
-    if (file_name != NULL)
-        read_applications_from_files(file_name, format);
-    else if (is_events)
+    if (is_events)
         read_events(user, &query_adds);
     else if (is_loops)
         read_loops(user, &query_adds, format);

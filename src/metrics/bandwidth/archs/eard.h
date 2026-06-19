@@ -13,18 +13,6 @@
 
 #include <metrics/bandwidth/bandwidth.h>
 
-state_t bwidth_eard_load(topology_t *tp, bwidth_ops_t *ops, uint eard);
-
-BWIDTH_F_GET_INFO(bwidth_eard_get_info);
-
-state_t bwidth_eard_init(ctx_t *c);
-
-state_t bwidth_eard_dispose(ctx_t *c);
-
-state_t bwidth_eard_count_devices(ctx_t *c, uint *devs_count);
-
-state_t bwidth_eard_get_granularity(ctx_t *c, uint *granularity);
-
-state_t bwidth_eard_read(ctx_t *c, bwidth_t *b);
+BWIDTH_DEFINES(eard);
 
 #endif

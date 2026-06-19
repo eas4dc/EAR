@@ -13,16 +13,6 @@
 
 #include <metrics/cpufreq/cpufreq.h>
 
-state_t cpufreq_intel63_status(topology_t *tp, cpufreq_ops_t *ops);
-
-state_t cpufreq_intel63_init(ctx_t *c);
-
-state_t cpufreq_intel63_dispose(ctx_t *c);
-
-state_t cpufreq_intel63_count_devices(ctx_t *c, uint *cpu_count);
-
-state_t cpufreq_intel63_read(ctx_t *c, cpufreq_t *f);
-
-state_t cpufreq_intel63_data_diff(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
+CPUFREQ_DEFINES(intel63);
 
 #endif // METRICS_CPUFREQ_PERF_H

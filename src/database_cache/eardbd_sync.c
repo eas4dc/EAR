@@ -16,7 +16,6 @@
 #include <database_cache/eardbd_sync.h>
 
 // Buffers
-extern packet_header_t input_header;
 extern char input_buffer[SZ_BUFFER];
 extern char extra_buffer[SZ_BUFFER];
 
@@ -32,10 +31,8 @@ extern socket_t *socket_sync01;
 extern socket_t *socket_sync02;
 
 // Synchronization
-extern packet_header_t header_answer;
-extern packet_header_t header_question;
-extern sync_question_t data_question;
-extern sync_answer_t data_answer;
+extern sync_question_t sync_question;
+extern sync_answer_t sync_answer;
 
 // Descriptors
 extern struct sockaddr_storage addr_new;
@@ -62,9 +59,9 @@ extern uint samples_count[EDB_NTYPES];
 //
 extern uint sockets_accepted;
 extern uint sockets_online;
-extern uint sockets_disconnected;
-extern uint sockets_unrecognized;
-extern uint sockets_timeout;
+extern uint sockets_err_disconnected;
+extern uint sockets_err_timeout;
+extern uint sockets_err_other;
 // Strings
 extern char *str_who[2];
 extern int verbosity;
@@ -147,7 +144,7 @@ int sync_fd_exists(long ip, int *fd_old)
 void sync_fd_add(int fd, long ip)
 {
     if (ip == 0) {
-        verb_who("Warning, the IP of the new connection is %ld", ip);
+        verb1("Warning, the IP of the new connection is %ld", ip);
         // Fake IP (255.0.0.0)
         ip = 4278190080;
     }
@@ -183,30 +180,29 @@ void sync_fd_disconnect(int fd)
  *
  */
 
-int sync_question(uint sync_option, int veteran, sync_answer_t *answer)
+int sync_send_question(uint sync_option, int veteran, sync_answer_t *answer)
 {
+    size_t data_size = 0;
+    ullong extra     = 0LLU;
     time_t timeout_old;
     state_t s;
 
-    verb_who("synchronization started: asking the question to %s (%d)", socket_sync02->host_dst, sync_option);
+    verb1("synchronization started: asking the question to %s", socket_sync02->host_dst);
     //
-    data_question.sync_option = sync_option;
-    data_question.veteran     = veteran;
-
-    // Preparing packet
-    sockets_header_update(&header_question);
-
+    sync_question.sync_option = sync_option;
+    sync_question.veteran     = veteran;
     // Synchronization pipeline
     if (state_fail(s = sockets_socket(socket_sync02))) {
-        verb_who("failed to create client socket (%d, %s)", s, state_msg);
+        verb1("failed to create client socket (%d, %s)", s, state_msg);
         return EAR_ERROR;
     }
     if (state_fail(s = sockets_connect(socket_sync02))) {
-        verb_who("failed to connect (%d, %s)", s, state_msg);
+        verb1("failed to connect (%d, %s)", s, state_msg);
         return EAR_ERROR;
     }
-    if (state_fail(s = __sockets_send(socket_sync02, &header_question, (char *) &data_question))) {
-        verb_who("failed to send (%d, %s)", s, state_msg);
+    if (state_fail(s = sockets_send(socket_sync02->fd, EDB_TYPE_SYNC_QUESTION, (char *) &sync_question,
+                                    sizeof(sync_question_t), key_add(extra)))) {
+        verb1("failed to send (%d, %s)", s, state_msg);
         return EAR_ERROR;
     }
 
@@ -214,51 +210,48 @@ int sync_question(uint sync_option, int veteran, sync_answer_t *answer)
     sockets_timeout_get(socket_sync02->fd, &timeout_old);
     s = sockets_timeout_set(socket_sync02->fd, 10);
     // Waiting
-    s = __sockets_recv(socket_sync02->fd, &header_answer, (char *) &data_answer, sizeof(sync_answer_t), 1);
+    if (state_ok(s = sockets_recv_header(socket_sync02->fd, NULL, &data_size, &extra, 1))) {
+        if (state_ok(s = sockets_recv(socket_sync02->fd, (char *) &sync_answer, data_size, 1))) {
+            verb0("synchronization finished");
+        }
+    }
     // Recovering old timeout
     sockets_timeout_set(socket_sync02->fd, timeout_old);
 
     if (state_fail(s)) {
-        verb_who("failed to receive (%d, %s)", s, state_msg);
-        return EAR_ERROR;
+        verb1("synchronization failed: %s", state_msg);
+        return s;
     }
-    //
-    s = sockets_close(socket_sync02);
+    // Closing anyway
+    sockets_close(socket_sync02);
 
-    if (verbosity) {
-        verb_who_noarg("synchronization completed correctly");
+    if (key_get(extra) != key_add(0LLU)) {
+        return_msg(EAR_ERROR, "Key does not match");
     }
     if (answer != NULL) {
-        memcpy(answer, &data_answer, sizeof(sync_answer_t));
+        memcpy(answer, &sync_answer, sizeof(sync_answer_t));
     }
-
     return EAR_SUCCESS;
 }
 
-int sync_answer(int fd, int veteran)
+int sync_send_answer(int fd, int veteran)
 {
-    socket_t sync_ans_socket;
+    ullong extra = 0LLU;
     state_t s;
 
     if (verbosity) {
-        verb_who_noarg("synchronization started: answering the question");
+        verb0("synchronization started: answering the question");
     }
-    // Socket
-    sockets_clean(&sync_ans_socket);
-    sync_ans_socket.protocol = TCP;
-    sync_ans_socket.fd       = fd;
+    sync_answer.answer  = 0;
+    sync_answer.veteran = veteran;
 
-    // Header
-    sockets_header_update(&header_answer);
-    data_answer.veteran = veteran;
-
-    if (state_fail(s = __sockets_send(&sync_ans_socket, &header_answer, (char *) &data_answer))) {
-        verb_who("Failed to send to MIRROR (%d, %s)", s, state_msg);
+    if (state_fail(
+            s = sockets_send(fd, EDB_TYPE_SYNC_ANSWER, (char *) &sync_answer, sizeof(sync_answer_t), key_add(extra)))) {
+        verb1("Failed to send to MIRROR (%d, %s)", s, state_msg);
         return EAR_IGNORE;
     }
     if (verbosity) {
-        verb_who_noarg("synchronization completed correctly");
+        verb0("synchronization finished");
     }
-
     return EAR_SUCCESS;
 }

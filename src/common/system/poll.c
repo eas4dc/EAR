@@ -8,11 +8,11 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
 // #define SHOW_DEBUGS 1
-
 #define _GNU_SOURCE
-#include <common/output/debug.h>
 #include <common/system/poll.h>
+#include <common/output/debug.h>
 
 static int ids_count;
 
@@ -144,6 +144,9 @@ void afd_debug(int fd, afd_set_t *set, const char *prefix)
 
 int aselect(afd_set_t *set, ullong timeout, ullong *time_left)
 {
+    ullong time_passed;
+    timestamp_t ts;
+    int r;
     // select()
     // On success, return the number of file descriptors contained in the three returned descriptor
     // sets (that is, the total number of bits that are set in readfds, writefds, exceptfds) which
@@ -156,15 +159,11 @@ int aselect(afd_set_t *set, ullong timeout, ullong *time_left)
     // nonzero events fields (in other words, those descriptors with events or errors reported). A
     // value of 0 indicates that the call timed out and no file descriptors were ready. On error, -1
     // is returned, and errno is set appropriately.
-    ullong time_passed;
-    timestamp_t ts;
-    int r;
-    // Polling and calculating time
     timestamp_get(&ts);
-    r           = poll(&set->fds[set->fd_min], set->fds_rank, (int) timeout);
+    r = poll(&set->fds[set->fd_min], set->fds_rank, (int) timeout);
     time_passed = timestamp_diffnow(&ts, TIME_MSECS);
-    afdebug("%d = poll(set%d, fds_count: %u, fds_rank: %lu, timeout: %d, time_passed: %llu)", r, set->id,
-            set->fds_count, set->fds_rank, (int) timeout, time_passed);
+    afdebug("%d = poll(set%d, fds_count: %u, fds_rank: %lu, timeout: %d, time_passed: %llu)",
+        r, set->id, set->fds_count, set->fds_rank, (int) timeout, time_passed);
     // Calculating the lefting time
     if (time_left != NULL) {
         *time_left = 0;

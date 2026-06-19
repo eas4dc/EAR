@@ -29,7 +29,7 @@ TEMP_F_LOAD(eard)
     if (ops->read != NULL) {
         return;
     }
-    if (force_api != API_EARD) {
+    if (!API_IS(options, API_EARD)) {
         return;
     }
     debug("Trying to connect to EARD");
@@ -45,10 +45,18 @@ TEMP_F_LOAD(eard)
         return;
     }
     read_values = calloc(self_info.devs_count, sizeof(llong));
+    apis_set(ops->unload, temp_eard_unload);
     apis_set(ops->get_info, temp_eard_get_info);
-    apis_set(ops->init, temp_eard_init);
-    apis_set(ops->dispose, temp_eard_dispose);
     apis_set(ops->read, temp_eard_read);
+}
+
+TEMP_F_UNLOAD(eard)
+{
+    if (read_values != NULL) {
+        free(read_values);
+        read_values = NULL;
+        memset(&self_info, 0, sizeof(apinfo_t));
+    }
 }
 
 TEMP_F_GET_INFO(eard)
@@ -57,16 +65,6 @@ TEMP_F_GET_INFO(eard)
     info->scope       = self_info.scope;
     info->granularity = self_info.granularity;
     info->devs_count  = self_info.devs_count;
-}
-
-TEMP_F_INIT(eard)
-{
-    return EAR_SUCCESS;
-}
-
-TEMP_F_DISPOSE(eard)
-{
-    // Empty
 }
 
 TEMP_F_READ(eard)

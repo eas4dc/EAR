@@ -242,12 +242,12 @@ void states_begin_job(int my_id, char *app_name)
     total_threads_cnt = get_total_resources();
     debug("Total threads: %u", total_threads_cnt);
 
-    overhead_suscribe("evaluate_sig", &id_ovh_ev_sig);
-    overhead_suscribe("compute_sig", &id_ovh_compute_signature);
-    overhead_suscribe("policy_apply", &id_ovh_policy_apply);
-    overhead_suscribe("sig_stable", &id_ovh_stable);
-    overhead_suscribe("update_affinity_mask", &id_ovh_update_affinity_mask);
-    overhead_suscribe("metrics_new_iter", &id_ovh_metrics_new_iteration);
+    overhead_subscribe("evaluate_sig", &id_ovh_ev_sig);
+    overhead_subscribe("compute_sig", &id_ovh_compute_signature);
+    overhead_subscribe("policy_apply", &id_ovh_policy_apply);
+    overhead_subscribe("sig_stable", &id_ovh_stable);
+    overhead_subscribe("update_affinity_mask", &id_ovh_update_affinity_mask);
+    overhead_subscribe("metrics_new_iter", &id_ovh_metrics_new_iteration);
 
     /* Allocating space for the sig_ext if needed , application sig ext is allocated in ear.c */
     loop_signature.sig_ext = (void *) calloc(1, sizeof(sig_ext_t));

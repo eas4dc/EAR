@@ -2,14 +2,21 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC -Wall
 
 ######## FILES
 
-proc_OBJS = stat.o
+proc_OBJS = \
+    proc.o \
+    stat.o
 
 ######## RULES
 
-all: $(proc_OBJS)
+all: all.components $(proc_OBJS)
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<
+
+######## SUBFOLDERS
+
+%.components:
+	@ $(MAKE) -C 'archs' $* || exit
 
 ######## OPTIONS
 
@@ -17,7 +24,7 @@ install: ;
 
 %.install: ;
 
-clean: rclean;
+clean: rclean clean.components;
 
 ######## DEPENDENCIES
 

@@ -9,17 +9,20 @@
  **************************************************************************/
 
 #define _GNU_SOURCE
-#include <common/output/verbose.h>
-#include <common/utils/dtools.h>
+/* clang-format off */
+
+#include <link.h>
 #include <dlfcn.h>
 #include <execinfo.h>
-#include <link.h>
+#include <common/utils/dtools.h>
+#include <common/output/verbose.h>
 
+// It seems that malloc() is missing.
 #if DTOOLS_MALLOC
-static void *(*next_malloc)(size_t);
+static void *(*next_malloc) (size_t);
 #endif
 #if DTOOLS_FREE
-static void (*next_free)(void *);
+static void (*next_free) (void *);
 #endif
 
 static long address;

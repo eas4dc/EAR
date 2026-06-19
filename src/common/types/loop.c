@@ -175,10 +175,13 @@ int append_loop_text_file(char *path, loop_t *loop, job_t *job, int add_header, 
 
 int create_loop_header(char *header, char *path, int ts, uint num_gpus, int single_column)
 {
-    int fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR);
-    if (fd < 0) {
-        debug("File %s could not be opened: (%d) %s.", path, errno, strerror(errno));
-        return EAR_ERROR;
+    int fd = 1;
+    if (path && (strcmp(path, "stdout") != 0)) {
+        fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR);
+        if (fd < 0) {
+            debug("File %s could not be opened: (%d) %s.", path, errno, strerror(errno));
+            return EAR_ERROR;
+        }
     }
 
 #if WF_SUPPORT
@@ -279,7 +282,8 @@ int create_loop_header(char *header, char *path, int ts, uint num_gpus, int sing
     int ret = dprintf(fd, "%s\n", HEADER);
 
     free(HEADER);
-    close(fd);
+    if (fd != 1)
+        close(fd);
 
     if (ret < 0) {
         debug("The header (%s) could not be written to fd %d", HEADER, fd);

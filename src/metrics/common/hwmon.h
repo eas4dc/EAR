@@ -10,6 +10,7 @@
 
 #ifndef METRICS_COMMON_HWMON
 #define METRICS_COMMON_HWMON
+/* clang-format off */
 
 #include <metrics/common/hwmon_old.h>
 
@@ -30,10 +31,10 @@
 #define HWMON_DEV_TYPE_POWER  "power"
 #define HWMON_DEV_TYPE_ENERGY "energy"
 
-#define hwmon_add(var)                                                                                                 \
-    int var##_fd;                                                                                                      \
-    char var[32];                                                                                                      \
-    int var##_toint;
+#define hwmon_add(var)\
+    int var##_fd;     \
+    char var[32];     \
+    int var##_toint; // The size of var is hardcoded in the code a couple of time
 
 typedef struct hwmon_dev_s {
     hwmon_add(input);
@@ -44,7 +45,7 @@ typedef struct hwmon_dev_s {
     hwmon_add(average_interval);
     char is_visited;
     char is_null;
-    char number;
+    uint number;
 } hwmon_dev_t;
 
 typedef struct hwmon_s {
@@ -86,8 +87,9 @@ hwmon_dev_t *hwmon_iter_devs(hwmon_t *chip, char *label);
 // is the average of all devices of all chips.
 void hwmon_calc_average(hwmon_t chips[], char *label);
 
-// Closes all file descriptors of files that are related to this label (or NOT in case you start the label with symbol
-// '!')
+// Closes all file descriptors of files that are related to this label (or NOT
+// in case you start the label with symbol '!')
 void hwmon_close_labels(hwmon_t chips[], char *label);
 
+/* clang-format on */
 #endif // METRICS_COMMON_HWMON

@@ -20,6 +20,6 @@ void insert_hub(uint option, uint reason);
 
 void storage_sample_add(char *buf, ulong len, ulong *idx, char *cnt, size_t siz, uint opt);
 
-void storage_sample_receive(int fd, packet_header_t *header, char *content);
+state_t storage_sample_receive(int fd, uint type, char *content, ullong extra);
 
 #endif // EAR_EARDBD_STORAGE_H

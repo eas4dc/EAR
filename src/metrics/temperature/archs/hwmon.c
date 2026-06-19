@@ -7,10 +7,9 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
+
 /* clang-format off */
-
 // #define SHOW_DEBUGS 1
-
 #include <common/output/debug.h>
 #include <metrics/common/hwmon.h>
 #include <metrics/temperature/archs/hwmon.h>
@@ -27,6 +26,7 @@ static char *driver_name;
 
 TEMP_F_LOAD(hwmon)
 {
+    char inverted_label[32];
     // Another API is opened and this API is not mixtable
     if (ops->read != NULL) {
         return;
@@ -57,13 +57,24 @@ TEMP_F_LOAD(hwmon)
         hwmon_close(&chips);
         return;
     }
+    sprintf(inverted_label, "!%s", label);
+    hwmon_close_labels(chips, inverted_label);
     sockets_count = tp->socket_count;
     debug("Detected %u HWMON '%s' chips with %u items in a system with %d sockets",
           chips_count, label, items_count, sockets_count);
     apis_put(ops->get_info, temp_hwmon_get_info);
-    apis_put(ops->init    , temp_hwmon_init);
-    apis_put(ops->dispose , temp_hwmon_dispose);
-    apis_put(ops->read    , temp_hwmon_read);
+    apis_put(ops->unload, temp_hwmon_unload);
+    apis_put(ops->read, temp_hwmon_read);
+}
+
+TEMP_F_UNLOAD(hwmon)
+{
+    if (chips != NULL) {
+        hwmon_close(&chips);
+        chips_count = 0;
+        items_count = 0;
+        chips       = NULL;
+    }
 }
 
 TEMP_F_GET_INFO(hwmon)
@@ -72,20 +83,6 @@ TEMP_F_GET_INFO(hwmon)
     info->scope       = SCOPE_NODE;
     info->granularity = GRANULARITY_SOCKET; // We use average per chip, and a chip is per socket
     info->devs_count  = sockets_count;
-}
-
-TEMP_F_INIT(hwmon)
-{
-    // Nothing
-    return EAR_SUCCESS;
-}
-
-TEMP_F_DISPOSE(hwmon)
-{
-    if (chips != NULL) {
-        hwmon_close(&chips);
-        chips = NULL;
-    }
 }
 
 TEMP_F_READ(hwmon)

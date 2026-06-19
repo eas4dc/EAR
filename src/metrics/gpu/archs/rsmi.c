@@ -20,10 +20,9 @@
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static rsmi_t rsmi;
 static suscription_t *sus;
-static uint devs_count;
+static uint handlers_count;
 static gpu_t *pool;
-static uint ok_pool;
-static uint initialized;
+static uint is_pooling;
 
 static void load_atfork()
 {
@@ -31,108 +30,86 @@ static void load_atfork()
     pthread_mutex_unlock(&lock);
 }
 
-void gpu_rsmi_load(gpu_ops_t *ops, int force_api)
+static void close_all()
 {
-    if (API_IS(force_api, API_DEFAULT)) {
-        ok_pool = 1;
-    } else if (API_IS(force_api, API_FREE)) {
-        ok_pool = rsmi_is_privileged();
+    if (is_pooling) {
+        monitor_unregister(sus);
+        is_pooling = 0;
     }
-    debug("Pooling %d", ok_pool);
+    if (pool != NULL) {
+        free(pool);
+        pool = NULL;
+    }
+    rsmi_close();
+}
+
+GPU_F_LOAD(rsmi)
+{
+    timestamp_t time;
+    int i;
+
+    if (API_IS(options, API_DEFAULT)) {
+        is_pooling = 1;
+    } else if (API_IS(options, API_FREE)) {
+        is_pooling = rsmi_is_privileged();
+    }
+    debug("Pooling %d", is_pooling);
     if (state_fail(rsmi_open(&rsmi))) {
         debug("rsmi_open failed: %s", state_msg);
         return;
     }
-    if (rsmi_fail(rsmi.devs_count(&devs_count))) {
+    if (rsmi_fail(rsmi.devs_count(&handlers_count))) {
         debug("rsmi.devs_count failed");
         return;
     }
     // Allocation
-    pool = calloc(devs_count, sizeof(gpu_t));
+    pool = calloc(handlers_count, sizeof(gpu_t));
     // Atfork control
     pthread_atfork(NULL, NULL, load_atfork);
-    apis_set(ops->get_info, gpu_rsmi_get_info);
-    apis_set(ops->get_devices, gpu_rsmi_get_devices);
-    apis_set(ops->init, gpu_rsmi_init);
-    apis_set(ops->dispose, gpu_rsmi_dispose);
-    apis_pin(ops->read, gpu_rsmi_read, ok_pool);
-    apis_set(ops->read_raw, gpu_rsmi_read_raw);
-    debug("Loaded RSMI");
-}
-
-void gpu_rsmi_get_info(apinfo_t *info)
-{
-    info->api        = API_RSMI;
-    info->devs_count = devs_count;
-}
-
-void gpu_rsmi_get_devices(gpu_devs_t **devs_in, uint *devs_count_in)
-{
-    char serial[32];
-    rsmi_status_t r;
-    int i;
-
-    if (devs_in != NULL) {
-        *devs_in = calloc(devs_count, sizeof(gpu_devs_t));
-        //
-        for (i = 0; i < devs_count; ++i) {
-            if ((r = rsmi.get_serial(i, serial, 32)) != RSMI_STATUS_SUCCESS) {
-                return_msg(, "RSMI error");
-            }
-            debug("D%d: %s", i, serial);
-            (*devs_in)[i].serial = (ullong) atoll(serial);
-            (*devs_in)[i].index  = i;
-        }
-    }
-    if (devs_count_in != NULL) {
-        *devs_count_in = devs_count;
-    }
-}
-
-state_t gpu_rsmi_init(ctx_t *c)
-{
-    state_t s = EAR_SUCCESS;
-    timestamp_t time;
-    int i;
-
-    if (initialized) {
-        return s;
-    }
     // Initializing pool (pool at 0 is not incorrect)
     timestamp_getfast(&time);
-    for (i = 0; i < devs_count; ++i) {
+    for (i = 0; i < handlers_count; ++i) {
         pool[i].time    = time;
         pool[i].correct = 1;
     }
-    if (ok_pool) {
+    if (is_pooling) {
         // Initializing monitoring thread suscription.
         sus             = suscription();
         sus->call_main  = gpu_rsmi_pool;
         sus->time_relax = 2000;
         sus->time_burst = 1000;
-        // Initializing monitoring thread.
-        if (state_ok(s = sus->suscribe(sus))) {
-            initialized = 1;
-        }
-    } // ok_pool
-    return s;
+        sus->suscribe(sus);
+    }
+    apis_pif(ops->unload, gpu_rsmi_unload, 1);
+    apis_pif(ops->get_info, gpu_rsmi_get_info, 1);
+    apis_pif(ops->topology_get, gpu_rsmi_topology_get, 1);
+    apis_pif(ops->read, gpu_rsmi_read, is_pooling);
+    apis_pif(ops->read_raw, gpu_rsmi_read_raw, 1);
+    debug("Loaded RSMI");
 }
 
-state_t gpu_rsmi_dispose(ctx_t *c)
+GPU_F_UNLOAD(rsmi)
 {
-    if (initialized) {
-        monitor_unregister(sus);
-        initialized = 0;
-    }
-    return EAR_SUCCESS;
+    close_all();
+}
+
+GPU_F_GET_INFO(rsmi)
+{
+    info->api        = API_RSMI;
+    info->devs_count = handlers_count;
+}
+
+GPU_F_TOPOLOGY_GET(rsmi)
+{
+    rsmi_get_devices(&tp->devs, &tp->devs_count);
 }
 
 static int is_working(int i)
 {
     rsmi_process_info_t processes[32];
     uint processes_count = 32;
+    uint devices_count   = 32;
     uint devices[32];
-    uint devices_count = 32;
     int p, d;
 
     // Getting the list of total processes
@@ -157,9 +134,9 @@ static int static_read(int i, gpu_t *metric)
     rsmi_freqs_t mem_hz;
     ullong power_uw = 0;
     ullong temp_mc  = 0;
+    rsmi_status_t s;
     uint gpu_util;
     uint mem_util;
-    rsmi_status_t s;
 
     // Cleaning
     memset(metric, 0, sizeof(gpu_t));
@@ -194,7 +171,6 @@ static int static_read(int i, gpu_t *metric)
     metric->correct = 1;
     //
     unused(s);
-
     return 1;
 }
 
@@ -218,7 +194,7 @@ state_t gpu_rsmi_pool(void *p)
     time_diff = (double) timestamp_diff(&time, &pool[0].time, TIME_USECS);
     time_diff = time_diff / 1000000.0;
     //
-    for (i = 0; i < devs_count; ++i) {
+    for (i = 0; i < handlers_count; ++i) {
         if (!static_read(i, &metric)) {
             continue;
         }
@@ -242,30 +218,29 @@ state_t gpu_rsmi_pool(void *p)
     }
     // Lock
     pthread_mutex_unlock(&lock);
-
     return EAR_SUCCESS;
 }
 
-state_t gpu_rsmi_read(ctx_t *c, gpu_t *data)
+GPU_F_READ(rsmi)
 {
     // Updating pool
     gpu_rsmi_pool(NULL);
     while (pthread_mutex_trylock(&lock))
         ;
-    memcpy(data, pool, devs_count * sizeof(gpu_t));
+    memcpy(d, pool, handlers_count * sizeof(gpu_t));
     pthread_mutex_unlock(&lock);
     return EAR_SUCCESS;
 }
 
-state_t gpu_rsmi_read_raw(ctx_t *c, gpu_t *data)
+GPU_F_READ_RAW(rsmi)
 {
     timestamp_t time;
     int i;
     timestamp_getfast(&time);
-    for (i = 0; i < devs_count; ++i) {
-        static_read(i, &data[i]);
-        data[i].time = time;
-        data[i].power_w /= 1000;
+    for (i = 0; i < handlers_count; ++i) {
+        static_read(i, &d[i]);
+        d[i].time = time;
+        d[i].power_w /= 1000;
     }
     return EAR_SUCCESS;
 }

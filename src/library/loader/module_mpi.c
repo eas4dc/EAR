@@ -251,7 +251,8 @@ static void usage_and_exit()
              "If you want to run your application with EAR set \"export %s = \"intel\"|\"open mpi\". "
              "Otherwise use \"--ear=off\" to disable the EAR library. \n",
              FLAG_LOAD_MPI_VERSION, FLAG_LOAD_MPI_VERSION);
-    write(2, message, strlen(message));
+    ssize_t size = write(2, message, strlen(message));
+    (void) size;
     exit(1);
 }
 

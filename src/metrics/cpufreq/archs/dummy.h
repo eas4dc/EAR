@@ -13,16 +13,6 @@
 
 #include <metrics/cpufreq/cpufreq.h>
 
-state_t cpufreq_dummy_status(topology_t *tp_in, cpufreq_ops_t *ops);
-// Fake
-state_t cpufreq_dummy_init(ctx_t *c);
-// Fake
-state_t cpufreq_dummy_dispose(ctx_t *c);
-
-state_t cpufreq_dummy_count_devices(ctx_t *c, uint *cpu_count);
-
-state_t cpufreq_dummy_read(ctx_t *c, cpufreq_t *f);
-
-state_t cpufreq_dummy_data_diff(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
+CPUFREQ_DEFINES(dummy);
 
 #endif // METRICS_CPUFREQ_DUMMY_H

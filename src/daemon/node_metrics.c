@@ -55,7 +55,6 @@ int init_node_metrics(nm_t *id, topology_t *topo, ulong def_freq)
 {
     int sockets         = topo->socket_count;
     int cpus_per_socket = topo->core_count;
-    state_t s;
 
     if ((id == NULL) || (sockets <= 0) || (cpus_per_socket <= 0) || (def_freq <= 0)) {
         debug("init_node_metrics invalid argument id null=%d sockets=%u cpus_per_socket %u def_freq %lu\n",
@@ -71,7 +70,6 @@ int init_node_metrics(nm_t *id, topology_t *topo, ulong def_freq)
 
     // CPU Temperature
     temp_load(topo, API_FREE);
-    state_assert(s, temp_init(), );
 
     //
     id->con = NM_CONNECTED;
@@ -81,25 +79,24 @@ int init_node_metrics(nm_t *id, topology_t *topo, ulong def_freq)
 
 int init_node_metrics_data(nm_t *id, nm_data_t *nm)
 {
-    state_t s;
+    apinfo_t cpu_info = {0};
+    apinfo_t imc_info = {0};
 
     if ((id == NULL) || (nm == NULL)) {
         debug("init_node_metrics_data invalid argument\n");
         return EAR_ERROR;
     }
+    cpufreq_get_info(&cpu_info);
+    imcfreq_get_info(&imc_info);
 
-    // CPU Temperature
+    cpufreq_data_alloc(&nm->freq_cpu, &nm->freq_cpu_diff);
+    imcfreq_data_alloc(&nm->freq_imc, NULL);
     temp_data_alloc(&nm->temp);
 
-    // CPU/IMC Frequency
-    state_assert(s, cpufreq_count_devices(no_ctx, &nm->freq_cpu_count), );
-    state_assert(s, imcfreq_count_devices(no_ctx, &nm->freq_imc_count), );
-
-    state_assert(s, cpufreq_data_alloc(&nm->freq_cpu, &nm->freq_cpu_diff), );
-    state_assert(s, imcfreq_data_alloc(&nm->freq_imc, NULL), );
-
-    nm->avg_cpu_freq = 0;
-    nm->avg_imc_freq = 0;
+    nm->freq_cpu_count = cpu_info.devs_count;
+    nm->freq_imc_count = imc_info.devs_count;
+    nm->avg_cpu_freq   = 0;
+    nm->avg_imc_freq   = 0;
 
     return EAR_SUCCESS;
 }
@@ -113,8 +110,8 @@ int start_compute_node_metrics(nm_t *id, nm_data_t *nm)
     }
 
     // CPU/IMC Frequency
-    state_assert(s, cpufreq_read(no_ctx, nm->freq_cpu), );
-    state_assert(s, imcfreq_read(no_ctx, nm->freq_imc), );
+    state_assert(s, cpufreq_read(nm->freq_cpu), );
+    state_assert(s, imcfreq_read(nm->freq_imc), );
 
     return EAR_SUCCESS;
 }
@@ -132,16 +129,14 @@ int end_compute_node_metrics(nm_t *id, nm_data_t *nm)
     state_assert(s, temp_read(nm->temp, &nm->avg_temp), );
 
     // CPU/IMC Frequency
-    state_assert(s, cpufreq_read(no_ctx, nm->freq_cpu), );
-    state_assert(s, imcfreq_read(no_ctx, nm->freq_imc), );
+    state_assert(s, cpufreq_read(nm->freq_cpu), );
+    state_assert(s, imcfreq_read(nm->freq_imc), );
 
     return EAR_SUCCESS;
 }
 
 int diff_node_metrics(nm_t *id, nm_data_t *init, nm_data_t *end, nm_data_t *diff_nm)
 {
-    state_t s;
-
     if ((init == NULL) || (end == NULL) || (diff_nm == NULL)) {
         debug("diff_node_metrics invalid argument");
         return EAR_ERROR;
@@ -152,35 +147,26 @@ int diff_node_metrics(nm_t *id, nm_data_t *init, nm_data_t *end, nm_data_t *diff
     diff_nm->avg_temp = end->avg_temp;
 
     // CPU & IMC Frequency
-    state_assert(s, cpufreq_data_diff(end->freq_cpu, init->freq_cpu, diff_nm->freq_cpu_diff, &diff_nm->avg_cpu_freq), );
-    state_assert(s, imcfreq_data_diff(end->freq_imc, init->freq_imc, empty, &diff_nm->avg_imc_freq), );
+    cpufreq_data_diff(end->freq_cpu, init->freq_cpu, diff_nm->freq_cpu_diff, &diff_nm->avg_cpu_freq);
+    imcfreq_data_diff(end->freq_imc, init->freq_imc, empty, &diff_nm->avg_imc_freq);
 
     return EAR_SUCCESS;
 }
 
 int dispose_node_metrics(nm_t *id)
 {
-    state_t s;
-
     if ((id == NULL) || (id->con != NM_CONNECTED)) {
         debug("dispose_node_metrics invalid id");
         return EAR_ERROR;
     }
-
-    // Temperature
-    temp_dispose();
-
-    // Alomejor podemos implementar un sistema de contadores aquí para poder
-    // cerrar también el de la CPU?
-    state_assert(s, imcfreq_dispose(no_ctx), );
+    imcfreq_unload();
+    temp_unload();
 
     return EAR_SUCCESS;
 }
 
 int copy_node_metrics(nm_t *id, nm_data_t *dest, nm_data_t *src)
 {
-    state_t s;
-
     if ((dest == NULL) || (src == NULL)) {
         debug("copy_node_metrics invalid argument");
         return EAR_ERROR;
@@ -191,8 +177,8 @@ int copy_node_metrics(nm_t *id, nm_data_t *dest, nm_data_t *src)
     dest->avg_temp = src->avg_temp;
 
     // Frequencies
-    state_assert(s, cpufreq_data_copy(dest->freq_cpu, src->freq_cpu), );
-    state_assert(s, imcfreq_data_copy(dest->freq_imc, src->freq_imc), );
+    cpufreq_data_copy(dest->freq_cpu, src->freq_cpu);
+    imcfreq_data_copy(dest->freq_imc, src->freq_imc);
     dest->avg_cpu_freq = src->avg_cpu_freq;
     dest->avg_imc_freq = src->avg_imc_freq;
 

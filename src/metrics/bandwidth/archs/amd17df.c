@@ -11,20 +11,20 @@
 
 // #define SHOW_DEBUGS 1
 
-#include <common/hardware/bithack.h>
-#include <common/math_operations.h>
+#include <stdlib.h>
 #include <common/output/debug.h>
 #include <common/system/monitor.h>
-#include <metrics/bandwidth/archs/amd17df.h>
+#include <common/math_operations.h>
+#include <common/hardware/bithack.h>
 #include <metrics/common/msr.h>
-#include <stdlib.h>
+#include <metrics/bandwidth/archs/amd17df.h>
 
 // In a 32 cores and 64 threads CPU (ZEN3@7773X):
 // 007:047 are excited by CPUs 00-15
 // 087:0c7 are excited by CPUs 16-31
 // 107:147 are excited by CPUs 32-47
 // 187:1c7 are excited by CPUs 48-63
-static topology_t     tp;
+static topology_t     tp_own;
 static uint           devs_count;
 static bwidth_t      *pool;
 static suscription_t *sus;
@@ -36,44 +36,17 @@ static ullong         cmds[8] = { 0x0000000000403807, 0x0000000000403887, // F17
                                   0x0000000000403847, 0x00000000004038c7,
                                   0x0000000100403847, 0x00000001004038c7 };
 
-BWIDTH_F_LOAD(bwidth_amd17df_load)
+static void close_all(int max_cpu)
 {
-    int i;
-    // If not ZEN, ZEN+ and ZEN2, return. ZEN 3 have the registers but different
-    // formats and this class have to be updated to be compatible.
-    if (tpo->vendor != VENDOR_AMD || tpo->family != FAMILY_ZEN) {
-        debug("%s", Generr.api_incompatible);
-        return_msg(, Generr.api_incompatible);
+    int cpu;
+    for (cpu = 0; cpu < max_cpu; ++cpu) {
+        msr_close(tp_own.cpus[cpu].id);
     }
-    if (state_fail(msr_test(tpo, MSR_WR))) {
-        debug("msr_test(): %s", state_msg);
-        return;
+    topology_close(&tp_own);
+    if (sus->suscribe != NULL) {
+        // It's protected inside
+        monitor_unregister(sus);
     }
-    // Getting the L3 groups
-    if (state_fail(topology_select(tpo, &tp, TPSelect.socket, TPGroup.merge, 0))) {
-        return;
-    }
-    debug("CPUS %d", tp.cpu_count);
-    // Saving numbers and allocating
-    for (i = 0; i < 8; ++i) {
-        imcs[i] = (getbits64(cmds[i], 60, 59) << 6) | (getbits64(cmds[i], 35, 32) << 2) | (getbits64(cmds[i], 7, 6));
-    }
-    devs_count = tp.cpu_count * 4;
-    pool       = calloc(devs_count + 1, sizeof(bwidth_t));
-    //
-    apis_put(ops->get_info, bwidth_amd17df_get_info);
-    apis_put(ops->init    , bwidth_amd17df_init);
-    apis_put(ops->dispose , bwidth_amd17df_dispose);
-    apis_put(ops->read    , bwidth_amd17df_read);
-    debug("Loaded AMD17DF");
-}
-
-BWIDTH_F_GET_INFO(bwidth_amd17df_get_info)
-{
-    info->api         = API_AMD17;
-    info->scope       = SCOPE_NODE;
-    info->granularity = GRANULARITY_IMC;
-    info->devs_count  = devs_count + 1;
 }
 
 static state_t multiplex(void *something)
@@ -84,38 +57,39 @@ static state_t multiplex(void *something)
 
     debug("flipflop");
     // Flip-flopping the controllers and cleaning the counters
-    for (sock = 0; sock < tp.cpu_count; ++sock) {
+    for (sock = 0; sock < tp_own.cpu_count; ++sock) {
         for (i = 0, j = flip * 4; i < 4; ++i, ++j) {
             debug("SOCK%d_REG%d: multiplexing to IMC%d 0x%09llx)", sock, i, imcs[j], cmds[j]);
-            msr_write(tp.cpus[sock].id, (void *) &cmds[j], sizeof(ullong), ctls[i]);
+            msr_write(tp_own.cpus[sock].id, (void *) &cmds[j], sizeof(ullong), ctls[i]);
         }
     }
     flip = !flip;
     return EAR_SUCCESS;
 }
 
-BWIDTH_F_INIT(bwidth_amd17df_init)
+static state_t old_init()
 {
     ullong zero = 0LLU;
     int i, sock;
     state_t s;
 
-    for (sock = 0; sock < tp.cpu_count; ++sock) {
-        if (state_fail(s = msr_open(tp.cpus[sock].id, MSR_WR))) {
+    for (sock = 0; sock < tp_own.cpu_count; ++sock) {
+        if (state_fail(s = msr_open(tp_own.cpus[sock].id, MSR_WR))) {
+            close_all(sock);
             return s;
         }
     }
     // Cleaning counters and controllers
-    for (sock = 0; sock < tp.cpu_count; ++sock) {
+    for (sock = 0; sock < tp_own.cpu_count; ++sock) {
         for (i = 0; i < 4; ++i) {
-            msr_write(tp.cpus[sock].id, (void *) &zero, sizeof(ullong), ctls[i]);
-            msr_write(tp.cpus[sock].id, (void *) &zero, sizeof(ullong), ctrs[i]);
+            msr_write(tp_own.cpus[sock].id, (void *) &zero, sizeof(ullong), ctls[i]);
+            msr_write(tp_own.cpus[sock].id, (void *) &zero, sizeof(ullong), ctrs[i]);
         }
     }
     // First multiplex;
     multiplex(NULL);
     // If monitor is running the multiplexing can be done.
-    // If not, we are not flipfloping. But we can already read.
+    // If not, we are not flip-floping. But we can already read.
     // Multiplexing suscription
     sus             = suscription();
     sus->call_init  = NULL;
@@ -125,21 +99,70 @@ BWIDTH_F_INIT(bwidth_amd17df_init)
     return sus->suscribe(sus);
 }
 
-BWIDTH_F_DISPOSE(bwidth_amd17df_dispose)
+BWIDTH_F_LOAD(amd17df)
 {
-    return EAR_SUCCESS;
+    int i;
+
+    if (api_already_loaded(ops)) {
+        return;
+    }
+    // If not ZEN, ZEN+ and ZEN2, return. ZEN 3 have the registers but different
+    // formats and this class have to be updated to be compatible.
+    if (tp->vendor != VENDOR_AMD || tp->family != FAMILY_ZEN) {
+        debug("%s", Generr.api_incompatible);
+        return_msg(, Generr.api_incompatible);
+    }
+    if (state_fail(msr_test(tp, MSR_WR))) {
+        debug("msr_test(): %s", state_msg);
+        return;
+    }
+    // Getting the L3 groups
+    if (state_fail(topology_select(tp, &tp_own, TPSelect.socket, TPGroup.merge, 0))) {
+        return;
+    }
+    debug("CPUS %d", tp_own.cpu_count);
+    // Saving numbers and allocating
+    for (i = 0; i < 8; ++i) {
+        imcs[i] = (getbits64(cmds[i], 60, 59) << 6) |
+                  (getbits64(cmds[i], 35, 32) << 2) |
+                  (getbits64(cmds[i],  7,  6));
+    }
+    devs_count = tp_own.cpu_count * 4;
+    pool       = calloc(devs_count + 1, sizeof(bwidth_t));
+    //
+    if (state_fail(old_init())) {
+        return;
+    }
+    //
+    apis_put(ops->unload  , bwidth_amd17df_unload);
+    apis_put(ops->get_info, bwidth_amd17df_get_info);
+    apis_put(ops->read    , bwidth_amd17df_read);
+    debug("Loaded AMD17DF");
 }
 
-BWIDTH_F_READ(bwidth_amd17df_read)
+BWIDTH_F_UNLOAD(amd17df)
+{
+    close_all(tp_own.cpu_count);
+}
+
+BWIDTH_F_GET_INFO(amd17df)
+{
+    info->api         = API_AMD17;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_IMC;
+    info->devs_count  = devs_count + 1;
+}
+
+BWIDTH_F_READ(amd17df)
 {
     ullong value;
     int sock;
     int i;
     // Pooling
-    timestamp_get(&bws[devs_count].time);
-    for (sock = 0; sock < tp.cpu_count; ++sock) {
+    timestamp_get(&b[devs_count].time);
+    for (sock = 0; sock < tp_own.cpu_count; ++sock) {
         for (i = 0; i < 4; ++i) {
-            msr_read(tp.cpus[sock].id, &value, sizeof(ullong), ctrs[i]);
+            msr_read(tp_own.cpus[sock].id, &value, sizeof(ullong), ctrs[i]);
             // 48 bits wide registers. Multipied by two because there are 8
             // channels but just 4 registers. The ideal thing would be postpone
             // this multiplication until the GB/s are computed, but this class
@@ -148,7 +171,7 @@ BWIDTH_F_READ(bwidth_amd17df_read)
             // We are not cleaning the register, because although we are
             // setting another event when multiplexing, the value remains
             // in the counter, then the following = is the correct operator.
-            bws[(sock * 4) + i].cas = value;
+            b[(sock * 4) + i].cas = value;
         }
     }
     return EAR_SUCCESS;

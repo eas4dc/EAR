@@ -9,7 +9,7 @@
  **************************************************************************/
 /* clang-format off */
 
-//#define SHOW_DEBUGS 1
+// #define SHOW_DEBUGS 1
 
 #include <common/config.h>
 #include <common/includes.h>
@@ -35,12 +35,23 @@ struct energy_op {
     uint (*is_null)(edata_t end);
 } energy_ops;
 
-const char *energy_names[] = {"energy_init",        "energy_dispose",      "energy_datasize",    "energy_frequency",
-                              "energy_dc_read",     "energy_dc_time_read", "energy_ac_read",     "energy_units",
-                              "energy_accumulated", "energy_to_str",       "energy_power_limit", "energy_data_is_null"};
+const char *energy_names[] = {
+        "energy_init",
+        "energy_dispose",
+        "energy_datasize",
+        "energy_frequency",
+        "energy_dc_read",
+        "energy_dc_ti   me_read",
+        "energy_ac_read",
+        "energy_units",
+        "energy_accumulated",
+        "energy_to_str",
+        "energy_power_limit",
+        "energy_data_is_null"
+};
 
-static int energy_loaded = 0;
-static int energy_nops   = 12;
+static int energy_loaded   = 0;
+static int energy_nops     = 12;
 
 state_t energy_load(char *energy_obj)
 {
@@ -60,6 +71,8 @@ state_t energy_load(char *energy_obj)
     // - and EAR_ENERGY_ARGS will be arg1:arg2:arg3
     // This is specially required in IPMI plugins. Take a look into these
     // plugins to see how this environment variable is used.
+    if (strchr(energy_obj, '"' )) { remove_chars(energy_obj, '"'); }
+    if (strchr(energy_obj, '\'')) { remove_chars(energy_obj, '\''); }
     if (strchr(energy_obj, ':')) {
         if (strtoa((const char *) energy_obj, ':', &list, &list_count)) {
             if (list_count > 0) {

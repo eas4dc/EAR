@@ -10,13 +10,14 @@
 
 // #define SHOW_DEBUGS 1
 
-#include <common/output/debug.h>
-#include <fcntl.h>
+// clang-format off
 #include <math.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <common/output/debug.h>
 #include <metrics/common/pci.h>
 #include <metrics/energy_cpu/archs/msr.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 // Intel Haswell
 static off_t hwell_pu_addr[1]      = {0x606}; // MSR_RAPL_POWER_UNIT
@@ -51,6 +52,7 @@ static double es_core_units;
 //
 static topology_t tp;
 static uint init = 0;
+// clang-format on
 
 state_t rapl_msr_load(topology_t *tp_in)
 {
@@ -113,9 +115,9 @@ state_t rapl_msr_init(ctx_t *c)
         return EAR_SUCCESS;
     }
     for (i = 0; i < tp.cpu_count; ++i) {
-        s = msr_open(tp.cpus[i].id, MSR_RD);
-        if (s)
+        if (state_fail(s = msr_open(tp.cpus[i].id, MSR_RD))) {
             debug("error opening cpu %d", i);
+        }
     }
     if ((s = msr_read(tp.cpus[0].id, &result, sizeof(result), *pu_addr))) {
         return s;

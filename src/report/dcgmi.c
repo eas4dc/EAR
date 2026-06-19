@@ -34,9 +34,6 @@
         verbose(lvl, "[dcgmi.so] " msg, ##__VA_ARGS__);                                                                \
     } while (0);
 
-#if 0
-static char *csv_log_file_env_loops;
-#endif
 static char csv_loop_log_file[MAX_PATH_SIZE];
 static char csv_log_file[MAX_PATH_SIZE];
 static char path_base[1024];
@@ -282,7 +279,6 @@ state_t report_loops(report_id_t *id, loop_t *loops, uint count)
             dprintf(fd_loops, "%s;", extra_metrics);
         }
 #endif
-        // append_loop_text_file_no_job_with_ts(csv_loop_log_file, &loops[i], currtime, 0, 0, ' ');
         loop_print_fd(fd_loops, &loops[i], 1, currtime, 0, ' ');
     }
     sem_post(report_csv_sem_loop);

@@ -1,5 +1,5 @@
 .\" Manpage for ereport.
-.TH man 1 "September 2025" "5.2" "ereport man page"
+.TH man 1 "June 2026" "7.0" "ereport man page"
 .SH NAME
 ereport \- Produces a summary of the energy consumption reported by EAR's daemons.
 .SH SYNOPSIS
@@ -10,27 +10,38 @@ ereport is an administrator command that reports energy consumption data reporte
 
 .SH OPTIONS
  
- ./src/commands/ereport is a tool that reports energy consumption data
-Usage: ./src/commands/ereport [options]
-Options are as follows:
-	-s start_time     	 indicates the start of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default: end_time minus insertion time*2.
-	-e end_time       	 indicates the end of the period from which the energy consumed will be computed. Format: YYYY-MM-DD. Default: current time.
-	-n node_name |all 	 indicates from which node the energy will be computed. Default: none (all nodes computed)
-					 'all' option shows all nodes individually, not aggregated.
-	-u user_name |all 	 requests the energy consumed by a user in the selected period of time. Default: none (all users computed).
-					 'all' option shows all users individually, not aggregated.
-	-t energy_tag|all 	 requests the energy consumed by energy tag in the selected period of time. Default: none (all tags computed).
-					 'all' option shows all tags individually, not aggregated.
-	-i eardbd_name|all	 indicates from which eardbd (island) the energy will be computed. Default: none (all islands computed)
-					 'all' option shows all eardbds individually, not aggregated.
-	-d                 expands the results of -i to individual records. If an island is not specified, it prints all of them.
-	-g                	 shows the contents of EAR's database Global_energy table. The default option will show the records for the two previous T2 periods of EARGM.
-					     This option can only be modified with -s, not -e
-	-x                	 shows the daemon events from -s to -e. If no time frame is specified, it uses the default start and end times.
-	-z                	 shows the detailed periodic metrics reported during that period. If no time frame is specified, it uses the default start and end times.
-	-v                	 shows current EAR version.
-	-h                	 shows this message.
+.nf
+.ft CW
+ereport --help
+Usage: ereport [options]
 
+Options:
+  -h, --help                       Displays this message.
+  -v, --version                    Displays the current EAR version.
+  -b, --verbose                    Enables verbose mode for debugging purposes.
+
+Filters:
+  -s, --start-time <YYYY-MM-DD>    Sets the start of the period.
+                                   Default: end time minus twice the insertion time.
+  -e, --end-time <YYYY-MM-DD>      Sets the end of the period. Default: current time.
+  -n, --nodes <node|all>           Filters by node name. Default: none.
+  -u, --users <user|all>           Filters by username. Default: none.
+  -G, --group <group|all>          Filters by group name. Default: none.
+  -t, --etags <tag|all>            Filters by energy tag. Default: none.
+  -i, --islands <eardbd|all>       Filters by EARDBD island. Default: none.
+
+Output:
+  -d, --expanded                   Expands island results to individual records.
+                                   If no island is specified, prints all of them.
+  -g, --global-energy              Shows EAR database global energy records.
+                                   Defaults to the two previous EARGM T2 periods.
+                                   This option can be modified with --start-time, but not --end-time.
+  -x, --events                     Shows daemon events for the selected period.
+  -z, --detailed                   Shows detailed periodic metrics for the selected period.
+  -w, --total-savings              Shows the total energy savings in kWh.
+
+.ft R
+.fi
 
 
 .SH Usage examples

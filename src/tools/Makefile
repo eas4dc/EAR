@@ -2,6 +2,8 @@ CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(GSL_CFLAGS) $(DB_CFLAGS)
 LDFLAGS = $(GSL_LDFLAGS) -lm
 CCC     = $(CC) $(CFLAGS)
 
+LDFLAGS += $(OPENSSL_LDFLAGS)
+
 ######## INSTALLATION
 
 tool_BINS = \
@@ -69,7 +71,7 @@ coeffs_show: coeffs_show.c $(comm_OBJS)
 	$(CCC) -I$(SRCDIR) -o $@ $< $(comm_OBJS)
 
 coeffs_null: coeffs_null.c $(comm_OBJS)
-	$(CCC) -Wno-unused-result -I$(SRCDIR) -o $@ $< $(comm_OBJS)
+	$(CCC) -I$(SRCDIR) -o $@ $< $(comm_OBJS)
 
 coeffs_default: coeffs_default.c $(comm_OBJS)
 	$(CCC) -I$(SRCDIR) -o $@ $< $(comm_OBJS)
@@ -102,7 +104,7 @@ enode_control: ear_node_control.c $(comm_OBJS)
 	$(CCC) -o $@ $< $(comm_OBJS)
 
 enodectl: ear_node_ctl.c $(comm_OBJS) $(rapi_OBJS)
-	$(CCC) -o $@ $< $(rapi_OBJS) $(comm_OBJS) -lm
+	$(CCC) -o $@ $< $(rapi_OBJS) $(comm_OBJS) $(LDFLAGS)
 
 groups_test: groups_test.c $(comm_OBJS)
 	$(CCC) -o $@ $< $(comm_OBJS)
@@ -111,7 +113,7 @@ enode_info: ear_node_info.c $(comm_OBJS) $(SRCDIR)/daemon/local_api/libeard.a $(
 	$(CCC) -o $@ $< $(SRCDIR)/daemon/local_api/libeard.a  $(SRCDIR)/management/libmgt.a $(SRCDIR)/metrics/libmetrics.a $(comm_OBJS) -pthread -lm -ldl
 
 cluster_ping: cluster_ping.c $(comm_OBJS) $(rapi_OBJS)
-	$(CCC) -o $@ $< $(rapi_OBJS) $(comm_OBJS) -lm
+	$(CCC) -o $@ $< $(rapi_OBJS) $(comm_OBJS) $(LDFLAGS)
 
 list_folders: list_folders.c $(comm_OBJS)
 	$(CCC) -I$(SRCDIR) -o $@ $< $(comm_OBJS)

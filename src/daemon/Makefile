@@ -54,6 +54,8 @@ eard_OBJS += \
 
 eard_LDFLAGS = $(call whole,$(SRCDIR)/metrics/common/libmetrics-common.a)
 
+LDFLAGS += $(OPENSSL_LDFLAGS)
+
 ######## RULES
 
 all: all.components $(eard_BINS) $(oths_BINS) all.others shared_pmon.o

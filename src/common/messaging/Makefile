@@ -6,13 +6,13 @@ CFLAGS  = $(CC_FLAGS) -I$(SRCDIR) $(CONSTANTS) -Wall
 ######## FILES
 
 msg_OBJS = \
-	msg_internals.o 
+	msg_internals.o
 
 ######## RULES
 
 all: $(msg_OBJS) all.others
 
-msg_internals.o: msg_internals.c msg_internals.h 
+msg_internals.o: msg_internals.c msg_internals.h
 	$(CC) $(CFLAGS) -fPIC -c $<
 
 

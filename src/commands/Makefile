@@ -5,6 +5,7 @@ CFLAGS += -DEXT_OPT=1
 endif
 CCC     = $(CC) $(CFLAGS)
 
+LDFLAGS += $(OPENSSL_LDFLAGS)
 ######## INSTALLATION
 
 com1_PATH = $(DESTDIR)/bin

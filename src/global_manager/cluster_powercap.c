@@ -28,18 +28,19 @@
 
 #include <global_manager/cluster_powercap.h>
 #include <global_manager/log_eargmd.h>
+#include <global_manager/plugins/powercap_plugin.h>
 
 #include <report/report.h>
 
 extern cluster_conf_t my_cluster_conf;
 extern int64_t default_cluster_powercap;
 extern uint cluster_powercap_period;
+extern eargm_def_t *e_def;
 
 extern uint process_created;
 extern pthread_mutex_t plocks;
 void check_pending_processes();
 
-uint current_cluster_powercap;
 uint current_cluster_power;
 uint min_cluster_powercap;
 uint powercap_unlimited = 0;
@@ -51,17 +52,17 @@ pthread_mutex_t ext_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 uint num_nodes;
 uint actions_executed = 0;
-uint total_req_new, total_req_greedy, req_no_extra, num_no_extra, num_greedy, num_extra, extra_power_alloc,
-    total_extra_power, greedy_allocated;
+
+cluster_powercap_ctx_t cpc_ctx = {0};
+
 cluster_powercap_status_t *my_cluster_power_status;
 powercap_opt_t cluster_options;
 extern uint policy;
 extern char **nodes;
 extern int num_eargm_nodes;
 extern char host[GENERIC_NAME];
-static uint must_send_pc_options;
+static bool must_send_pc_options;
 static ulong current_extra_power;
-static uint total_free;
 #define min(a, b) (a < b ? a : b)
 
 void check_powercap_actions(uint cluster_powercap);
@@ -69,7 +70,7 @@ void write_shared_data(ulong current_power, ulong freeable_power, ulong requeste
 
 void eargm_report_event(uint event_type, ulong value)
 {
-    ear_event_t event;
+    ear_event_t event = {0};
 
     event.timestamp = time(NULL);
     event.jid       = 0;
@@ -95,28 +96,28 @@ void eargm_report_event(uint event_type, ulong value)
     // db_insert_ear_event(&event);
 }
 
-void aggregate_data(powercap_status_t *cs)
+void aggregate_data(powercap_status_t *cs, cluster_powercap_ctx_t *ctx)
 {
     int i;
-    total_req_greedy  = 0;
-    total_extra_power = 0;
-    req_no_extra      = 0;
-    num_no_extra      = 0;
-    num_greedy        = 0;
-    num_extra         = 0;
-    extra_power_alloc = 0;
+    ctx->total_req_greedy  = 0;
+    ctx->total_extra_power = 0;
+    ctx->req_no_extra      = 0;
+    ctx->num_no_extra      = 0;
+    ctx->num_greedy        = 0;
+    ctx->num_extra         = 0;
+    ctx->extra_power_alloc = 0;
     for (i = 0; i < cs->num_greedy; i++) {
-        total_req_greedy += cs->greedy_data[i].requested;
-        total_extra_power += cs->greedy_data[i].extra_power;
+        ctx->total_req_greedy += cs->greedy_data[i].requested;
+        ctx->total_extra_power += cs->greedy_data[i].extra_power;
         if (cs->greedy_data[i].extra_power) {
-            num_extra++;
-            extra_power_alloc += cs->greedy_data[i].extra_power;
+            ctx->num_extra++;
+            ctx->extra_power_alloc += cs->greedy_data[i].extra_power;
         }
         if (cs->greedy_data[i].requested)
-            num_greedy++;
+            ctx->num_greedy++;
         if ((cs->greedy_data[i].requested) && (!cs->greedy_data[i].extra_power)) {
-            req_no_extra += cs->greedy_data[i].requested;
-            num_no_extra++;
+            ctx->req_no_extra += cs->greedy_data[i].requested;
+            ctx->num_no_extra++;
         }
     }
 }
@@ -139,6 +140,7 @@ void print_powercap_opt(powercap_opt_t *opt)
     verbose(VGM_PC, "%s", COL_CLR);
 }
 
+#if 0
 void allocate_free_power_to_greedy_nodes(cluster_powercap_status_t *cluster_status, powercap_opt_t *cluster_options,
                                          uint *total_free)
 {
@@ -230,7 +232,9 @@ void reduce_allocation(cluster_powercap_status_t *cs, powercap_opt_t *cluster_op
         i++;
     }
 }
+#endif
 
+#if 0
 /* This function is executed when there is enough power for new running nodes but not for all the greedy nodes */
 uint powercap_reallocation(cluster_powercap_status_t *cluster_status, powercap_opt_t *cluster_options)
 {
@@ -244,10 +248,10 @@ uint powercap_reallocation(cluster_powercap_status_t *cluster_status, powercap_o
         cluster_options->extra_power  = calloc(cluster_status->num_greedy, sizeof(uint));
     }
     cluster_options->num_greedy         = cluster_status->num_greedy;
-    cluster_options->cluster_perc_power = (cluster_status->total_powercap * 100) / current_cluster_powercap;
+    cluster_options->cluster_perc_power = (cluster_status->total_powercap * 100) / cpc_ctx.current_cluster_powercap;
     memcpy(cluster_options->greedy_nodes, cluster_status->greedy_nodes, cluster_status->num_greedy * sizeof(int));
 
-    total_free                       = current_cluster_powercap - cluster_status->total_powercap;
+    total_free                       = cpc_ctx.current_cluster_powercap - cluster_status->total_powercap;
     uint64_t non_computational_power = 0;
     if (!state_ok(_read_non_computational_power(&non_computational_power))) {
         warning("Non-computational power could not be read");
@@ -256,7 +260,7 @@ uint powercap_reallocation(cluster_powercap_status_t *cluster_status, powercap_o
     }
 
     verbose(VGM_PC + 1, "Total power %u , requested for new %u (potential) released %u extra_req %u extra_used %u",
-            current_cluster_powercap, cluster_status->requested, cluster_status->released, total_req_greedy,
+            cpc_ctx.current_cluster_powercap, cluster_status->requested, cluster_status->released, total_req_greedy,
             total_extra_power);
     verbose(VGM_PC + 1, "Free power before reallocation %d", total_free);
 
@@ -264,10 +268,10 @@ uint powercap_reallocation(cluster_powercap_status_t *cluster_status, powercap_o
         must_send_pc_options = 1;
 
     /* Allocated power + default requested must be less that maximum: ASK_DEF */
-    if ((cluster_status->total_powercap + cluster_status->requested) <= current_cluster_powercap) {
+    if ((cluster_status->total_powercap + cluster_status->requested) <= cpc_ctx.current_cluster_powercap) {
         if (cluster_status->requested) {
             verbose(VGM_PC + 1, "There is enough power for new running jobs");
-            total_free = current_cluster_powercap - (cluster_status->total_powercap + cluster_status->requested);
+            total_free = cpc_ctx.current_cluster_powercap - (cluster_status->total_powercap + cluster_status->requested);
             verbose(VGM_PC + 1, "Free power after allocating power to new jobs %d", total_free);
         }
         if (total_req_greedy == 0) {
@@ -298,7 +302,7 @@ uint powercap_reallocation(cluster_powercap_status_t *cluster_status, powercap_o
         if (cluster_status->released == 0) {
             verbose(VGM_PC + 1, "We must reduce the extra allocation (used %u allocated %u)",
                     cluster_status->current_power, cluster_status->total_powercap);
-            min_reduction = (cluster_status->total_powercap + cluster_status->requested) - current_cluster_powercap;
+            min_reduction = (cluster_status->total_powercap + cluster_status->requested) - cpc_ctx.current_cluster_powercap;
             total_free    = 0;
             reduce_allocation(cluster_status, cluster_options, min_reduction);
             must_send_pc_options = 1;
@@ -307,6 +311,7 @@ uint powercap_reallocation(cluster_powercap_status_t *cluster_status, powercap_o
     }
     return 1;
 }
+#endif
 
 void send_powercap_options_to_cluster(powercap_opt_t *cluster_options)
 {
@@ -347,9 +352,9 @@ void cluster_soft_powercap()
 
     eargm_report_event(CLUSTER_POWER, (ulong) power.power);
 
-    float upper_limit   = ((float) (current_cluster_powercap * my_cluster_conf.eargm.defcon_power_limit) / 100.0);
-    float lower_limit   = ((float) (current_cluster_powercap * my_cluster_conf.eargm.defcon_power_lower) / 100.0);
-    uint64_t used_power = power.power;
+    float upper_limit = ((float) (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_limit) / 100.0);
+    float lower_limit = ((float) (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_lower) / 100.0);
+    uint64_t used_power              = power.power;
     uint64_t non_computational_power = 0;
     if (!state_ok(_read_non_computational_power(&non_computational_power))) {
         warning("Non-computational power could not be read");
@@ -359,7 +364,7 @@ void cluster_soft_powercap()
 
     verbose(VGM_PC, "cluster_soft_powercap, total power %ld, computational power %ld and nodes %ld", used_power,
             power.power, power.num_nodes);
-    if (current_cluster_powercap == POWER_CAP_UNLIMITED) {
+    if (cpc_ctx.current_cluster_powercap == POWER_CAP_UNLIMITED) {
         verbose(VGM_PC, "cluster_powercap is unlimited, nothing to do");
         write_shared_data(used_power, 0, 0);
         free(my_cluster_power_status);
@@ -381,7 +386,7 @@ void cluster_soft_powercap()
          */
         if (num_soft_pc_nodes > 0) {
 #if EARGM_POWERCAP_SOFTPC_HOMOGENEOUS
-            new_limit = current_cluster_powercap / num_soft_pc_nodes;
+            new_limit = cpc_ctx.current_cluster_powercap / num_soft_pc_nodes;
 #else
             new_limit = UINT_MAX;
 #endif
@@ -449,50 +454,50 @@ void *eargm_powercap_th(void *noarg)
 void cluster_powercap_reset_pc()
 {
     verbose(VGM_PC, "Resetting cluster powercap to %ld", default_cluster_powercap);
-    current_cluster_powercap = default_cluster_powercap;
-    current_extra_power      = 0;
+    cpc_ctx.current_cluster_powercap = default_cluster_powercap;
+    current_extra_power              = 0;
 }
 
 void cluster_powercap_set_pc(uint limit)
 {
     verbose(VGM_PC, "Setting cluster powercap to %u", limit);
 
-    current_cluster_powercap = limit;
+    cpc_ctx.current_cluster_powercap = limit;
 
-    if (default_cluster_powercap < current_cluster_powercap)
-        current_extra_power = current_cluster_powercap - default_cluster_powercap;
+    if (default_cluster_powercap < cpc_ctx.current_cluster_powercap)
+        current_extra_power = cpc_ctx.current_cluster_powercap - default_cluster_powercap;
     else
         current_extra_power = 0;
 #if 0
     pthread_mutex_lock(&ext_mutex);
-    ext_powercap_data.current_powercap = current_cluster_powercap;
+    ext_powercap_data.current_powercap = cpc_ctx.current_cluster_powercap;
     pthread_mutex_unlock(&ext_mutex);
 #endif
 }
 
 void cluster_powercap_red_pc(uint red)
 {
-    verbose(VGM_PC, "Reducing cluster powercap by %u (from %u to %u)", red, current_cluster_powercap,
-            current_cluster_powercap - red);
-    if (red > current_cluster_powercap) {
+    verbose(VGM_PC, "Reducing cluster powercap by %u (from %u to %u)", red, cpc_ctx.current_cluster_powercap,
+            cpc_ctx.current_cluster_powercap - red);
+    if (red > cpc_ctx.current_cluster_powercap) {
         verbose(VGM_PC, "Cannot reduce powercap by %u (would overflow)", red);
     } else {
-        current_cluster_powercap -= red;
+        cpc_ctx.current_cluster_powercap -= red;
     }
 
-    if (default_cluster_powercap < current_cluster_powercap)
-        current_extra_power = current_cluster_powercap - default_cluster_powercap;
+    if (default_cluster_powercap < cpc_ctx.current_cluster_powercap)
+        current_extra_power = cpc_ctx.current_cluster_powercap - default_cluster_powercap;
     else
         current_extra_power = 0;
 }
 
 void cluster_powercap_inc_pc(uint inc)
 {
-    verbose(VGM_PC, "Increasing cluster powercap by %u (from %u to %u)", inc, current_cluster_powercap,
-            current_cluster_powercap + inc);
-    current_cluster_powercap += inc;
-    if (default_cluster_powercap < current_cluster_powercap)
-        current_extra_power = current_cluster_powercap - default_cluster_powercap;
+    verbose(VGM_PC, "Increasing cluster powercap by %u (from %u to %u)", inc, cpc_ctx.current_cluster_powercap,
+            cpc_ctx.current_cluster_powercap + inc);
+    cpc_ctx.current_cluster_powercap += inc;
+    if (default_cluster_powercap < cpc_ctx.current_cluster_powercap)
+        current_extra_power = cpc_ctx.current_cluster_powercap - default_cluster_powercap;
     else
         current_extra_power = 0;
 }
@@ -531,20 +536,31 @@ uint cluster_get_min_power(cluster_conf_t *conf, char type)
 void cluster_powercap_init(cluster_conf_t *cc)
 {
     int ret;
-    max_num_nodes            = get_num_nodes(cc);
-    current_cluster_powercap = default_cluster_powercap;
-    min_cluster_powercap     = cluster_get_min_power(cc, POWER_TYPE);
-    if (current_cluster_powercap == -1)
-        current_cluster_powercap = min_cluster_powercap;
+    max_num_nodes                    = get_num_nodes(cc);
+    cpc_ctx.current_cluster_powercap = default_cluster_powercap;
+    min_cluster_powercap             = cluster_get_min_power(cc, POWER_TYPE);
+    if (cpc_ctx.current_cluster_powercap == -1)
+        cpc_ctx.current_cluster_powercap = min_cluster_powercap;
 
-    if (current_cluster_powercap > 0) {
-        verbose(VGM_PC, "Power cap limit set to %u", current_cluster_powercap);
+    if (cpc_ctx.current_cluster_powercap > 0) {
+        verbose(VGM_PC, "Power cap limit set to %u", cpc_ctx.current_cluster_powercap);
     } else {
         verbose(VGM_PC, "Power cap unlimited");
     }
 
-    if (current_cluster_powercap == 0)
+    if (cpc_ctx.current_cluster_powercap == 0)
         return;
+
+    if (!state_ok(eargm_plugin_load(cc->install.dir_plug, e_def->plugins))) {
+        error("Could not load EARGM plugins");
+    } else {
+        verbose(VGM_PC, "Loaded plugin! (%s)", e_def->plugins);
+        if (!state_ok(eargm_plugin_init(cc))) {
+            error("Could not init EARGM plugins");
+        } else {
+            verbose(VGM_PC, "Plugin init done!");
+        }
+    }
 
     /* This thread accepts external commands */
     if ((ret = pthread_create(&cluster_powercap_th, NULL, eargm_powercap_th, NULL))) {
@@ -556,7 +572,7 @@ void cluster_powercap_init(cluster_conf_t *cc)
 
 int cluster_power_limited()
 {
-    return (current_cluster_powercap);
+    return (cpc_ctx.current_cluster_powercap);
 }
 
 /* This function is executed when we are in a good position after executing the higher limit action*/
@@ -567,8 +583,8 @@ void execute_powercap_lower_action()
     if (strcmp(my_cluster_conf.eargm.powercap_lower_action, "no_action")) {
         /* Format is: command current_power current_limit total_idle_nodes allocated_idle_power*/
         sprintf(cmd, "%s %u %u %u %u", my_cluster_conf.eargm.powercap_lower_action,
-                my_cluster_power_status->current_power, current_cluster_powercap, my_cluster_power_status->idle_nodes,
-                my_cluster_power_status->total_idle_power);
+                my_cluster_power_status->current_power, cpc_ctx.current_cluster_powercap,
+                my_cluster_power_status->idle_nodes, my_cluster_power_status->total_idle_power);
         verbose(VGM_PC, "%sExecuting powercap resume action: %s %s", COL_GRE, cmd, COL_CLR);
         execute_with_fork(cmd);
         pthread_mutex_lock(&plocks);
@@ -588,8 +604,8 @@ void execute_powercap_limit_action()
     if (strcmp(my_cluster_conf.eargm.powercap_limit_action, "no_action")) {
         /* Format is: command current_power current_limit total_idle_nodes allocated_idle_power*/
         sprintf(cmd, "%s %u %u %u %u", my_cluster_conf.eargm.powercap_limit_action,
-                my_cluster_power_status->current_power, current_cluster_powercap, my_cluster_power_status->idle_nodes,
-                my_cluster_power_status->total_idle_power);
+                my_cluster_power_status->current_power, cpc_ctx.current_cluster_powercap,
+                my_cluster_power_status->idle_nodes, my_cluster_power_status->total_idle_power);
         verbose(VGM_PC, "%sExecuting powercap suspend action: %s%s", COL_RED, cmd, COL_CLR);
         execute_with_fork(cmd);
         pthread_mutex_lock(&plocks);
@@ -603,11 +619,12 @@ void execute_powercap_limit_action()
 
 void check_powercap_actions(uint cluster_powercap)
 {
-    if (cluster_powercap >= ((float) (current_cluster_powercap * my_cluster_conf.eargm.defcon_power_limit) / 100.0) &&
+    if (cluster_powercap >=
+            ((float) (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_limit) / 100.0) &&
         !actions_executed) {
         execute_powercap_limit_action();
     } else if (cluster_powercap <=
-                   ((float) (current_cluster_powercap * my_cluster_conf.eargm.defcon_power_lower) / 100.0) &&
+                   ((float) (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_lower) / 100.0) &&
                actions_executed) {
         execute_powercap_lower_action();
     }
@@ -618,9 +635,9 @@ void write_shared_data(ulong current_power, ulong freeable_power, ulong requeste
     pthread_mutex_lock(&ext_mutex);
     memset(&ext_powercap_data, 0, sizeof(shared_powercap_data_t));
     ext_powercap_data.status = PC_STATUS_OK;
-    if (requested > 0 && default_cluster_powercap > current_cluster_powercap) {
-        if (default_cluster_powercap < (current_cluster_powercap + requested)) {
-            requested = default_cluster_powercap - current_cluster_powercap;
+    if (requested > 0 && default_cluster_powercap > cpc_ctx.current_cluster_powercap) {
+        if (default_cluster_powercap < (cpc_ctx.current_cluster_powercap + requested)) {
+            requested = default_cluster_powercap - cpc_ctx.current_cluster_powercap;
         }
         freeable_power           = 0; // if pc_status_ask_def and requesting we cannot free
         ext_powercap_data.status = PC_STATUS_ASK_DEF;
@@ -633,9 +650,9 @@ void write_shared_data(ulong current_power, ulong freeable_power, ulong requeste
     ext_powercap_data.current_power    = current_power;
     ext_powercap_data.extra_power      = current_extra_power;
     ext_powercap_data.available_power  = freeable_power;
-    ext_powercap_data.current_powercap = current_cluster_powercap;
+    ext_powercap_data.current_powercap = cpc_ctx.current_cluster_powercap;
     ext_powercap_data.def_power        = default_cluster_powercap;
-    debug("Written shared data with current power %lu and default power %lu", current_cluster_powercap,
+    debug("Written shared data with current power %lu and default power %lu", cpc_ctx.current_cluster_powercap,
           default_cluster_powercap);
     pthread_mutex_unlock(&ext_mutex);
 }
@@ -652,16 +669,16 @@ void cluster_power_monitor()
     write_shared_data(my_cluster_power_status->current_power, 0, 0);
     eargm_report_event(CLUSTER_POWER, (ulong) my_cluster_power_status->current_power);
     if (my_cluster_power_status->current_power >=
-            ((float) (current_cluster_powercap * my_cluster_conf.eargm.defcon_power_limit) / 100.0) &&
+            ((float) (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_limit) / 100.0) &&
         !actions_executed) {
         execute_powercap_limit_action();
     } else if (my_cluster_power_status->current_power <=
-                   ((float) (current_cluster_powercap * my_cluster_conf.eargm.defcon_power_lower) / 100.0) &&
+                   ((float) (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_lower) / 100.0) &&
                actions_executed) {
         execute_powercap_lower_action();
     } else {
         verbose(VGM_PC + 1, "Total power %u limit for action %lu", my_cluster_power_status->current_power,
-                (current_cluster_powercap * my_cluster_conf.eargm.defcon_power_limit) / 100);
+                (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_limit) / 100);
     }
     free(my_cluster_power_status);
     debug("%sGlobal POWER monitoring END-----%s", COL_BLU, COL_CLR);
@@ -669,8 +686,64 @@ void cluster_power_monitor()
 
 #define CLUSTER_PC_TO_SHARE 0.5
 
-/* Cluster HARD powercap */
 void cluster_hard_powercap()
+{
+    debug("%sSTART cluster_check_powercap---------%s", COL_BLU, COL_CLR);
+    if (state_fail(ear_get_powercap_status(&my_cluster_conf, &my_cluster_power_status, 1, nodes, num_eargm_nodes))) {
+        verbose(VGM_PC + 1, "ear_get_powercap_status in cluster_hard_powercap returns EAR_ERROR");
+        write_shared_data(0, 0, 0);
+        return;
+    }
+    memset(&cluster_options, 0, sizeof(powercap_opt_t));
+    must_send_pc_options = 0;
+    eargm_report_event(CLUSTER_POWER, (ulong) my_cluster_power_status->current_power);
+    print_cluster_power_status(my_cluster_power_status);
+    aggregate_data(my_cluster_power_status, &cpc_ctx);
+
+    // returning EAR_WARNING is sloppy, but for now it works
+    // EAR_WARNING indicates that it needs more power, and that wants power freed
+    if (eargm_plugin_hard_powercap_decision(my_cluster_power_status, &cluster_options, &must_send_pc_options,
+                                            &cpc_ctx) == EAR_WARNING) {
+        pc_release_data_t rel_power;
+        if (state_fail(ear_cluster_release_idle_power(&my_cluster_conf, &rel_power))) {
+            error("Error in cluster_release_idle_power");
+        } else {
+            verbose(VGM_PC, "%s%u Watts from idle nodes released%s", COL_GRE, rel_power.released, COL_CLR);
+        }
+        my_cluster_power_status->released       = 0;
+        my_cluster_power_status->total_powercap = my_cluster_power_status->total_powercap - rel_power.released;
+        eargm_plugin_hard_powercap_decision(my_cluster_power_status, &cluster_options, &must_send_pc_options, &cpc_ctx);
+    }
+
+    uint power_to_free    = ear_min(cpc_ctx.current_cluster_powercap - min_cluster_powercap,
+                                    cpc_ctx.total_free + my_cluster_power_status->released * CLUSTER_PC_TO_SHARE);
+    uint power_to_request = 0;
+    if (cpc_ctx.total_req_greedy > cpc_ctx.greedy_allocated) // to prevent overflow
+        power_to_request = cpc_ctx.total_req_greedy - cpc_ctx.greedy_allocated;
+
+    verbose(VGM_PC, "current powercap %u total_req_greedy %u and greedy_allocated %u", cpc_ctx.current_cluster_powercap,
+            cpc_ctx.total_req_greedy, cpc_ctx.greedy_allocated);
+    write_shared_data(my_cluster_power_status->current_power, power_to_free,
+                      power_to_request); // TODO: fill the extra power and freeable_power
+
+    if (must_send_pc_options) {
+        print_powercap_opt(&cluster_options);
+        send_powercap_options_to_cluster(&cluster_options);
+    } else {
+        verbose(VGM_PC + 1, "There is no need to send the pc_options");
+    }
+
+    check_powercap_actions(my_cluster_power_status->total_powercap);
+
+    free(my_cluster_power_status);
+    free(cluster_options.greedy_nodes);
+    free(cluster_options.extra_power);
+    debug("%sEND cluster_check_powercap----------%s", COL_BLU, COL_CLR);
+}
+
+#if 0
+/* Cluster HARD powercap */
+void old_cluster_hard_powercap()
 {
     debug("%sSTART cluster_check_powercap---------%s", COL_BLU, COL_CLR);
     if (state_fail(ear_get_powercap_status(&my_cluster_conf, &my_cluster_power_status, 1, nodes, num_eargm_nodes))) {
@@ -694,13 +767,55 @@ void cluster_hard_powercap()
         my_cluster_power_status->total_powercap = my_cluster_power_status->total_powercap - rel_power.released;
         powercap_reallocation(my_cluster_power_status, &cluster_options);
     }
-    uint power_to_free    = ear_min(current_cluster_powercap - min_cluster_powercap,
+    uint power_to_free    = ear_min(cpc_ctx.current_cluster_powercap - min_cluster_powercap,
                                     total_free + my_cluster_power_status->released * CLUSTER_PC_TO_SHARE);
     uint power_to_request = 0;
     if (total_req_greedy > greedy_allocated) // to prevent overflow
         power_to_request = total_req_greedy - greedy_allocated;
 
-    verbose(VGM_PC, "current powercap %u total_req_greedy %u and greedy_allocated %u", current_cluster_powercap,
+    verbose(VGM_PC, "current powercap %u total_req_greedy %u and greedy_allocated %u", cpc_ctx.current_cluster_powercap,
+            total_req_greedy, greedy_allocated);
+    write_shared_data(my_cluster_power_status->current_power, power_to_free,
+                      power_to_request); // TODO: fill the extra power and freeable_power
+
+    if (must_send_pc_options) {
+        print_powercap_opt(&cluster_options);
+        send_powercap_options_to_cluster(&cluster_options);
+    } else {
+        verbose(VGM_PC + 1, "There is no need to send the pc_options");
+    }
+
+    check_powercap_actions(my_cluster_power_status->total_powercap);
+
+    debug("%sSTART cluster_check_powercap---------%s", COL_BLU, COL_CLR);
+    if (state_fail(ear_get_powercap_status(&my_cluster_conf, &my_cluster_power_status, 1, nodes, num_eargm_nodes))) {
+        verbose(VGM_PC + 1, "ear_get_powercap_status in cluster_hard_powercap returns EAR_ERROR");
+        write_shared_data(0, 0, 0);
+        return;
+    }
+    memset(&cluster_options, 0, sizeof(powercap_opt_t));
+    must_send_pc_options = 0;
+    eargm_report_event(CLUSTER_POWER, (ulong) my_cluster_power_status->current_power);
+    print_cluster_power_status(my_cluster_power_status);
+    aggregate_data(my_cluster_power_status);
+    if (powercap_reallocation(my_cluster_power_status, &cluster_options) == 0) {
+        pc_release_data_t rel_power;
+        if (state_fail(ear_cluster_release_idle_power(&my_cluster_conf, &rel_power))) {
+            error("Error in cluster_release_idle_power");
+        } else {
+            verbose(VGM_PC, "%s%u Watts from idle nodes released%s", COL_GRE, rel_power.released, COL_CLR);
+        }
+        my_cluster_power_status->released       = 0;
+        my_cluster_power_status->total_powercap = my_cluster_power_status->total_powercap - rel_power.released;
+        powercap_reallocation(my_cluster_power_status, &cluster_options);
+    }
+    uint power_to_free    = ear_min(cpc_ctx.current_cluster_powercap - min_cluster_powercap,
+                                    total_free + my_cluster_power_status->released * CLUSTER_PC_TO_SHARE);
+    uint power_to_request = 0;
+    if (total_req_greedy > greedy_allocated) // to prevent overflow
+        power_to_request = total_req_greedy - greedy_allocated;
+
+    verbose(VGM_PC, "current powercap %u total_req_greedy %u and greedy_allocated %u", cpc_ctx.current_cluster_powercap,
             total_req_greedy, greedy_allocated);
     write_shared_data(my_cluster_power_status->current_power, power_to_free,
                       power_to_request); // TODO: fill the extra power and freeable_power
@@ -718,4 +833,9 @@ void cluster_hard_powercap()
     free(cluster_options.greedy_nodes);
     free(cluster_options.extra_power);
     debug("%sEND cluster_check_powercap----------%s", COL_BLU, COL_CLR);
+    free(my_cluster_power_status);
+    free(cluster_options.greedy_nodes);
+    free(cluster_options.extra_power);
+    debug("%sEND cluster_check_powercap----------%s", COL_BLU, COL_CLR);
 }
+#endif

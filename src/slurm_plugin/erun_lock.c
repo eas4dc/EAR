@@ -133,6 +133,7 @@ int slave_getstep(int job_id, int step_id)
 // Master 4
 void files_clean(int job_id, int step_id)
 {
+    int ret;
     plug_verbose(_sp, 3, "function lock_clean");
     // 1. Remove master.lock (paths are set in lock_master())
     ear_file_unlock_master(fd_master, path_master_lock);
@@ -142,12 +143,13 @@ void files_clean(int job_id, int step_id)
     ear_file_clean(path_slave_step);
     // 4. Creating the 'by the case' powerful cleaning command
     xsprintf(command, "rm -f %s/*.step 2> /dev/null", path_job);
-    system(command);
+    ret = system(command);
     // 5. Creating the other 'by the case' powerful cleaning command
     xsprintf(command, "rm -f %s/*.lock 2> /dev/null", path_job);
-    system(command);
+    ret = system(command);
     // 5. Write again master_step
     ear_file_write(path_master_step, (char *) &step_id, sizeof(int));
+    (void) ret;
 }
 
 // Master 2 (when error 1 or 2)
@@ -155,7 +157,8 @@ void folder_clean(int job_id)
 {
     // 1. Creating the cleaning command
     xsprintf(command, "rm -rfd %s 2> /dev/null", path_job);
-    system(command);
+    int ret = system(command);
+    (void) ret;
 }
 
 // Flag --clean
@@ -163,5 +166,6 @@ void all_clean(char *path_tmp)
 {
     xsprintf(command, "rm -rfd %s/erun* &> /dev/null", path_tmp);
     plug_verbose(_sp, 3, "Executing %s", command);
-    system(command);
+    int ret = system(command);
+    (void) ret;
 }

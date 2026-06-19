@@ -28,6 +28,7 @@
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static int api;
 static mode_t api_mode;
+static int count;
 
 char *mode_str(mode_t mode)
 {
@@ -67,20 +68,25 @@ state_t hsmp_open(topology_t *tp, mode_t mode)
         ;
     if (api == HSMP_API_NONE) {
         if (state_fail(__hsmp_open(tp, O_RDWR))) {
-            if (state_fail(__hsmp_open(tp, O_RDONLY))) {
-                debug("no HSMP API can be opened");
-                api = HSMP_API_FAILED;
+            if (mode == O_RDONLY) {
+                if (state_fail(__hsmp_open(tp, O_RDONLY))) {
+                    debug("no HSMP API can be opened");
+                    api = HSMP_API_FAILED;
+                }
             }
         }
     }
     pthread_mutex_unlock(&lock);
     // Once opened or failed
     if (api == HSMP_API_FAILED) {
+        debug("HSMP failed");
         return_msg(EAR_ERROR, "API failed previously");
-    } else if (mode == O_RDWR && api_mode != O_RDWR) {
+    } else if (mode == O_RDWR && ((api == HSMP_API_NONE) || (api_mode != O_RDWR))) {
         debug("The permissions request can be satisfied");
         return_msg(EAR_ERROR, Generr.no_permissions);
     }
+    count += 1;
+    debug("Opened HSMP %d times in mode %d (asked %d)", count, api_mode, mode);
     return EAR_SUCCESS;
 }
 
@@ -90,13 +96,23 @@ state_t hsmp_close()
     state_msg = Generr.api_uninitialized;
     while (pthread_mutex_trylock(&lock))
         ;
-    if (api == HSMP_API_DRIVER)
-        s = hsmp_driver_close();
-    if (api == HSMP_API_ESMI)
-        s = hsmp_esmi_close();
-    if (api == HSMP_API_PCI)
-        s = hsmp_pci_close();
-    api = HSMP_API_NONE;
+    if (count > 0) {
+        if (count == 1) {
+            debug("Closed HSMP, opened %d times", count);
+            if (api == HSMP_API_DRIVER)
+                s = hsmp_driver_close();
+            if (api == HSMP_API_ESMI)
+                s = hsmp_esmi_close();
+            if (api == HSMP_API_PCI)
+                s = hsmp_pci_close();
+            api = HSMP_API_NONE;
+        } else {
+            debug("Tried to close HSMP, opened %d times", count);
+        }
+        count -= 1;
+    } else {
+        debug("HSMP already closed");
+    }
     pthread_mutex_unlock(&lock);
     return s;
 }
@@ -145,26 +161,28 @@ static void hsmp_test_print_functions(cpu_t *cpu, strtable_t *tb, char *api_str,
                      cpu->id, cpu->apicid, "FAILED", (int) args[0], (int) reps[0], (int) reps[1], state_msg);          \
         }                                                                                                              \
     }
-    ht(0, 68, -1, 0, -1, HSMP_TEST, );
-    ht(0, -1, -1, 0, -1, HSMP_GET_SMU_VER, );
-    ht(0, -1, -1, 0, -1, HSMP_GET_PROTO_VER, );
-    ht(0, -1, -1, 0, -1, HSMP_GET_SOCKET_POWER, );
-    ht(0, -1, -1, 0, -1, HSMP_GET_SOCKET_POWER_LIMIT, f5ar = reps[0]);
-    ht(0, f5ar, -1, -1, -1, HSMP_SET_SOCKET_POWER_LIMIT, );
-    ht(0, -1, -1, 0, -1, HSMP_GET_SOCKET_POWER_LIMIT_MAX, );
-    ht(0, fAar, -1, 0, -1, HSMP_GET_BOOST_LIMIT, f8ar = (cpu->apicid << 16) | reps[0]);
-    ht(1, f8ar, -1, -1, -1, HSMP_SET_BOOST_LIMIT, );
-    // ht(1, -1, -1, -1, -1, HSMP_SET_BOOST_LIMIT_SOCKET,); // If pthe revious work...
-    ht(0, -1, -1, 0, -1, HSMP_GET_PROC_HOT, );
-    // ht(1, -1, -1, -1, -1, HSMP_SET_XGMI_LINK_WIDTH,); // We don't use this.
-    ht(0, 0, -1, -1, -1, HSMP_SET_DF_PSTATE, );
-    ht(0, -1, -1, -1, -1, HSMP_SET_AUTO_DF_PSTATE, );
-    ht(0, -1, -1, 0, 0, HSMP_GET_FCLK_MCLK, );
-    ht(0, -1, -1, 0, -1, HSMP_GET_CCLK_THROTTLE_LIMIT, );
-    ht(0, -1, -1, 0, -1, HSMP_GET_C0_PERCENT, );
-    // ht(0, -1, -1, -1, -1, HSMP_SET_NBIO_DPM_LEVEL,); // We don't use this. By now.
-    ht(0, -1, -1, 0, -1, HSMP_GET_DDR_BANDWIDTH, );
+    // clang-format off
+    ht(0,   68, -1,  0, -1, HSMP_TEST                      , );
+    ht(0,   -1, -1,  0, -1, HSMP_GET_SMU_VER               , );
+    ht(0,   -1, -1,  0, -1, HSMP_GET_PROTO_VER             , );
+    ht(0,   -1, -1,  0, -1, HSMP_GET_SOCKET_POWER          , );
+    ht(0,   -1, -1,  0, -1, HSMP_GET_SOCKET_POWER_LIMIT, f5ar = reps[0]);
+    ht(0, f5ar, -1, -1, -1, HSMP_SET_SOCKET_POWER_LIMIT    , );
+    ht(0,   -1, -1,  0, -1, HSMP_GET_SOCKET_POWER_LIMIT_MAX, );
+    ht(0, fAar, -1,  0, -1, HSMP_GET_BOOST_LIMIT, f8ar = (cpu->apicid << 16) | reps[0]);
+    ht(1, f8ar, -1, -1, -1, HSMP_SET_BOOST_LIMIT           , );
+  //ht(1,   -1, -1, -1, -1, HSMP_SET_BOOST_LIMIT_SOCKET    , ); // If pthe revious work...
+    ht(0,   -1, -1,  0, -1, HSMP_GET_PROC_HOT              , );
+  //ht(1,   -1, -1, -1, -1, HSMP_SET_XGMI_LINK_WIDTH       , ); // We don't use this.
+    ht(0,    0, -1, -1, -1, HSMP_SET_DF_PSTATE             , );
+    ht(0,   -1, -1, -1, -1, HSMP_SET_AUTO_DF_PSTATE        , );
+    ht(0,   -1, -1,  0,  0, HSMP_GET_FCLK_MCLK             , );
+    ht(0,   -1, -1,  0, -1, HSMP_GET_CCLK_THROTTLE_LIMIT   , );
+    ht(0,   -1, -1,  0, -1, HSMP_GET_C0_PERCENT            , );
+  //ht(0,   -1, -1, -1, -1, HSMP_SET_NBIO_DPM_LEVEL        , ); // We don't use this. By now.
+    ht(0,   -1, -1,  0, -1, HSMP_GET_DDR_BANDWIDTH         , );
     // More functions from family 1A
+    // clang-format on
 }
 
 void hsmp_test_print()

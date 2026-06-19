@@ -23,7 +23,7 @@
 static ulong *freqs_default;
 static ulong **freqs_avail_list;
 static uint *freqs_avail_count;
-static ulong *power_max_default;
+static uint32_t *power_max_default;
 static zes_power_limit_ext_desc_t *power_descs; // sustaineds
 static uint *power_domains;
 static uint devs_count;
@@ -65,7 +65,7 @@ static state_t get_available_watts()
     sources[ZES_POWER_SOURCE_BATTERY]     = "any";
 #endif
 
-    power_max_default = calloc(devs_count, sizeof(ulong));
+    power_max_default = calloc(devs_count, sizeof(uint32_t));
     power_descs       = calloc(devs_count, sizeof(zes_power_limit_ext_desc_t));
     power_domains     = calloc(devs_count, sizeof(uint));
 
@@ -87,7 +87,7 @@ static state_t get_available_watts()
                       sources[descs[de].source], devs[dv].spowers_props[dm].subdeviceId);
                 // Subdevice -1 is a root device
                 if (descs[de].level == ZES_POWER_LEVEL_SUSTAINED && devs[dv].spowers_props[dm].subdeviceId == -1) {
-                    power_max_default[dv] = ((ulong) descs[de].limit) / 1000LU;
+                    power_max_default[dv] = (uint32_t) (descs[de].limit / 1000);
                     power_domains[dv]     = dm;
                     memcpy(&power_descs[dv], &descs[de], sizeof(zes_power_limit_ext_desc_t));
 #if !SHOW_DEBUGS
@@ -217,16 +217,7 @@ state_t mgt_gpu_oneapi_dispose(ctx_t *c)
 
 state_t mgt_gpu_oneapi_get_devices(ctx_t *c, gpu_devs_t **devs_in, uint *devs_count_in)
 {
-    int dv;
-    *devs_in = calloc(devs_count, sizeof(gpu_devs_t));
-    //
-    for (dv = 0; dv < devs_count; ++dv) {
-        (*devs_in)[dv].serial = devs[dv].uuid;
-        (*devs_in)[dv].index  = dv;
-    }
-    if (devs_count_in != NULL) {
-        *devs_count_in = devs_count;
-    }
+    oneapi_get_devices(devs_in, devs_count_in);
     return EAR_SUCCESS;
 }
 
@@ -328,7 +319,7 @@ state_t mgt_gpu_oneapi_freq_list(ctx_t *c, const ulong ***list_khz, const uint *
     return EAR_SUCCESS;
 }
 
-state_t mgt_gpu_oneapi_power_cap_get_current(ctx_t *c, ulong *watts)
+state_t mgt_gpu_oneapi_power_cap_get_current(ctx_t *c, uint32_t *watts)
 {
 #if 0
     zes_power_sustained_limit_t ps;
@@ -349,7 +340,7 @@ state_t mgt_gpu_oneapi_power_cap_get_current(ctx_t *c, ulong *watts)
     return EAR_SUCCESS;
 }
 
-state_t mgt_gpu_oneapi_power_cap_get_default(ctx_t *c, ulong *watts)
+state_t mgt_gpu_oneapi_power_cap_get_default(ctx_t *c, uint32_t *watts)
 {
     int dv;
     for (dv = 0; dv < devs_count; ++dv) {
@@ -358,7 +349,7 @@ state_t mgt_gpu_oneapi_power_cap_get_default(ctx_t *c, ulong *watts)
     return EAR_SUCCESS;
 }
 
-state_t mgt_gpu_oneapi_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts_max)
+state_t mgt_gpu_oneapi_power_cap_get_rank(ctx_t *c, uint32_t *watts_min, uint32_t *watts_max)
 {
     int dv;
     if (watts_max != NULL) {
@@ -366,7 +357,7 @@ state_t mgt_gpu_oneapi_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *wat
         mgt_gpu_oneapi_power_cap_get_default(c, watts_max);
     }
     for (dv = 0; dv < devs_count; ++dv) {
-        watts_min[dv] = 0LU;
+        watts_min[dv] = 0;
     }
     return EAR_SUCCESS;
 }
@@ -377,7 +368,7 @@ state_t mgt_gpu_oneapi_power_cap_reset(ctx_t *c)
     return EAR_SUCCESS;
 }
 
-state_t mgt_gpu_oneapi_power_cap_set(ctx_t *c, ulong *watts)
+state_t mgt_gpu_oneapi_power_cap_set(ctx_t *c, uint32_t *watts)
 {
     zes_power_limit_ext_desc_t desc;
     uint one = 1;

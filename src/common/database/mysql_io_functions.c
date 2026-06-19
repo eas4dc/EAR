@@ -25,44 +25,45 @@
 typedef typeof((MYSQL_BIND) {0}.is_null) ear_my_bool;
 
 #define APPLICATION_MYSQL_QUERY                                                                                        \
-    "INSERT INTO Applications (job_id, step_id, local_id, node_id, signature_id, power_signature_id) VALUES"           \
+    "INSERT INTO Applications (job_id, step_id, app_id, node_name, earl_signature_id, eard_signature_id) VALUES"       \
     "(?, ?, ?, ?, ?, ?)"
 
 #define LOOP_MYSQL_QUERY                                                                                               \
-    "INSERT INTO Loops (event, size, level, job_id, step_id, local_id, node_id, total_iterations,"                     \
+    "INSERT INTO Loops (entry, size, level, job_id, step_id, app_id, node_name, timestamp,"                            \
     "signature_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #define JOB_MYSQL_QUERY                                                                                                \
-    "INSERT IGNORE INTO Jobs (job_id, step_id, local_id, user_id, app_id, start_time, end_time, start_mpi_time,"       \
-    "end_mpi_time, policy, threshold, procs, job_type, def_f, user_acc, user_group, e_tag) VALUES"                     \
-    "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT IGNORE INTO Jobs (job_id, step_id, app_id, user_name,  user_acc, user_group, app_name, start_time, "       \
+    "end_time, earl_start_time, earl_end_time, policy, threshold, num_procs, def_cpu_freq, def_gpu_freq, e_tag) "      \
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #if USE_GPUS
 #define SIGNATURE_QUERY_FULL                                                                                           \
-    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"                                                   \
-    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, L1_misses, L2_misses, L3_misses, "                                 \
-    "FLOPS1, FLOPS2, FLOPS3, FLOPS4, FLOPS5, FLOPS6, FLOPS7, FLOPS8, "                                                 \
-    "instructions, cycles, avg_f, avg_imc_f, def_f, cpu_util, min_GPU_sig_id, max_GPU_sig_id) VALUES "                 \
+    "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
+    "dram_bandwidth, io_bandwidth, TPI, CPI, cpu_gflops, elapsed_time, perc_MPI, L1_misses, L2_misses, L3_misses, "    \
+    "sp64_ops, sp128_ops, sp256_ops, sp512_ops, dp64_ops, dp128_ops, dp256_ops, dp512_ops,"                            \
+    "instructions, cycles, avg_cpu_freq, avg_imc_f, def_cpu_freq, cpu_util, min_GPU_sig_id, max_GPU_sig_id) VALUES "   \
     "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #define SIGNATURE_QUERY_SIMPLE                                                                                         \
-    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"                                                   \
-    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f, cpu_util, min_GPU_sig_id, "               \
-    "max_GPU_sig_id) VALUES "                                                                                          \
+    "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
+    "dram_bandwidth, io_bandwidth, TPI, CPI, cpu_gflops, elapsed_time, perc_MPI, avg_cpu_freq, avg_imc_freq, "         \
+    "def_cpu_freq, cpu_util, min_GPU_sig_id, max_GPU_sig_id) VALUES"                                                   \
     "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 #else
 #define SIGNATURE_QUERY_FULL                                                                                           \
-    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"                                                   \
-    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, L1_misses, L2_misses, L3_misses, "                                 \
-    "FLOPS1, FLOPS2, FLOPS3, FLOPS4, FLOPS5, FLOPS6, FLOPS7, FLOPS8, "                                                 \
-    "instructions, cycles, avg_f, avg_imc_f, def_f, cpu_util) VALUES "                                                 \
+    "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
+    "dram_bandwidth, io_bandwidth, TPI, CPI, cpu_gflops, elapsed_time, perc_MPI, L1_misses, L2_misses, L3_misses, "    \
+    "sp64_ops, sp128_ops, sp256_ops, sp512_ops, dp64_ops, dp128_ops, dp256_ops, dp512_ops,"                            \
+    "instructions, cycles, avg_cpu_freq, avg_imc_f, def_cpu_freq, cpu_util) VALUES "                                   \
     "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #define SIGNATURE_QUERY_SIMPLE                                                                                         \
-    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"                                                   \
-    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f, cpu_util) VALUES (?, ?, ?, ?, ?, ?, ?, "  \
-    "?, ?, "                                                                                                           \
-    "?, ?, ?, ?, ?, ?)"
+    "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
+    "dram_bandwidth, io_bandwidth, TPI, CPI, cpu_gflops, elapsed_time, perc_MPI, avg_cpu_freq, avg_imc_freq, "         \
+    "def_cpu_freq, cpu_util) VALUES"                                                                                   \
+    "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
 #endif
 
 #define AVG_SIGNATURE_QUERY_FULL                                                                                       \
@@ -138,8 +139,8 @@ typedef typeof((MYSQL_BIND) {0}.is_null) ear_my_bool;
 
 // Learning_phase insert queries
 #define LEARNING_APPLICATION_MYSQL_QUERY                                                                               \
-    "INSERT INTO Learning_applications (job_id, step_id, local_id, node_id, "                                          \
-    "signature_id, power_signature_id) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO Learning_applications (job_id, step_id, app_id, node_name, "                                          \
+    "earl_signature_id, eard_signature_id) VALUES (?, ?, ?, ?, ?, ?)"
 #if USE_GPUS
 #define LEARNING_SIGNATURE_QUERY_FULL                                                                                  \
     "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"                                           \
@@ -168,9 +169,9 @@ typedef typeof((MYSQL_BIND) {0}.is_null) ear_my_bool;
 #endif
 
 #define LEARNING_JOB_MYSQL_QUERY                                                                                       \
-    "INSERT IGNORE INTO Learning_jobs (job_id, step_id, local_id, user_id, app_id, start_time, end_time, "             \
-    "start_mpi_time, end_mpi_time, policy, threshold, procs, job_type, def_f, user_acc, user_group, e_tag) VALUES"     \
-    "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT IGNORE INTO Learning_jobs (job_id, step_id, app_id, user_name,  user_acc, user_group, app_name, "          \
+    "start_time, end_time, earl_start_time, earl_end_time, policy, threshold, num_procs, def_cpu_freq, def_gpu_freq, " \
+    "e_tag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #define AUTO_MYSQL_QUERY "SHOW VARIABLES LIKE 'auto_increment_inc%%'"
 
@@ -565,46 +566,47 @@ int mysql_batch_insert_jobs(MYSQL *connection, application_t *app, int num_apps)
     for (i = 0; i < num_apps; i++) {
         int offset = i * JOB_ARGS;
 
-        bind[0 + offset].buffer_type = bind[1 + offset].buffer_type = bind[2 + offset].buffer_type =
-            bind[5 + offset].buffer_type = bind[6 + offset].buffer_type = bind[7 + offset].buffer_type =
-                bind[8 + offset].buffer_type = bind[11 + offset].buffer_type = bind[13 + offset].buffer_type =
-                    MYSQL_TYPE_LONG;
+        for (int32_t j = 0; j < JOB_ARGS; j++) {
+            bind[i + offset].buffer_type = MYSQL_TYPE_LONG;
+        }
 
         bind[0 + offset].is_unsigned = bind[1 + offset].is_unsigned = bind[2 + offset].is_unsigned =
-            bind[11 + offset].is_unsigned                           = 1;
+            bind[13 + offset].is_unsigned                           = 1;
 
         // string types
-        bind[3 + offset].buffer_type = bind[4 + offset].buffer_type = bind[9 + offset].buffer_type =
-            bind[14 + offset].buffer_type = bind[15 + offset].buffer_type = bind[16 + offset].buffer_type =
+        bind[3 + offset].buffer_type = bind[4 + offset].buffer_type = bind[5 + offset].buffer_type =
+            bind[6 + offset].buffer_type = bind[11 + offset].buffer_type = bind[16 + offset].buffer_type =
                 MYSQL_TYPE_STRING;
 
         bind[3 + offset].buffer_length  = strlen(app[i].job.user_id);
-        bind[4 + offset].buffer_length  = strlen(app[i].job.app_id);
-        bind[9 + offset].buffer_length  = strlen(app[i].job.policy);
-        bind[14 + offset].buffer_length = strlen(app[i].job.user_acc);
-        bind[15 + offset].buffer_length = strlen(app[i].job.group_id);
+        bind[4 + offset].buffer_length  = strlen(app[i].job.user_acc);
+        bind[5 + offset].buffer_length  = strlen(app[i].job.group_id);
+        bind[6 + offset].buffer_length  = strlen(app[i].job.app_id);
+        bind[11 + offset].buffer_length = strlen(app[i].job.policy);
         bind[16 + offset].buffer_length = strlen(app[i].job.energy_tag);
 
         // double types
-        bind[10 + offset].buffer_type = MYSQL_TYPE_DOUBLE;
+        // bind[12 + offset].buffer_type = MYSQL_TYPE_FLOAT;
+        // th is a double and float in the DB. We specify as double and let SQL to fix
+        bind[12 + offset].buffer_type = MYSQL_TYPE_DOUBLE;
 
         // storage variable assignation
         bind[0 + offset].buffer  = (char *) &app[i].job.id;
         bind[1 + offset].buffer  = (char *) &app[i].job.step_id;
         bind[2 + offset].buffer  = (char *) &app[i].job.local_id;
         bind[3 + offset].buffer  = (char *) &app[i].job.user_id;
-        bind[4 + offset].buffer  = (char *) &app[i].job.app_id;
-        bind[5 + offset].buffer  = (char *) &app[i].job.start_time;
-        bind[6 + offset].buffer  = (char *) &app[i].job.end_time;
-        bind[7 + offset].buffer  = (char *) &app[i].job.start_mpi_time;
-        bind[8 + offset].buffer  = (char *) &app[i].job.end_mpi_time;
-        bind[9 + offset].buffer  = (char *) &app[i].job.policy;
-        bind[10 + offset].buffer = (char *) &app[i].job.th;
-        bind[11 + offset].buffer = (char *) &app[i].job.procs;
-        bind[12 + offset].buffer = (char *) &app[i].job.type;
-        bind[13 + offset].buffer = (char *) &app[i].job.def_f;
-        bind[14 + offset].buffer = (char *) &app[i].job.user_acc;
-        bind[15 + offset].buffer = (char *) &app[i].job.group_id;
+        bind[4 + offset].buffer  = (char *) &app[i].job.user_acc;
+        bind[5 + offset].buffer  = (char *) &app[i].job.group_id;
+        bind[6 + offset].buffer  = (char *) &app[i].job.app_id;
+        bind[7 + offset].buffer  = (char *) &app[i].job.start_time;
+        bind[8 + offset].buffer  = (char *) &app[i].job.end_time;
+        bind[9 + offset].buffer  = (char *) &app[i].job.start_mpi_time;
+        bind[10 + offset].buffer = (char *) &app[i].job.end_mpi_time;
+        bind[11 + offset].buffer = (char *) &app[i].job.policy;
+        bind[12 + offset].buffer = (char *) &app[i].job.th;
+        bind[13 + offset].buffer = (char *) &app[i].job.procs;
+        bind[14 + offset].buffer = (char *) &app[i].job.def_f;
+        bind[15 + offset].buffer = (char *) &app[i].job.def_gpu_f;
         bind[16 + offset].buffer = (char *) &app[i].job.energy_tag;
     }
     int ret = EAR_SUCCESS;
@@ -747,8 +749,8 @@ int mysql_retrieve_applications(MYSQL *connection, char *query, application_t **
     debug("Query:%s", query);
 
     // integer types
-    bind[0].buffer_type = bind[1].buffer_type = bind[2].buffer_type = bind[4].buffer_type = bind[5].buffer_type =
-        MYSQL_TYPE_LONGLONG;
+    bind[0].buffer_type = bind[1].buffer_type = bind[2].buffer_type = bind[4].buffer_type = MYSQL_TYPE_LONGLONG;
+    bind[5].buffer_type                                                                   = MYSQL_TYPE_LONG;
     bind[0].is_unsigned = bind[1].is_unsigned = bind[2].is_unsigned = bind[4].is_unsigned = bind[5].is_unsigned = 1;
 
     // string types
@@ -802,10 +804,10 @@ int mysql_retrieve_applications(MYSQL *connection, char *query, application_t **
 
     while (status == 0 || status == MYSQL_DATA_TRUNCATED) {
         if (is_learning)
-            sprintf(job_query, "SELECT * FROM Learning_jobs WHERE job_id=%lu AND step_id=%lu AND local_id=%lu", job_id,
+            sprintf(job_query, "SELECT * FROM Learning_jobs WHERE job_id=%lu AND step_id=%lu AND app_id=%lu", job_id,
                     step_id, local_id);
         else
-            sprintf(job_query, "SELECT * FROM Jobs WHERE job_id=%lu AND step_id=%lu AND local_id=%lu", job_id, step_id,
+            sprintf(job_query, "SELECT * FROM Jobs WHERE job_id=%lu AND step_id=%lu AND app_id=%lu", job_id, step_id,
                     local_id);
         debug("Job query:%s", job_query);
         num_jobs = mysql_retrieve_jobs(connection, job_query, &job_aux);
@@ -1076,18 +1078,18 @@ int mysql_retrieve_jobs(MYSQL *connection, char *query, job_t **jobs)
     MYSQL_BIND bind[17];
     memset(bind, 0, sizeof(bind));
     // integer types
-    bind[0].buffer_type = bind[1].buffer_type = bind[2].buffer_type = bind[5].buffer_type = bind[6].buffer_type =
-        bind[7].buffer_type = bind[8].buffer_type = bind[11].buffer_type = bind[12].buffer_type = bind[13].buffer_type =
-            MYSQL_TYPE_LONGLONG;
+    for (int32_t i = 0; i < 16; i++) {
+        bind[i].buffer_type = MYSQL_TYPE_LONGLONG;
+    }
     bind[0].is_unsigned = bind[10].is_unsigned = 1;
 
     // string types
-    bind[3].buffer_type = bind[4].buffer_type = bind[9].buffer_type = bind[14].buffer_type = bind[15].buffer_type =
-        bind[16].buffer_type                                                               = MYSQL_TYPE_VAR_STRING;
-    bind[3].buffer_length = bind[4].buffer_length = bind[9].buffer_length = bind[14].buffer_length =
-        bind[15].buffer_length = bind[16].buffer_length = 256;
+    bind[3].buffer_type = bind[4].buffer_type = bind[5].buffer_type = bind[6].buffer_type = bind[11].buffer_type =
+        bind[16].buffer_type                                                              = MYSQL_TYPE_VAR_STRING;
+    bind[3].buffer_length = bind[4].buffer_length = bind[5].buffer_length = bind[6].buffer_length =
+        bind[11].buffer_length = bind[16].buffer_length = 256;
     // double types
-    bind[10].buffer_type = MYSQL_TYPE_DOUBLE;
+    bind[12].buffer_type = MYSQL_TYPE_FLOAT;
 
     // varchar types
 
@@ -1096,18 +1098,18 @@ int mysql_retrieve_jobs(MYSQL *connection, char *query, job_t **jobs)
     bind[1].buffer  = &job_aux->step_id;
     bind[2].buffer  = &job_aux->local_id;
     bind[3].buffer  = &job_aux->user_id;
-    bind[4].buffer  = &job_aux->app_id;
-    bind[5].buffer  = &job_aux->start_time;
-    bind[6].buffer  = &job_aux->end_time;
-    bind[7].buffer  = &job_aux->start_mpi_time;
-    bind[8].buffer  = &job_aux->end_mpi_time;
-    bind[9].buffer  = &job_aux->policy;
-    bind[10].buffer = &job_aux->th;
-    bind[11].buffer = &job_aux->procs;
-    bind[12].buffer = &job_aux->type;
-    bind[13].buffer = &job_aux->def_f;
-    bind[14].buffer = &job_aux->user_acc;
-    bind[15].buffer = &job_aux->group_id;
+    bind[4].buffer  = &job_aux->user_acc;
+    bind[5].buffer  = &job_aux->group_id;
+    bind[6].buffer  = &job_aux->app_id;
+    bind[7].buffer  = &job_aux->start_time;
+    bind[8].buffer  = &job_aux->end_time;
+    bind[9].buffer  = &job_aux->start_mpi_time;
+    bind[10].buffer = &job_aux->end_mpi_time;
+    bind[11].buffer = &job_aux->policy;
+    bind[12].buffer = &job_aux->th;
+    bind[13].buffer = &job_aux->procs;
+    bind[14].buffer = &job_aux->def_f;
+    bind[15].buffer = &job_aux->def_gpu_f;
     bind[16].buffer = &job_aux->energy_tag;
 
     int ret = EAR_SUCCESS;
@@ -1356,7 +1358,7 @@ long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t
         }
 
         // unsigned long long storage
-        for (j = 11; j < num_params; j++) {
+        for (j = 10; j < num_params; j++) {
             bind[offset + j].buffer_type = MYSQL_TYPE_LONGLONG;
             bind[offset + j].length      = 0;
             bind[offset + j].is_null     = 0;
@@ -1374,71 +1376,70 @@ long long mysql_batch_insert_signatures(MYSQL *connection, signature_container_t
             continue;
         }
 
-        bind[0 + offset].buffer  = (char *) &signature->DC_power;
-        bind[1 + offset].buffer  = (char *) &signature->DRAM_power;
-        bind[2 + offset].buffer  = (char *) &signature->PCK_power;
-        bind[3 + offset].buffer  = (char *) &signature->EDP;
-        bind[4 + offset].buffer  = (char *) &signature->GBS;
-        bind[5 + offset].buffer  = (char *) &signature->IO_MBS;
-        bind[6 + offset].buffer  = (char *) &signature->TPI;
-        bind[7 + offset].buffer  = (char *) &signature->CPI;
-        bind[8 + offset].buffer  = (char *) &signature->Gflops;
-        bind[9 + offset].buffer  = (char *) &signature->time;
-        bind[10 + offset].buffer = (char *) &signature->perc_MPI;
+        bind[0 + offset].buffer = (char *) &signature->DC_power;
+        bind[1 + offset].buffer = (char *) &signature->DRAM_power;
+        bind[2 + offset].buffer = (char *) &signature->PCK_power;
+        bind[3 + offset].buffer = (char *) &signature->GBS;
+        bind[4 + offset].buffer = (char *) &signature->IO_MBS;
+        bind[5 + offset].buffer = (char *) &signature->TPI;
+        bind[6 + offset].buffer = (char *) &signature->CPI;
+        bind[7 + offset].buffer = (char *) &signature->Gflops;
+        bind[8 + offset].buffer = (char *) &signature->time;
+        bind[9 + offset].buffer = (char *) &signature->perc_MPI;
         if (full_signature) {
-            bind[11 + offset].buffer = (char *) &signature->L1_misses;
-            bind[12 + offset].buffer = (char *) &signature->L2_misses;
-            bind[13 + offset].buffer = (char *) &signature->L3_misses;
-            bind[14 + offset].buffer = (char *) &signature->FLOPS[0];
-            bind[15 + offset].buffer = (char *) &signature->FLOPS[1];
-            bind[16 + offset].buffer = (char *) &signature->FLOPS[2];
-            bind[17 + offset].buffer = (char *) &signature->FLOPS[3];
-            bind[18 + offset].buffer = (char *) &signature->FLOPS[4];
-            bind[19 + offset].buffer = (char *) &signature->FLOPS[5];
-            bind[20 + offset].buffer = (char *) &signature->FLOPS[6];
-            bind[21 + offset].buffer = (char *) &signature->FLOPS[7];
-            bind[22 + offset].buffer = (char *) &signature->instructions;
-            bind[23 + offset].buffer = (char *) &signature->cycles;
-            bind[24 + offset].buffer = (char *) &signature->avg_f;
-            bind[25 + offset].buffer = (char *) &signature->avg_imc_f;
-            bind[26 + offset].buffer = (char *) &signature->def_f;
-            bind[27 + offset].buffer = (char *) &signature->ps_sig.cpu_util;
+            bind[10 + offset].buffer = (char *) &signature->L1_misses;
+            bind[11 + offset].buffer = (char *) &signature->L2_misses;
+            bind[12 + offset].buffer = (char *) &signature->L3_misses;
+            bind[13 + offset].buffer = (char *) &signature->FLOPS[0];
+            bind[14 + offset].buffer = (char *) &signature->FLOPS[1];
+            bind[15 + offset].buffer = (char *) &signature->FLOPS[2];
+            bind[16 + offset].buffer = (char *) &signature->FLOPS[3];
+            bind[17 + offset].buffer = (char *) &signature->FLOPS[4];
+            bind[18 + offset].buffer = (char *) &signature->FLOPS[5];
+            bind[19 + offset].buffer = (char *) &signature->FLOPS[6];
+            bind[20 + offset].buffer = (char *) &signature->FLOPS[7];
+            bind[21 + offset].buffer = (char *) &signature->instructions;
+            bind[22 + offset].buffer = (char *) &signature->cycles;
+            bind[23 + offset].buffer = (char *) &signature->avg_f;
+            bind[24 + offset].buffer = (char *) &signature->avg_imc_f;
+            bind[25 + offset].buffer = (char *) &signature->def_f;
+            bind[26 + offset].buffer = (char *) &signature->ps_sig.cpu_util;
 #if USE_GPUS
             if (signature->gpu_sig.num_gpus > 0 &&
                 starter_gpu_sig_id >= 0) // if there are gpu signatures and no error occured
             {
-                bind[28 + offset].buffer = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                bind[27 + offset].buffer = (char *) &gpu_sig_ids[current_gpu_sig_id];
 
                 current_gpu_sig_id += signature->gpu_sig.num_gpus - 1; // we get max_sig_id
-                bind[29 + offset].buffer = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                bind[28 + offset].buffer = (char *) &gpu_sig_ids[current_gpu_sig_id];
 
                 current_gpu_sig_id++; // we prepare for the next signature_id
             } else                    // if no gpu_signatures we set the values to null
             {
-                bind[28 + offset].buffer_type = bind[29 + offset].buffer_type = MYSQL_TYPE_NULL;
-                bind[28 + offset].is_null = bind[29 + offset].is_null = (ear_my_bool) 1;
-                bind[28 + offset].buffer = bind[29 + offset].buffer = NULL;
+                bind[27 + offset].buffer_type = bind[28 + offset].buffer_type = MYSQL_TYPE_NULL;
+                bind[27 + offset].is_null = bind[28 + offset].is_null = (ear_my_bool) 1;
+                bind[27 + offset].buffer = bind[28 + offset].buffer = NULL;
             }
 #endif
         } else {
-            bind[11 + offset].buffer = (char *) &signature->avg_f;
-            bind[12 + offset].buffer = (char *) &signature->avg_imc_f;
-            bind[13 + offset].buffer = (char *) &signature->def_f;
-            bind[14 + offset].buffer = (char *) &signature->ps_sig.cpu_util;
+            bind[10 + offset].buffer = (char *) &signature->avg_f;
+            bind[11 + offset].buffer = (char *) &signature->avg_imc_f;
+            bind[12 + offset].buffer = (char *) &signature->def_f;
+            bind[13 + offset].buffer = (char *) &signature->ps_sig.cpu_util;
 
 #if USE_GPUS
             if (signature->gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0) {
-                bind[15 + offset].buffer = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                bind[14 + offset].buffer = (char *) &gpu_sig_ids[current_gpu_sig_id];
 
                 current_gpu_sig_id += signature->gpu_sig.num_gpus - 1; // we get max_sig_id
-                bind[16 + offset].buffer = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                bind[15 + offset].buffer = (char *) &gpu_sig_ids[current_gpu_sig_id];
 
                 current_gpu_sig_id++; // we prepare for the next signature_id
             } else                    // if no gpu_signatures we set the values to null
             {
-                bind[15 + offset].buffer_type = bind[16 + offset].buffer_type = MYSQL_TYPE_NULL;
-                bind[15 + offset].is_null = bind[16 + offset].is_null = (ear_my_bool) 1;
-                bind[15 + offset].buffer = bind[16 + offset].buffer = NULL;
+                bind[14 + offset].buffer_type = bind[15 + offset].buffer_type = MYSQL_TYPE_NULL;
+                bind[14 + offset].is_null = bind[15 + offset].is_null = (ear_my_bool) 1;
+                bind[14 + offset].buffer = bind[15 + offset].buffer = NULL;
             }
 #endif
         }
@@ -1509,7 +1510,7 @@ int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs
         return EAR_MYSQL_ERROR;
     }
 
-    int id = 0;
+    uint64_t id = 0;
     if (mysql_stmt_prepare(statement, query, strlen(query))) {
         free(sig_aux);
         return mysql_statement_error(statement);
@@ -1528,7 +1529,7 @@ int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs
     }
 
     // unsigned long long recievers
-    for (i = 12; i < num_params; i++) {
+    for (i = 11; i < num_params; i++) {
         bind[i].buffer_type   = MYSQL_TYPE_LONGLONG;
         bind[i].buffer_length = 8;
         bind[i].is_unsigned   = 1;
@@ -1539,44 +1540,43 @@ int mysql_retrieve_signatures(MYSQL *connection, char *query, signature_t **sigs
     bind[1].buffer  = &sig_aux->DC_power;
     bind[2].buffer  = &sig_aux->DRAM_power;
     bind[3].buffer  = &sig_aux->PCK_power;
-    bind[4].buffer  = &sig_aux->EDP;
-    bind[5].buffer  = &sig_aux->GBS;
-    bind[6].buffer  = &sig_aux->IO_MBS;
-    bind[7].buffer  = &sig_aux->TPI;
-    bind[8].buffer  = &sig_aux->CPI;
-    bind[9].buffer  = &sig_aux->Gflops;
-    bind[10].buffer = &sig_aux->time;
-    bind[11].buffer = &sig_aux->perc_MPI;
+    bind[4].buffer  = &sig_aux->GBS;
+    bind[5].buffer  = &sig_aux->IO_MBS;
+    bind[6].buffer  = &sig_aux->TPI;
+    bind[7].buffer  = &sig_aux->CPI;
+    bind[8].buffer  = &sig_aux->Gflops;
+    bind[9].buffer  = &sig_aux->time;
+    bind[10].buffer = &sig_aux->perc_MPI;
     if (full_signature) {
-        bind[12].buffer = &sig_aux->L1_misses;
-        bind[13].buffer = &sig_aux->L2_misses;
-        bind[14].buffer = &sig_aux->L3_misses;
-        bind[15].buffer = &sig_aux->FLOPS[0];
-        bind[16].buffer = &sig_aux->FLOPS[1];
-        bind[17].buffer = &sig_aux->FLOPS[2];
-        bind[18].buffer = &sig_aux->FLOPS[3];
-        bind[19].buffer = &sig_aux->FLOPS[4];
-        bind[20].buffer = &sig_aux->FLOPS[5];
-        bind[21].buffer = &sig_aux->FLOPS[6];
-        bind[22].buffer = &sig_aux->FLOPS[7];
-        bind[23].buffer = &sig_aux->instructions;
-        bind[24].buffer = &sig_aux->cycles;
-        bind[25].buffer = &sig_aux->avg_f;
-        bind[26].buffer = &sig_aux->avg_imc_f;
-        bind[27].buffer = &sig_aux->def_f;
-        bind[28].buffer = &sig_aux->ps_sig.cpu_util;
+        bind[11].buffer = &sig_aux->L1_misses;
+        bind[12].buffer = &sig_aux->L2_misses;
+        bind[13].buffer = &sig_aux->L3_misses;
+        bind[14].buffer = &sig_aux->FLOPS[0];
+        bind[15].buffer = &sig_aux->FLOPS[1];
+        bind[16].buffer = &sig_aux->FLOPS[2];
+        bind[17].buffer = &sig_aux->FLOPS[3];
+        bind[18].buffer = &sig_aux->FLOPS[4];
+        bind[19].buffer = &sig_aux->FLOPS[5];
+        bind[20].buffer = &sig_aux->FLOPS[6];
+        bind[21].buffer = &sig_aux->FLOPS[7];
+        bind[22].buffer = &sig_aux->instructions;
+        bind[23].buffer = &sig_aux->cycles;
+        bind[24].buffer = &sig_aux->avg_f;
+        bind[25].buffer = &sig_aux->avg_imc_f;
+        bind[26].buffer = &sig_aux->def_f;
+        bind[27].buffer = &sig_aux->ps_sig.cpu_util;
 #if USE_GPUS
-        bind[29].buffer = &min_gpu_sig_id;
-        bind[30].buffer = &max_gpu_sig_id;
+        bind[28].buffer = &min_gpu_sig_id;
+        bind[29].buffer = &max_gpu_sig_id;
 #endif
     } else {
-        bind[12].buffer = &sig_aux->avg_f;
-        bind[13].buffer = &sig_aux->avg_imc_f;
-        bind[14].buffer = &sig_aux->def_f;
-        bind[15].buffer = &sig_aux->ps_sig.cpu_util;
+        bind[11].buffer = &sig_aux->avg_f;
+        bind[12].buffer = &sig_aux->avg_imc_f;
+        bind[13].buffer = &sig_aux->def_f;
+        bind[14].buffer = &sig_aux->ps_sig.cpu_util;
 #if USE_GPUS
-        bind[16].buffer = &min_gpu_sig_id;
-        bind[17].buffer = &max_gpu_sig_id;
+        bind[15].buffer = &min_gpu_sig_id;
+        bind[16].buffer = &max_gpu_sig_id;
 #endif
     }
 

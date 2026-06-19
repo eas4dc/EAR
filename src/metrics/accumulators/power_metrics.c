@@ -61,11 +61,8 @@ static void pm_disconnect(ehandler_t *my_eh)
     if (rootp) {
         energy_dispose(my_eh);
         energy_cpu_dispose(NULL);
-
 #if USE_GPUS
-        if (gpu_num > 0) {
-            gpu_dispose(no_ctx);
-        }
+        gpu_unload();
 #endif
     }
 }
@@ -159,11 +156,7 @@ static int pm_connect(ehandler_t *my_eh, topology_t *tp)
     int gpu_error = 0;
 
     gpu_load(NO_EARD);
-    if (state_fail(s = gpu_init(no_ctx))) {
-        error("gpu_init returned %d (%s)", s, state_msg);
-        gpu_error = 1;
-    }
-    gpu_count_devices(no_ctx, &gpu_num);
+    gpu_get_devices(NULL, &gpu_num);
     gpu_data_alloc(&gpu_diff);
     if (gpu_error) {
         gpu_num = 0;
@@ -234,7 +227,7 @@ int read_enegy_data(ehandler_t *my_eh, energy_data_t *acc_energy)
 #if USE_GPUS
     state_t s;
 
-    if (state_fail(s = gpu_read(no_ctx, acc_energy->gpu_data))) {
+    if (state_fail(s = gpu_read(acc_energy->gpu_data))) {
         error("gpu_read returned %d (%s)", s, state_msg);
     }
 #endif

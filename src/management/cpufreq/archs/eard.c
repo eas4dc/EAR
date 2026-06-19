@@ -100,9 +100,8 @@ state_t mgt_cpufreq_eard_init(ctx_t *c)
 
     // Lock must be added
     if (initialized) {
-        static_dispose(c, s, state_msg);
+        static_dispose(c, EAR_SUCCESS, state_msg);
     }
-
     // The initialization is just for read values. The init of this API it will
     // be called just if other APIs can't read, because if not these other APIs
     // will offer the following data.

@@ -31,7 +31,7 @@
 
 #define EDB_NTYPES          7
 #define EDB_MAX_CONNECTIONS 2048
-#define EDB_OFFLINE         0 // To test EARDBD offline
+#define EDB_OFFLINE         0 // Enable to test EARDBD in local
 // These are the type of the events passed by sockets.
 #define EDB_TYPE_ENERGY_REP    1
 #define EDB_TYPE_APP_MPI       2
@@ -66,6 +66,12 @@
 #define index_evens 4
 #define index_enrgy 5
 #define index_aggrs 6
+// Secret key to decline values.
+#ifndef SEC_KEY
+#define SEC_KEY 69
+#endif
+#define key_add(value) ((value & 0xFFFFFFFFFFFF0000) | SEC_KEY) // 16 bits
+#define key_get(value) ((value & 0x000000000000FFFF))
 
 typedef struct sync_question_s {
     uint sync_option;

@@ -108,8 +108,8 @@ typedef struct my_node_conf {
     ulong max_temp;
     ulong max_avx512_freq;
     ulong max_avx2_freq;
-    long max_powercap;
-    long powercap;
+    uint32_t max_powercap;
+    uint32_t powercap;
     char powercap_type;
     ulong gpu_def_freq;
     int cpu_max_pstate; /* Used by policies as lower limit */

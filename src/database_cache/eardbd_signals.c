@@ -68,21 +68,21 @@ void signal_handler(int signal, siginfo_t *info, void *context)
 
     // Verbose signal
     if (signal == SIGUSR1) {
-        verb_who("signal SIGUSR1 received, switching verbosity to '%d'", verbosity);
+        verb1("signal SIGUSR1 received, switching verbosity to '%d'", verbosity);
         verbosity  = (verbosity != 2) * 2;
         verb_level = verbosity;
         updating   = 1;
     }
     // Log rotation signal
     if (signal == SIGUSR2) {
-        verb_who_noarg("signal SIGUSR2 received, re-opening log file");
+        verb0("signal SIGUSR2 received, re-opening log file");
         log_handler(&conf_clus, 1);
         propagating = others_pid > 0 && info->si_pid != others_pid;
         updating    = 1;
     }
     // Case exit
     if ((signal == SIGTERM || signal == SIGINT || signal == SIGHUP) && !exitting) {
-        verb_who_noarg("signal SIGTERM/SIGINT/SIGHUP received, exitting");
+        verb0("signal SIGTERM/SIGINT/SIGHUP received, exitting");
         propagating = others_pid > 0 && info->si_pid != others_pid;
         // waiting   = others_pid > 0 && server_iam;
         listening = 0;
@@ -91,7 +91,7 @@ void signal_handler(int signal, siginfo_t *info, void *context)
         exitting  = 1;
     }
     if (signal == SIGCHLD) {
-        verb_who_noarg("signal SIGCHLD received");
+        verb0("signal SIGCHLD received");
         updating = 1;
         waiting  = server_iam & (others_pid > 0);
         dreaming = 0;

@@ -2,17 +2,21 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 
 ######## FILES
 
-io_OBJS = io.o
+io_OBJS = \
+    io.o \
+    io_old.o
 
 ######## RULES
 
-all: $(io_OBJS)
+all: all.components $(io_OBJS)
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<
 
 ######## SUBFOLDERS
 
+%.components:
+	@ $(MAKE) -C 'archs' $* || exit
 
 ######## OPTIONS
 
@@ -20,7 +24,7 @@ install: ;
 
 %.install: ;
 
-clean: rclean ;
+clean: rclean clean.components;
 
 depend: 
 

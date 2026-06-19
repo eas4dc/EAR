@@ -94,13 +94,13 @@ static void *calculate_frequency(void *arg)
     freq2 = ceil_magic_u64(freq2, 9) / (ullong) 1E3;
     // Returning the data
     *((ullong *) arg) = freq2;
-
     return NULL;
 }
 
 static state_t dynamic_clean(state_t s, char *msg)
 {
     intel63_write(0, max_khz, min_khz);
+    msr_close(0);
     return_msg(s, msg);
 }
 
@@ -118,11 +118,16 @@ static state_t dynamic_detection(topology_t *tp, ullong *freq_khz)
     if (state_fail(s = imcfreq_intel63_ext_load_addresses(tp))) {
         return s;
     }
+    if (state_fail(s = msr_open(0, MSR_WR))) {
+        return s;
+    }
     if (state_fail(s = imcfreq_intel63_ext_enable_cpu(0))) {
+        msr_close(0);
         return s;
     }
     // Hacking frequency (absurdly high frequency for both min and max)
     if (state_fail(s = intel63_write(0, 6300000, 6300000))) {
+        msr_close(0);
         return s;
     }
     // Creating threads
@@ -341,7 +346,6 @@ static int read_required(uint *max_list, uint *min_list)
             return 1;
         }
     }
-
     return 0;
 }
 
@@ -373,18 +377,22 @@ static state_t set_current_list(uint *max_list, uint *min_list)
         aux_max = max_khz;
         aux_min = min_khz;
         // Else
-        if (max_list == NULL)
+        if (max_list == NULL) {
             aux_max = buffer_max[i].khz;
-        else if (max_list[i] == ps_nothing)
+        } else if (max_list[i] == ps_nothing) {
             aux_max = buffer_max[i].khz;
-        else if (max_valid)
+        } else if (max_valid) {
             aux_max = available_list[max_list[i]].khz;
-        if (min_list == NULL)
+        } else {
+        }
+        if (min_list == NULL) {
             aux_min = buffer_min[i].khz;
-        else if (min_list[i] == ps_nothing)
+        } else if (min_list[i] == ps_nothing) {
             aux_min = buffer_min[i].khz;
-        else if (min_valid)
+        } else if (min_valid) {
             aux_min = available_list[min_list[i]].khz;
+        } else {
+        }
         debug("IMC%d, setting frequency to (%llu, %llu)", i, aux_max, aux_min);
         if ((r = intel63_write(tp_static.cpus[i].id, aux_max, aux_min))) {
             return r;

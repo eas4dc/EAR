@@ -16,13 +16,13 @@
 #include <dlfcn.h>
 #include <unistd.h>
 
-state_t plug_join(void *handle, void *calls[], const char *names[], uint n)
+state_t plug_join(void *handler, void *calls[], const char *names[], uint n)
 {
     uint i, counter;
     char *error;
 
     for (counter = i = 0; i < n; ++i) {
-        calls[i] = dlsym(handle, names[i]);
+        calls[i] = dlsym(handler, names[i]);
         error    = dlerror();
         if ((calls[i] != NULL) && (error == NULL)) {
             debug("symbol %s found (%p)", names[i], calls[i]);
@@ -38,42 +38,47 @@ state_t plug_join(void *handle, void *calls[], const char *names[], uint n)
     return EAR_SUCCESS;
 }
 
-static state_t static_open(char *path, void *calls[], const char *names[], uint n, int flags)
+static void *static_open(char *path, void *calls[], const char *names[], uint n, int flags)
 {
-    void *handle;
+    void *handler = NULL;
 
     if (path != NULL) {
         debug("Trying to access to '%s'", path);
         if (access(path, X_OK) != 0) {
             debug("Plugin %s cannot be accessed: %s", path, strerror(errno));
-            return_msg(EAR_ERROR, strerror(errno));
+            return_msg(NULL, strerror(errno));
         }
     }
-    if ((handle = dlopen(path, flags)) == NULL) {
+    if ((handler = dlopen(path, flags)) == NULL) {
         debug("Plugin %s cannot be loaded: %s", path, dlerror());
-        return_msg(EAR_ERROR, dlerror());
+        return_msg(NULL, dlerror());
     }
     debug("dlopen ok");
-    return plug_join(handle, calls, names, n);
-}
-
-state_t symplug_open(char *path, void *calls[], const char *names[], uint n)
-{
-    return static_open(path, calls, names, n, RTLD_GLOBAL | RTLD_NOW);
+    if (state_fail(plug_join(handler, calls, names, n))) {
+        dlclose(handler);
+        handler = NULL;
+    }
+    return handler;
 }
 
 state_t plug_open(char *path, void *calls[], const char *names[], uint n, int flags)
 {
+    if (static_open(path, calls, names, n, flags) == NULL) {
+        return EAR_ERROR;
+    }
+    return EAR_SUCCESS;
+}
+
+void *plug_open2(char *path, void *calls[], const char *names[], uint n, int flags)
+{
     return static_open(path, calls, names, n, flags);
 }
 
-state_t plug_test(void *calls[], uint n)
+// Deprecated
+state_t symplug_open(char *path, void *calls[], const char *names[], uint n)
 {
-    uint i;
-    for (i = 0; i < n; ++i) {
-        if (calls[i] == NULL) {
-            return EAR_ERROR;
-        }
+    if (static_open(path, calls, names, n, RTLD_GLOBAL | RTLD_NOW) == NULL) {
+        return EAR_ERROR;
     }
     return EAR_SUCCESS;
 }

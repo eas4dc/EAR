@@ -76,9 +76,7 @@ static int get_user_devices()
     if (state_fail(nvml_open(NULL))) {
         return 1;
     }
-    if (state_fail(nvml_get_devices(NULL, &user_devs_count))) {
-        return 1;
-    }
+    nvml_get_handlers(NULL, &user_devs_count);
     // If is the same number of GPUs, we don't have any problem.
     if (user_devs_count == devs_count || user_devs_count == 0) {
         return 1;

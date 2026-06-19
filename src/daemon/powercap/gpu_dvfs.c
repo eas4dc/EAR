@@ -33,28 +33,28 @@
 #define UTIL_INC           10
 #define UTIL_WAIT          50
 
-static uint gpu_idle_power = MIN_GPU_IDLE_POWER;
+static uint32_t gpu_idle_power = MIN_GPU_IDLE_POWER;
 
 static uint gpu_dvfs_pc_enabled = 0;
 // static ulong c_req_f;
 
 /* This  subscription will take care automatically of the power monitoring */
-static ulong current_gpu_pc = 0;
-static ulong default_gpu_pc = 0;
-static uint gpu_pc_enabled  = 0;
-static uint c_status        = PC_STATUS_IDLE;
-static uint c_mode          = PC_MODE_LIMIT;
+static uint32_t current_gpu_pc = 0;
+static uint32_t default_gpu_pc = 0;
+static uint gpu_pc_enabled     = 0;
+static uint c_status           = PC_STATUS_IDLE;
+static uint c_mode             = PC_MODE_LIMIT;
 
 static gpu_t *values_gpu_init, *values_gpu_end, *values_gpu_diff, *values_gpu_idle;
 
 static uint gpu_pc_num_gpus;
-static ulong *gpu_pc_min_power;
-static ulong *gpu_pc_max_power;
+static uint32_t *gpu_pc_min_power;
+static uint32_t *gpu_pc_max_power;
 /* These two variables controls the power ditribution between GPUS */
-static ulong *gpu_pc_curr_power;
-static ulong *gpu_pc_util;
+static uint32_t *gpu_pc_curr_power;
+static uint32_t *gpu_pc_util;
 /* util wait to control when a GPU has been idle and a previous freq to restore it when it starts again */
-static ulong *gpu_pc_util_wait;
+static uint32_t *gpu_pc_util_wait;
 static ulong *gpu_pc_prev_freq;
 
 static long *gpu_pc_excess;
@@ -65,10 +65,10 @@ static const uint *gpu_num_freqs         = NULL;
 static uint gpu_dvfs_status              = PC_STATUS_OK;
 static uint gpu_dvfs_ask_def             = 0;
 static uint gpu_dvfs_monitor_initialized = 0;
-static uint gpu_dvfs_util                = 0;
+static uint32_t gpu_dvfs_util            = 0;
 static suscription_t *sus_gpu;
 
-static state_t int_set_powercap_value(ulong limit, ulong *gpu_util);
+static state_t int_set_powercap_value(uint32_t limit, uint32_t *gpu_util);
 
 static domain_settings_t settings = {.node_ratio = 0.02, .security_range = 0.01};
 
@@ -155,11 +155,6 @@ debug("Freq[%d]=%lu",j,f[i][j]);
 state_t gpu_dvfs_pc_thread_init(void *p)
 {
     gpu_load(NO_EARD);
-    if (gpu_init(no_ctx) != EAR_SUCCESS) {
-        debug("Error at gpu initialization");
-        gpu_dvfs_pc_enabled = 0;
-        return EAR_ERROR;
-    }
     gpu_data_alloc(&values_gpu_init);
     gpu_data_alloc(&values_gpu_end);
     gpu_data_alloc(&values_gpu_diff);
@@ -167,7 +162,7 @@ state_t gpu_dvfs_pc_thread_init(void *p)
     // printf_gpu_freq_list(gpu_freq_list,gpu_num_freqs);
     gpu_dvfs_pc_enabled = 1;
     debug("Power measurement initialized in gpu_dvfs_pc thread initialization");
-    if (gpu_read(no_ctx, values_gpu_init) != EAR_SUCCESS) {
+    if (gpu_read(values_gpu_init) != EAR_SUCCESS) {
         debug("Error in gpu_read in gpu_dvfs_pc");
         gpu_dvfs_pc_enabled = 0;
     }
@@ -184,7 +179,7 @@ state_t gpu_dvfs_pc_thread_main(void *p)
 
     if (!gpu_dvfs_pc_enabled)
         return EAR_SUCCESS;
-    if (gpu_read(no_ctx, values_gpu_end) != EAR_SUCCESS) {
+    if (gpu_read(values_gpu_end) != EAR_SUCCESS) {
         debug("Error in gpu_read gpu_dvfs_pc");
         return EAR_ERROR;
     }
@@ -418,7 +413,7 @@ void restore_frequency()
     mgt_gpu_freq_limit_set(no_ctx, n_freq);
 }
 
-state_t set_powercap_value(uint pid, uint domain, uint32_t *limit, ulong *gpu_util)
+state_t set_powercap_value(uint pid, uint domain, uint32_t *limit, uint32_t *gpu_util)
 {
     gpu_dvfs_status  = PC_STATUS_OK;
     gpu_dvfs_ask_def = 0;
@@ -461,21 +456,21 @@ state_t increase_powercap_allocation(uint increase)
     return int_set_powercap_value(current_gpu_pc, gpu_pc_util);
 }
 
-static state_t int_set_powercap_value(ulong limit, ulong *gpu_util)
+static state_t int_set_powercap_value(uint32_t limit, uint32_t *gpu_util)
 {
     int i;
     float alloc;
-    ulong ualloc;
-    uint total_util = 0;
+    uint32_t ualloc;
+    uint32_t total_util = 0;
     /* Set data */
     current_gpu_pc = limit;
-    debug("%sGPU-DVFS:set_powercap_value %lu%s", COL_BLU, limit, COL_CLR);
+    debug("%sGPU-DVFS:set_powercap_value %u%s", COL_BLU, limit, COL_CLR);
     if (current_gpu_pc == POWER_CAP_UNLIMITED) {
         restore_frequency();
         return EAR_SUCCESS;
     }
 
-    if (gpu_read_raw(no_ctx, values_gpu_idle) != EAR_SUCCESS) {
+    if (gpu_read_raw(values_gpu_idle) != EAR_SUCCESS) {
         debug("Error in gpu_read_raw gpu_dvfs_pc (int_set_powercap)");
         return EAR_ERROR;
     }
@@ -496,7 +491,7 @@ static state_t int_set_powercap_value(ulong limit, ulong *gpu_util)
         if (gpu_util[i] > 0) {
             pdist[i] = (float) gpu_util[i] / (float) total_util;
             alloc    = (float) limit * pdist[i];
-            ualloc   = (ulong) alloc;
+            ualloc   = (uint32_t) alloc;
             if (ualloc > gpu_pc_max_power[i])
                 ualloc = gpu_pc_max_power[i];
             gpu_pc_curr_power[i] = ualloc;
@@ -505,12 +500,12 @@ static state_t int_set_powercap_value(ulong limit, ulong *gpu_util)
     for (i = 0; i < gpu_pc_num_gpus; i++) {
         // debug("GPU: util_gpu[%d]=%lu power_alloc=%lu",i,gpu_util[i],gpu_pc_curr_power[i]);
     }
-    memcpy(gpu_pc_util, gpu_util, sizeof(ulong) * gpu_pc_num_gpus);
+    memcpy(gpu_pc_util, gpu_util, sizeof(uint32_t) * gpu_pc_num_gpus);
     // debug("%s",COL_CLR);
     return EAR_SUCCESS;
 }
 
-state_t get_powercap_value(uint pid, ulong *powercap)
+state_t get_powercap_value(uint pid, uint32_t *powercap)
 {
     /* copy data */
     // debug("GPU::get_powercap_value");
@@ -525,7 +520,7 @@ uint is_powercap_policy_enabled(uint pid)
 
 void print_powercap_value(int fd)
 {
-    dprintf(fd, "gpu_powercap_value %lu\n", current_gpu_pc);
+    dprintf(fd, "gpu_powercap_value %u\n", current_gpu_pc);
 }
 
 void powercap_to_str(char *b)
@@ -534,7 +529,7 @@ void powercap_to_str(char *b)
     int i  = 0;
     cmd[0] = '\0';
     for (i = 0; i < gpu_pc_num_gpus; i++) {
-        sprintf(cmd, "GPU_powercap[%d]=%lu ", i, current_gpu_pc);
+        sprintf(cmd, "GPU_powercap[%d]=%u ", i, current_gpu_pc);
         strcat(b, cmd);
     }
 }
@@ -564,11 +559,11 @@ void set_verb_channel(int fd)
     DEBUG_SET_FD(fd);
 }
 
-void set_new_utilization(ulong *util)
+void set_new_utilization(uint32_t *util)
 {
     int i;
     for (i = 0; i < gpu_pc_num_gpus; i++) {
-        debug("GPU: util_gpu[%d]=%lu", i, util[i]);
+        debug("GPU: util_gpu[%d]=%u", i, util[i]);
     }
     int_set_powercap_value(current_gpu_pc, util);
 }
@@ -594,7 +589,7 @@ void set_app_req_freq(ulong *f)
 uint get_powercap_status(domain_status_t *status)
 {
     int i;
-    uint used       = 0;
+    uint32_t used   = 0;
     uint g_tbr      = 0;
     uint tmp_stress = 0;
 
@@ -612,7 +607,7 @@ uint get_powercap_status(domain_status_t *status)
     }
     /* We need the released power */
     if (gpu_dvfs_ask_def) {
-        debug("GPU status ASK_DEF, current_pc %lu and def_pc %lu", current_gpu_pc, default_gpu_pc);
+        debug("GPU status ASK_DEF, current_pc %u and def_pc %u", current_gpu_pc, default_gpu_pc);
         status->ok = PC_STATUS_ASK_DEF;
         return 0;
     }
@@ -671,7 +666,7 @@ uint get_powercap_status(domain_status_t *status)
             }
             g_tbr          = (uint) (((double) gpu_pc_curr_power[i] - values_gpu_diff[i].power_w) * 0.5);
             status->exceed = status->exceed + g_tbr;
-            debug("gpu_pc_curr_power %lu and current_power %lf, exceed: %u", gpu_pc_curr_power[i],
+            debug("gpu_pc_curr_power %u and current_power %lf, exceed: %u", gpu_pc_curr_power[i],
                   values_gpu_diff[i].power_w, status->exceed);
             debug("%sWe can release %u W from GPU %d since target = %lu current %lu%s", COL_GRE, g_tbr, i, t_freq[i],
                   c_freq[i], COL_CLR);

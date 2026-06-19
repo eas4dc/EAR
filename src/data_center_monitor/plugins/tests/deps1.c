@@ -8,40 +8,24 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
 // #define SHOW_DEBUGS 1
-
+#include <stdio.h>
 #include <common/output/debug.h>
 #include <common/system/plugin_manager.h>
-#include <report/report.h>
-#include <string.h>
-
-static ullong zero = 0LLU;
 
 declr_up_get_tag()
 {
-    *tag       = "dummy";
+    *tag       = "deps1";
     *tags_deps = NULL;
 }
 
-declr_up_action_init(_dummy)
+declr_up_action_init(_deps1)
 {
-    *data_alloc = &zero;
-    debug("dummy init");
-    return rsprintf("dummy action init(_dummy): received tag %s", tag);
+    return "deps1 init";
 }
 
-declr_up_action_init(_conf)
+declr_up_action_periodic(_deps1)
 {
-    return rsprintf("dummy action init(_conf): received tag %s", tag);
-}
-
-declr_up_action_periodic(_dummy)
-{
-    debug("dummy action");
-    return rsprintf("dummy action periodic(_dummy): received tag %s", tag);
-}
-
-declr_up_post_data()
-{
-    return rsprintf("dummy post data: received msg %s", msg);
+    return "deps1 periodic";
 }

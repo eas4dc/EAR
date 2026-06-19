@@ -224,7 +224,7 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
     for (i = 0; i < num_ips; i++) {
         if (ips[i].counter) {
             if (mode != ERR_ONLY) {
-                printf("|%4s|%15s", COL_GRE " OK " COL_CLR, ips[i].name);
+                printf("|%15s|%4s", ips[i].name, COL_GRE " OK " COL_CLR);
                 if ((uint32_t) ips[i].step_id == (uint32_t) BATCH_STEP)
                     sprintf(step_id, "|%-8s|", "sbatch");
                 else if (ips[i].step_id == INTERACT_STEP)
@@ -233,7 +233,7 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
                     sprintf(step_id, "|%-8d|", ips[i].step_id);
 
                 if (mode == NODE_ONLY || mode == FULL_STATUS) {
-                    printf("|%5d|%3dC|%.2lf|%.2lf|%6d|%8s|", ips[i].power, ips[i].temp,
+                    printf("|%5dW|%3dC|%.2lf|%.2lf|%6d|%8s|", ips[i].power, ips[i].temp,
                            (double) ips[i].max_freq / 1000000.0, (double) ips[i].current_freq / 1000000.0,
                            ips[i].job_id, step_id);
                 }
@@ -305,62 +305,43 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
 
 void usage(char *app)
 {
-    printf("Usage: %s [options]"
-           "\nCOMMANDS"
-           "\n\t--status \t\t\t\t->requests the current status for all nodes. The ones responding show the "
-           "current "
-           "\n\t\t\t\t\t\t\tpower, IP address and policy configuration. A list with the ones not"
-           "\n\t\t\t\t\t\t\tresponding is provided with their hostnames and IP address."
-           "\n\t\t\t\t\t\t\t--status=node_name retrieves the status of that node individually."
-           "\n\t--type \t\t[status_type]\t\t->specifies what type of status will be requested: hardware,"
-           "\n\t\t\t\t\t\t\tpolicy, full (hardware+policy), app_node, app_master, eardbd, eargm or power. "
-           "[default:hardware]"
-           "\n\t--power \t\t\t\t->requests the current power for the cluster. "
-           "\n\t\t\t\t\t\t\t--power=node_name retrieves the current power of that node individually."
-           "\n\t--ping	\t\t\t\t->pings all nodes to check whether the nodes are up or not. Additionally,"
-           "\n\t\t\t\t\t\t\t--ping=node_name pings that node individually."
-           "\n\t--set-freq \t[newfreq]\t\t->sets the frequency of all nodes to the requested one"
-           "\n\t--set-def-freq \t[newfreq]  [pol_name]\t->sets the default frequency for the selected policy "
-           "\n\t--set-max-freq \t[newfreq]\t\t->sets the maximum frequency"
-           "\n\t--set-powercap \t[new_cap]\t\t->sets the powercap of all nodes to the given value. A node can be "
-           "specified"
-           "\n\t\t\t\t\t\t\t after the value to only target said node."
-           "\n\t--restore-conf \t\t\t\t->restores the configuration for all nodes"
-
-           "\n\nMODIFIERS"
-           "\n\t--hosts \t[hostlist]\t\t->sends the command only to the specified hosts. "
-           "\n\t--domain [domain:target]\t\t->sends the requested command to the requested targets, effectively "
-           "filtering"
-           "\n\t\t\t\t\t\t\twhich nodes receive the message. Available domains are: tag, "
-#if 0
-           "\n\t\t\t\t\t\t\twhich nodes receive the message. Available domains are: tag, node,"
-#endif
-           "subcluster/eargmid, island."
-           "\n\t--conf-path \t[path_name]\t\t->specifies the ear.conf path. [default: $EAR_ETC/ear/ear.conf]"
-           "\n\t--mail [address] \t\t\t->sends the output of the program to address."
-           "\n\t--active-only \t\t\t\t->supresses inactive nodes from the output in hardware status."
-           "\n\t--health-check \t\t\t\t->checks all EARDs and EARDBDs for errors and prints all that are "
-           "unresponsive."
-           "\n\t--version \t\t\t\t->displays current EAR version."
-           "\n\n\t--help \t\t\t\t\t->displays this message.",
-           app);
+    printf("Usage: %s [options]\n", app);
+    printf("\nOptions:\n");
+    printf("  %-36s %s\n", "-h, --help", "Displays this message.");
+    printf("  %-36s %s\n", "-v, --version", "Displays the current EAR version.");
+    printf("  %-36s %s\n", "-b, --verbose[=<level>]", "Enables verbose mode for debugging purposes.");
+    printf("\nCommands:\n");
+    printf("  %-36s %s\n", "--status[=<node>]", "Requests the current status for all nodes or one node.");
+    printf("  %-36s %s\n", "--type <status_type>", "Selects the status type.");
+    printf("  %-36s %s\n", "", "Available: eard, power, policy, app_node, app_master, eardbd, eargm.");
+    printf("  %-36s %s\n", "--power[=<node>]", "Requests current power for the cluster or one node.");
+    printf("  %-36s %s\n", "--powerstatus[=<node>]", "Requests powercap status for the cluster or one node.");
+    printf("  %-36s %s\n", "--ping[=<node>]", "Pings all nodes or one node.");
+    printf("  %-36s %s\n", "--error", "Shows nodes with status errors.");
+    printf("  %-36s %s\n", "--health-check", "Checks all EARDs and EARDBDs for errors.");
+    printf("  %-36s %s\n", "--set-freq <freq>", "Sets the frequency of all nodes.");
+    printf("  %-36s %s\n", "--set-def-freq <freq> <policy>", "Sets the default frequency for a policy.");
+    printf("  %-36s %s\n", "--set-max-freq <freq>", "Sets the maximum frequency.");
+    printf("  %-36s %s\n", "--set-powercap <cap>", "Sets the powercap for all selected nodes.");
+    printf("  %-36s %s\n", "--restore-conf[=<node>]", "Restores configuration for all nodes or one node.");
+    printf("  %-36s %s\n", "--release", "Releases idle power.");
 #if EXT_OPT
-    printf(""
-           "\n\t--reset-powercap\t\t\t->Resets the powercap value of all nodes to their default one."
-           "\n\t\t\t\t\t\t\t reset-powercap=node_name the value to only target said node."
-           "\n\t--inc-powercap\t[increase]\t\t->Increases the powercap of all nodes. A node can be specified"
-           "\n\t\t\t\t\t\t\t after the increase value to only target said node."
-           "\n\t--red-powercap\t[reduction]\t\t->Reduces the powercap of all nodes. A node can be specified"
-           "\n\t\t\t\t\t\t\t after the reduction value to only target said node."
-           "\n\t--inc-th \t[new_th] [pol_name]\t->increases the threshold for all nodes"
-           "\n\t--set-th \t[new_th] [pol_name]\t->sets the threshold for all nodes"
-           "\n\t--red-def-freq \t[n_pstates]\t\t->reduces the default and max frequency by n pstates"
-           "\n\t--send-message \t[command]\t\t->sends the command to the daemon to be processed"
-           "\n\t--set-risk \t[level] [target] [node]\t->sends a warning to all nodes or the a specific node "
-           "(optional)"
-           "\n\t\t\t\t\t\t\t->levels: WARNING1/WARNING2/PANIC \ttarget: ENERGY/POWER");
-
+    printf("  %-36s %s\n", "--reset-powercap <node>", "Resets a node powercap value to its default.");
+    printf("  %-36s %s\n", "--inc-powercap <value> [node]", "Increases the powercap for all nodes or one node.");
+    printf("  %-36s %s\n", "--red-powercap <value> [node]", "Reduces the powercap for all nodes or one node.");
+    printf("  %-36s %s\n", "--inc-th <threshold> <policy>", "Increases the threshold for all nodes.");
+    printf("  %-36s %s\n", "--set-th <threshold> <policy>", "Sets the threshold for all nodes.");
+    printf("  %-36s %s\n", "--red-def-freq <n_pstates>", "Reduces the default and max frequency by N pstates.");
+    printf("  %-36s %s\n", "--send-message <command>", "Sends a command to the daemon to be processed.");
+    printf("  %-36s %s\n", "--set-risk <level> <target> [node]", "Sends a warning to all nodes or one node.");
+    printf("  %-36s %s\n", "", "Levels: WARNING1, WARNING2, PANIC. Targets: ENERGY, POWER.");
 #endif
+    printf("\nModifiers:\n");
+    printf("  %-36s %s\n", "--hosts <hostlist>", "Sends the command to a comma-separated list of hosts.");
+    printf("  %-36s %s\n", "--domain <domain:target>", "Sends the command to the requested targets. See the man page.");
+    printf("  %-36s %s\n", "--mail <address>", "Sends program output to an email address.");
+    printf("  %-36s %s\n", "--conf-path <path>", "Reads cluster configuration from the given path.");
+    printf("  %-36s %s\n", "--active-only", "Suppresses inactive nodes from hardware status output.");
     printf("\n\nThis app requires privileged access to execute.\n");
     exit(0);
 }
@@ -422,20 +403,20 @@ void check_app_status(app_status_t status, ip_table_t *ips, int num_ips, char is
                 sprintf(job_id, "%s", "-");
                 sprintf(step_id, "%s", "-");
             } else {
-                sprintf(job_id, "%-7" PRId32, status.job_id);
+                sprintf(job_id, "%-7l" PRId32, status.job_id);
                 if (status.step_id == (int32_t) BATCH_STEP)
                     sprintf(step_id, "%-8s", "batch");
                 else if (status.step_id == (int32_t) INTERACT_STEP)
                     sprintf(step_id, "%-8s", "interact");
                 else
-                    sprintf(step_id, "%-8" PRId32, status.step_id);
+                    sprintf(step_id, "%-8l" PRId32, status.step_id);
             }
             if (is_master)
                 printf("%-7s-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf", job_id, step_id, status.nodes,
                        status.signature.DC_power, status.signature.CPI, status.signature.GBS, status.signature.Gflops,
                        status.signature.time, (double) status.signature.avg_f / 1000000);
             else
-                printf("%15s %7" PRId32 "-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf", ips[i].name,
+                printf("%15s %7l" PRId32 "-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf", ips[i].name,
                        status.job_id, step_id, status.master_rank, status.signature.DC_power, status.signature.CPI,
                        status.signature.GBS, status.signature.Gflops, status.signature.time,
                        (double) status.signature.avg_f / 1000000);
@@ -1042,7 +1023,7 @@ int main(int argc, char *argv[])
                 }
                 break;
             case 't':
-                if (!strcasecmp(optarg, "HARDWARE"))
+                if (!strcasecmp(optarg, "EARD"))
                     status_type = EAR_TYPE_STATUS;
                 else if (!strcasecmp(optarg, "APP_NODE"))
                     status_type = EAR_TYPE_APP_STATUS_NODE;
@@ -1134,9 +1115,10 @@ int main(int argc, char *argv[])
             case 'e':
                 if (state_fail(ear_get_status(&my_cluster_conf, &status, &num_status, NULL, 0))) {
                     printf("Error retrieving status\n");
-                } else {
-                    process_status(num_status, status, 1, NULL, 0);
+                    num_status = 1;
+                    status     = calloc(1, sizeof(status_t));
                 }
+                process_status(num_status, status, 1, NULL, 0);
                 break;
             case 'k':
                 status_type = EAR_TYPE_HEALTH_CHECK;
@@ -1406,9 +1388,10 @@ int main(int argc, char *argv[])
                 printf("---------------------\nINACTIVE NODES\n---------------------\n");
                 if (state_fail(ear_get_status(&my_cluster_conf, &status, &num_status, nodes, num_nodes))) {
                     printf("Error retrieving status\n");
-                } else {
-                    process_status(num_status, status, NODE_ONLY, nodes, num_nodes);
+                    num_status = 1;
+                    status     = calloc(1, sizeof(status_t));
                 }
+                process_status(num_status, status, NODE_ONLY, nodes, num_nodes);
                 printf("---------------------\nINACTIVE EARDBDS\n---------------------\n");
                 num_status = eardbd_status_all(&my_cluster_conf, &edbstatus);
                 process_eardbd_status(num_status, edbstatus, 1);

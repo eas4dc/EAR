@@ -11,36 +11,27 @@
 #include <metrics/bandwidth/archs/dummy.h>
 #include <stdlib.h>
 
-BWIDTH_F_LOAD(bwidth_dummy_load)
+BWIDTH_F_LOAD(dummy)
 {
+    apis_put(ops->unload, bwidth_dummy_unload);
     apis_put(ops->get_info, bwidth_dummy_get_info);
-    apis_put(ops->init, bwidth_dummy_init);
-    apis_put(ops->dispose, bwidth_dummy_dispose);
     apis_put(ops->read, bwidth_dummy_read);
 }
 
-BWIDTH_F_GET_INFO(bwidth_dummy_get_info)
+BWIDTH_F_UNLOAD(dummy)
 {
-    if (info->api == API_NONE) {
-        info->api         = API_DUMMY;
-        info->scope       = SCOPE_NODE;
-        info->granularity = GRANULARITY_DUMMY;
-        info->devs_count  = 1 + 1;
-    }
 }
 
-BWIDTH_F_INIT(bwidth_dummy_init)
+BWIDTH_F_GET_INFO(dummy)
 {
-    return EAR_SUCCESS;
+    info->api         = API_DUMMY;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_DUMMY;
+    info->devs_count  = 1 + 1;
 }
 
-BWIDTH_F_DISPOSE(bwidth_dummy_dispose)
+BWIDTH_F_READ(dummy)
 {
-    return EAR_SUCCESS;
-}
-
-BWIDTH_F_READ(bwidth_dummy_read)
-{
-    memset(bws, 0, (1 + 1) * sizeof(bwidth_t));
+    memset(b, 0, (1 + 1) * sizeof(bwidth_t));
     return EAR_SUCCESS;
 }

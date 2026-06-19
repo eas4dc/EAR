@@ -10,24 +10,35 @@
 
 #ifndef COMMON_UTILS_OVERHEAD_H
 #define COMMON_UTILS_OVERHEAD_H
+/* clang-format off */
 
 #include <common/types.h>
 
 #define ENABLE_OVERHEAD 0
 
-// Suscribes a section of code. It receives a description of that code section,
-// and returns a ID which will be used to circle the section by start-stop
-// marks. Later, you can all report to print all the gathered data.
+// Subscribes a section of code whose execution time will be measured. It
+// receives a name or description of that code section, and returns a ID which
+// will be used to circle the section by start-stop calls. Later, you can call
+// report to print the measuring metrics.
 //
-// Ex:
-//  overhead_suscribe("get frequency", &id_freq);
+// The EAR_OVERHEAD_ENABLE environment variable enables the subscribed systems
+// in a list of comma separated names or the keyword 'all'.
+//
+// Example:
+//  EAR_OVERHEAD_ENABLE="get_freq"
+//  overhead_subscribe("get_freq", &id_get_freq);
+//  overhead_subscribe("set_freq", &id_set_freq);
+//  overhead_subscribe("reset_freq", &id_reset_freq);
 //  overhead_start(id_freq);
 //  ... (get frequency code)
 //  overhead_stop(id_freq);
-//  ... (things)
+//  ... (other things)
 //  overhead_report(1);
 
-void overhead_suscribe(const char *description, uint *id);
+// The name or description string will appear in the report.
+void overhead_subscribe(const char *name_desc, uint *id);
+
+void overhead_subsprint(uint *id, const char *fmt, ...);
 
 void overhead_start(uint id);
 
@@ -37,4 +48,5 @@ void overhead_report(int print_header);
 
 void overhead_print_header();
 
+/* clang-format on */
 #endif // COMMON_UTILS_OVERHEAD_H

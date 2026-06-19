@@ -630,7 +630,7 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
 
                 debug("num nodes %d, eargm power %ld", num_nodes, my_conf->eargm.eargms[eargm_idx].power);
                 n->powercap = my_conf->eargm.eargms[eargm_idx].power / num_nodes;
-                verbose(VCCONF, "\tnode powercap set to %ld (there are %d nodes and %ld power under this eargm id)",
+                verbose(VCCONF, "\tnode powercap set to %u (there are %d nodes and %ld power under this eargm id)",
                         n->powercap, num_nodes, my_conf->eargm.eargms[eargm_idx].power);
 
             } else {
@@ -639,19 +639,19 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
             }
         } break;
         default:
-            verbose(VCCONF, "my_node_conf powercap is set to a specific value: %ld", n->powercap);
+            verbose(VCCONF, "my_node_conf powercap is set to a specific value: %u", n->powercap);
             break;
     }
 
     if (n->max_powercap <= 1 && my_conf->eargm.powercap_mode == SOFT_POWERCAP) {
         verbose(VCCONF,
-                "WARNING: max powercap is set to a non-valid value (%ld) while the EARGM mode is set to soft powercap. "
+                "WARNING: max powercap is set to a non-valid value (%u) while the EARGM mode is set to soft powercap. "
                 "This configuration is not supported and the cluster powercap will not work.",
                 n->max_powercap);
     }
 
     verbose(VCCONF + 2, "--------------------------------------");
-    verbose(VCCONF + 2, "Finished checking powercap, final powercap value: %ld", n->powercap);
+    verbose(VCCONF + 2, "Finished checking powercap, final powercap value: %u", n->powercap);
     verbose(VCCONF + 2, "--------------------------------------");
 
     return n;
@@ -921,8 +921,10 @@ energy_tag_t *energy_tag_exists(cluster_conf_t *my_conf, char *etag)
 uint get_user_type(cluster_conf_t *my_conf, char *energy_tag, char *user, char *group, char *acc, energy_tag_t **my_tag)
 {
     energy_tag_t *is_tag;
-    *my_tag = NULL;
-    verbose(VPRIV, "Checking user (%s), group (%s), account (%s) and energy tag (%s)...", user, group, acc, energy_tag);
+    if (my_tag) {
+        *my_tag = NULL;
+    }
+    debug("Checking user (%s), group (%s), account (%s) and energy tag (%s)...", user, group, acc, energy_tag);
 
     /* We first check if it is authorized user */
     int flag = is_authorized_usr_grp_acc(my_conf, user, group, acc);
@@ -940,7 +942,9 @@ uint get_user_type(cluster_conf_t *my_conf, char *energy_tag, char *user, char *
         if (energy_tag != NULL) {
             is_tag = energy_tag_exists(my_conf, energy_tag);
             if (is_tag != NULL) {
-                *my_tag = is_tag;
+                if (my_tag) {
+                    *my_tag = is_tag;
+                }
                 return ENERGY_TAG;
             } else
                 return AUTHORIZED;
@@ -951,7 +955,9 @@ uint get_user_type(cluster_conf_t *my_conf, char *energy_tag, char *user, char *
     /* It is an energy tag user ? */
     is_tag = is_energy_tag_privileged(my_conf, user, group, acc, energy_tag);
     if (is_tag != NULL) {
-        *my_tag = is_tag;
+        if (my_tag) {
+            *my_tag = is_tag;
+        }
         return ENERGY_TAG;
     } else
         return NORMAL;

@@ -20,15 +20,6 @@
 
 #include <metrics/gpu/gpu.h>
 
-state_t gpu_pvc_hwmon_load(gpu_ops_t *ops, int force_api);
-state_t pvc_hwmon_init(ctx_t *c);
-void pvc_hwmon_get_info(apinfo_t *info);
-void pvc_hwmon_set_monitoring_mode(int mode_in);
-void pvc_hwmon_get_devices(gpu_devs_t **devs, uint *devs_count);
-state_t pvc_hwmon_dispose(ctx_t *c);
-state_t pvc_hwmon_count_devices(ctx_t *c, uint *count);
-state_t pvc_hwmon_read(ctx_t *c, gpu_t *data);
-state_t pvc_hwmon_read_raw(ctx_t *c, gpu_t *data);
-state_t pvc_hwmon_set_mode(ctx_t *c, uint32_t mode);
+GPU_DEFINES(hwmon_pvc);
 
 #endif

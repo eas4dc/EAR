@@ -28,7 +28,7 @@ declr_up_get_tag()
 
 static void metrics_read_static(metrics_read_t *mr)
 {
-    metrics_data_copy(mr, &((mets_t *) plugin_manager_action("metrics"))->mr);
+    metrics_data_copy(mr, &((mets_t *) plugin_manager_action_trigger("metrics"))->mr);
 }
 
 declr_up_action_init(_metrics_viewer)

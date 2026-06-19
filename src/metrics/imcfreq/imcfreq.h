@@ -19,29 +19,6 @@
 #include <metrics/common/apis.h>
 #include <metrics/common/pstate.h>
 
-// The API
-//
-// This API is designed to get the uncore or integrated memory controllers
-// frequency.
-//
-// Props:
-// 	- Thread safe: yes.
-//	- Daemon API: yes.
-//  - Dummy API: yes.
-//  - Requires root: yes.
-//
-// Compatibility:
-//  -------------------------------------------------------------------------
-//  | Architecture    | F/M | Comp. | Granularity | System                  |
-//  -------------------------------------------------------------------------
-//  | Intel HASWELL   | 63  | v     | Socket/node | MSR                     |
-//  | Intel BROADWELL | 79  | v     | Socket/node | MSR                     |
-//  | Intel SKYLAKE   | 85  | v     | Socket/node | MSR                     |
-//  | Intel ICELAKE   | 106 | ?     | ?           | -                       |
-//  | AMD ZEN+/2      | 17h | v     | Socket/node | MGT IMCFREQ bypass      |
-//  | AMD ZEN3        | 19h | v     | Socket/node | MGT IMCFREQ bypass      |
-//  -------------------------------------------------------------------------
-
 typedef struct imcfreq_s {
     timestamp_t time;
     ulong freq; // KHz
@@ -49,48 +26,49 @@ typedef struct imcfreq_s {
 } imcfreq_t;
 
 typedef struct imcfreq_ops_s {
-    void (*get_api)(uint *api, uint *api_intern);
-    state_t (*init)(ctx_t *c);
-    state_t (*init_static[4])(ctx_t *c);
-    state_t (*dispose)(ctx_t *c);
-    state_t (*count_devices)(ctx_t *c, uint *dev_count);
-    state_t (*read)(ctx_t *c, imcfreq_t *reg_list);
-    state_t (*data_alloc)(imcfreq_t **reg_list, ulong **freq_list);
-    state_t (*data_free)(imcfreq_t **reg_list, ulong **freq_list);
-    state_t (*data_copy)(imcfreq_t *reg_list2, imcfreq_t *reg_list1);
-    state_t (*data_diff)(imcfreq_t *reg_list2, imcfreq_t *reg_list, ulong *freq_list, ulong *freq_avg);
-    void (*data_print)(ulong *freq_list, ulong *freq_avg, int fd);
-    char *(*data_tostr)(ulong *freq_list, ulong *freq_avg, char *buffer, size_t length);
+    void (*unload)();
+    void (*get_info)(apinfo_t *info);
+    state_t (*read)(imcfreq_t *list);
+    void (*data_diff)(imcfreq_t *l2, imcfreq_t *l1, ulong *ldiff, ulong *freq_avg);
 } imcfreq_ops_t;
 
+#define IMCFREQ_F_LOAD(name)     void imcfreq_##name##_load(topology_t *tp_in, imcfreq_ops_t *ops, int options)
+#define IMCFREQ_F_UNLOAD(name)   void imcfreq_##name##_unload()
+#define IMCFREQ_F_GET_INFO(name) void imcfreq_##name##_get_info(apinfo_t *info)
+#define IMCFREQ_F_READ(name)     state_t imcfreq_##name##_read(imcfreq_t *list)
+#define IMCFREQ_F_DATA_DIFF(name)                                                                                      \
+    void imcfreq_##name##_data_diff(imcfreq_t *l2, imcfreq_t *l1, ulong *ldiff, ulong *freq_avg)
+
+#define IMCFREQ_DEFINES(name)                                                                                          \
+    IMCFREQ_F_LOAD(name);                                                                                              \
+    IMCFREQ_F_UNLOAD(name);                                                                                            \
+    IMCFREQ_F_GET_INFO(name);                                                                                          \
+    IMCFREQ_F_READ(name);                                                                                              \
+    IMCFREQ_F_DATA_DIFF(name);
+
+void imcfreq_load(topology_t *tp, int options);
+
+void imcfreq_unload();
+
+void imcfreq_get_info(apinfo_t *info);
+
+state_t imcfreq_read(imcfreq_t *l);
+
+state_t imcfreq_read_diff(imcfreq_t *l2, imcfreq_t *l1, ulong *l_diff, ulong *freq_avg);
+
+state_t imcfreq_read_copy(imcfreq_t *l2, imcfreq_t *l1, ulong *l_diff, ulong *freq_avg);
 // Frequency is KHz
-void imcfreq_load(topology_t *tp, int force_api);
-
-void imcfreq_get_api(uint *api);
-
-state_t imcfreq_init(ctx_t *c);
-
-state_t imcfreq_dispose(ctx_t *c);
-
-state_t imcfreq_count_devices(ctx_t *c, uint *dev_count);
-
-state_t imcfreq_read(ctx_t *c, imcfreq_t *reg_list);
-
-state_t imcfreq_read_diff(ctx_t *c, imcfreq_t *reg_list2, imcfreq_t *reg_list1, ulong *freq_list, ulong *freq_avg);
-
-state_t imcfreq_read_copy(ctx_t *c, imcfreq_t *reg_list2, imcfreq_t *reg_list1, ulong *freq_list, ulong *freq_avg);
+void imcfreq_data_diff(imcfreq_t *l2, imcfreq_t *l1, ulong *l_diff, ulong *freq_avg);
 
 // Helpers
-state_t imcfreq_data_alloc(imcfreq_t **reg_list, ulong **freq_list);
+void imcfreq_data_alloc(imcfreq_t **l, ulong **l_diff);
 
-state_t imcfreq_data_free(imcfreq_t **reg_list, ulong **freq_list);
+void imcfreq_data_free(imcfreq_t **l, ulong **l_diff);
 
-state_t imcfreq_data_copy(imcfreq_t *reg_list2, imcfreq_t *reg_list1);
+void imcfreq_data_copy(imcfreq_t *l2, imcfreq_t *l1);
 
-state_t imcfreq_data_diff(imcfreq_t *reg_list2, imcfreq_t *reg_list1, ulong *freq_list, ulong *freq_avg);
+void imcfreq_data_print(ulong *l_diff, ulong *freq_avg, int fd);
 
-void imcfreq_data_print(ulong *freq_list, ulong *freq_avg, int fd);
-
-char *imcfreq_data_tostr(ulong *freq_list, ulong *freq_avg, char *buffer, size_t length);
+char *imcfreq_data_tostr(ulong *l_diff, ulong *freq_avg, char *buffer, size_t length);
 
 #endif // METRICS_IMCFREQ_H

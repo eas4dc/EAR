@@ -13,18 +13,6 @@
 
 #include <metrics/cache/cache.h>
 
-void cache_perf_load(topology_t *tp, cache_ops_t *ops);
-
-void cache_perf_get_info(apinfo_t *info);
-
-state_t cache_perf_init();
-
-state_t cache_perf_dispose();
-
-state_t cache_perf_read(cache_t *ca);
-
-void cache_perf_data_diff(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs);
-
-void cache_perf_internals_tostr(char *buffer, int length);
+CACHE_DEFINES(perf);
 
 #endif // METRICS_CACHE_PERF_H

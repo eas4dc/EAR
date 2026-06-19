@@ -26,8 +26,8 @@
 #if USE_GPUS
 
 // Signatures
-#define FULL_SIGNATURE_ARGS   30
-#define SIMPLE_SIGNATURE_ARGS 17
+#define FULL_SIGNATURE_ARGS   29
+#define SIMPLE_SIGNATURE_ARGS 16
 
 // Periodic_metrics
 #define FULL_PERIODIC_METRIC_ARGS   11

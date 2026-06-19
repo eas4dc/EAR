@@ -135,7 +135,7 @@ state_t eard_dummy_cluster_conf(char *ear_tmp, uint ID)
     char *dummy_ser_cc, *local_dummy_ser_cc;
     size_t dummy_ser_cc_size;
     state_t cc_read_result, check_cc = 1;
-    if (gethostname(nodename, sizeof(nodename)) < 0) {
+    if (gethostname(nodename, sizeof(nodename) - 1) < 0) {
         verbose_master(0, "Error getting node name (%s)", strerror(errno));
     }
     strtok(nodename, ".");

@@ -13,146 +13,98 @@
 #define _GNU_SOURCE
 #include <common/output/debug.h>
 #include <common/system/symplug.h>
+#include <metrics/common/hsmp.h>
 #include <metrics/imcfreq/archs/amd17.h>
 
-static const char *mgt_names[] = {"mgt_imcfreq_load",    "mgt_imcfreq_get_api",       "mgt_imcfreq_init",
-                                  "mgt_imcfreq_dispose", "mgt_imcfreq_count_devices", "mgt_imcfreq_get_current_list"};
+static uint sockets_count;
 
-static struct mgt_ops_s {
-    state_t (*load)(topology_t *c, int eard, void *p);
-    state_t (*get_api)(uint *api);
-    state_t (*init)(ctx_t *c);
-    state_t (*dispose)(ctx_t *c);
-    state_t (*count_devices)(ctx_t *c, uint *devs_count);
-    state_t (*get_current_list)(ctx_t *c, pstate_t *pstate_list);
-} mgt_ops;
-
-static imcfreq_ops_t *ops;
-static uint devs_count;
-
-void imcfreq_amd17_load(topology_t *tp, imcfreq_ops_t *ops_in, int eard)
+IMCFREQ_F_LOAD(amd17)
 {
-    uint api_intern, api;
-
-    debug("loading");
-
-    ops = ops_in;
-    // Set BYPASS if:
-    // 	- If !EARD and no other API is set yet.
-    // Set BYPASS limited if:
-    //  - If DAEMON and EARD API has been set as AMD17.
-    if (apis_loaded(ops)) {
-        debug("the API was already loaded");
-        ops->get_api(&api, &api_intern);
-        debug("API %u/%u Intern %u/%u", api, API_EARD, api_intern, API_AMD17);
-        //
-        if (api == API_EARD && api_intern == API_AMD17) {
-            apis_add(ops->init_static, imcfreq_amd17_init_static);
-            apis_set(ops->data_diff, imcfreq_amd17_data_diff);
-            debug("AMD17 loaded limited");
-        }
+    // Already loaded
+    if (state_fail(hsmp_open(tp_in, HSMP_RD))) {
         return;
     }
-    debug("the API was not loaded yet");
-    if (apis_not(ops)) {
-        // Loading symbols in runtime to avoid dependancies
-        plug_join(RTLD_DEFAULT, (void **) &mgt_ops, mgt_names, 6);
-        // Testing all symbols are available
-        if (state_fail(plug_test((void **) &mgt_ops, 6))) {
-            return;
-        }
-        // Loading management imcfreq API
-        mgt_ops.load(tp, eard, NULL);
-        mgt_ops.get_api(&api);
-        // If management API is not cool, bye
-        if (api <= API_DUMMY) {
-            return;
-        }
-    }
+    sockets_count = tp_in->socket_count;
     // Bypassing
-    apis_set(ops->get_api, imcfreq_amd17_get_api);
-    apis_set(ops->init, imcfreq_amd17_init);
-    apis_set(ops->dispose, imcfreq_amd17_dispose);
-    apis_set(ops->count_devices, imcfreq_amd17_count_devices);
+    apis_set(ops->unload, imcfreq_amd17_unload);
+    apis_set(ops->get_info, imcfreq_amd17_get_info);
     apis_set(ops->read, imcfreq_amd17_read);
     apis_set(ops->data_diff, imcfreq_amd17_data_diff);
     debug("AMD17 loaded full API");
 }
 
-void imcfreq_amd17_get_api(uint *api, uint *api_intern)
+IMCFREQ_F_UNLOAD(amd17)
 {
-    *api = API_AMD17;
-    if (api_intern) {
-        *api_intern = API_NONE;
-    }
+    hsmp_close();
 }
 
-state_t imcfreq_amd17_init(ctx_t *c)
+IMCFREQ_F_GET_INFO(amd17)
 {
+    info->api         = API_AMD17;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_SOCKET;
+    info->devs_count  = sockets_count;
+}
+
+static state_t read_current_freqs(ullong *freqs_khz)
+{
+    uint args[3] = {0, 0, -1};
     state_t s;
+    uint i;
 
-    if (state_fail(s = mgt_ops.init(c))) {
-        return s;
+    for (i = 0; i < sockets_count; ++i) {
+        // Function ReadCurrentFclkMemclk (0x0f). 0 arguments, 2 answers.
+        // args[0] = 0;
+        // args[1] = 0;
+        if (state_fail(s = hsmp_send(i, HSMP_GET_FCLK_MCLK, &args[2], &args[0]))) {
+            return s;
+        }
+        if (args[0] == 0 || args[0] == -1) {
+            return_msg(EAR_ERROR, "Incorrect result when asking for frequency by HSMP");
+        }
+        freqs_khz[i] = ((ullong) args[0]) * 1000LLU;
+        debug("SOCKET%d: %llu KHz", i, freqs_khz[i]);
     }
-    return mgt_ops.count_devices(c, &devs_count);
-}
-
-state_t imcfreq_amd17_init_static(ctx_t *c)
-{
-    return ops->count_devices(c, &devs_count);
-}
-
-state_t imcfreq_amd17_dispose(ctx_t *c)
-{
-    return mgt_ops.dispose(c);
-}
-
-state_t imcfreq_amd17_count_devices(ctx_t *c, uint *devs_count_in)
-{
-    *devs_count_in = devs_count;
     return EAR_SUCCESS;
 }
 
-state_t imcfreq_amd17_read(ctx_t *c, imcfreq_t *imc)
+IMCFREQ_F_READ(amd17)
 {
-    pstate_t list[8]; // Up to 8 sockets
+    ullong freqs_khz[8]; // Up to 8 sockets
     state_t s;
     int cpu;
 
-    if (state_fail(s = mgt_ops.get_current_list(c, list))) {
+    if (state_fail(s = read_current_freqs(freqs_khz))) {
         return s;
     }
-    timestamp_getfast(&imc[0].time);
+    timestamp_getfast(&list[0].time);
     // Iterating per socket.
-    for (cpu = 0; cpu < devs_count; ++cpu) {
+    for (cpu = 0; cpu < sockets_count; ++cpu) {
         debug("AMD17 read %llu", list[cpu].khz);
-        imc[cpu].time  = imc[0].time;
-        imc[cpu].freq  = (ulong) list[cpu].khz;
-        imc[cpu].error = (list[cpu].khz == 0LLU);
+        list[cpu].freq = (ulong) freqs_khz[cpu];
     }
     return EAR_SUCCESS;
 }
 
-state_t imcfreq_amd17_data_diff(imcfreq_t *i2, imcfreq_t *i1, ulong *freq_list, ulong *average)
+IMCFREQ_F_DATA_DIFF(amd17)
 {
     ulong aux1 = 0;
     ulong aux2 = 0;
     uint cpu;
-    debug("imcfreq_amd17_data_diff %u devices", devs_count);
-    for (cpu = 0; cpu < devs_count; ++cpu) {
-        // aux1 = (i2[cpu].freq + i1[cpu].freq) / 2LU;
-        debug("IMCFREQ [%d] %lu", cpu, i2[cpu].freq);
-        aux1 = i2[cpu].freq;
-        if (freq_list != NULL) {
-            freq_list[cpu] = aux1;
+    debug("imcfreq_amd17_data_diff %u devices", sockets_count);
+    for (cpu = 0; cpu < sockets_count; ++cpu) {
+        // aux1 = (l2[cpu].freq + l1[cpu].freq) / 2LU;
+        debug("IMCFREQ [%d] %lu", cpu, l2[cpu].freq);
+        aux1 = l2[cpu].freq;
+        if (ldiff != NULL) {
+            ldiff[cpu] = aux1;
         }
         aux2 += aux1;
     }
-    if (average != NULL) {
-        *average = aux2;
-        if (devs_count > 0) {
-            *average = *average / (ulong) devs_count;
+    if (freq_avg != NULL) {
+        *freq_avg = aux2;
+        if (sockets_count > 0) {
+            *freq_avg = *freq_avg / (ulong) sockets_count;
         }
     }
-    return EAR_SUCCESS;
 }

@@ -41,11 +41,18 @@ void powercap_release_idle_power(pc_release_data_t *release);
 void powercap_reset_default_power();
 void powercap_reduce_def_power(uint power);
 void powercap_increase_def_power(uint power);
-void powercap_set_powercap(uint power);
+void powercap_set_powercap(uint32_t power);
 void powercap_process_message(char *action, char *mode, char *domain, int32_t num_values, int32_t values[num_values]);
 ulong powercap_elapsed_last_powercap();
 
 void powercap_new_job();
 void powercap_end_job();
+
+uint powercap_get_actual_device_value(uint domain, uint device_id);
+uint32_t powercap_get_stored_device_value(uint domain, uint device_id);
+state_t powercap_set_stored_device_value(uint domain, uint device_id, uint32_t powercap_value);
+void powercap_update_all_device_storage(uint domain, uint32_t powercap_value);
+state_t powercap_verify_device_values(uint domain);
+state_t powercap_verify_all_devices();
 
 #endif

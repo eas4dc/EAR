@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -26,11 +27,6 @@
 static pthread_mutex_t fd_busy_lock = PTHREAD_MUTEX_INITIALIZER;
 static uchar fd_busy[4096]          = {0};
 
-/*
- *
- * Common initialization
- *
- */
 state_t sockets_init(socket_t *socket, char *host, uint port, uint protocol)
 {
     if (protocol != TCP && protocol != UDP) {
@@ -529,78 +525,4 @@ void sockets_get_ip(struct sockaddr_storage *host_addr, long *ip)
     }
     // convert the IP to a string and print it
     // inet_ntop(host_addr->sa_family, address, buffer, INET6_ADDRSTRLEN);
-}
-
-/*
- *
- * Obsolete
- *
- */
-
-state_t sockets_header_clean(socket_header_t *header)
-{
-    memset((void *) header, 0, sizeof(socket_header_t));
-    return EAR_SUCCESS;
-}
-
-state_t sockets_header_update(socket_header_t *header)
-{
-#if SOCKETS_DEBUG
-    if (strlen(header->host_src) == 0) {
-        gethostname(header->host_src, sizeof(header->host_src));
-    }
-    header->timestamp = time(NULL);
-#endif
-    return EAR_SUCCESS;
-}
-
-state_t __sockets_send(socket_t *socket, socket_header_t *header, char *content)
-{
-    char output_buffer[SZ_BUFFER];
-    socket_header_t *output_header;
-    char *output_content;
-    state_t state;
-
-    // Error handling
-    if (socket->fd < 0) {
-        state_return_msg(EAR_SOCK_DISCONNECTED, 0, "invalid file descriptor");
-    }
-    if (header == NULL || content == NULL) {
-        state_return_msg(EAR_BAD_ARGUMENT, 0, "passing parameter can't be NULL");
-    }
-    // Output
-    output_header  = PACKET_HEADER(output_buffer);
-    output_content = PACKET_CONTENT(output_buffer);
-    // Copy process
-    memcpy(output_header, header, sizeof(socket_header_t));
-    memcpy(output_content, content, header->content_size);
-    // Locking and sending
-    static_fd_lock(socket->fd);
-    state = static_send(socket->fd, output_buffer, sizeof(socket_header_t) + header->content_size);
-    return static_fd_unlock(socket->fd, state);
-}
-
-state_t __sockets_recv(int fd, socket_header_t *header, char *buffer, ssize_t size_buffer, int block)
-{
-    state_t state;
-
-    // Error handling
-    if (fd < 0) {
-        state_return_msg(EAR_SOCK_DISCONNECTED, 0, "invalid file descriptor");
-    }
-    if (header == NULL || buffer == NULL) {
-        state_return_msg(EAR_BAD_ARGUMENT, 0, "passing parameter can't be NULL");
-    }
-    // Receiving the header (using the new static_recv)
-    if (state_fail(state = static_recv(fd, (char *) header, sizeof(socket_header_t), block))) {
-        state_return(state);
-    }
-    if (header->content_size > size_buffer) {
-        state_return(EAR_NO_RESOURCES);
-    }
-    // Receiving the content
-    if (state_fail(state = static_recv(fd, buffer, header->content_size, block))) {
-        state_return(state);
-    }
-    state_return(EAR_SUCCESS);
 }

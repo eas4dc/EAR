@@ -52,7 +52,7 @@ repo_BINS += \
         examon.so
 endif
 
-ifeq ($(HAVE_MICROHTTPD), 1)
+ifeq ($(USE_MICROHTTPD), 1)
 repo_BINS += \
 		prometheus.so
 endif

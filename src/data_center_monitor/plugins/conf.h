@@ -10,7 +10,9 @@
 
 #ifndef UP_CONFIG_H
 #define UP_CONFIG_H
+/* clang-format off */
 
+#include <common/utils/conf.h>
 #include <common/system/plugin_manager.h>
 #include <common/types/configuration/cluster_conf.h>
 #include <metrics/metrics.h>
@@ -22,6 +24,8 @@ typedef struct conf_s {
     cluster_conf_t cluster; // Its a pointer to check if was loaded
     int cluster_loaded;
     my_node_conf_t *node;
+    ear_conf_t *ear_conf; // Newer configuration, dictionary style
 } conf_t;
 
+/* clang-format on */
 #endif // UP_CONFIG_H

@@ -80,21 +80,21 @@ typedef struct varname_s {
 } varnames_t;
 
 struct variables_s {
-    varnames_t comp_libr;
+    varnames_t comp_libr; // Components are active parts of the plugin
     varnames_t comp_plug;
     varnames_t plug_verbose;
     varnames_t hack_loader;
-    varnames_t ctx_last;
+    varnames_t ctx_last; // Context tracking
     varnames_t ctx_was_sbatch;
     varnames_t ctx_was_srun;
-    varnames_t con_eard_sbatch;
+    varnames_t con_eard_sbatch; // Connections/daemons
     varnames_t con_eard_srun;
     varnames_t con_eard_task;
     varnames_t con_eargmd;
-    varnames_t user;
+    varnames_t user; // User identification
     varnames_t group;
     varnames_t account;
-    varnames_t name_app;
+    varnames_t name_app; // Job/step identification
     varnames_t job_id;
     varnames_t job_node_list;
     varnames_t job_node_count;
@@ -102,8 +102,9 @@ struct variables_s {
     varnames_t step_node_list;
     varnames_t step_node_count;
     varnames_t local_id;
-    varnames_t cpus_node_num;
-    varnames_t verbose;
+    varnames_t cpus_node_num; // Hardware requirements
+    varnames_t gpus_task_list;
+    varnames_t verbose; // EAR library flags
     varnames_t policy;
     varnames_t policy_th;
     varnames_t frequency;
@@ -114,107 +115,54 @@ struct variables_s {
     varnames_t path_trac;
     varnames_t perf_pen;
     varnames_t eff_gain;
-    varnames_t path_temp;
+    varnames_t path_temp; //
     varnames_t path_install;
     varnames_t task_pid;
     varnames_t ld_preload;
     varnames_t ld_library;
-    varnames_t is_erun;
+    varnames_t is_erun; // ERUN
 } Var __attribute__((weak)) = {
-    .comp_libr    = {.comp = "SLURM_COMP_LIBRARY"}, // COMP: COMPONENT
-    .comp_plug    = {.comp = "SLURM_COMP_PLUGIN"},
-    .plug_verbose = {.mod = "SLURM_COMP_VERBOSE"},
-    .hack_loader =
-        {
-            .mod = HACK_LOADER_FILE,
-        },
-    .ctx_last =
-        {
-            .mod = "SLURM_EPV_LAST_CONTEXT",
-        },
-    .ctx_was_sbatch =
-        {
-            .mod = "SLURM_EPV_PASSED_SBATCH",
-        },
-    .ctx_was_srun =
-        {
-            .mod = "SLURM_EPV_PASSED_SRUN",
-        },
-    .con_eard_sbatch =
-        {
-            .mod = "SLURM_EPV_CON_EARD_SBATCH",
-        },
-    .con_eard_srun =
-        {
-            .mod = "SLURM_EPV_CON_EARD_SRUN",
-        },
-    .con_eard_task =
-        {
-            .mod = "SLURM_EPV_CON_EARD_TASK",
-        },
-    .con_eargmd =
-        {
-            .mod = "SLURM_EPV_CON_EARGMD",
-        }, // EPV: EAR PLUGIN VARIABLE
-    .user =
-        {
-            .mod = "SLURM_EPV_USER",
-        },
-    .group =
-        {
-            .mod = "SLURM_EPV_GROUP",
-        },
-    .account =
-        {
-            .slurm = "SLURM_JOB_ACCOUNT",
-        },
-    .name_app = {.slurm = "SLURM_JOB_NAME", .ear = ENV_APP_NAME},
-    .job_id =
-        {
-            .slurm = "SLURM_JOB_ID",
-        },
-    .job_node_list =
-        {
-            .slurm = "SLURM_JOB_NODELIST",
-        },
-    .job_node_count =
-        {
-            .slurm = "SLURM_JOB_NUM_NODES",
-        },
-    .step_id = {.slurm = "SLURM_STEP_ID"},
-    .step_node_list =
-        {
-            .slurm = "SLURM_STEP_NODELIST",
-        },
-    .step_node_count =
-        {
-            .slurm = "SLURM_STEP_NUM_NODES",
-        },
-    .local_id =
-        {
-            .slurm = "SLURM_LOCALID",
-        },
-    .cpus_node_num =
-        {
-            .slurm = "SLURM_CPUS_ON_NODE",
-        },
-    .verbose      = {.flag = "SLURM_EPF_VERBOSITY", .ear = ENV_FLAG_VERBOSITY}, // EPF: EAR PLUGIN FLAG
-    .policy       = {.flag = "SLURM_EPF_POLICY", .ear = ENV_FLAG_POLICY},
-    .policy_th    = {.flag = "SLURM_EPF_POLICY_TH", .ear = ENV_FLAG_POLICY_TH},
-    .frequency    = {.flag = "SLURM_EPF_FREQUENCY", .ear = ENV_FLAG_FREQUENCY},
-    .p_state      = {.flag = "SLURM_EPF_PSTATE", .ear = ENV_FLAG_PSTATE},
-    .learning     = {.flag = "SLURM_EPF_LEARNING_PHASE", .ear = ENV_FLAG_IS_LEARNING},
-    .tag          = {.flag = "SLURM_EPF_ENERGYT_AG", .ear = ENV_FLAG_ENERGY_TAG},
-    .path_usdb    = {.flag = "SLURM_EPF_USER_DB", .ear = ENV_FLAG_PATH_USERDB},
-    .path_trac    = {.flag = "SLURM_EPF_TRACE_PATH", .ear = ENV_FLAG_PATH_TRACE},
-    .perf_pen     = {.ear = ENV_FLAG_POLICY_PENALTY},
-    .eff_gain     = {.ear = ENV_FLAG_POLICY_GAIN},
-    .path_temp    = {.ear = ENV_PATH_TMP},
-    .path_install = {.ear = ENV_PATH_EAR},
-    .task_pid     = {.ear = FLAG_TASK_PID},
-    .ld_preload   = {.ear = "LD_PRELOAD"},
-    .ld_library   = {.ear = "LD_LIBRARY_PATH"},
-    .is_erun      = {.ear = SCHED_IS_ERUN},
+    .comp_libr       = {.comp = "SLURM_COMP_LIBRARY"}, // COMP: COMPONENT
+    .comp_plug       = {.comp = "SLURM_COMP_PLUGIN"},
+    .plug_verbose    = {.mod = "SLURM_COMP_VERBOSE"},
+    .hack_loader     = {.mod = HACK_LOADER_FILE},
+    .ctx_last        = {.mod = "SLURM_EPV_LAST_CONTEXT"},
+    .ctx_was_sbatch  = {.mod = "SLURM_EPV_PASSED_SBATCH"},
+    .ctx_was_srun    = {.mod = "SLURM_EPV_PASSED_SRUN"},
+    .con_eard_sbatch = {.mod = "SLURM_EPV_CON_EARD_SBATCH"},
+    .con_eard_srun   = {.mod = "SLURM_EPV_CON_EARD_SRUN"},
+    .con_eard_task   = {.mod = "SLURM_EPV_CON_EARD_TASK"},
+    .con_eargmd      = {.mod = "SLURM_EPV_CON_EARGMD"}, // EPV: EAR PLUGIN VARIABLE
+    .user            = {.mod = "SLURM_EPV_USER"},
+    .group           = {.mod = "SLURM_EPV_GROUP"},
+    .account         = {.slurm = "SLURM_JOB_ACCOUNT"},
+    .name_app        = {.slurm = "SLURM_JOB_NAME", .ear = ENV_APP_NAME},
+    .job_id          = {.slurm = "SLURM_JOB_ID"},
+    .job_node_list   = {.slurm = "SLURM_JOB_NODELIST"},
+    .job_node_count  = {.slurm = "SLURM_JOB_NUM_NODES"},
+    .step_id         = {.slurm = "SLURM_STEP_ID"},
+    .step_node_list  = {.slurm = "SLURM_STEP_NODELIST"},
+    .step_node_count = {.slurm = "SLURM_STEP_NUM_NODES"},
+    .local_id        = {.slurm = "SLURM_LOCALID"},
+    .cpus_node_num   = {.slurm = "SLURM_CPUS_ON_NODE"},
+    .gpus_task_list  = {.slurm = "SLURM_STEP_GPUS"},
+    .verbose         = {.flag = "SLURM_EPF_VERBOSITY", .ear = ENV_FLAG_VERBOSITY}, // EPF: EAR PLUGIN FLAG
+    .policy          = {.flag = "SLURM_EPF_POLICY", .ear = ENV_FLAG_POLICY},
+    .policy_th       = {.flag = "SLURM_EPF_POLICY_TH", .ear = ENV_FLAG_POLICY_TH},
+    .frequency       = {.flag = "SLURM_EPF_FREQUENCY", .ear = ENV_FLAG_FREQUENCY},
+    .p_state         = {.flag = "SLURM_EPF_PSTATE", .ear = ENV_FLAG_PSTATE},
+    .learning        = {.flag = "SLURM_EPF_LEARNING_PHASE", .ear = ENV_FLAG_IS_LEARNING},
+    .tag             = {.flag = "SLURM_EPF_ENERGYT_AG", .ear = ENV_FLAG_ENERGY_TAG},
+    .path_usdb       = {.flag = "SLURM_EPF_USER_DB", .ear = ENV_FLAG_PATH_USERDB},
+    .path_trac       = {.flag = "SLURM_EPF_TRACE_PATH", .ear = ENV_FLAG_PATH_TRACE},
+    .perf_pen        = {.ear = ENV_FLAG_POLICY_PENALTY},
+    .eff_gain        = {.ear = ENV_FLAG_POLICY_GAIN},
+    .path_temp       = {.ear = ENV_PATH_TMP},
+    .path_install    = {.ear = ENV_PATH_EAR},
+    .task_pid        = {.ear = FLAG_TASK_PID},
+    .ld_preload      = {.ear = "LD_PRELOAD"},
+    .ld_library      = {.ear = "LD_LIBRARY_PATH"},
+    .is_erun         = {.ear = SCHED_IS_ERUN},
 };
 
 /*

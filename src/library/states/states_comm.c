@@ -138,7 +138,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
 
         char io_info[256];
         if (sigex != NULL) {
-            io_tostr(io_data, io_info, sizeof(io_info)); // io_data declared above
+            io_old_tostr(io_data, io_info, sizeof(io_info)); // io_data declared above
         } else {
             sprintf(io_info, "No IO data");
         }

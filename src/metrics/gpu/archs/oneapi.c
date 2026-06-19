@@ -25,22 +25,23 @@
 #include <metrics/common/oneapi.h>
 #include <metrics/gpu/archs/oneapi.h>
 
+#ifndef USE_PVC_HWMON
+#define USE_PVC_HWMON 0
+#endif
 #define ONE_API_RELAX 5000
 #define ONE_API_BURST 3000
-
-#define VGPU_DATA 3
+#define VGPU_DATA     3
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static gpu_t         *pool; // change to sysmans_pool
 static timestamp_t    pool_time1;
 static timestamp_t    pool_time2;
-static uint           is_initialized;
 static uint           is_pooling;
 static suscription_t *sus;
-static uint           devs_count;
-static ze_handlers_t *devs;
+static ze_handlers_t *handlers;
+static uint           handlers_count;
 static ze_t           ze;
-static int            mode;
+static int            this_mode;
 
 #define if_fail(function, action)                                                                                      \
     if ((z = function) != ZE_RESULT_SUCCESS) {                                                                         \
@@ -54,13 +55,35 @@ static void load_atfork()
     pthread_mutex_unlock(&lock);
 }
 
-void gpu_oneapi_load(gpu_ops_t *ops, int force_api)
+static void close_all()
 {
-    debug("Received API %d", force_api);
+    if (is_pooling) {
+        monitor_unregister(sus);
+        is_pooling = 0;
+    }
+    if (pool != NULL) {
+        free(pool);
+        pool = NULL;
+    }
+    if (handlers != NULL) {
+        oneapi_free_handlers(&handlers, &handlers_count);
+    }
+    oneapi_close();
+}
+
+GPU_F_LOAD(oneapi)
+{
+    timestamp_t time;
+    int i;
+
+    debug("Received API %d", options);
+    if (USE_PVC_HWMON) {
+        return;
+    }
     // If api is API_EARD, then EARD provides the gpu_t reading.
-    if (API_IS(force_api, API_DEFAULT)) {
+    if (API_IS(options, API_DEFAULT)) {
         is_pooling = 1;
-    } else if (API_IS(force_api, API_FREE)) {
+    } else if (API_IS(options, API_FREE)) {
         is_pooling = oneapi_is_privileged();
     }
     // Just sysman is needed
@@ -68,88 +91,55 @@ void gpu_oneapi_load(gpu_ops_t *ops, int force_api)
         debug("oneapi_open_sysman failed: %s", state_msg);
         return;
     }
-    if (state_fail(oneapi_get_handlers(&devs, &devs_count))) {
+    if (state_fail(oneapi_get_handlers(&handlers, &handlers_count))) {
         debug("oneapi_get_devices failed: %s", state_msg);
         return;
     }
     // Allocation
-    pool = calloc(devs_count, sizeof(gpu_t));
+    pool = calloc(handlers_count, sizeof(gpu_t));
     // Atfork control
     pthread_atfork(NULL, NULL, load_atfork);
-
-    apis_set(ops->get_info   , gpu_oneapi_get_info);
-    apis_set(ops->get_devices, gpu_oneapi_get_devices);
-    apis_set(ops->init       , gpu_oneapi_init);
-    apis_set(ops->dispose    , gpu_oneapi_dispose);
-    apis_set(ops->set_monitoring_mode, gpu_oneapi_set_monitoring_mode);
-    apis_pin(ops->read       , gpu_oneapi_read, is_pooling);
-    apis_set(ops->read_raw   , gpu_oneapi_read_raw);
-    apis_set(ops->data_diff  , gpu_oneapi_data_diff);
-}
-
-void gpu_oneapi_get_info(apinfo_t *info)
-{
-    info->api        = API_ONEAPI;
-    info->devs_count = devs_count;
-}
-
-void gpu_oneapi_get_devices(gpu_devs_t **devs_in, uint *devs_count_in)
-{
-    int dv;
-    if (devs_in != NULL) {
-        *devs_in = calloc(devs_count, sizeof(gpu_devs_t));
-        //
-        for (dv = 0; dv < devs_count; ++dv) {
-            (*devs_in)[dv].serial = devs[dv].uuid;
-            (*devs_in)[dv].index  = dv;
-        }
-    }
-    if (devs_count_in != NULL) {
-        *devs_count_in = devs_count;
-    }
-}
-
-state_t gpu_oneapi_init(ctx_t *c)
-{
-    state_t s = EAR_SUCCESS;
-    timestamp_t time;
-    int i;
-
-    if (is_initialized) {
-        return s;
-    }
     // Initializing pool (pool at 0 is not incorrect)
     timestamp_getfast(&time);
-    for (i = 0; i < devs_count; ++i) {
+    for (i = 0; i < handlers_count; ++i) {
         pool[i].time    = time;
         pool[i].correct = 1;
     }
     if (is_pooling) {
-        // Monitor suscription
         sus             = suscription();
         sus->call_main  = gpu_oneapi_pool;
         sus->time_relax = ONE_API_RELAX;
         sus->time_burst = ONE_API_BURST;
-        // Initializing monitoring thread.
-        if (state_ok(s = sus->suscribe(sus))) {
-            is_initialized = 1;
-        }
-    } // is_pooling
-    return s;
-}
-
-state_t gpu_oneapi_dispose(ctx_t *c)
-{
-    if (is_initialized) {
-        monitor_unregister(sus);
-        is_initialized = 0;
+        sus->suscribe(sus);
     }
-    return EAR_SUCCESS;
+    apis_pif(ops->unload      , gpu_oneapi_unload      , 1);
+    apis_pif(ops->get_info    , gpu_oneapi_get_info    , 1);
+    apis_pif(ops->topology_get, gpu_oneapi_topology_get, 1);
+    apis_pif(ops->set_monitoring_mode, gpu_oneapi_set_monitoring_mode, 1);
+    apis_pif(ops->read        , gpu_oneapi_read        , is_pooling);
+    apis_pif(ops->read_raw    , gpu_oneapi_read_raw    , 1);
+    apis_pif(ops->data_diff   , gpu_oneapi_data_diff   , 1);
 }
 
-void gpu_oneapi_set_monitoring_mode(int mode_in)
+GPU_F_UNLOAD(oneapi)
 {
-    mode = mode_in;
+    close_all();
+}
+
+GPU_F_GET_INFO(oneapi)
+{
+    info->api        = API_ONEAPI;
+    info->devs_count = handlers_count;
+}
+
+GPU_F_TOPOLOGY_GET(oneapi)
+{
+    oneapi_get_devices(&tp->devs, &tp->devs_count);
+}
+
+GPU_F_SET_MONITORING_MODE(oneapi)
+{
+    this_mode = mode;
     if (mode == MONITORING_MODE_IDLE && is_pooling) {
         debug("Setting RELAX mode in GPU pooling");
         monitor_relax(sus);
@@ -169,8 +159,8 @@ static state_t oneapi_read_power(int dv, gpu_t *data)
     // Retrieving the domains
     data->energy_j = 0.0;
     // It seems CARD matches DOMAIN0 (all the PCI CARD)
-    if (devs[dv].scard_count > 0) {
-        if (ze.sPowerGetEnergyCounter(devs[dv].scard, &info) == ZE_RESULT_SUCCESS) {
+    if (handlers[dv].scard_count > 0) {
+        if (ze.sPowerGetEnergyCounter(handlers[dv].scard, &info) == ZE_RESULT_SUCCESS) {
             debug("DEV%d CARDP DOMAIN%d: %020lu uJ at %lu uS",
                 dv, 0, info.energy, info.timestamp);
             data->energy_j = ((double) info.energy) / 1000000.0;
@@ -180,10 +170,10 @@ static state_t oneapi_read_power(int dv, gpu_t *data)
         }
     }
     // If card doesn't exists
-    for (d = 0; d < devs[dv].spowers_count; ++d) {
-        if_fail(ze.sPowerGetEnergyCounter(devs[dv].spowers[d], &info), continue);
+    for (d = 0; d < handlers[dv].spowers_count; ++d) {
+        if_fail(ze.sPowerGetEnergyCounter(handlers[dv].spowers[d], &info), continue);
         debug("DEV%d POWER DOMAIN%d: %020lu uJ at %lu uS (sub %d)",
-            dv, d, info.energy, info.timestamp, devs[dv].spowers_props[d].subdeviceId);
+            dv, d, info.energy, info.timestamp, handlers[dv].spowers_props[d].subdeviceId);
         // SUBDEVICE -1 seems to be the whole GPU, but if not, we are
         // taking the greatest joules value
         joules = ((double) info.energy) / 1000000.0;
@@ -191,7 +181,7 @@ static state_t oneapi_read_power(int dv, gpu_t *data)
             data->energy_j = joules;
         }
         #if !SHOW_DEBUGS
-        if (devs[dv].spowers_props[d].subdeviceId == -1) {
+        if (handlers[dv].spowers_props[d].subdeviceId == -1) {
             return EAR_SUCCESS;
         }
         #endif
@@ -207,17 +197,17 @@ static state_t oneapi_read_frequency(int dv, gpu_t *data)
     ze_result_t z;
     int d;
     // Retrieving the domains
-    for (d = devs[dv].sfreqs_count - 1; d >= 0; --d) {
-        if_fail(ze.sFrequencyGetState(devs[dv].sfreqs[d], &info), continue);
+    for (d = handlers[dv].sfreqs_count - 1; d >= 0; --d) {
+        if_fail(ze.sFrequencyGetState(handlers[dv].sfreqs[d], &info), continue);
         debug("DEV%d FREQ DOMAIN%d: act/eff/tdp %.0lf/%.0lf/%.0lf (%.0lf to %.0lf MHz) (sub %d)",
-            dv, d, info.actual, info.efficient, info.tdp, devs[dv].sfreqs_props[d].max,
-            devs[dv].sfreqs_props[d].min, devs[dv].sfreqs_props[d].subdeviceId);
+            dv, d, info.actual, info.efficient, info.tdp, handlers[dv].sfreqs_props[d].max,
+            handlers[dv].sfreqs_props[d].min, handlers[dv].sfreqs_props[d].subdeviceId);
         // Taking DOMAIN0
-        if (devs[dv].sfreqs_props[d].type == ZES_FREQ_DOMAIN_GPU) {
+        if (handlers[dv].sfreqs_props[d].type == ZES_FREQ_DOMAIN_GPU) {
             data->freq_gpu += (ulong) info.actual; // MHz
             gpu_count += 1;
         }
-        if (devs[dv].sfreqs_props[d].type == ZES_FREQ_DOMAIN_MEMORY) {
+        if (handlers[dv].sfreqs_props[d].type == ZES_FREQ_DOMAIN_MEMORY) {
             data->freq_mem += (ulong) info.actual; // MHz
             mem_count += 1;
         }
@@ -272,22 +262,22 @@ static state_t oneapi_read_utilization(int dv, gpu_t *data)
     ze_result_t        z;
     uint               d;
 
-    for (d = 0; d < devs[dv].sengines_count; ++d) {
-        if_fail(ze.sEngineGetActivity(devs[dv].sengines[d], &info), continue);
+    for (d = 0; d < handlers[dv].sengines_count; ++d) {
+        if_fail(ze.sEngineGetActivity(handlers[dv].sengines[d], &info), continue);
         #if SHOW_DEBUGS
         debug("DEV%d ENGINE DOMAIN%d: %lu active uS (%lu timestamp) (sub %d) (%s)",
-            dv, d, info.activeTime, info.timestamp, devs[dv].sengines_props[d].subdeviceId,
-            engtostr(devs[dv].sengines_props[d].type, NULL));
+            dv, d, info.activeTime, info.timestamp, handlers[dv].sengines_props[d].subdeviceId,
+            engtostr(handlers[dv].sengines_props[d].type, NULL));
         #endif
         // Getting the priority
-        engtostr(devs[dv].sengines_props[d].type, &prio);
+        engtostr(handlers[dv].sengines_props[d].type, &prio);
         // Is new or already found?
         if (prio != NO_PRIO) {
             ulong adiff = info.activeTime - save[dv][d].activeTime;
             ulong tdiff = info.timestamp  - save[dv][d].timestamp;
             if (prio < prio_set) {
                 debug("DEV%d ENGINE DOMAIN%d: selecting %s", dv, d,
-                    engtostr(devs[dv].sengines_props[d].type, NULL));
+                    engtostr(handlers[dv].sengines_props[d].type, NULL));
                 data->util_gpu = (tdiff > 0LU) ? adiff * 100 / tdiff : 0LU;
                 prio_set       = prio;
                 prio_count     = 1;
@@ -317,23 +307,23 @@ static state_t oneapi_read_temperature(int dv, gpu_t *data)
     double temp;
     uint s;
 
-    for (s = 0; s < devs[dv].stemps_count; ++s) {
-        if_fail(ze.sTemperatureGetState(devs[dv].stemps[s], &temp), continue);
+    for (s = 0; s < handlers[dv].stemps_count; ++s) {
+        if_fail(ze.sTemperatureGetState(handlers[dv].stemps[s], &temp), continue);
         debug("DEV%d TEMP DOMAIN%d: %lf celsius (%lf max) (type %d)", dv, s, temp,
-            devs[dv].stemps_props[s].maxTemperature, devs[dv].stemps_props[s].type);
-        if (devs[dv].stemps_props[s].type != ZES_TEMP_SENSORS_GPU) {
+            handlers[dv].stemps_props[s].maxTemperature, handlers[dv].stemps_props[s].type);
+        if (handlers[dv].stemps_props[s].type != ZES_TEMP_SENSORS_GPU) {
             data->temp_gpu += (ulong) temp;
             gpu_count += 1;
         }
-        if (devs[dv].stemps_props[s].type != ZES_TEMP_SENSORS_MEMORY) {
+        if (handlers[dv].stemps_props[s].type != ZES_TEMP_SENSORS_MEMORY) {
             data->temp_mem += (ulong) temp;
             mem_count += 1;
         }
     }
     if (gpu_count > 1) data->temp_gpu /= gpu_count;
     if (mem_count > 1) data->temp_mem /= mem_count;
-    for (s = 0; s < devs[dv].spsus_count; ++s) {
-        if_fail(ze.sPsuGetState(devs[dv].spsus[s], &state), continue);
+    for (s = 0; s < handlers[dv].spsus_count; ++s) {
+        if_fail(ze.sPsuGetState(handlers[dv].spsus[s], &state), continue);
         debug("DEV%d PSU DOMAIN%d: %d celsius", dv, s, state.temperature);
     }
     return EAR_SUCCESS;
@@ -359,7 +349,7 @@ static void read_single(int dv, gpu_t *gpu)
     oneapi_read_power(dv, gpu);
     // If monitoring mode is RUN, it means there are jobs running in GPU and we
     // can read more metrics without the fear of power consumption being increased.
-    if (mode == MONITORING_MODE_RUN) {
+    if (this_mode == MONITORING_MODE_RUN) {
         oneapi_read_frequency(dv, gpu);
         oneapi_read_utilization(dv, gpu);
         oneapi_read_temperature(dv, gpu);
@@ -380,7 +370,7 @@ state_t gpu_oneapi_pool(void *p)
     // Locking
     while (pthread_mutex_trylock(&lock));
     // ¿Add or reset?
-    add = (mode == MONITORING_MODE_RUN);
+    add = (this_mode == MONITORING_MODE_RUN);
     // Time operations
     timestamp_getfast(&time);
     time_diff = (double) timestamp_diff(&time, &pool[0].time, TIME_USECS);
@@ -393,7 +383,7 @@ state_t gpu_oneapi_pool(void *p)
     #endif
     time_diff = time_diff / 1000000.0;
     // Adding to the pool
-    for (dv = 0; dv < devs_count; ++dv) {
+    for (dv = 0; dv < handlers_count; ++dv) {
         read_single(dv, &current);
         pool[dv].time      = time;
         pool[dv].samples  += 1;
@@ -441,16 +431,16 @@ state_t gpu_oneapi_pool(void *p)
     return EAR_SUCCESS;
 }
 
-state_t gpu_oneapi_read(ctx_t *c, gpu_t *data)
+GPU_F_READ(oneapi)
 {
     gpu_oneapi_pool(NULL);
     while (pthread_mutex_trylock(&lock));
-    memcpy(data, pool, devs_count * sizeof(gpu_t));
+    memcpy(d, pool, handlers_count * sizeof(gpu_t));
     pthread_mutex_unlock(&lock);
     return EAR_SUCCESS;
 }
 
-state_t gpu_oneapi_read_raw(ctx_t *c, gpu_t *data)
+GPU_F_READ_RAW(oneapi)
 {
     gpu_oneapi_pool(NULL);
     return EAR_SUCCESS;
@@ -500,10 +490,10 @@ static void static_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff, int i
     #endif
 }
 
-void gpu_oneapi_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff)
+GPU_F_DATA_DIFF(oneapi)
 {
     int i;
-    for (i = 0; i < devs_count; i++) {
-        static_data_diff(data2, data1, data_diff, i);
+    for (i = 0; i < handlers_count; i++) {
+        static_data_diff(d2, d1, dD, i);
     }
 }

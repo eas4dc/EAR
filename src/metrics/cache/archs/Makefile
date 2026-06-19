@@ -3,6 +3,7 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 ######## FILES
 
 cach_OBJS = \
+	demo.o \
 	dummy.o \
 	perf.o
 

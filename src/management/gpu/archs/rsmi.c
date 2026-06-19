@@ -25,9 +25,9 @@ static uint devs_count;
 static ulong *clock_list_default; // KHz
 static ulong **clock_list;        // KHz
 static uint *clock_lens;
-static ulong *pc_list_default; // W
-static ulong *pc_list_max;     // W
-static ulong *pc_list_min;     // W
+static uint32_t *pc_list_default; // W
+static uint32_t *pc_list_max;     // W
+static uint32_t *pc_list_min;     // W
 static uint ok_init;
 
 #define myErrorString(r) ((char *) rsmi.ErrorString(r))
@@ -111,12 +111,13 @@ static state_t static_init_dev(int i)
         debug("D%d F%d: %llu KHz", i, f, clock_list[i][f]);
     }
     // Powercap default (microWatts to Watts)
-    rsmi.get_powercap_default(i, &pc_list_default[i]);
-    pc_list_default[i] /= 1000000LU;
+    ulong def_mw, max_uw, min_uw;
+    rsmi.get_powercap_default(i, &def_mw);
+    pc_list_default[i] = def_mw / 1000000U;
     // Powercap min/max (microWatts to Watts)
-    rsmi.get_powercap_range(i, 0, &pc_list_max[i], &pc_list_min[i]);
-    pc_list_max[i] /= 1000000LU;
-    pc_list_min[i] /= 1000000LU;
+    rsmi.get_powercap_range(i, 0, &max_uw, &min_uw);
+    pc_list_max[i] = max_uw / 1000000U;
+    pc_list_min[i] = min_uw / 1000000U;
     //
     unused(s);
 #if SHOW_DEBUGS
@@ -124,7 +125,7 @@ static state_t static_init_dev(int i)
     for (f = 0; f < clock_lens[i]; ++f) {
         debug("D%d F%d: %lu KHz", i, f, clock_list[i][f]);
     }
-    debug("D%d: powers between %lu - %lu, and defautl %lu", i, pc_list_min[i], pc_list_max[i], pc_list_default[i]);
+    debug("D%d: powers between %u - %u, and defautl %u", i, pc_list_min[i], pc_list_max[i], pc_list_default[i]);
 #endif
 
     return EAR_SUCCESS;
@@ -134,9 +135,9 @@ static state_t static_init()
 {
     int d;
 
-    static_alloc(pc_list_default, devs_count, sizeof(ulong));
-    static_alloc(pc_list_max, devs_count, sizeof(ulong));
-    static_alloc(pc_list_min, devs_count, sizeof(ulong));
+    static_alloc(pc_list_default, devs_count, sizeof(uint32_t));
+    static_alloc(pc_list_max, devs_count, sizeof(uint32_t));
+    static_alloc(pc_list_min, devs_count, sizeof(uint32_t));
     static_alloc(clock_list_default, devs_count, sizeof(ulong));
     static_alloc(clock_list, devs_count, sizeof(ulong *));
     static_alloc(clock_lens, devs_count, sizeof(uint));
@@ -169,24 +170,7 @@ state_t mgt_gpu_rsmi_dispose(ctx_t *c)
 
 state_t mgt_gpu_rsmi_get_devices(ctx_t *c, gpu_devs_t **devs_in, uint *devs_count_in)
 {
-    char serial[32];
-    rsmi_status_t r;
-    int i;
-
-    *devs_in = calloc(devs_count, sizeof(gpu_devs_t));
-    //
-    for (i = 0; i < devs_count; ++i) {
-        if ((r = rsmi.get_serial(i, serial, 32)) != RSMI_STATUS_SUCCESS) {
-            return_msg(EAR_ERROR, "RSMI error");
-        }
-        debug("D%d: %s", i, serial);
-        (*devs_in)[i].serial = (ullong) atoll(serial);
-        (*devs_in)[i].index  = i;
-    }
-    if (devs_count_in != NULL) {
-        *devs_count_in = devs_count;
-    }
-
+    rsmi_get_devices(devs_in, devs_count_in);
     return EAR_SUCCESS;
 }
 
@@ -277,17 +261,18 @@ state_t mgt_gpu_rsmi_freq_list(ctx_t *c, const ulong ***list_khz, const uint **l
     return EAR_SUCCESS;
 }
 
-state_t mgt_gpu_rsmi_power_cap_get_current(ctx_t *c, ulong *watts)
+state_t mgt_gpu_rsmi_power_cap_get_current(ctx_t *c, uint32_t *watts)
 {
     int i;
+    ulong cap_uw;
     for (i = 0; i < devs_count; ++i) {
-        rsmi.get_powercap(i, 0, &watts[i]);
-        watts[i] /= 1000000LU;
+        rsmi.get_powercap(i, 0, &cap_uw);
+        watts[i] = cap_uw / 1000000U;
     }
     return EAR_SUCCESS;
 }
 
-state_t mgt_gpu_rsmi_power_cap_get_default(ctx_t *c, ulong *watts)
+state_t mgt_gpu_rsmi_power_cap_get_default(ctx_t *c, uint32_t *watts)
 {
     int i;
     for (i = 0; i < devs_count; ++i) {
@@ -296,9 +281,12 @@ state_t mgt_gpu_rsmi_power_cap_get_default(ctx_t *c, ulong *watts)
     return EAR_SUCCESS;
 }
 
-state_t mgt_gpu_rsmi_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts_max)
+state_t mgt_gpu_rsmi_power_cap_get_rank(ctx_t *c, uint32_t *watts_min, uint32_t *watts_max)
 {
     int i;
+    if (watts_min != NULL) {
+        memcpy(watts_min, pc_list_min, devs_count * sizeof(uint32_t));
+    }
     for (i = 0; i < devs_count; ++i) {
         watts_min[i] = pc_list_min[i];
         watts_max[i] = pc_list_max[i];
@@ -306,19 +294,18 @@ state_t mgt_gpu_rsmi_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts
     return EAR_SUCCESS;
 }
 
-static state_t powercap_set(int i, ulong uw)
+static state_t powercap_set(int i, uint32_t w)
 {
-    if (uw == 0LU) {
+    if (w == 0U) {
         return EAR_SUCCESS;
     }
-    rsmi.set_powercap(i, 0, uw);
+    rsmi.set_powercap(i, 0, (ulong) w * 1000000LU);
     return EAR_SUCCESS;
 }
 
 static state_t powercap_reset(int i)
 {
-    // Watts to microWatts
-    return powercap_set(i, pc_list_default[i] * 1000000LU);
+    return powercap_set(i, pc_list_default[i]);
 }
 
 state_t mgt_gpu_rsmi_power_cap_reset(ctx_t *c)
@@ -330,12 +317,11 @@ state_t mgt_gpu_rsmi_power_cap_reset(ctx_t *c)
     return EAR_SUCCESS;
 }
 
-state_t mgt_gpu_rsmi_power_cap_set(ctx_t *c, ulong *watts)
+state_t mgt_gpu_rsmi_power_cap_set(ctx_t *c, uint32_t *watts)
 {
     int i;
     for (i = 0; i < devs_count; ++i) {
-        // Watts to microWatts
-        powercap_set(i, watts[i] * 1000000LU);
+        powercap_set(i, watts[i]);
     }
     return EAR_SUCCESS;
 }

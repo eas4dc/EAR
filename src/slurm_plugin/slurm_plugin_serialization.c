@@ -254,6 +254,12 @@ int plug_print_variables(spank_t sp)
     printenv_agnostic(sp, Var.step_node_count.slurm);
     printenv_agnostic(sp, Var.local_id.slurm);
     printenv_agnostic(sp, Var.cpus_node_num.slurm);
+    printenv_agnostic(sp, Var.gpus_task_list.slurm);
+    printenv_agnostic(sp, "SLURM_GPUS");
+    printenv_agnostic(sp, "SLURM_TRES_BIND");
+    printenv_agnostic(sp, "SLURM_GPUS_ON_NODE");
+    printenv_agnostic(sp, "CUDA_VISIBLE_DEVICES");
+    printenv_agnostic(sp, "GPU_DEVICE_ORDINAL");
     printenv_agnostic(sp, Var.verbose.flag);
     printenv_agnostic(sp, Var.policy.flag);
     printenv_agnostic(sp, Var.policy_th.flag);
@@ -277,12 +283,12 @@ int plug_print_variables(spank_t sp)
     printenv_agnostic(sp, Var.name_app.ear);
     printenv_agnostic(sp, Var.path_temp.ear);
     printenv_agnostic(sp, Var.path_install.ear);
+    printenv_agnostic(sp, "EAR_ETC");
+    printenv_agnostic(sp, "EAR_TMP");
     printenv_agnostic(sp, Var.task_pid.ear);
     printenv_agnostic(sp, Var.ld_preload.ear);
     printenv_agnostic(sp, Var.ld_library.ear);
     printenv_agnostic(sp, Var.is_erun.ear);
-    printenv_agnostic(sp, "EAR_ETC");
-    printenv_agnostic(sp, "EAR_TMP");
     return ESPANK_SUCCESS;
 }
 
@@ -648,6 +654,8 @@ int plug_serialize_task_preload(spank_t sp, plug_serialization_t *sd)
 int plug_deserialize_task(spank_t sp, plug_serialization_t *sd)
 {
     plug_verbose(sp, 2, "function plug_deserialize_task");
+    uint gpus_list_count;
+    int *gpus_list;
     int cpu_set;
     int task;
     int i, j;
@@ -670,8 +678,20 @@ int plug_deserialize_task(spank_t sp, plug_serialization_t *sd)
     sd->job.task.sid = sd->job.app.job.step_id;
     sd->job.task.pid = getpid();
 
-    // Below code doesn't work unless the SLURM user has explicitey set the number of CPUs per task.
+    // The below code doesn't work unless the SLURM user has explicitey set the
+    // number of CPUs per task.
     spank_get_item(sp, S_STEP_CPUS_PER_TASK, (int *) &sd->job.task.num_cpus);
+
+    // GPUs
+    cpu_set_t gpus;
+
+    if (envtoat(Var.gpus_task_list.slurm, (void **) &gpus_list, &gpus_list_count, ID_UINT) != NULL) {
+        for (i = 0; i < gpus_list_count; ++i) {
+            plug_verbose(sp, 2, "Detected GPU %d", gpus_list[i]);
+            CPU_SET(i, &gpus);
+        }
+        free(gpus_list);
+    }
 
 #if !ERUN
 #define SPACE "                            "

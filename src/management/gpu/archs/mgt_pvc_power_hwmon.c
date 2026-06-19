@@ -198,20 +198,16 @@ static state_t mgt_pvc_hwmon_static_init(ctx_t *c)
 state_t mgt_pvc_hwmon_get_devices(ctx_t *c, gpu_devs_t **devs_in, uint *devs_count_in)
 {
     int dv;
-
-    debug("mgt_pvc_hwmon_get_devices");
-    if (!pvc_hwmon_meter_initialized)
+    if (!pvc_hwmon_meter_initialized) {
         return EAR_ERROR;
-    debug("mgt_pvc_hwmon_get_devices allocating data for %u GPUS", pvc_gpus_num_devices);
+    }
     if (devs_in != NULL) {
         *devs_in = calloc(pvc_gpus_num_devices, sizeof(gpu_devs_t));
-        //
         for (dv = 0; dv < pvc_gpus_num_devices; ++dv) {
             (*devs_in)[dv].serial = 0;
             (*devs_in)[dv].index  = dv;
         }
     }
-    debug("Serial info allocated");
     if (devs_count_in != NULL) {
         *devs_count_in = pvc_gpus_num_devices;
     }

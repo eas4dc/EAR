@@ -8,195 +8,239 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <errno.h>
-#include <fcntl.h>
+// clang-format off
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-// #define SHOW_DEBUGS 1
-
-#if !SHOW_DEBUGS
-#define NDEBUG
-#endif
-
-#include <assert.h>
-
-#include <common/output/verbose.h>
-#include <common/plugins.h>
-#include <common/states.h>
-#include <common/string_enhanced.h>
-#include <common/types/generic.h>
+#include <pthread.h>
+#include <common/math_operations.h>
 #include <metrics/io/io.h>
+#include <metrics/io/archs/dummy.h>
+#include <metrics/io/archs/proc_file.h>
 
-state_t io_init(ctx_t *c, pid_t pid)
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static apinfo_t        info;
+static io_ops_t        ops;
+
+void io_load(topology_t *tp, int options)
 {
-    FILE *f;
-    char io_path[MAX_PATH_SIZE];
-    sprintf(io_path, IO_PATH, (int) pid);
-    f = fopen(io_path, "r");
-    if (f == NULL) {
-        verbose(1, "%sError%s Opening io file %s (%s)", COL_RED, COL_CLR, io_path, strerror(errno));
-        state_return_msg(EAR_OPEN_ERROR, errno, strerror(errno));
+    while (pthread_mutex_trylock(&lock));
+    if (info.api != API_NONE) {
+        goto done;
     }
-    c->context = (void *) f;
-    state_return(EAR_SUCCESS);
+    if (API_IS(options, API_DUMMY)) {
+        goto dummy;
+    }
+    io_proc_file_load(tp, &ops, options);
+dummy:
+    io_dummy_load(tp, &ops, options);
+    io_get_info(&info);
+done:
+    pthread_mutex_unlock(&lock);
 }
 
-static void assign_token_value(io_data_t *iodata, char *token, char *value)
+void io_unload()
 {
+    while (pthread_mutex_trylock(&lock));
+    if (ops.unload != NULL) {
+        ops.unload();
+        memset(&ops, 0, sizeof(io_ops_t));
+        memset(&info, 0, sizeof(apinfo_t));
+    }
+    pthread_mutex_unlock(&lock);
+}
 
-    if (!strcmp(token, "rchar")) {
-        iodata->rchar = atoll(value);
-    }
-    if (!strcmp(token, "wchar")) {
-        iodata->wchar = atoll(value);
-    }
-    if (!strcmp(token, "syscr")) {
-        iodata->syscr = atoll(value);
-    }
-    if (!strcmp(token, "syscw")) {
-        iodata->syscw = atoll(value);
-    }
-    if (!strcmp(token, "read_bytes")) {
-        iodata->read_bytes = atoll(value);
-    }
-    if (!strcmp(token, "write_bytes")) {
-        iodata->write_bytes = atoll(value);
-    }
-    if (!strcmp(token, "cancelled_write_bytes")) {
-        iodata->cancelled = atoll(value);
+state_t io_update(uint option, void *value)
+{
+    state_t s;
+    while (pthread_mutex_trylock(&lock));
+    s = ops.update(option, value);
+    pthread_mutex_unlock(&lock);
+    return s;
+}
+
+void io_get_info(apinfo_t *info)
+{
+    memset(info, 0, sizeof(apinfo_t));
+    info->layer = "IO";
+    if (ops.get_info != NULL) {
+        ops.get_info(info);
     }
 }
 
-state_t io_read(ctx_t *c, io_data_t *iodata)
+state_t io_read(io_t *io)
 {
-    char line[256];
-    char *token, *value;
+    state_t s;
+    while (pthread_mutex_trylock(&lock));
+    memset(io, 0, sizeof(io_t)*info.devs_count);
+    s = ops.read(io);
+    pthread_mutex_unlock(&lock);
+    return s;
+}
 
-    if (iodata == NULL) {
-        state_return(EAR_ERROR);
+state_t io_read_diff(io_t *io2, io_t *io1, io_t *io_diff, double *mbs)
+{
+    state_t s;
+    if (state_fail(s = io_read(io2))) {
+        return s;
     }
+    io_data_diff(io2, io1, io_diff, mbs);
+    return s;
+}
 
-    memset(iodata, 0, sizeof(io_data_t));
+state_t io_read_copy(io_t *io2, io_t *io1, io_t *io_diff, double *mbs)
+{
+    state_t s;
+    if (state_fail(s = io_read_diff(io2, io1, io_diff, mbs))) {
+        return s;
+    }
+    io_data_copy(io1, io2);
+    return s;
+}
 
-    fseek((FILE *) c->context, 0L, SEEK_SET);
-    while (fgets(line, 256, (FILE *) c->context) != NULL) {
-        token = strtok(line, ":");
-        if (token != NULL) {
-            remove_chars(token, ' ');
-            debug("token found %s", token);
-            value = strtok(NULL, "");
-            if (value != NULL) {
-                remove_chars(value, ' ');
-                debug("value %s", value);
-                assign_token_value(iodata, token, value);
-            }
+void io_data_diff(io_t *io2, io_t *io1, io_t *io_diff, double *mbs)
+{
+    double mbs_own = 0.0;
+    double secs = 0.0;
+    int i;
+
+    secs = timestamp_fdiff(&io2[0].time, &io1[0].time, TIME_SECS, TIME_MSECS);
+    for (i = 0; i < info.devs_count; ++i) {
+        if (io2[i].pid == 0 || io1[i].pid == 0) {
+            continue;
         }
+        io_diff[i].secs  = secs;
+        io_diff[i].pid   = io2[i].pid;
+        io_diff[i].rchar = overflow_zeros_u64(io2[i].rchar, io1[i].rchar);
+        io_diff[i].wchar = overflow_zeros_u64(io2[i].wchar, io1[i].wchar);
+        io_diff[i].syscr = overflow_zeros_u64(io2[i].syscr, io1[i].syscr);
+        io_diff[i].syscw = overflow_zeros_u64(io2[i].syscw, io1[i].syscw);
+        io_diff[i].rstor = overflow_zeros_u64(io2[i].rstor, io1[i].rstor);
+        io_diff[i].wstor = overflow_zeros_u64(io2[i].wstor, io1[i].wstor);
+        io_diff[i].cancelled = overflow_zeros_u64(io2[i].cancelled, io1[i].cancelled);
+        mbs_own += (double) (io_diff[i].rstor + io_diff[i].wstor);
     }
-    state_return(EAR_SUCCESS);
-}
-
-state_t io_alloc(io_data_t **iodata)
-{
-    io_data_t *t;
-
-    if (iodata == NULL)
-        return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
-    t       = calloc(1, sizeof(io_data_t));
-    *iodata = t;
-    state_return(EAR_SUCCESS);
-}
-
-state_t io_free(io_data_t *iodata)
-{
-    if (iodata == NULL)
-        return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
-    free(iodata);
-    state_return(EAR_SUCCESS);
-}
-
-state_t io_print(io_data_t *iodata)
-{
-    char msg[512];
-    if (iodata == NULL)
-        return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
-    io_tostr(iodata, msg, sizeof(msg));
-    printf("%s", msg);
-    state_return(EAR_SUCCESS);
-}
-
-state_t io_tostr(io_data_t *iodata, char *msg, size_t len)
-{
-    if ((msg == NULL) || (iodata == NULL))
-        return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
-    snprintf(msg, len, "rchar %llu wchar %llu syscr %llu syscw %llu read_bytes %llu write_bytes %llu", iodata->rchar,
-             iodata->wchar, iodata->syscr, iodata->syscw, iodata->read_bytes, iodata->write_bytes);
-    state_return(EAR_SUCCESS);
-}
-
-state_t io_diff(io_data_t *diff, io_data_t *iodata_init, io_data_t *iodata_end)
-{
-    if ((diff == NULL) || (iodata_init == NULL) || (iodata_end == NULL)) {
-        return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
+    if (mbs != NULL) {
+        if (secs == 0.0) {
+            secs = 1.0;
+        }
+        *mbs = mbs_own / secs;
     }
-
-    assert(iodata_end->rchar > iodata_init->rchar);
-    diff->rchar = iodata_end->rchar - iodata_init->rchar;
-
-    assert(iodata_end->wchar > iodata_init->wchar);
-    diff->wchar = iodata_end->wchar - iodata_init->wchar;
-
-    assert(iodata_end->syscr > iodata_init->syscr);
-    diff->syscr = iodata_end->syscr - iodata_init->syscr;
-
-    assert(iodata_end->syscw > iodata_init->syscw);
-    diff->syscw = iodata_end->syscw - iodata_init->syscw;
-
-    assert(iodata_end->read_bytes > iodata_init->read_bytes);
-    diff->read_bytes = iodata_end->read_bytes - iodata_init->read_bytes;
-
-    assert(iodata_end->write_bytes > iodata_init->write_bytes);
-    diff->write_bytes = iodata_end->write_bytes - iodata_init->write_bytes;
-
-    assert(iodata_end->cancelled > iodata_init->cancelled);
-    diff->cancelled = iodata_end->cancelled - iodata_init->cancelled;
-
-    state_return(EAR_SUCCESS);
 }
 
-/** Copies from src to dst */
-state_t io_copy(io_data_t *dst, io_data_t *src)
+void io_data_alloc(io_t **io)
 {
-    if ((dst == NULL) || (src == NULL))
-        return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
-    memcpy(dst, src, sizeof(io_data_t));
-    state_return(EAR_SUCCESS);
-}
-
-state_t io_dispose(ctx_t *c)
-{
-    if (c == NULL)
-        return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
-    fclose((FILE *) c->context);
-    state_return(EAR_SUCCESS);
-}
-
-state_t io_accum(ctx_t *c, io_data_t *dst, io_data_t *src)
-{
-    if ((dst == NULL) || (src == NULL)) {
-        return_msg(EAR_BAD_ARGUMENT, Generr.input_null);
+    if (io == NULL) {
+        return;
     }
-
-    dst->rchar += src->rchar;
-    dst->wchar += src->wchar;
-    dst->syscr += src->syscr;
-    dst->syscw += src->syscw;
-    dst->read_bytes += src->read_bytes;
-    dst->write_bytes += src->write_bytes;
-    dst->cancelled += src->cancelled;
-
-    state_return(EAR_SUCCESS);
+    *io = (io_t *) calloc(info.devs_count, sizeof(io_t));
 }
+
+void io_data_free(io_t **io)
+{
+    if (io != NULL || *io != NULL) {
+        return;
+    }
+    free(*io);
+    *io = NULL;
+}
+
+void io_data_copy(io_t *io_dst, io_t *io_src)
+{
+    memcpy(io_dst, io_src, sizeof(io_t) * info.devs_count);
+}
+
+void io_data_print(io_t *io_diff, double mbs, int fd)
+{
+    char buffer[1024] = "";
+    io_data_tostr(io_diff, mbs, buffer, sizeof(buffer));
+    dprintf(fd, "%s", buffer);
+}
+
+char *io_data_tostr(io_t *io_diff, double mbs, char *buffer, size_t length)
+{
+    int i, b, w;
+    buffer[0] = '\0';
+    for (i = b = 0; i < info.devs_count && length > 0; ++i) {
+        if (io_diff[i].pid == 0) {
+            continue;
+        }
+        w = snprintf(&buffer[b], length-1,
+            "d%d "
+            #if PRINT_ALOT
+            "rchar %011llu wchar %011llu, "
+            "syscr %011llu syscw %011llu, "
+            #endif
+            "rwstor: %llu bytes\n", i,
+            #if PRINT_ALOT
+            io_diff[i].rchar, io_diff[i].wchar,
+            io_diff[i].syscr, io_diff[i].syscw,
+            #endif
+            io_diff[i].rstor + io_diff[i].wstor);
+        w = (w < (length-1))? w: length;
+        b += w, length -= w;
+    }
+    return buffer;
+}
+
+#if TEST
+#include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+static topology_t tp;
+static apinfo_t   info;
+static io_t   *t1;
+static io_t   *t2;
+static io_t   *tD;
+static double     tA;
+static pid_t      pid;
+static int        forked;
+
+static int count_fds()
+{
+    int dummy_fd = open("/dev/null", O_RDONLY);
+    close(dummy_fd);
+    return dummy_fd;
+}
+
+int main(int argc, char *argv[])
+{
+    int i, j, k = 0;
+
+    topology_init(&tp);
+reload:
+    dprintf(STDOUT_FILENO, "%d: Loading... (%d fds)\n", getpid(), count_fds());
+    io_load(&tp, API_FREE);
+    io_get_info(&info);
+    apinfo_tostr(&info);
+    dprintf(STDOUT_FILENO, "%d: Loaded %s (%s:%s), with %u devices and %d fds\n",
+        getpid(), info.api_str, info.scope_str, info.granularity_str, info.devs_count, count_fds());
+    io_data_alloc(&t1);
+    io_data_alloc(&t2);
+    io_data_alloc(&tD);
+reread:
+    io_read(t1);
+    sleep(2);
+    for (i = j = 0; i < 1000000; ++i) {
+        j += 1;
+    }
+    io_data_print(t1, 0.0, STDOUT_FILENO);
+    io_read_diff(t2, t1, tD, &tA);
+    io_data_print(t2, 0.0, STDOUT_FILENO);
+    io_data_print(tD, 0.0, STDOUT_FILENO);
+    io_data_copy(t1, t2);
+    dprintf(STDOUT_FILENO, "%d: Printing...\n", getpid());
+    #if 1
+    if (k++ == 2 || k == 10) {
+        io_update(UPD_PID_ADD, (void *) 1383557);
+    } else if (k == 6 || k == 14){
+        io_update(UPD_PID_REMOVE, (void *) 1383557);
+        //cache_update(UPD_PIDS_CLEAN, NULL);
+    }
+    #endif
+    goto reread;
+    return 0;
+}
+#endif

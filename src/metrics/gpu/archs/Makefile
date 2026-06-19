@@ -5,10 +5,11 @@ CFLAGS = $(CC_FLAGS) -I$(SRCDIR) -fPIC
 gpu_OBJS = \
     cupti.o \
     dcgmi.o \
+    demo.o \
     dummy.o \
     eard.o \
     nvml.o \
-		pvc_power_hwmon.o \
+    hwmon_pvc.o \
     oneapi.o \
     rsmi.o \
     gpuprof_dcgmi.o \

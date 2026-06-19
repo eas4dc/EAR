@@ -14,18 +14,24 @@ comm_BINS = \
     $(SRCDIR)/common/libdb.a \
 	$(SRCDIR)/report/report.o \
     $(SRCDIR)/common/libcommon.a 
-	
 
 
 eargmd_OBJS = \
     eargm_rapi.o
 
 
+eargmd_DEPS = \
+    plugins/powercap_plugin.o
+
 eargmd_OBJS += \
     cluster_powercap.o \
     cluster_energycap.o \
     meta_eargm.o \
     eargm_ext_rm.o
+
+egmplug_BINS = \
+    dummy_plugin.so #\
+    #default_plugin.so 
 
 ifdef DB_BASE
 ifeq ($(FEAT_WF_SUPPORT), 1)
@@ -34,23 +40,33 @@ eargmd_BINS = \
 endif
 endif
 
+LDFLAGS += $(OPENSSL_LDFLAGS)
+
 ######## RULES
 
-all: $(eargmd_OBJS) $(eargmd_BINS)
+all: all.components $(eargmd_OBJS) $(eargmd_BINS)
 
-eargmd: eargm.c $(comm_BINS) $(eargmd_OBJS)
-	$(CC) $(CFLAGS) -o $@ $< $(eargmd_OBJS) $(comm_BINS) $(LDFLAGS)
+eargmd: eargm.c $(comm_BINS) $(eargmd_DEPS) $(eargmd_OBJS)
+	$(CC) $(CFLAGS) -o $@ $< $(eargmd_OBJS) $(eargmd_DEPS) $(comm_BINS) $(LDFLAGS)
+
+%.so: %.c
+	$(CC) $(CFLAGS) -shared -o $@ $^ $(SRCDIR)/common/libcommon.a -fPIC
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -fPIC -c $<
 
 ######## OPTIONS
 
-install: eargmd.ginstall;
+install: install.components eargmd.ginstall;
 
 %.install: ;
 
-clean: eargmd.gclean rclean;
+clean: clean.components eargmd.gclean rclean;
+
+######## SUBFOLDERS
+
+%.components:
+	@ $(MAKE) -C 'plugins' $*
 
 ######## DEPENDENCIES
 

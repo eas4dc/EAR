@@ -1,6 +1,7 @@
 SRCDIR   = ../..
 CC       = /hpc/base/ctt/packages/compiler/gnu/9.1.0/bin/gcc
 CC       = /opt/rh/devtoolset-7/root/bin/gcc
+CC       = gcc
 CC_FLAGS = -Wall -fPIC -O2 -I $(SRCDIR)
 
 DEPS = \

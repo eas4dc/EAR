@@ -23,7 +23,7 @@
 
 static uint num_dev;
 static ulong *def_khz, *max_khz, *current_khz;
-static ulong *def_w, *max_w, *current_w, *min_w;
+static uint32_t *def_w, *max_w, *current_w, *min_w;
 static metrics_gpus_t mgt_gpu;
 extern my_node_conf_t *my_node_conf;
 
@@ -46,10 +46,10 @@ state_t gpu_mgr_init()
     def_khz     = calloc(num_dev, sizeof(ulong));
     max_khz     = calloc(num_dev, sizeof(ulong));
     current_khz = calloc(num_dev, sizeof(ulong));
-    def_w       = calloc(num_dev, sizeof(ulong));
-    max_w       = calloc(num_dev, sizeof(ulong));
-    min_w       = calloc(num_dev, sizeof(ulong));
-    current_w   = calloc(num_dev, sizeof(ulong));
+    def_w       = calloc(num_dev, sizeof(uint32_t));
+    max_w       = calloc(num_dev, sizeof(uint32_t));
+    min_w       = calloc(num_dev, sizeof(uint32_t));
+    current_w   = calloc(num_dev, sizeof(uint32_t));
     if ((def_khz == NULL) || (max_khz == NULL) || (current_khz == NULL)) {
         debug("Memory allocation for GPU freq limits returns NULL");
         return EAR_ALLOC_ERROR;
@@ -92,7 +92,7 @@ state_t gpu_mgr_init()
     }
     for (i = 0; i < num_dev; i++) {
         debug("GPU %u freq limits: def %lu max %lu current %lu", i, def_khz[i], max_khz[i], current_khz[i]);
-        debug("GPU %u power limits:def %lu min %lu max %lu current %lu", i, def_w[i], min_w[i], max_w[i], current_w[i]);
+        debug("GPU %u power limits:def %u min %u max %u current %u", i, def_w[i], min_w[i], max_w[i], current_w[i]);
     }
     /* If gpu_def_freq == 0 --> GPU is not set at job init/end
      * If gpu_def_freq > max GPU freq --> gpu_def_freq <- max GPU freq

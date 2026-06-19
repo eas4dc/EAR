@@ -51,9 +51,9 @@
 #define PSTATE_STEP    8
 #define PSTATE0_STEP   30
 
-static uint current_dvfs_pc = 0;
-static uint default_dvfs_pc = 0;
-static uint dvfs_pc_enabled = 0;
+static uint32_t current_dvfs_pc = 0;
+static uint32_t default_dvfs_pc = 0;
+static uint dvfs_pc_enabled     = 0;
 static topology_t node_desc;
 
 static uint c_status = PC_STATUS_IDLE;
@@ -541,7 +541,7 @@ state_t release_powercap_allocation(uint decrease)
     return EAR_SUCCESS;
 }
 
-state_t get_powercap_value(uint pid, ulong *powercap)
+state_t get_powercap_value(uint pid, uint32_t *powercap)
 {
     /* copy data */
     // debug("DVFS:get_powercap_value");

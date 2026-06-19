@@ -23,48 +23,52 @@
 #include <common/database/postgresql_io_functions.h>
 
 #define APPLICATION_PSQL_QUERY                                                                                         \
-    "INSERT INTO Applications (job_id, step_id, local_id, node_id, signature_id, power_signature_id) VALUES "
+    "INSERT INTO Applications (job_id, step_id, app_id, node_name, earl_signature_id, eard_signature_id) VALUES "
 
 #define LEARNING_APPLICATION_PSQL_QUERY                                                                                \
-    "INSERT INTO Learning_applications (job_id, step_id, local_id, node_id, signature_id, power_signature_id) VALUES "
+    "INSERT INTO Learning_applications (job_id, step_id, app_id, node_name, earl_signature_id, eard_signature_id) "    \
+    "VALUES "
 
 #define LOOP_PSQL_QUERY                                                                                                \
-    "INSERT INTO Loops (event, size, level, job_id, step_id, local_id, node_id, total_iterations,"                     \
+    "INSERT INTO Loops (entry, size, level, job_id, step_id, app_id, node_name, app_id,"                               \
     "signature_id) VALUES "
 
 #define CREATE_TEMP_JOBS                                                                                               \
-    "CREATE TEMPORARY TABLE temp_jobs(job_id INT NOT NULL,step_id INT NOT NULL, local_id INT NOT NULL, user_id "       \
-    "VARCHAR(128),app_id VARCHAR(128), "                                                                               \
-    "start_time INT NOT NULL,end_time INT NOT NULL,start_mpi_time INT NOT NULL,end_mpi_time INT NOT NULL, "            \
-    "policy VARCHAR(256) NOT NULL,threshold FLOAT NOT NULL,procs INT NOT NULL,job_type SMALLINT NOT NULL, def_f INT, " \
-    "user_acc VARCHAR(256), user_group VARCHAR(256), e_tag VARCHAR(256)) ON COMMIT DROP"
+    "CREATE TEMPORARY TABLE temp_jobs(job_id INT NOT NULL,step_id INT NOT NULL, app_id INT NOT NULL, user_name "       \
+    "VARCHAR(128),user_acc VARCHAR(256), user_group VARCHAR(256), app_name VARCHAR(128), "                             \
+    "start_time INT NOT NULL,end_time INT NOT NULL,earl_start_time INT NOT NULL,earl_end_time INT NOT NULL, "          \
+    "policy VARCHAR(256) NOT NULL,threshold FLOAT NOT NULL, num_procs INT NOT NULL, def_cpu_freq INT, def_gpu_freq "   \
+    "INT,"                                                                                                             \
+    " e_tag VARCHAR(256)) ON COMMIT DROP"
 
 #define LOCK_JOBS_PSQL_QUERY          "LOCK TABLE Jobs IN SHARE ROW EXCLUSIVE MODE"
 
 #define LOCK_LEARNING_JOBS_PSQL_QUERY "LOCK TABLE Learning_jobs IN SHARE ROW EXCLUSIVE MODE"
 
 #define INSERT_NEW_LEARNING_JOBS                                                                                       \
-    "INSERT INTO Learning_jobs SELECT DISTINCT ON (temp_jobs.job_id, temp_jobs.step_id, temp_jobs.local_id) "          \
-    "temp_jobs.job_id, temp_jobs.step_id, temp_jobs.local_id temp_jobs.user_id, temp_jobs.app_id, "                    \
-    "temp_jobs.start_time, temp_jobs.end_time, temp_jobs.start_mpi_time, temp_jobs.end_mpi_time, temp_jobs.policy, "   \
-    "temp_jobs.threshold, "                                                                                            \
-    "temp_jobs.procs, temp_jobs.job_type, temp_jobs.def_f, temp_jobs.user_acc, temp_jobs.user_group, temp_jobs.e_tag " \
-    "FROM temp_jobs LEFT OUTER JOIN Learning_jobs ON (Learning_jobs.job_id = temp_jobs.job_id AND "                    \
-    "Learning_jobs.step_id = temp_jobs.step_id AND Learning_jobs.local_id = temp_jobs.local_id) WHERE "                \
-    "Learning_jobs.id IS NULL"
+    "INSERT INTO Learning_jobs SELECT DISTINCT ON (temp_jobs.job_id, temp_jobs.step_id, temp_jobs.app_id) "            \
+    "temp_jobs.job_id, "                                                                                               \
+    "temp_jobs.step_id, temp_jobs.app_id, temp_jobs.user_name, temp_jobs.user_acc, temp_jobs.user_group, "             \
+    "temp_jobs.app_name, temp_jobs.start_time, temp_jobs.end_time, temp_jobs.earl_start_time, "                        \
+    "temp_jobs.earl_end_time, "                                                                                        \
+    "temp_jobs.policy, temp_jobs.threshold, temp_jobs.num_procs, temp_jobs.def_cpu_freq, temp_jobs.def_gpu_freq, "     \
+    "temp_jobs.e_tag FROM temp_jobs LEFT OUTER JOIN Learning_jobs ON (Learning_jobs.job_id = temp_jobs.job_id AND "    \
+    "Learning_jobs.step_id = "                                                                                         \
+    "temp_jobs.step_id AND Learning_jobs.app_id = temp_jobs.app_id) WHERE Learning_jobs.job_id IS NULL"
 
 #define INSERT_NEW_JOBS                                                                                                \
-    "INSERT INTO Jobs SELECT DISTINCT ON (temp_jobs.job_id, temp_jobs.step_id, temp_jobs.local_id) temp_jobs.job_id, " \
-    "temp_jobs.step_id, temp_jobs.local_id, temp_jobs.user_id, temp_jobs.app_id, "                                     \
-    "temp_jobs.start_time, temp_jobs.end_time, temp_jobs.start_mpi_time, temp_jobs.end_mpi_time, temp_jobs.policy, "   \
-    "temp_jobs.threshold, "                                                                                            \
-    "temp_jobs.procs, temp_jobs.job_type, temp_jobs.def_f, temp_jobs.user_acc, temp_jobs.user_group, temp_jobs.e_tag " \
-    "FROM temp_jobs LEFT OUTER JOIN Jobs ON (Jobs.job_id = temp_jobs.job_id AND "                                      \
-    "Jobs.step_id = temp_jobs.step_id AND Jobs.local_id = temp_jobs.local_id) WHERE Jobs.job_id IS NULL"
+    "INSERT INTO Jobs SELECT DISTINCT ON (temp_jobs.job_id, temp_jobs.step_id, temp_jobs.app_id) temp_jobs.job_id, "   \
+    "temp_jobs.step_id, temp_jobs.app_id, temp_jobs.user_name, temp_jobs.user_acc, temp_jobs.user_group, "             \
+    "temp_jobs.app_name, temp_jobs.start_time, temp_jobs.end_time, temp_jobs.earl_start_time, "                        \
+    "temp_jobs.earl_end_time, "                                                                                        \
+    "temp_jobs.policy, temp_jobs.threshold, temp_jobs.num_procs, temp_jobs.def_cpu_freq, temp_jobs.def_gpu_freq, "     \
+    "temp_jobs.e_tag FROM temp_jobs LEFT OUTER JOIN Jobs ON (Jobs.job_id = temp_jobs.job_id AND Jobs.step_id = "       \
+    "temp_jobs.step_id AND Jobs.app_id = temp_jobs.app_id) WHERE Jobs.job_id IS NULL"
 
 #define JOB_PSQL_QUERY                                                                                                 \
-    "INSERT INTO temp_jobs (job_id, step_id, local_id, user_id, app_id, start_time, end_time, start_mpi_time,"         \
-    "end_mpi_time, policy, threshold, procs, job_type, def_f, user_acc, user_group, e_tag) VALUES "
+    "INSERT INTO temp_jobs (job_id, step_id, app_id, user_name, user_acc, user_group, app_name, start_time, "          \
+    "end_time, "                                                                                                       \
+    "earl_start_time, earl_end_time, policy, threshold, num_procs, def_cpu_freq, def_gpu_freq, e_tag) VALUES "
 
 #define EAR_WARNING_PSQL_QUERY                                                                                         \
     "INSERT INTO Global_energy (energy_percent, warning_level, inc_th, p_state, GlobEnergyConsumedT1, "                \
@@ -123,25 +127,26 @@
 
 #if USE_GPUS
 #define SIGNATURE_QUERY_SIMPLE                                                                                         \
-    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"                                                   \
-    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f, cpu_util, min_GPU_sig_id, "               \
-    "max_GPU_sig_id) VALUES"
+    "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
+    "dram_bandwidth, io_bandwidth, TPI, CPI, cpu_gflops, elapsed_time, perc_MPI, avg_cpu_freq, avg_imc_freq, "         \
+    "def_cpu_freq, cpu_util, min_GPU_sig_id, max_GPU_sig_id) VALUES"
 
 #define SIGNATURE_QUERY_FULL                                                                                           \
-    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"                                                   \
-    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, L1_misses, L2_misses, L3_misses, "                                 \
-    "FLOPS1, FLOPS2, FLOPS3, FLOPS4, FLOPS5, FLOPS6, FLOPS7, FLOPS8,"                                                  \
-    "instructions, cycles, avg_f, avg_imc_f, def_f, cpu_util, min_GPU_sig_id, max_GPU_sig_id) VALUES "
+    "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
+    "dram_bandwidth, io_bandwidth, TPI, CPI, cpu_gflops, elapsed_time, perc_MPI, L1_misses, L2_misses, L3_misses, "    \
+    "sp64_ops, sp128_ops, sp256_ops, sp512_ops, dp64_ops, dp128_ops, dp256_ops, dp512_ops,"                            \
+    "instructions, cycles, avg_cpu_freq, avg_imc_f, def_cpu_freq, cpu_util, min_GPU_sig_id, max_GPU_sig_id) VALUES "
 #else
 #define SIGNATURE_QUERY_SIMPLE                                                                                         \
-    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"                                                   \
-    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f, cpu_util) VALUES"
+    "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
+    "dram_bandwidth, io_bandwidth, TPI, CPI, cpu_gflops, elapsed_time, perc_MPI, avg_cpu_freq, avg_imc_freq, "         \
+    "def_cpu_freq, cpu_util) VALUES"
 
 #define SIGNATURE_QUERY_FULL                                                                                           \
-    "INSERT INTO Signatures (DC_power, DRAM_power, PCK_power,  EDP,"                                                   \
-    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, FLOPS1, FLOPS2, FLOPS3, FLOPS4, "                                  \
-    "FLOPS5, FLOPS6, FLOPS7, FLOPS8,"                                                                                  \
-    "instructions, cycles, avg_f, avg_imc_f, def_f, cpu_util) VALUES "
+    "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
+    "dram_bandwidth, io_bandwidth, TPI, CPI, cpu_gflops, elapsed_time, perc_MPI, L1_misses, L2_misses, L3_misses, "    \
+    "sp64_ops, sp128_ops, sp256_ops, sp512_ops, dp64_ops, dp128_ops, dp256_ops, dp512_ops,"                            \
+    "instructions, cycles, avg_cpu_freq, avg_imc_f, def_cpu_freq, cpu_util) VALUES "
 #endif
 
 static char full_signature = !DB_SIMPLE;
@@ -419,19 +424,19 @@ int postgresql_retrieve_jobs(PGconn *connection, char *query, job_t **jobs)
         jobs_aux[i].step_id  = htonl(*((int *) PQgetvalue(res, i, 1)));
         jobs_aux[i].local_id = htonl(*((int *) PQgetvalue(res, i, 2)));
         strcpy(jobs_aux[i].user_id, PQgetvalue(res, i, 3));
-        strcpy(jobs_aux[i].app_id, PQgetvalue(res, i, 4));
-        jobs_aux[i].start_time     = htonl(*((time_t *) PQgetvalue(res, i, 5)));
-        jobs_aux[i].end_time       = htonl(*((time_t *) PQgetvalue(res, i, 6)));
-        jobs_aux[i].start_mpi_time = htonl(*((time_t *) PQgetvalue(res, i, 7)));
-        jobs_aux[i].end_mpi_time   = htonl(*((time_t *) PQgetvalue(res, i, 8)));
-        strcpy(jobs_aux[i].policy, PQgetvalue(res, i, 9));
-        jobs_aux[i].th = double_swap(*((double *) PQgetvalue(res, i, 10)));
+        strcpy(jobs_aux[i].user_acc, PQgetvalue(res, i, 4));
+        strcpy(jobs_aux[i].group_id, PQgetvalue(res, i, 5));
+        strcpy(jobs_aux[i].app_id, PQgetvalue(res, i, 6));
+        jobs_aux[i].start_time     = htonl(*((time_t *) PQgetvalue(res, i, 7)));
+        jobs_aux[i].end_time       = htonl(*((time_t *) PQgetvalue(res, i, 8)));
+        jobs_aux[i].start_mpi_time = htonl(*((time_t *) PQgetvalue(res, i, 9)));
+        jobs_aux[i].end_mpi_time   = htonl(*((time_t *) PQgetvalue(res, i, 10)));
+        strcpy(jobs_aux[i].policy, PQgetvalue(res, i, 11));
+        jobs_aux[i].th = double_swap(*((double *) PQgetvalue(res, i, 12)));
         jobs_aux[i].procs =
-            htonl(*((ulong *) PQgetvalue(res, i, 11))); // this might cause trouble, might have to cast into long
-        jobs_aux[i].type  = htonl(*((job_type *) PQgetvalue(res, i, 12)));
-        jobs_aux[i].def_f = htonl(*((ulong *) PQgetvalue(res, i, 13)));
-        strcpy(jobs_aux[i].user_acc, PQgetvalue(res, i, 14));
-        strcpy(jobs_aux[i].group_id, PQgetvalue(res, i, 15));
+            htonl(*((ulong *) PQgetvalue(res, i, 13))); // this might cause trouble, might have to cast into long
+        jobs_aux[i].def_f     = htonl(*((ulong *) PQgetvalue(res, i, 14)));
+        jobs_aux[i].def_gpu_f = htonl(*((ulong *) PQgetvalue(res, i, 15)));
         strcpy(jobs_aux[i].energy_tag, PQgetvalue(res, i, 16));
     }
 
@@ -560,44 +565,43 @@ int postgresql_retrieve_signatures(PGconn *connection, char *query, signature_t 
         sig_aux[i].DC_power   = double_swap(*((double *) PQgetvalue(res, i, 1)));
         sig_aux[i].DRAM_power = double_swap(*((double *) PQgetvalue(res, i, 2)));
         sig_aux[i].PCK_power  = double_swap(*((double *) PQgetvalue(res, i, 3)));
-        sig_aux[i].EDP        = double_swap(*((double *) PQgetvalue(res, i, 4)));
-        sig_aux[i].GBS        = double_swap(*((double *) PQgetvalue(res, i, 5)));
-        sig_aux[i].IO_MBS     = double_swap(*((double *) PQgetvalue(res, i, 6)));
-        sig_aux[i].TPI        = double_swap(*((double *) PQgetvalue(res, i, 7)));
-        sig_aux[i].CPI        = double_swap(*((double *) PQgetvalue(res, i, 8)));
-        sig_aux[i].Gflops     = double_swap(*((double *) PQgetvalue(res, i, 9)));
-        sig_aux[i].time       = double_swap(*((double *) PQgetvalue(res, i, 10)));
-        sig_aux[i].perc_MPI   = double_swap(*((double *) PQgetvalue(res, i, 11)));
+        sig_aux[i].GBS        = double_swap(*((double *) PQgetvalue(res, i, 4)));
+        sig_aux[i].IO_MBS     = double_swap(*((double *) PQgetvalue(res, i, 5)));
+        sig_aux[i].TPI        = double_swap(*((double *) PQgetvalue(res, i, 6)));
+        sig_aux[i].CPI        = double_swap(*((double *) PQgetvalue(res, i, 7)));
+        sig_aux[i].Gflops     = double_swap(*((double *) PQgetvalue(res, i, 8)));
+        sig_aux[i].time       = double_swap(*((double *) PQgetvalue(res, i, 9)));
+        sig_aux[i].perc_MPI   = double_swap(*((double *) PQgetvalue(res, i, 10)));
         if (full_signature) {
-            sig_aux[i].L1_misses       = htonll(*((ulong *) PQgetvalue(res, i, 12)));
-            sig_aux[i].L2_misses       = htonll(*((ulong *) PQgetvalue(res, i, 13)));
-            sig_aux[i].L3_misses       = htonll(*((ulong *) PQgetvalue(res, i, 14)));
-            sig_aux[i].FLOPS[0]        = htonll(*((ulong *) PQgetvalue(res, i, 15)));
-            sig_aux[i].FLOPS[1]        = htonll(*((ulong *) PQgetvalue(res, i, 16)));
-            sig_aux[i].FLOPS[2]        = htonll(*((ulong *) PQgetvalue(res, i, 17)));
-            sig_aux[i].FLOPS[3]        = htonll(*((ulong *) PQgetvalue(res, i, 18)));
-            sig_aux[i].FLOPS[4]        = htonll(*((ulong *) PQgetvalue(res, i, 19)));
-            sig_aux[i].FLOPS[5]        = htonll(*((ulong *) PQgetvalue(res, i, 20)));
-            sig_aux[i].FLOPS[6]        = htonll(*((ulong *) PQgetvalue(res, i, 21)));
-            sig_aux[i].FLOPS[7]        = htonll(*((ulong *) PQgetvalue(res, i, 22)));
-            sig_aux[i].instructions    = htonll(*((ulong *) PQgetvalue(res, i, 23)));
-            sig_aux[i].cycles          = htonll(*((ulong *) PQgetvalue(res, i, 24)));
-            sig_aux[i].avg_f           = htonl(*((ulong *) PQgetvalue(res, i, 25)));
-            sig_aux[i].avg_imc_f       = htonl(*((ulong *) PQgetvalue(res, i, 26)));
-            sig_aux[i].def_f           = htonl(*((ulong *) PQgetvalue(res, i, 27)));
-            sig_aux[i].ps_sig.cpu_util = htonl(*((ulong *) PQgetvalue(res, i, 28)));
+            sig_aux[i].L1_misses       = htonll(*((ulong *) PQgetvalue(res, i, 11)));
+            sig_aux[i].L2_misses       = htonll(*((ulong *) PQgetvalue(res, i, 12)));
+            sig_aux[i].L3_misses       = htonll(*((ulong *) PQgetvalue(res, i, 13)));
+            sig_aux[i].FLOPS[0]        = htonll(*((ulong *) PQgetvalue(res, i, 14)));
+            sig_aux[i].FLOPS[1]        = htonll(*((ulong *) PQgetvalue(res, i, 15)));
+            sig_aux[i].FLOPS[2]        = htonll(*((ulong *) PQgetvalue(res, i, 16)));
+            sig_aux[i].FLOPS[3]        = htonll(*((ulong *) PQgetvalue(res, i, 17)));
+            sig_aux[i].FLOPS[4]        = htonll(*((ulong *) PQgetvalue(res, i, 18)));
+            sig_aux[i].FLOPS[5]        = htonll(*((ulong *) PQgetvalue(res, i, 19)));
+            sig_aux[i].FLOPS[6]        = htonll(*((ulong *) PQgetvalue(res, i, 20)));
+            sig_aux[i].FLOPS[7]        = htonll(*((ulong *) PQgetvalue(res, i, 21)));
+            sig_aux[i].instructions    = htonll(*((ulong *) PQgetvalue(res, i, 22)));
+            sig_aux[i].cycles          = htonll(*((ulong *) PQgetvalue(res, i, 23)));
+            sig_aux[i].avg_f           = htonl(*((ulong *) PQgetvalue(res, i, 24)));
+            sig_aux[i].avg_imc_f       = htonl(*((ulong *) PQgetvalue(res, i, 25)));
+            sig_aux[i].def_f           = htonl(*((ulong *) PQgetvalue(res, i, 26)));
+            sig_aux[i].ps_sig.cpu_util = htonl(*((ulong *) PQgetvalue(res, i, 27)));
 #if USE_GPUS
-            min_gpu_sig_id = htonl(*((ulong *) PQgetvalue(res, i, 29)));
-            max_gpu_sig_id = htonl(*((ulong *) PQgetvalue(res, i, 30)));
+            min_gpu_sig_id = htonl(*((ulong *) PQgetvalue(res, i, 28)));
+            max_gpu_sig_id = htonl(*((ulong *) PQgetvalue(res, i, 29)));
 #endif
         } else {
-            sig_aux[i].avg_f           = htonl(*((ulong *) PQgetvalue(res, i, 12)));
-            sig_aux[i].avg_imc_f       = htonl(*((ulong *) PQgetvalue(res, i, 13)));
-            sig_aux[i].def_f           = htonl(*((ulong *) PQgetvalue(res, i, 14)));
-            sig_aux[i].ps_sig.cpu_util = htonl(*((ulong *) PQgetvalue(res, i, 15)));
+            sig_aux[i].avg_f           = htonl(*((ulong *) PQgetvalue(res, i, 11)));
+            sig_aux[i].avg_imc_f       = htonl(*((ulong *) PQgetvalue(res, i, 12)));
+            sig_aux[i].def_f           = htonl(*((ulong *) PQgetvalue(res, i, 13)));
+            sig_aux[i].ps_sig.cpu_util = htonl(*((ulong *) PQgetvalue(res, i, 14)));
 #if USE_GPUS
-            min_gpu_sig_id = htonl(*((ulong *) PQgetvalue(res, i, 16)));
-            max_gpu_sig_id = htonl(*((ulong *) PQgetvalue(res, i, 17)));
+            min_gpu_sig_id = htonl(*((ulong *) PQgetvalue(res, i, 15)));
+            max_gpu_sig_id = htonl(*((ulong *) PQgetvalue(res, i, 16)));
 #endif
         }
 #if USE_GPUS
@@ -661,10 +665,10 @@ int postgresql_retrieve_applications(PGconn *connection, char *query, applicatio
 
         /* JOB RETRIEVAL */
         if (is_learning)
-            sprintf(job_query, "SELECT * FROM Learning_jobs WHERE job_id = %lld AND step_id = %lld AND local_id = %lld",
+            sprintf(job_query, "SELECT * FROM Learning_jobs WHERE job_id = %lld AND step_id = %lld AND app_id = %lld",
                     job_id, step_id, local_id);
         else
-            sprintf(job_query, "SELECT * FROM Jobs WHERE job_id = %lld AND step_id = %lld AND local_id = %lld", job_id,
+            sprintf(job_query, "SELECT * FROM Jobs WHERE job_id = %lld AND step_id = %lld AND app_id = %lld", job_id,
                     step_id, local_id);
 
         if (postgresql_retrieve_jobs(connection, job_query, &job_aux) < 1) {
@@ -1418,78 +1422,77 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
         strcat(query, ")");
 
         /* Parameter binding */
-        param_values[0 + offset]  = (char *) &sigs[i].DC_power;
-        param_values[1 + offset]  = (char *) &sigs[i].DRAM_power;
-        param_values[2 + offset]  = (char *) &sigs[i].PCK_power;
-        param_values[3 + offset]  = (char *) &sigs[i].EDP;
-        param_values[4 + offset]  = (char *) &sigs[i].GBS;
-        param_values[5 + offset]  = (char *) &sigs[i].IO_MBS;
-        param_values[6 + offset]  = (char *) &sigs[i].TPI;
-        param_values[7 + offset]  = (char *) &sigs[i].CPI;
-        param_values[8 + offset]  = (char *) &sigs[i].Gflops;
-        param_values[9 + offset]  = (char *) &sigs[i].time;
-        param_values[10 + offset] = (char *) &sigs[i].perc_MPI;
+        param_values[0 + offset] = (char *) &sigs[i].DC_power;
+        param_values[1 + offset] = (char *) &sigs[i].DRAM_power;
+        param_values[2 + offset] = (char *) &sigs[i].PCK_power;
+        param_values[3 + offset] = (char *) &sigs[i].GBS;
+        param_values[4 + offset] = (char *) &sigs[i].IO_MBS;
+        param_values[5 + offset] = (char *) &sigs[i].TPI;
+        param_values[6 + offset] = (char *) &sigs[i].CPI;
+        param_values[7 + offset] = (char *) &sigs[i].Gflops;
+        param_values[8 + offset] = (char *) &sigs[i].time;
+        param_values[9 + offset] = (char *) &sigs[i].perc_MPI;
         if (full_signature) {
-            param_values[11 + offset] = (char *) &sigs[i].L1_misses;
-            param_values[12 + offset] = (char *) &sigs[i].L2_misses;
-            param_values[13 + offset] = (char *) &sigs[i].L3_misses;
-            param_values[14 + offset] = (char *) &sigs[i].FLOPS[0];
-            param_values[15 + offset] = (char *) &sigs[i].FLOPS[1];
-            param_values[16 + offset] = (char *) &sigs[i].FLOPS[2];
-            param_values[17 + offset] = (char *) &sigs[i].FLOPS[3];
-            param_values[18 + offset] = (char *) &sigs[i].FLOPS[4];
-            param_values[19 + offset] = (char *) &sigs[i].FLOPS[5];
-            param_values[20 + offset] = (char *) &sigs[i].FLOPS[6];
-            param_values[21 + offset] = (char *) &sigs[i].FLOPS[7];
-            param_values[22 + offset] = (char *) &sigs[i].instructions;
-            param_values[23 + offset] = (char *) &sigs[i].cycles;
-            param_values[24 + offset] = (char *) &sigs[i].avg_f;
-            param_values[25 + offset] = (char *) &sigs[i].avg_imc_f;
-            param_values[26 + offset] = (char *) &sigs[i].def_f;
-            param_values[27 + offset] = (char *) &sigs[i].ps_sig.cpu_util;
+            param_values[10 + offset] = (char *) &sigs[i].L1_misses;
+            param_values[11 + offset] = (char *) &sigs[i].L2_misses;
+            param_values[12 + offset] = (char *) &sigs[i].L3_misses;
+            param_values[13 + offset] = (char *) &sigs[i].FLOPS[0];
+            param_values[14 + offset] = (char *) &sigs[i].FLOPS[1];
+            param_values[15 + offset] = (char *) &sigs[i].FLOPS[2];
+            param_values[16 + offset] = (char *) &sigs[i].FLOPS[3];
+            param_values[17 + offset] = (char *) &sigs[i].FLOPS[4];
+            param_values[18 + offset] = (char *) &sigs[i].FLOPS[5];
+            param_values[19 + offset] = (char *) &sigs[i].FLOPS[6];
+            param_values[20 + offset] = (char *) &sigs[i].FLOPS[7];
+            param_values[21 + offset] = (char *) &sigs[i].instructions;
+            param_values[22 + offset] = (char *) &sigs[i].cycles;
+            param_values[23 + offset] = (char *) &sigs[i].avg_f;
+            param_values[24 + offset] = (char *) &sigs[i].avg_imc_f;
+            param_values[25 + offset] = (char *) &sigs[i].def_f;
+            param_values[26 + offset] = (char *) &sigs[i].ps_sig.cpu_util;
 #if USE_GPUS
             if (sigs[i].gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0) {
-                param_values[28 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                param_values[27 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
                 current_gpu_sig_id += sigs[i].gpu_sig.num_gpus - 1;
-                param_values[29 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                param_values[28 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
             } else {
+                param_values[27 + offset] = NULL;
                 param_values[28 + offset] = NULL;
-                param_values[29 + offset] = NULL;
             }
 #endif
         } else {
-            param_values[11 + offset] = (char *) &sigs[i].avg_f;
-            param_values[12 + offset] = (char *) &sigs[i].avg_imc_f;
-            param_values[13 + offset] = (char *) &sigs[i].def_f;
-            param_values[14 + offset] = (char *) &sigs[i].ps_sig.cpu_util;
+            param_values[10 + offset] = (char *) &sigs[i].avg_f;
+            param_values[11 + offset] = (char *) &sigs[i].avg_imc_f;
+            param_values[12 + offset] = (char *) &sigs[i].def_f;
+            param_values[13 + offset] = (char *) &sigs[i].ps_sig.cpu_util;
 #if USE_GPUS
             if (sigs[i].gpu_sig.num_gpus > 0 && starter_gpu_sig_id >= 0) {
-                param_values[15 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                param_values[14 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
                 current_gpu_sig_id += sigs[i].gpu_sig.num_gpus - 1;
-                param_values[16 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
+                param_values[15 + offset] = (char *) &gpu_sig_ids[current_gpu_sig_id];
             } else {
+                param_values[14 + offset] = NULL;
                 param_values[15 + offset] = NULL;
-                param_values[16 + offset] = NULL;
             }
 #endif
         }
 
         /* Parameter sizes */
-        param_lengths[0 + offset]  = sizeof(sigs[i].DC_power);
-        param_lengths[1 + offset]  = sizeof(sigs[i].DRAM_power);
-        param_lengths[2 + offset]  = sizeof(sigs[i].PCK_power);
-        param_lengths[3 + offset]  = sizeof(sigs[i].EDP);
-        param_lengths[4 + offset]  = sizeof(sigs[i].GBS);
-        param_lengths[5 + offset]  = sizeof(sigs[i].IO_MBS);
-        param_lengths[6 + offset]  = sizeof(sigs[i].TPI);
-        param_lengths[7 + offset]  = sizeof(sigs[i].CPI);
-        param_lengths[8 + offset]  = sizeof(sigs[i].Gflops);
-        param_lengths[9 + offset]  = sizeof(sigs[i].time);
-        param_lengths[10 + offset] = sizeof(sigs[i].perc_MPI);
+        param_lengths[0 + offset] = sizeof(sigs[i].DC_power);
+        param_lengths[1 + offset] = sizeof(sigs[i].DRAM_power);
+        param_lengths[2 + offset] = sizeof(sigs[i].PCK_power);
+        param_lengths[3 + offset] = sizeof(sigs[i].GBS);
+        param_lengths[4 + offset] = sizeof(sigs[i].IO_MBS);
+        param_lengths[5 + offset] = sizeof(sigs[i].TPI);
+        param_lengths[6 + offset] = sizeof(sigs[i].CPI);
+        param_lengths[7 + offset] = sizeof(sigs[i].Gflops);
+        param_lengths[8 + offset] = sizeof(sigs[i].time);
+        param_lengths[9 + offset] = sizeof(sigs[i].perc_MPI);
         if (full_signature) {
-            param_lengths[11 + offset] = sizeof(sigs[i].L1_misses);
-            param_lengths[12 + offset] = sizeof(sigs[i].L2_misses);
-            param_lengths[13 + offset] = sizeof(sigs[i].L3_misses);
+            param_lengths[10 + offset] = sizeof(sigs[i].L1_misses);
+            param_lengths[11 + offset] = sizeof(sigs[i].L2_misses);
+            param_lengths[12 + offset] = sizeof(sigs[i].L3_misses);
+            param_lengths[13 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[14 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[15 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[16 + offset] = sizeof(sigs[i].FLOPS[0]);
@@ -1497,25 +1500,24 @@ int postgresql_batch_insert_signatures(PGconn *connection, signature_t *sigs, ch
             param_lengths[18 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[19 + offset] = sizeof(sigs[i].FLOPS[0]);
             param_lengths[20 + offset] = sizeof(sigs[i].FLOPS[0]);
-            param_lengths[21 + offset] = sizeof(sigs[i].FLOPS[0]);
-            param_lengths[22 + offset] = sizeof(sigs[i].instructions);
-            param_lengths[23 + offset] = sizeof(sigs[i].cycles);
+            param_lengths[21 + offset] = sizeof(sigs[i].instructions);
+            param_lengths[22 + offset] = sizeof(sigs[i].cycles);
+            param_lengths[23 + offset] = sizeof(int);
             param_lengths[24 + offset] = sizeof(int);
             param_lengths[25 + offset] = sizeof(int);
             param_lengths[26 + offset] = sizeof(int);
-            param_lengths[27 + offset] = sizeof(int);
 #if USE_GPUS
+            param_lengths[27 + offset] = sizeof(ulong);
             param_lengths[28 + offset] = sizeof(ulong);
-            param_lengths[29 + offset] = sizeof(ulong);
 #endif
         } else {
+            param_lengths[10 + offset] = sizeof(int);
             param_lengths[11 + offset] = sizeof(int);
             param_lengths[12 + offset] = sizeof(int);
             param_lengths[13 + offset] = sizeof(int);
-            param_lengths[14 + offset] = sizeof(int);
 #if USE_GPUS
+            param_lengths[14 + offset] = sizeof(ulong);
             param_lengths[15 + offset] = sizeof(ulong);
-            param_lengths[16 + offset] = sizeof(ulong);
 #endif
         }
 
@@ -1602,18 +1604,18 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
         param_values[1 + offset]  = (char *) &apps[i].job.step_id;
         param_values[2 + offset]  = (char *) &apps[i].job.local_id;
         param_values[3 + offset]  = (char *) &apps[i].job.user_id;
-        param_values[4 + offset]  = (char *) &apps[i].job.app_id;
-        param_values[5 + offset]  = (char *) &apps[i].job.start_time;
-        param_values[6 + offset]  = (char *) &apps[i].job.end_time;
-        param_values[7 + offset]  = (char *) &apps[i].job.start_mpi_time;
-        param_values[8 + offset]  = (char *) &apps[i].job.end_mpi_time;
-        param_values[9 + offset]  = (char *) &apps[i].job.policy;
-        param_values[10 + offset] = (char *) &apps[i].job.th;
-        param_values[11 + offset] = (char *) &apps[i].job.procs;
-        param_values[12 + offset] = (char *) &apps[i].job.type;
-        param_values[13 + offset] = (char *) &apps[i].job.def_f;
-        param_values[14 + offset] = (char *) &apps[i].job.user_acc;
-        param_values[15 + offset] = (char *) &apps[i].job.group_id;
+        param_values[4 + offset]  = (char *) &apps[i].job.user_acc;
+        param_values[5 + offset]  = (char *) &apps[i].job.group_id;
+        param_values[6 + offset]  = (char *) &apps[i].job.app_id;
+        param_values[7 + offset]  = (char *) &apps[i].job.start_time;
+        param_values[8 + offset]  = (char *) &apps[i].job.end_time;
+        param_values[9 + offset]  = (char *) &apps[i].job.start_mpi_time;
+        param_values[10 + offset] = (char *) &apps[i].job.end_mpi_time;
+        param_values[11 + offset] = (char *) &apps[i].job.policy;
+        param_values[12 + offset] = (char *) &apps[i].job.th;
+        param_values[13 + offset] = (char *) &apps[i].job.procs;
+        param_values[14 + offset] = (char *) &apps[i].job.def_f;
+        param_values[15 + offset] = (char *) &apps[i].job.def_gpu_f;
         param_values[16 + offset] = (char *) &apps[i].job.energy_tag;
 
         /* Parameter sizes */
@@ -1621,18 +1623,18 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
         param_lengths[1 + offset]  = sizeof(int);
         param_lengths[2 + offset]  = sizeof(int);
         param_lengths[3 + offset]  = strlen(apps[i].job.user_id);
-        param_lengths[4 + offset]  = strlen(apps[i].job.app_id);
-        param_lengths[5 + offset]  = sizeof(int);
-        param_lengths[6 + offset]  = sizeof(int);
+        param_lengths[4 + offset]  = strlen(apps[i].job.user_acc);
+        param_lengths[5 + offset]  = strlen(apps[i].job.group_id);
+        param_lengths[6 + offset]  = strlen(apps[i].job.app_id);
         param_lengths[7 + offset]  = sizeof(int);
         param_lengths[8 + offset]  = sizeof(int);
-        param_lengths[9 + offset]  = strlen(apps[i].job.policy);
-        param_lengths[10 + offset] = sizeof(apps[i].job.th);
-        param_lengths[11 + offset] = sizeof(int);
-        param_lengths[12 + offset] = sizeof(short);
+        param_lengths[9 + offset]  = sizeof(int);
+        param_lengths[10 + offset] = sizeof(int);
+        param_lengths[11 + offset] = strlen(apps[i].job.policy);
+        param_lengths[12 + offset] = sizeof(apps[i].job.th);
         param_lengths[13 + offset] = sizeof(int);
-        param_lengths[14 + offset] = strlen(apps[i].job.user_acc);
-        param_lengths[15 + offset] = strlen(apps[i].job.group_id);
+        param_lengths[14 + offset] = sizeof(int);
+        param_lengths[15 + offset] = sizeof(int);
         param_lengths[16 + offset] = strlen(apps[i].job.energy_tag);
 
         /* Parameter formats, 1 is binary 0 is string */
@@ -1641,17 +1643,17 @@ int postgresql_batch_insert_jobs(PGconn *connection, application_t *apps, int nu
         param_formats[2 + offset]  = 1;
         param_formats[3 + offset]  = 0;
         param_formats[4 + offset]  = 0;
-        param_formats[5 + offset]  = 1;
-        param_formats[6 + offset]  = 1;
+        param_formats[5 + offset]  = 0;
+        param_formats[6 + offset]  = 0;
         param_formats[7 + offset]  = 1;
         param_formats[8 + offset]  = 1;
-        param_formats[9 + offset]  = 0;
+        param_formats[9 + offset]  = 1;
         param_formats[10 + offset] = 1;
-        param_formats[11 + offset] = 1;
+        param_formats[11 + offset] = 0;
         param_formats[12 + offset] = 1;
         param_formats[13 + offset] = 1;
-        param_formats[14 + offset] = 0;
-        param_formats[15 + offset] = 0;
+        param_formats[14 + offset] = 1;
+        param_formats[15 + offset] = 1;
         param_formats[16 + offset] = 0;
 
         offset += JOB_ARGS;

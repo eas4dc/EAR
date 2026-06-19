@@ -11,14 +11,8 @@
 #ifndef EAR_COMMON_RANDOM_H
 #define EAR_COMMON_RANDOM_H
 
-#include <common/types/generic.h>
+#include <stdint.h>
 
-/* Gets a 32 bits random number, it uses hardware functions which
- * spends up to 300 cycles, so use it carefully. */
-uint random_get();
+uint64_t random_getrank64(uint64_t max, uint64_t min);
 
-/* Gets a 32 bits random number between min and min + offset, it uses
- * random_get() internally, so use it carefully. */
-uint random_getrank(uint min, uint offset);
-
-#endif // EAR_COMMON_TIME_H
+#endif // EAR_COMMON_RANDOM_H

@@ -61,16 +61,16 @@ AC_DEFUN([X_AC_CMOCKA],
 							  dnl If a specific search path was used, set CMOCKA_LDFLAGS
 							  dnl and restore the original LDFLAGS variable
                               AS_IF([test -n "$lib_path"],
-					[
-					    AC_SUBST([CMOCKA_LDFLAGS], ["-L$lib_path"])
-						AX_VAR_POPVALUE([LDFLAGS])
-					]
-				   )
+                              		[
+                              		    AC_SUBST([CMOCKA_LDFLAGS], ["-L$lib_path"])
+                              			AX_VAR_POPVALUE([LDFLAGS])
+                              		]
+                              	   )
 
 							  dnl Check for the presence of headers
 							  dnl Push CPPFLAGS if a custom path is provided
 							  AS_IF([test "x$with_cmocka" != xyes],
-									[AX_VAR_PUSHVALUE([CPPFLAGS], ["-I$with_cmocka/include"])])
+							  		[AX_VAR_PUSHVALUE([CPPFLAGS], ["-I$with_cmocka/include"])])
 
                               AC_CHECK_HEADERS([cmocka.h],
                               [

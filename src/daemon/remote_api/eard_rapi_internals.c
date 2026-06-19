@@ -1149,6 +1149,7 @@ state_t ear_nodelist_send_message(cluster_conf_t *my_cluster_conf, char *message
 {
     request_t command = {0};
     int *ips;
+    state_t ret;
 
     get_ip_nodelist(my_cluster_conf, nodes, num_nodes, &ips);
 
@@ -1157,9 +1158,9 @@ state_t ear_nodelist_send_message(cluster_conf_t *my_cluster_conf, char *message
     command.req            = EAR_RC_SEND_MESSAGE;
     command.time_code      = time(NULL);
     command.my_req.message = message;
-    send_command_nodelist(&command, my_cluster_conf);
+    ret                    = send_command_nodelist(&command, my_cluster_conf);
     free(ips);
-    return EAR_SUCCESS;
+    return ret;
 }
 
 /* Prints the error message for the node with ip node_ip.

@@ -30,6 +30,8 @@
 
 #if DB_MYSQL
 #include <mysql/mysql.h>
+#elif DB_PSQL
+#include <libpq-fe.h>
 #endif
 
 #define PUE              1.2
@@ -53,25 +55,77 @@
 
 #define USER_QUERY                                                                                                     \
     "SELECT SUM(DC_power*time)/? FROM Power_signatures WHERE id IN "                                                   \
-    "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs "                                             \
+    "(SELECT Applications.eard_signature_id FROM Applications JOIN Jobs "                                              \
     "ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id WHERE "                              \
-    "Jobs.user_id = '%s' AND start_time >= ? AND end_time <= ? AND DC_power < %d)"
-
+    "Jobs.user_name = '%s' AND start_time >= ? AND end_time <= ? AND DC_power < %d)"
+#if 0
 #define GROUP_QUERY                                                                                                    \
     "SELECT SUM(DC_power*time)/? FROM Power_signatures WHERE id IN "                                                   \
-    "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs "                                             \
+    "(SELECT Applications.eard_signature_id FROM Applications JOIN Jobs "                                              \
     "ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id WHERE "                              \
     "Jobs.user_group LIKE '%%%s%%' AND start_time >= ? AND end_time <= ? AND DC_power < %d)"
+#endif
+
+// Same format as ALL
+#define USER_QUERY_TABLE                                                                                               \
+    "SELECT TRUNCATE(SUM(Power_signatures.DC_power*Power_signatures.time), 0) as energy, Jobs.user_name "              \
+    "FROM Power_signatures "                                                                                           \
+    "JOIN Applications ON Power_signatures.id = Applications.eard_signature_id "                                       \
+    "JOIN Jobs ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id "                          \
+    "WHERE Jobs.user_name = '%s' AND start_time >= %d AND end_time <= %d AND DC_power < %d "                           \
+    "GROUP BY Jobs.user_name"
+// Deprecated
+#define GROUP_QUERY                                                                                                    \
+    "SELECT SUM((Power_signatures.DC_power*Power_signatures.time) / "                                                  \
+    "  (1 + LENGTH(Jobs.user_group) - LENGTH(REPLACE(Jobs.user_group, ',', '')))"                                      \
+    ")/? FROM Power_signatures "                                                                                       \
+    "JOIN Applications ON Power_signatures.id = Applications.eard_signature_id "                                       \
+    "JOIN Jobs ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id WHERE "                    \
+    "FIND_IN_SET('%s', REPLACE(Jobs.user_group, ' ', '')) > 0 "                                                        \
+    "AND start_time >= ? AND end_time <= ? AND DC_power < %d"
+// Same format as All
+#define GROUP_QUERY_TABLE                                                                                              \
+    "SELECT TRUNCATE(SUM((Power_signatures.DC_power*Power_signatures.time) / "                                         \
+    "  (1 + LENGTH(TRIM(Jobs.user_group)) - LENGTH(REPLACE(TRIM(Jobs.user_group), ',', '')))), 0) as energy, "         \
+    "'%s' as user_group "                                                                                              \
+    "FROM Power_signatures "                                                                                           \
+    "JOIN Applications ON Power_signatures.id = Applications.eard_signature_id "                                       \
+    "JOIN Jobs ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id "                          \
+    "WHERE FIND_IN_SET('%s', REPLACE(Jobs.user_group, ' ', '')) > 0 "                                                  \
+    "AND start_time >= %d AND end_time <= %d AND DC_power < %d"
+
+#if USE_GPUS
+#define NODE_QUERY_TABLE                                                                                               \
+    "SELECT SUM(DC_energy), MIN(start_time), MAX(end_time), SUM(GPU_energy), node_id FROM Periodic_metrics "           \
+    "WHERE start_time >= %d AND end_time <= %d AND node_id='%s' "                                                      \
+    "GROUP BY node_id"
+#else
+#define NODE_QUERY_TABLE                                                                                               \
+    "SELECT SUM(DC_energy), MIN(start_time), MAX(end_time), node_id FROM Periodic_metrics "                            \
+    "WHERE start_time >= %d AND end_time <= %d AND node_id='%s' "                                                      \
+    "GROUP BY node_id"
+#endif
 
 #define ETAG_QUERY                                                                                                     \
     "SELECT SUM(DC_power*time)/? FROM Power_signatures WHERE id IN "                                                   \
-    "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs "                                             \
+    "(SELECT Applications.eard_signature_id FROM Applications JOIN Jobs "                                              \
     "ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id WHERE "                              \
     "Jobs.e_tag = '%s' AND start_time >= ? AND end_time <= ? AND DC_power < %d)"
 
 #define SUM_QUERY                                                                                                      \
     "SELECT SUM(dc_energy)/? FROM Periodic_metrics WHERE start_time"                                                   \
     ">= ? AND end_time <= ?"
+
+#define TAG_QUERY_TABLE                                                                                                \
+    "SELECT TRUNCATE(SUM(Power_signatures.DC_power*Power_signatures.time), 0) as energy, Jobs.e_tag FROM "             \
+    "Power_signatures INNER JOIN Applications ON Power_signatures.id=Applications.eard_signature_id "                  \
+    "INNER JOIN Jobs ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id "                    \
+    "WHERE Jobs.e_tag = '%s' AND start_time >= %d AND end_time <= %d AND DC_power < %d "                               \
+    "GROUP BY Jobs.e_tag ORDER BY energy"
+
+#define EARDBD_QUERY_TABLE                                                                                             \
+    "SELECT SUM(DC_energy), eardbd_host FROM Periodic_aggregations "                                                   \
+    "WHERE start_time >= %d AND end_time <= %d AND eardbd_host='%s' GROUP BY eardbd_host"
 
 /* POSTGRESQL QUERIES */
 #elif DB_PSQL
@@ -91,19 +145,19 @@
 
 #define USER_QUERY                                                                                                     \
     "SELECT SUM(DC_power*time)/%llu FROM Power_signatures WHERE id IN "                                                \
-    "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs "                                             \
+    "(SELECT Applications.eard_signature_id FROM Applications JOIN Jobs "                                              \
     "ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id WHERE "                              \
-    "Jobs.user_id = '%s' AND start_time >= %d AND end_time <= %d AND DC_power < %d)"
+    "Jobs.user_name = '%s' AND start_time >= %d AND end_time <= %d AND DC_power < %d)"
 
 #define GROUP_QUERY                                                                                                    \
     "SELECT SUM(DC_power*time)/%llu FROM Power_signatures WHERE id IN "                                                \
-    "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs "                                             \
+    "(SELECT Applications.eard_signature_id FROM Applications JOIN Jobs "                                              \
     "ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id WHERE "                              \
     "Jobs.user_group = '%s' AND start_time >= %d AND end_time <= %d AND DC_power < %d)"
 
 #define ETAG_QUERY                                                                                                     \
     "SELECT SUM(DC_power*time)/%llu FROM Power_signatures WHERE id IN "                                                \
-    "(SELECT Applications.power_signature_id FROM Applications JOIN Jobs "                                             \
+    "(SELECT Applications.eard_signature_id FROM Applications JOIN Jobs "                                              \
     "ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id WHERE "                              \
     "Jobs.e_tag = '%s' AND start_time >= %d AND end_time <= %d AND DC_power < %d)"
 
@@ -115,16 +169,32 @@
 
 /* COMMON QUERIES */
 #define ALL_USERS                                                                                                      \
-    "SELECT TRUNCATE(SUM(DC_power*time), 0) as energy, Jobs.user_id FROM "                                             \
-    "Power_signatures INNER JOIN Applications On id=Applications.power_signature_id "                                  \
+    "SELECT TRUNCATE(SUM(DC_power*time), 0) as energy, Jobs.user_name FROM "                                           \
+    "Power_signatures INNER JOIN Applications On id=Applications.eard_signature_id "                                   \
     "INNER JOIN Jobs ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id "                    \
-    "WHERE start_time >= %d AND end_time <= %d AND DC_power < %d GROUP BY Jobs.user_id ORDER BY energy"
-
+    "WHERE start_time >= %d AND end_time <= %d AND DC_power < %d GROUP BY Jobs.user_name ORDER BY energy"
+#if 0
 #define ALL_GROUPS                                                                                                     \
     "SELECT TRUNCATE(SUM(DC_power*time), 0) as energy, Jobs.user_group FROM "                                          \
-    "Power_signatures INNER JOIN Applications On id=Applications.power_signature_id "                                  \
+    "Power_signatures INNER JOIN Applications On id=Applications.eard_signature_id "                                   \
     "INNER JOIN Jobs ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id "                    \
     "WHERE start_time >= %d AND end_time <= %d AND DC_power < %d GROUP BY Jobs.user_group ORDER BY energy"
+#endif
+#define ALL_GROUPS                                                                                                     \
+    "SELECT TRUNCATE(SUM((Power_signatures.DC_power*Power_signatures.time) / "                                         \
+    "  (1 + LENGTH(Jobs.user_group) - LENGTH(REPLACE(Jobs.user_group, ',', '')))), 0) as energy, "                     \
+    "groups.group_name FROM "                                                                                          \
+    "Power_signatures INNER JOIN Applications ON Power_signatures.id=Applications.eard_signature_id "                  \
+    "INNER JOIN Jobs ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id "                    \
+    "INNER JOIN (SELECT DISTINCT TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(Jobs.user_group, ',', n.n), ',', -1)) "          \
+    "as group_name FROM Jobs "                                                                                         \
+    "JOIN (SELECT 1 n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 "                    \
+    "UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10) n "              \
+    "ON n.n <= 1 + LENGTH(Jobs.user_group) - LENGTH(REPLACE(Jobs.user_group, ',', ''))) groups "                       \
+    "ON FIND_IN_SET(groups.group_name, REPLACE(Jobs.user_group, ' ', '')) > 0 "                                        \
+    "WHERE start_time >= %d AND end_time <= %d AND DC_power < %d "                                                     \
+    "GROUP BY groups.group_name ORDER BY energy"
+
 #if USE_GPUS
 #define ALL_NODES                                                                                                      \
     "select SUM(DC_energy), MIN(start_time), MAX(end_time), SUM(GPU_energy), node_id FROM Periodic_metrics WHERE "     \
@@ -141,7 +211,7 @@
     " AND end_time <= %d GROUP BY node_id "
 #define FULL_METS                                                                                                      \
     "select node_id, DC_energy/(end_time-start_time), PCK_energy/(end_time-start_time), "                              \
-    "DRAM_energy/(end_time-start_time), temp, avg_f "                                                                  \
+    "DRAM_energy/(end_time-start_time), temp, avg_f, "                                                                 \
     "from_unixtime(start_time), from_unixtime(end_time) FROM Periodic_metrics "                                        \
     "WHERE start_time >= %d AND end_time <= %d"
 #endif
@@ -156,7 +226,7 @@
 
 #define ALL_TAGS                                                                                                       \
     "SELECT TRUNCATE(SUM(DC_power*time), 0) as energy, Jobs.e_tag FROM "                                               \
-    "Power_signatures INNER JOIN Applications ON id=Applications.power_signature_id "                                  \
+    "Power_signatures INNER JOIN Applications ON id=Applications.eard_signature_id "                                   \
     "INNER JOIN Jobs ON Applications.job_id = Jobs.job_id AND Applications.step_id = Jobs.step_id "                    \
     "WHERE start_time >= %d AND end_time <= %d AND DC_power < %d GROUP BY Jobs.e_tag ORDER BY energy"
 
@@ -172,6 +242,17 @@
     "FROM Global_energy WHERE UNIX_TIMESTAMP(time) >= (UNIX_TIMESTAMP(NOW())-%d) ORDER BY time desc "
 #endif
 
+// To be used in print_all
+#define GLOBAL_ENERGY_TYPE  1
+#define PER_METRIC_TYPE     2
+#define ALL_PER_METRIC_TYPE 3
+#define USER_TYPE           10
+#define GROUP_TYPE          11
+#define NODE_TYPE           12
+#define TAG_TYPE            13
+#define EARDBD_TYPE         14
+#define EARDBD_RAW_TYPE     15
+
 char *node_name            = NULL;
 char *user_name            = NULL;
 char *group_name           = NULL;
@@ -184,37 +265,75 @@ time_t global_start_time   = 0;
 time_t global_end_time     = 0;
 cluster_conf_t my_conf;
 
+#if DB_PSQL
+
+/***************************************
+ *    Auxiliary PostgreSQL functions    *
+ ***************************************/
+static PGconn *postgresql_create_connection()
+{
+    char temp[32];
+    char **keys, **values;
+    PGconn *connection;
+
+    db_conf_t *db_config = &my_conf.database;
+
+    sprintf(temp, "%d", db_config->port);
+    strtolow(db_config->database);
+
+    keys   = calloc(4, sizeof(char *));
+    values = calloc(4, sizeof(char *));
+
+    keys[0] = "dbname";
+    keys[1] = "user";
+    keys[2] = "password";
+    keys[3] = "host";
+
+    values[0] = db_config->database;
+    values[1] = db_config->user;
+    values[2] = db_config->pass;
+    values[3] = db_config->ip;
+
+    connection = PQconnectdbParams((const char *const *) keys, (const char *const *) values, 0);
+
+    free(keys);
+    free(values);
+
+    if (PQstatus(connection) != CONNECTION_OK) {
+        verbose(VDBH, "psql.c: ERROR connecting to the database: %s", PQerrorMessage(connection));
+        PQfinish(connection);
+        return NULL;
+    }
+
+    return connection;
+}
+#endif
+
 void usage(char *app)
 {
-    printf("%s is a tool that reports energy consumption data\n", app);
     printf("Usage: %s [options]\n", app);
-    printf(
-        "Options are as follows:\n"
-        "\t-s start_time     \t indicates the start of the period from which the energy consumed will be computed. "
-        "Format: YYYY-MM-DD. Default: end_time minus insertion time*2.\n"
-        "\t-e end_time       \t indicates the end of the period from which the energy consumed will be computed. "
-        "Format: YYYY-MM-DD. Default: current time.\n"
-        "\t-n node_name |all \t indicates from which node the energy will be computed. Default: none (all nodes "
-        "computed) \n\t\t\t\t\t 'all' option shows all nodes individually, not aggregated.\n"
-        "\t-u user_name |all \t requests the energy consumed by a user in the selected period of time. Default: none "
-        "(all users computed). \n\t\t\t\t\t 'all' option shows all users individually, not aggregated.\n"
-        "\t-G user_group|all \t requests the energy consumed by a user group in the selected period of time. Default: "
-        "none (all groups computed). \n\t\t\t\t\t 'all' option shows all groups individually, not aggregated.\n"
-        "\t-t energy_tag|all \t requests the energy consumed by energy tag in the selected period of time. Default: "
-        "none (all tags computed). \n\t\t\t\t\t 'all' option shows all tags individually, not aggregated.\n"
-        "\t-i eardbd_name|all\t indicates from which eardbd (island) the energy will be computed. Default: none (all "
-        "islands computed) \n\t\t\t\t\t 'all' option shows all eardbds individually, not aggregated.\n"
-        "\t\t-d                 expands the results of -i to individual records. If an island is not specified, it "
-        "prints all of them.\n"
-        "\t-g                \t shows the contents of EAR's database Global_energy table. The default option will show "
-        "the records for the two previous T2 periods of EARGM.\n\t\t\t\t\t This option can only be modified with -s, "
-        "not -e\n"
-        "\t-x                \t shows the daemon events from -s to -e. If no time frame is specified, it uses the "
-        "default start and end times. \n"
-        "\t-z                \t shows the detailed periodic metrics reported during that period. If no time frame is "
-        "specified, it uses the default start and end times. \n"
-        "\t-v                \t shows current EAR version. \n"
-        "\t-h                \t shows this message.\n");
+    printf("\nOptions:\n");
+    printf("  %-32s %s\n", "-h, --help", "Displays this message.");
+    printf("  %-32s %s\n", "-v, --version", "Displays the current EAR version.");
+    printf("  %-32s %s\n", "-b, --verbose", "Enables verbose mode for debugging purposes.");
+    printf("\nFilters:\n");
+    printf("  %-32s %s\n", "-s, --start-time <YYYY-MM-DD>", "Sets the start of the period.");
+    printf("  %-32s %s\n", "", "Default: end time minus twice the insertion time.");
+    printf("  %-32s %s\n", "-e, --end-time <YYYY-MM-DD>", "Sets the end of the period. Default: current time.");
+    printf("  %-32s %s\n", "-n, --nodes <node|all>", "Filters by node name. Default: none.");
+    printf("  %-32s %s\n", "-u, --users <user|all>", "Filters by username. Default: none.");
+    printf("  %-32s %s\n", "-G, --group <group|all>", "Filters by group name. Default: none.");
+    printf("  %-32s %s\n", "-t, --etags <tag|all>", "Filters by energy tag. Default: none.");
+    printf("  %-32s %s\n", "-i, --islands <eardbd|all>", "Filters by EARDBD island. Default: none.");
+    printf("\nOutput:\n");
+    printf("  %-32s %s\n", "-d, --expanded", "Expands island results to individual records.");
+    printf("  %-32s %s\n", "", "If no island is specified, prints all of them.");
+    printf("  %-32s %s\n", "-g, --global-energy", "Shows EAR database global energy records.");
+    printf("  %-32s %s\n", "", "Defaults to the two previous EARGM T2 periods.");
+    printf("  %-32s %s\n", "", "This option can be modified with --start-time, but not --end-time.");
+    printf("  %-32s %s\n", "-x, --events", "Shows daemon events for the selected period.");
+    printf("  %-32s %s\n", "-z, --detailed", "Shows detailed periodic metrics for the selected period.");
+    printf("  %-32s %s\n", "-w, --total-savings", "Shows the total energy savings in kWh.");
     exit(0);
 }
 
@@ -323,7 +442,7 @@ long long get_sum(MYSQL *connection, int start_time, int end_time, unsigned long
             max_power = ear_max(my_conf.tags[i].error_power, max_power);
     }
 
-    char query[512];
+    char query[2048];
 
     if (node_name != NULL) {
         strcpy(query, SUM_QUERY);
@@ -342,6 +461,7 @@ long long get_sum(MYSQL *connection, int start_time, int end_time, unsigned long
         strcat(query, eardbd_host);
         strcat(query, "'");
     }
+
 #if AGGREGATED
     else
         strcpy(query, AGGR_QUERY);
@@ -472,7 +592,7 @@ long long get_sum(PGconn *connection, int start_time, int end_time, unsigned lon
 void compute_pow(MYSQL *connection, int start_time, int end_time, unsigned long long result)
 {
     char query[512];
-    if (user_name == NULL && etag == NULL) {
+    if (user_name == NULL && group_name == NULL && etag == NULL) {
         MYSQL_STMT *statement = mysql_stmt_init(connection);
         if (!statement) {
             printf("Error creating statement (%d): %s\n", mysql_errno(connection), mysql_error(connection));
@@ -622,65 +742,6 @@ void compute_pow(PGconn *connection, int start_time, int end_time, unsigned long
     }
 }
 #endif
-/*
-void event_type_to_str(int type, char *buff, size_t size)
-{
-    switch(type)
-    {
-        case DC_POWER_ERROR:
-            strncpy(buff, "DC_POW_ERROR", size);
-            break;
-        case TEMP_ERROR:
-            strncpy(buff, "TEMP_ERROR", size);
-            break;
-        case FREQ_ERROR:
-            strncpy(buff, "FREQ_ERROR", size);
-            break;
-        case RAPL_ERROR:
-            strncpy(buff, "RAPL_ERROR", size);
-            break;
-        case GBS_ERROR:
-            strncpy(buff, "GBS_ERROR", size);
-            break;
-        case CPI_ERROR:
-            strncpy(buff, "CPI_ERROR", size);
-            break;
-        case RESET_POWERCAP:
-            strncpy(buff, "RESET_POWERCAP", size);
-            break;
-        case INC_POWERCAP:
-            strncpy(buff, "INC_POWERCAP", size);
-            break;
-        case RED_POWERCAP:
-            strncpy(buff, "RED_POWERCAP", size);
-            break;
-        case SET_POWERCAP:
-            strncpy(buff, "SET_POWERCAP", size);
-            break;
-        case SET_ASK_DEF:
-            strncpy(buff, "SET_ASK_DEF", size);
-            break;
-        case RELEASE_POWER:
-            strncpy(buff, "RELEASE_POWER", size);
-            break;
-        case POWERCAP_VALUE:
-            strncpy(buff, "POWERCAP_VALUE", size);
-            break;
-        case CLUSTER_POWER:
-            strncpy(buff, "CLUSTER_POWER", size);
-            break;
-        case NODE_POWERCAP:
-            strncpy(buff, "NODE_POWERCAP", size);
-            break;
-        case POWER_UNLIMITED:
-            strncpy(buff, "POWER_UNLIMITED", size);
-            break;
-        default:
-            snprintf(buff, size, "UNKNOWN(%d) ", type);
-            break;
-    }
-}
-*/
 /* EARD runtime events */
 void print_event_type(int type)
 {
@@ -803,9 +864,135 @@ void read_events(int start_time, int end_time, cluster_conf_t *my_conf)
 #endif
 }
 
-#define GLOBAL_ENERGY_TYPE  1
-#define PER_METRIC_TYPE     2
-#define ALL_PER_METRIC_TYPE 3
+#define ACCUM_EVENT_TYPE 2002
+
+void read_event_accum_2002(cluster_conf_t *my_conf)
+{
+    char query[2048];
+
+    init_db_helper(&my_conf->database);
+
+#if DB_MYSQL
+    snprintf(query, sizeof(query),
+             "SELECT e.node_id, e.timestamp, e.value "
+             "FROM Events e "
+             "JOIN ("
+             "  SELECT node_id, MAX(timestamp) AS max_ts "
+             "  FROM Events "
+             "  WHERE event_type = %d "
+             "  GROUP BY node_id"
+             ") last "
+             "ON e.node_id = last.node_id "
+             "AND e.timestamp = last.max_ts "
+             "WHERE e.event_type = %d "
+             "ORDER BY e.node_id",
+             ACCUM_EVENT_TYPE, ACCUM_EVENT_TYPE);
+
+#elif DB_PSQL
+    snprintf(query, sizeof(query),
+             "SELECT node_id, timestamp, value "
+             "FROM ("
+             "  SELECT DISTINCT ON (node_id) node_id, timestamp, value "
+             "  FROM Events "
+             "  WHERE event_type = %d "
+             "  ORDER BY node_id, timestamp DESC"
+             ") x "
+             "ORDER BY node_id",
+             ACCUM_EVENT_TYPE);
+#endif
+
+    /*
+     * Optional time filters.
+     *
+     * If the event is cumulative and you really want the latest ever,
+     * do NOT apply start/end filters.
+     *
+     * If you want latest record within selected period, add timestamp filters.
+     *
+     * For now I assume "ultimo record" means latest available globally,
+     * because the accumulated value is per node.
+     */
+
+    if (verbose) {
+        printf("QUERY: %s\n", query);
+    }
+
+#if DB_MYSQL
+    MYSQL_RES *result = db_run_query_result(query);
+
+    if (result == NULL) {
+        printf("Database error\n");
+        return;
+    }
+
+    MYSQL_ROW row;
+    int has_records = 0;
+    float total     = 0;
+
+    while ((row = mysql_fetch_row(result)) != NULL) {
+        if (!has_records) {
+            printf("%20s %20s %20s\n", "Node", "Timestamp", "Energy saving (KWH)");
+            has_records = 1;
+        }
+
+        const char *node = row[0] ? row[0] : "NULL";
+        const char *ts   = row[1] ? row[1] : "NULL";
+        float val        = row[2] ? atof(row[2]) / 1000000.0 : 0.0;
+
+        printf("%20s %20s %20f\n", node, ts, val);
+
+        if (row[2]) {
+            total += val;
+        }
+    }
+
+    if (!has_records) {
+        printf("There are no accumulated event records with event_type=%d.\n", ACCUM_EVENT_TYPE);
+    } else {
+        printf("\n%20s %20s %20f\n", "TOTAL", "", total);
+    }
+
+    mysql_free_result(result);
+
+#elif DB_PSQL
+    PGresult *result = db_run_query_result(query);
+
+    if (result == NULL || PQresultStatus(result) != PGRES_TUPLES_OK) {
+        printf("Database error\n");
+        if (result != NULL) {
+            PQclear(result);
+        }
+        return;
+    }
+
+    int rows    = PQntuples(result);
+    float total = 0;
+
+    if (rows > 0) {
+        printf("%20s %20s %20s\n", "Node", "Timestamp", "Value");
+    }
+
+    for (int i = 0; i < rows; i++) {
+        const char *node = PQgetvalue(result, i, 0);
+        const char *ts   = PQgetvalue(result, i, 1);
+        const char *val  = PQgetvalue(result, i, 2);
+
+        float saving = val && strlen(val) ? atof(val) / 1000000.0 : 0;
+
+        printf("%20s %20s %20f\n", node && strlen(node) ? node : "NULL", ts && strlen(ts) ? ts : "NULL", saving);
+
+        total += saving;
+    }
+
+    if (rows == 0) {
+        printf("There are no accumulated event records with event_type=%d.\n", ACCUM_EVENT_TYPE);
+    } else {
+        printf("\n%20s %20s %20%\n", "TOTAL", "", total);
+    }
+
+    PQclear(result);
+#endif
+}
 
 void print_warning_level(int warn_level)
 {
@@ -879,11 +1066,8 @@ void print_mets(int start_time, int end_time, char *nodes, cluster_conf_t *my_co
 #if DB_MYSQL
 void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query, char type)
 {
-    char query[512];
+    char query[2048];
     char all_nodes = 0;
-#if USE_GPUS
-    char has_gpus = 0;
-#endif
 
     uint max_power = MAX_ERROR_POWER;
     int def_id     = get_default_tag_id(&my_conf);
@@ -893,25 +1077,53 @@ void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query,
     for (uint32_t i = 0; i < my_conf.num_tags; i++)
         max_power = ear_max(my_conf.tags[i].error_power, max_power);
 
-    if (type == GLOBAL_ENERGY_TYPE)
+    // Query selector
+    if (type == GLOBAL_ENERGY_TYPE) {
         sprintf(query, inc_query, end_time - start_time);
-    else if (type == ALL_PER_METRIC_TYPE)
+    } else if (type == USER_TYPE) {
+        if (!strcmp(inc_query, ALL_USERS))
+            sprintf(query, inc_query, start_time, end_time, max_power);
+        else
+            sprintf(query, inc_query, user_name, start_time, end_time, max_power);
+    } else if (type == GROUP_TYPE) {
+        if (!strcmp(inc_query, ALL_GROUPS))
+            sprintf(query, inc_query, start_time, end_time, max_power);
+        else
+            sprintf(query, inc_query, group_name, group_name, start_time, end_time, max_power);
+    } else if (type == NODE_TYPE) {
+        if (!strcmp(inc_query, ALL_NODES))
+            sprintf(query, inc_query, start_time, end_time);
+        else
+            sprintf(query, inc_query, start_time, end_time, node_name);
+    } else if (type == TAG_TYPE) {
+        if (!strcmp(inc_query, ALL_TAGS))
+            sprintf(query, inc_query, start_time, end_time, max_power);
+        else
+            sprintf(query, inc_query, etag, start_time, end_time, max_power);
+    } else if (type == EARDBD_TYPE) {
+        if (!strcmp(inc_query, ALL_ISLANDS))
+            sprintf(query, inc_query, start_time, end_time);
+        else
+            sprintf(query, inc_query, start_time, end_time, eardbd_host);
+    } else if (type == ALL_PER_METRIC_TYPE) {
         sprintf(query, inc_query, start_time, end_time, max_power);
-    else
+    } else if (type == EARDBD_RAW_TYPE) {
         sprintf(query, inc_query, start_time, end_time);
-
+    } else {
+        sprintf(query, inc_query, start_time, end_time);
+    }
     if (verbose) {
         printf("query: %s\n", query);
     }
 
     if (mysql_query(connection, query)) {
-        printf("MYSQL error\n");
+        printf("No results found or error connecting to the DB\n");
         return;
     }
     MYSQL_RES *result = mysql_store_result(connection);
 
     if (result == NULL) {
-        printf("MYSQL error\n");
+        printf("No results found or error connecting to the DB\n");
         return;
     }
 
@@ -950,69 +1162,55 @@ void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query,
 
         int has_records = 0;
         while ((row = mysql_fetch_row(result)) != NULL) {
+            // HEADER
             if (!has_records) // on the first iteration
             {
-                if (!strcmp(inc_query, ALL_USERS)) {
+                has_records = 1;
+
+                if (type == USER_TYPE) {
                     printf("%15s %15s %20s\n", "Energy (J)", "User", "Carbon footprint(g)");
-#if USE_GPUS
-                    has_gpus = 1;
-#endif
-                } else if (!strcmp(inc_query, ALL_TAGS)) {
-                    printf("%15s %15s %20s\n", "Energy (J)", "Energy tag", "Carbon footprint(g)");
-#if USE_GPUS
-                    has_gpus = 1;
-#endif
-                } else if (!strcmp(inc_query, ALL_GROUPS)) {
+                } else if (type == GROUP_TYPE) {
                     printf("%15s %15s %20s\n", "Energy (J)", "Group", "Carbon footprint(g)");
-                } else if (!strcmp(inc_query, ALL_ISLANDS)) {
+                } else if (type == TAG_TYPE) {
+                    printf("%15s %15s %20s\n", "Energy (J)", "Energy tag", "Carbon footprint(g)");
+                } else if (type == EARDBD_TYPE) {
                     printf("%15s %15s %20s\n", "Energy (J)", "EARDBD", "Carbon footprint(g)");
-                } else if (!strcmp(inc_query, ISLANDS_RAW)) {
+                } else if (type == EARDBD_RAW_TYPE) {
                     printf("%15s %15s %15s %15s %15s %20s\n", "Energy (J)", "EARDBD", "Start time", "End time", "Power",
                            "Carbon footprint(g)");
-                } else if (global_end_time > 0) {
+                } else if (type == NODE_TYPE || global_end_time > 0) {
 #if USE_GPUS
-                    printf("%15s %15s %15s %15s %20s\n", "Energy (J)", "Node", "Avg. DC Power", "Avg. GPU Power",
-                           "Carbon footprint(g)");
-                    has_gpus = 1;
+                    printf("%15s %15s %15s %15s %15s %20s\n", "Energy (J)", "Node", "Active time(s)",
+                           "Avg. DC Power(W)", "Avg. GPU Power(W)", "Carbon footprint(g)");
 #else
-                    printf("%15s %15s %15s %20s\n", "Energy (J)", "Node", "Avg. Power", "Carbon footprint(g)");
+                    printf("%15s %15s %15s %15s %20s\n", "Energy (J)", "Node", "Active time(s)", "Avg. DC Power(W)",
+                           "Carbon footprint(g)");
 #endif
                     all_nodes = 1;
-                } else {
-                    printf("%15s %15s %20s\n", "Energy (J)", "Node", "Carbon footprint(g)");
                 }
-                has_records = 1;
+                printf("\n");
             }
 
             // printing of the main values
-#if USE_GPUS
-            for (int32_t i = 0; i < num_fields; i++) {
-                if (has_gpus) {
-                    if (!all_nodes || (i != 1 && i != 2 && i != 3))
-                        printf("%15s ", row[i] ? row[i] : "NULL");
-                } else {
-                    for (i = 0; i < num_fields; i++) {
-                        printf("%15s ", row[i] ? row[i] : "NULL");
-                    }
-                }
-            }
-#else
-            for (i = 0; i < num_fields; i++) {
-                if (!all_nodes || (i != 2 && i != 1))
-                    printf("%15s ", row[i] ? row[i] : "NULL");
-            }
-#endif
-
-            if (row[0] && all_nodes &&
-                (atoll(row[2]) != atoll(row[1]))) { // when getting energy we compute the avg_power
+            if (!row[0] || !row[1] || !row[2] || !row[3] || !row[4])
+                continue;
+            // Energy
+            printf("%15s ", row[0]);
+            // Node
+            printf("%15s ", row[4]);
+            // Time
+            printf("%15lld", (atoll(row[2]) - atoll(row[1])));
+            // Node Avg. DC Power(W)
+            if ((atoll(row[2]) != atoll(row[1]))) {
                 printf("%15lld ", (atoll(row[0]) / (atoll(row[2]) - atoll(row[1]))));
-#if USE_GPUS
-                if (row[3] != NULL)
-                    printf("%15lld ", (atoll(row[3]) / (atoll(row[2]) - atoll(row[1]))));
-                else
-                    printf("%15s ", "---");
-#endif
             }
+#if USE_GPUS
+            // Avg. GPU Power(W)
+            if (atoll(row[3]) && (atoll(row[2]) != atoll(row[1])))
+                printf("%15lld ", (atoll(row[3]) / (atoll(row[2]) - atoll(row[1]))));
+            else
+                printf("%15s", " 0 ");
+#endif
             // Carbon footprint formula: Energy X Power usage effectiveness X Carbon intensity
             printf("%20.2lf", ((double) atoll(row[0]) / (3600 * 1000) * PUE * CARBON_INTENSITY));
             printf("\n");
@@ -1020,13 +1218,15 @@ void print_all(MYSQL *connection, int start_time, int end_time, char *inc_query,
         if (!has_records) {
             char sbuff[64], ebuff[64];
             time_t s_time = start_time;
+            time_t e_time = end_time;
             strtok(ctime_r(&s_time, sbuff), "\n");
-            strtok(ctime_r(&s_time, ebuff), "\n");
-            printf("There are no ecords in the period starting %s and ending %s\n\n", sbuff, ebuff);
+            strtok(ctime_r(&e_time, ebuff), "\n");
+            printf("There are no records in the period starting %s and ending %s\n\n", sbuff, ebuff);
         }
     }
     mysql_free_result(result);
 }
+
 #elif DB_PSQL
 void print_all(PGconn *connection, int start_time, int end_time, char *inc_query, char type)
 {
@@ -1127,18 +1327,18 @@ int main(int argc, char *argv[])
     time_t start_time  = 0;
     time_t end_time    = time(NULL);
     time_t time_period = 0;
-    int divisor        = 1;
     int c;
     char all_users        = 0;
     char all_groups       = 0;
     char all_nodes        = 0;
     char all_tags         = 0;
     char all_eardbds      = 0;
-    char report_events    = 0;
     char global_energy    = 0;
-    char report_detailed  = 0;
     char islands_expanded = 0;
     struct tm tinfo       = {0};
+    char report_savings   = 0;
+    char report_events    = 0;
+    char report_detailed  = 0;
 
     VCCONF = 2;
 
@@ -1203,23 +1403,17 @@ int main(int argc, char *argv[])
 
     int option_idx                      = 0;
     static struct option long_options[] = {
-        {"help", no_argument, 0, 'h'},
-        {"version", no_argument, 0, 'v'},
-        {"verbose", no_argument, 0, 'b'},
-        {"global-energy", no_argument, 0, 'g'},
-        {"events", no_argument, 0, 'x'},
-        {"expanded", no_argument, 0, 'd'},
-        {"detailed", no_argument, 0, 'z'},
-        {"nodes", required_argument, 0, 'n'},
-        {"users", required_argument, 0, 'u'},
-        {"group", required_argument, 0, 'G'},
-        {"etags", required_argument, 0, 't'},
-        {"islands", required_argument, 0, 'i'},
-        {"start-time", required_argument, 0, 's'},
+        {"help", no_argument, 0, 'h'},           {"version", no_argument, 0, 'v'},
+        {"verbose", no_argument, 0, 'b'},        {"global-energy", no_argument, 0, 'g'},
+        {"events", no_argument, 0, 'x'},         {"total-savings", no_argument, 0, 'w'},
+        {"expanded", no_argument, 0, 'd'},       {"detailed", no_argument, 0, 'z'},
+        {"nodes", required_argument, 0, 'n'},    {"users", required_argument, 0, 'u'},
+        {"group", required_argument, 0, 'G'},    {"etags", required_argument, 0, 't'},
+        {"islands", required_argument, 0, 'i'},  {"start-time", required_argument, 0, 's'},
         {"end-time", required_argument, 0, 'e'},
     };
     while (1) {
-        c = getopt_long(argc, argv, "t:vhzdbn:u:G:s:e:i:gx", long_options, &option_idx);
+        c = getopt_long(argc, argv, "t:vhzdbn:u:G:s:e:i:gxw", long_options, &option_idx);
 
         if (c == -1)
             break;
@@ -1303,6 +1497,9 @@ int main(int argc, char *argv[])
             case 'x':
                 report_events = 1;
                 break;
+            case 'w':
+                report_savings = 1;
+                break;
             case 'z':
                 report_detailed = 1;
                 all_nodes       = 0;
@@ -1312,9 +1509,11 @@ int main(int argc, char *argv[])
 
     if (start_time == 0)
         start_time = end_time - MAX(my_conf.eard.period_powermon, my_conf.db_manager.aggr_time) * 4;
-    if (!all_users && !all_groups && !all_nodes && !all_tags && !all_eardbds && !global_energy && !report_events &&
-        !report_detailed) {
-        long long result = get_sum(connection, start_time, end_time, divisor);
+#if DB_MYSQL
+    if (user_name == NULL && group_name == NULL && node_name == NULL && etag == NULL && eardbd_host == NULL &&
+        !global_energy && !report_events && !report_detailed && !report_savings) {
+        unsigned long long divisor = 1;
+        long long result           = get_sum(connection, start_time, end_time, divisor);
         compute_pow(connection, start_time, end_time, result);
 
         if (!result) {
@@ -1340,30 +1539,39 @@ int main(int argc, char *argv[])
             }
             printf("Carbon footprint: %.2lf g\n", carbon_footprint);
         }
-#if DB_MYSQL
         mysql_close(connection);
-#elif DB_PSQL
-        PQfinish(connection);
-#endif
         free_cluster_conf(&my_conf);
         exit(0);
     }
-
+#endif
+    // Run the query and print the results
     if (all_users)
-        print_all(connection, start_time, end_time, ALL_USERS, ALL_PER_METRIC_TYPE);
+        print_all(connection, start_time, end_time, ALL_USERS, USER_TYPE);
+    else if (user_name != NULL)
+        print_all(connection, start_time, end_time, USER_QUERY_TABLE, USER_TYPE);
     else if (all_groups)
-        print_all(connection, start_time, end_time, ALL_GROUPS, ALL_PER_METRIC_TYPE);
+        print_all(connection, start_time, end_time, ALL_GROUPS, GROUP_TYPE);
+    else if (group_name != NULL)
+        print_all(connection, start_time, end_time, GROUP_QUERY_TABLE, GROUP_TYPE);
     else if (all_tags)
-        print_all(connection, start_time, end_time, ALL_TAGS, ALL_PER_METRIC_TYPE);
+        print_all(connection, start_time, end_time, ALL_TAGS, TAG_TYPE);
+    else if (etag != NULL)
+        print_all(connection, start_time, end_time, TAG_QUERY_TABLE, TAG_TYPE);
     else if (all_nodes) {
         compute_pow(connection, start_time, end_time, 0);
-        print_all(connection, start_time, end_time, ALL_NODES, PER_METRIC_TYPE);
+        print_all(connection, start_time, end_time, ALL_NODES, NODE_TYPE);
+    } else if (node_name != NULL) {
+        compute_pow(connection, start_time, end_time, 0);
+        print_all(connection, start_time, end_time, NODE_QUERY_TABLE, NODE_TYPE);
     } else if (all_eardbds) {
         compute_pow(connection, start_time, end_time, 0);
         if (!islands_expanded)
-            print_all(connection, start_time, end_time, ALL_ISLANDS, PER_METRIC_TYPE);
+            print_all(connection, start_time, end_time, ALL_ISLANDS, EARDBD_TYPE);
         else
-            print_all(connection, start_time, end_time, ISLANDS_RAW, PER_METRIC_TYPE);
+            print_all(connection, start_time, end_time, ISLANDS_RAW, EARDBD_RAW_TYPE);
+    } else if (eardbd_host != NULL) {
+        compute_pow(connection, start_time, end_time, 0);
+        print_all(connection, start_time, end_time, EARDBD_QUERY_TABLE, EARDBD_TYPE);
     } else if (global_energy) {
         if (start_time > 0)
             print_all(connection, start_time, end_time, GLOB_ENERGY, GLOBAL_ENERGY_TYPE);
@@ -1371,10 +1579,12 @@ int main(int argc, char *argv[])
             print_all(connection, start_time, time_period, GLOB_ENERGY, GLOBAL_ENERGY_TYPE);
     } else if (report_events) {
         read_events(start_time, end_time, &my_conf);
-
     } else if (report_detailed) {
         print_mets(start_time, end_time, node_name, &my_conf);
+    } else if (report_savings) {
+        read_event_accum_2002(&my_conf);
     }
+
 #if DB_MYSQL
     mysql_close(connection);
 #elif DB_PSQL

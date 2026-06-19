@@ -35,6 +35,14 @@ static char **imc_maps;
 static ushort sap_ids[2] = {0x3251, 0x00};
 static char *sap_dfs[2]  = {"00.1", NULL};
 
+static void close_all()
+{
+    pci_scan_close(&pcis, &pcis_count);
+}
+
+#define read64(i, address)         *((ullong *) &imc_maps[i][address])
+#define write64(i, address, value) read64(i, address) = value
+
 static state_t load_sapphire()
 {
     addr_t addr_hi;
@@ -80,49 +88,6 @@ static state_t load_sapphire()
             }
         }
     }
-    return EAR_SUCCESS;
-}
-
-state_t bwidth_intel143_load(topology_t *tp, bwidth_ops_t *ops)
-{
-    state_t s;
-    // If AMD or model previous to Intel Haswell
-    if (tp->vendor == VENDOR_AMD || tp->model != MODEL_SAPPHIRE_RAPIDS) {
-        return_msg(EAR_ERROR, Generr.api_incompatible);
-    }
-    debug("Detected Intel Sapphire Rapids");
-    if (state_fail(s = pci_scan(0x8086, sap_ids, sap_dfs, O_RDONLY, &pcis, &pcis_count))) {
-        serror("pci_scan");
-        return s;
-    }
-    // It is shared by all Intel's architecture from Haswell to Skylake
-    debug("PCIs count: %d", pcis_count);
-    if (state_fail(s = load_sapphire())) {
-        return s;
-    }
-    // In the future it can be initialized in read only mode
-    apis_put(ops->get_info, bwidth_intel143_get_info);
-    apis_put(ops->init, bwidth_intel143_init);
-    apis_put(ops->dispose, bwidth_intel143_dispose);
-    apis_put(ops->read, bwidth_intel143_read);
-
-    return EAR_SUCCESS;
-}
-
-BWIDTH_F_GET_INFO(bwidth_intel143_get_info)
-{
-    info->api         = API_INTEL143;
-    info->scope       = SCOPE_NODE;
-    info->granularity = GRANULARITY_IMC;
-    info->devs_count  = imc_ctrs_count + 1;
-}
-
-#define read64(i, address)         *((ullong *) &imc_maps[i][address])
-#define write64(i, address, value) read64(i, address) = value
-
-state_t bwidth_intel143_init(ctx_t *c)
-{
-    int i;
     // Section: IMC Performance Monitoring Overview
     for (i = 0; i < imc_ctrs_count; ++i) {
         write64(i, 0x40, 0x00ff05); // 0x40 CTL0, UMASK[15:8]: RD+WR(0xFF), EVENT[7:0]: CAS_COUNT (0x05)
@@ -131,24 +96,54 @@ state_t bwidth_intel143_init(ctx_t *c)
     return EAR_SUCCESS;
 }
 
-state_t bwidth_intel143_dispose(ctx_t *c)
+BWIDTH_F_LOAD(intel143)
 {
-    return EAR_SUCCESS;
+    state_t s;
+
+    if (api_already_loaded(ops)) {
+        return;
+    }
+    // If AMD or model previous to Intel Haswell
+    if (tp->vendor != VENDOR_INTEL || tp->model < MODEL_SAPPHIRE_RAPIDS) {
+        return;
+    }
+    debug("Detected Intel Sapphire Rapids");
+    if (state_fail(s = pci_scan(0x8086, sap_ids, sap_dfs, O_RDONLY, &pcis, &pcis_count))) {
+        serror("pci_scan");
+        return;
+    }
+    // It is shared by all Intel's architecture from Haswell to Skylake
+    debug("PCIs count: %d", pcis_count);
+    if (state_fail(s = load_sapphire())) {
+        close_all();
+        return;
+    }
+    // In the future it can be initialized in read only mode
+    apis_put(ops->unload, bwidth_intel143_unload);
+    apis_put(ops->get_info, bwidth_intel143_get_info);
+    apis_put(ops->read, bwidth_intel143_read);
 }
 
-state_t bwidth_intel143_count_devices(ctx_t *c, uint *devs_count_in)
+BWIDTH_F_UNLOAD(intel143)
 {
-    *devs_count_in = imc_ctrs_count + 1;
-    return EAR_SUCCESS;
+    close_all();
 }
 
-state_t bwidth_intel143_read(ctx_t *c, bwidth_t *bw)
+BWIDTH_F_GET_INFO(intel143)
+{
+    info->api         = API_INTEL143;
+    info->scope       = SCOPE_NODE;
+    info->granularity = GRANULARITY_IMC;
+    info->devs_count  = imc_ctrs_count + 1;
+}
+
+BWIDTH_F_READ(intel143)
 {
     int i;
-    timestamp_get(&bw[imc_ctrs_count].time);
+    timestamp_get(&b[imc_ctrs_count].time);
     for (i = 0; i < imc_ctrs_count; ++i) {
-        bw[i].cas = read64(i, 0x08);
-        debug("MC_CHy_PCI_PMON_CTR%d: %llu cas", i, bw[i].cas);
+        b[i].cas = read64(i, 0x08);
+        debug("MC_CHy_PCI_PMON_CTR%d: %llu cas", i, b[i].cas);
     }
     return EAR_SUCCESS;
 }

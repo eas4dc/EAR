@@ -13,18 +13,6 @@
 
 #include <metrics/flops/flops.h>
 
-void flops_perf_load(topology_t *tp, flops_ops_t *ops);
-
-void flops_perf_get_info(apinfo_t *info);
-
-state_t flops_perf_init();
-
-state_t flops_perf_dispose();
-
-state_t flops_perf_read(flops_t *ca);
-
-void flops_perf_data_diff(flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
-
-void flops_perf_internals_tostr(char *buffer, int length);
+FLOPS_DEFINES(perf);
 
 #endif // METRICS_FLOPS_PERF_H

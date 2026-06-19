@@ -16,6 +16,7 @@
 #endif
 #include <common/states.h>
 #include <common/types.h>
+#include <metrics/gpu/gpu.h>
 
 #define NVML_ERROR_UNINIT_MSG      "NVML was not first initialized."
 #define NVML_ERROR_INVALID_ARG_MSG "A supplied argument is invalid."
@@ -24,6 +25,7 @@
 #define NVML_SUCCESS                   0
 #define NVML_ERROR_UNINITIALIZED       1
 #define NVML_ERROR_INVALID_ARGUMENT    2
+#define NVML_ERROR_NOT_FOUND           3
 #define NVML_FEATURE_ENABLED           0
 #define NVML_CLOCK_MEM                 0
 #define NVML_CLOCK_SM                  0
@@ -87,10 +89,15 @@ typedef struct {
     nvmlGpmSample_t sample2;
     nvmlGpmMetric_t metrics[NVML_GPM_METRIC_MAX];
 } nvmlGpmMetricsGet_t;
+
+typedef struct {
+    ullong total;
+} nvmlMemory_v2_t;
 #endif
 
 typedef struct nvml_s {
     nvmlReturn_t (*Init)(void);
+    nvmlReturn_t (*Shutdown)(void);
     nvmlReturn_t (*Count)(uint *devCount);
     nvmlReturn_t (*Handle)(uint index, nvmlDevice_t *device);
     nvmlReturn_t (*GetSerial)(nvmlDevice_t dev, char *serial, uint length);
@@ -119,13 +126,27 @@ typedef struct nvml_s {
     nvmlReturn_t (*GpmSampleAlloc)(nvmlGpmSample_t *gpmSample);
     nvmlReturn_t (*GpmSampleGet)(nvmlDevice_t device, nvmlGpmSample_t gpmSample);
     nvmlReturn_t (*GpmQueryDeviceSupport)(nvmlDevice_t device, nvmlGpmSupport_t *gpmSupport);
+    nvmlReturn_t (*GetName)(nvmlDevice_t device, char *name, uint length); // MIG
+    nvmlReturn_t (*GetMigMode)(nvmlDevice_t device, uint *currentMode, uint *pendingMode);
+    nvmlReturn_t (*GetMaxMigDeviceCount)(nvmlDevice_t device, uint *count);
+    nvmlReturn_t (*GetMigDeviceHandleByIndex)(nvmlDevice_t device, uint index, nvmlDevice_t *migDevice);
+    nvmlReturn_t (*GetUUID)(nvmlDevice_t device, char *uuid, uint length);
+    nvmlReturn_t (*GetMemoryInfo_v2)(nvmlDevice_t device, nvmlMemory_v2_t *memory);
+    nvmlReturn_t (*GetComputeRunningProcesses_v3)(nvmlDevice_t device, uint *infoCount, nvmlProcessInfo_t *infos);
 } nvml_t;
 
 state_t nvml_open(nvml_t *nvml);
 
 state_t nvml_close();
 
-state_t nvml_get_devices(nvmlDevice_t **devs, uint *devs_count);
+// Includes sub-devices.
+void nvml_get_devices(gpu_devs_t **devs, uint *devs_count, int add_subdevices);
+
+// These devices are handlers, not a structure containing any readable
+// information. It is your responsibility to free the allocated space. The
+// returned handlers are main devices only. Maybe in the future we can add a
+// third parameter to select the type of devices returned.
+void nvml_get_handlers(nvmlDevice_t **handlers, uint *handlers_count);
 
 void nvml_get_serials(const ullong **serials);
 

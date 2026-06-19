@@ -10,12 +10,12 @@
 
 #ifndef COMMON_SYSTEM_POLL
 #define COMMON_SYSTEM_POLL
+/* clang-format off */
 
-#include <common/states.h>
-#include <common/system/time.h>
 #include <poll.h>
 #include <sys/stat.h>
-// #include <common/output/verbose.h>
+#include <common/states.h>
+#include <common/system/time.h>
 
 #define AFD_MAX      4096
 #define AFD_TAG      64
@@ -87,4 +87,5 @@ int aselectv(afd_set_t *set, struct timeval *timeout);
  * to see if the FD is valid AND the peer is still connected. */
 void afd_check_sockets(afd_set_t *fdlist);
 
+/* clang-format on */
 #endif // COMMON_SYSTEM_POLL

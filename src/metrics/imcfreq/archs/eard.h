@@ -13,16 +13,6 @@
 
 #include <metrics/imcfreq/imcfreq.h>
 
-void imcfreq_eard_load(topology_t *tp, imcfreq_ops_t *ops, int eard);
-
-void imcfreq_eard_get_api(uint *api, uint *api_intern);
-
-state_t imcfreq_eard_init(ctx_t *c);
-
-state_t imcfreq_eard_dispose(ctx_t *c);
-
-state_t imcfreq_eard_count_devices(ctx_t *c, uint *dev_count);
-
-state_t imcfreq_eard_read(ctx_t *c, imcfreq_t *i);
+IMCFREQ_DEFINES(eard);
 
 #endif // METRICS_IMCFREQ_EARD_H

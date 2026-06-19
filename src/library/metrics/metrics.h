@@ -17,7 +17,7 @@
 #include <library/common/library_shared_data.h>
 #include <library/metrics/dcgmi_lib.h>
 #include <metrics/common/apis.h>
-#include <metrics/io/io.h>
+#include <metrics/io/io_old.h>
 #include <metrics/proc/stat.h>
 #if DLB_SUPPORT
 #include <library/metrics/dlb_talp_lib.h>

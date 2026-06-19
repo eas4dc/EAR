@@ -40,6 +40,8 @@ int main(int argc, char *argv[])
     ulong maxf, minf;
     ulong fref, f;
     int nump;
+    size_t coeffs_size;
+    ssize_t written;
 
     if (argc < 4) {
         verbose(0, "Usage: %s file.name max.freq min.freq", argv[0]);
@@ -76,7 +78,13 @@ int main(int argc, char *argv[])
     }
     /* The program reports coefficients in stdout and csv file */
     print_coefficients(coeffs, nump * nump);
-    write(fd, coeffs, sizeof(coefficient_t) * (nump * nump));
+    coeffs_size = sizeof(coefficient_t) * (nump * nump);
+    written     = write(fd, coeffs, coeffs_size);
+    if (written != (ssize_t) coeffs_size) {
+        error("error writing coeffs file %s (%s)", buffer, written < 0 ? strerror(errno) : "short write");
+        close(fd);
+        return 1;
+    }
     close(fd);
     return 0;
 }

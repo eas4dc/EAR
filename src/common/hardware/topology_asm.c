@@ -127,6 +127,7 @@ static void topology_asm_getid(topology_t *topo)
 #endif
 }
 
+#ifndef __ARCH_ARM
 static void topology_getbrand_x86(topology_t *topo)
 {
     cpuid_regs_t r2, r3, r4;
@@ -154,6 +155,7 @@ static void topology_getbrand_x86(topology_t *topo)
     strcpy(topo->brand, (char *) brand);
     debug("Brand: %s", topo->brand);
 }
+#endif
 
 static void topology_asm_getbrand(topology_t *topo)
 {

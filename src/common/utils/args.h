@@ -10,6 +10,7 @@
 
 #ifndef COMMON_UTILS_ARGS_H
 #define COMMON_UTILS_ARGS_H
+/* clang-format off */
 
 // Allowed syntax
 //	-a
@@ -24,7 +25,9 @@
 //	args_get(argc, argv, "a:", buffer);
 //	args_get(argc, argv, "something", buffer);
 
-/* Returns 1 if argument arg is found. Value is copied in buffer. */
-char *args_get(int argc, char *argv[], const char *arg, char *buffer);
+// Returns NULL if not found, and a pointer to the value of the argument. In
+// case is just a flag without value, it returns the pointer to the flag.
+char *args_get(int argc, char *argv[], const char *flag_name, char *buffer);
 
+/* clang-format on */
 #endif // COMMON_UTILS_ARGS_H

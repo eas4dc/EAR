@@ -12,31 +12,32 @@
 
 //#define SHOW_DEBUGS 1
 
-#include <stdlib.h>
-#include <pthread.h>
-#include <management/cpupow/cpupow.h>
-#include <management/cpupow/archs/dummy.h>
 #include <management/cpupow/archs/amd17.h>
+#include <management/cpupow/archs/dummy.h>
 #include <management/cpupow/archs/intel63.h>
+#include <management/cpupow/cpupow.h>
+#include <pthread.h>
+#include <stdlib.h>
 
-static pthread_mutex_t  lock = PTHREAD_MUTEX_INITIALIZER;
-static uint             loaded;
-static int              cpus_count;
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static uint loaded;
+static int cpus_count;
 static mgt_cpupow_ops_t ops;
 
 void mgt_cpupow_load(topology_t *tp, int eard)
 {
-	while (pthread_mutex_trylock(&lock));
-	if (loaded) {
-		goto ret;
-	}
+    while (pthread_mutex_trylock(&lock))
+        ;
+    if (loaded) {
+        goto ret;
+    }
     mgt_cpupow_intel63_load(tp, &ops);
     mgt_cpupow_amd17_load(tp, &ops);
     mgt_cpupow_dummy_load(tp, &ops);
     cpus_count = tp->cpu_count;
-    loaded = 1;
+    loaded     = 1;
 ret:
-	pthread_mutex_unlock(&lock);
+    pthread_mutex_unlock(&lock);
 }
 
 void mgt_cpupow_get_info(apinfo_t *info)
@@ -60,12 +61,12 @@ state_t mgt_cpupow_powercap_is_enabled(int domain, uint *enabled)
     return ops.powercap_is_enabled(domain, enabled);
 }
 
-state_t mgt_cpupow_powercap_get(int domain, uint *watts)
+state_t mgt_cpupow_powercap_get(int domain, uint32_t *watts)
 {
     return ops.powercap_get(domain, watts);
 }
 
-state_t mgt_cpupow_powercap_set(int domain, uint *watts)
+state_t mgt_cpupow_powercap_set(int domain, uint32_t *watts)
 {
     return ops.powercap_set(domain, watts);
 }
@@ -89,12 +90,12 @@ state_t mgt_cpupow_powercap_reset(int domain, int reset_mode)
     return ops.powercap_reset(domain);
 }
 
-state_t mgt_cpupow_tdp_get(int domain, uint *watts)
+state_t mgt_cpupow_tdp_get(int domain, uint32_t *watts)
 {
     return ops.tdp_get(domain, watts);
 }
 
-void mgt_cpupow_tdp_tostr(int domain, uint *watts, char *buffer, int length)
+void mgt_cpupow_tdp_tostr(int domain, uint32_t *watts, char *buffer, int length)
 {
     int acc, i;
     for (acc = i = 0; i < mgt_cpupow_count_devices(domain); ++i) {
@@ -102,8 +103,8 @@ void mgt_cpupow_tdp_tostr(int domain, uint *watts, char *buffer, int length)
     }
 }
 
-void mgt_cpupow_data_alloc(int domain, uint **list)
+void mgt_cpupow_data_alloc(int domain, uint32_t **list)
 {
     int count = mgt_cpupow_count_devices(domain);
-    *list = calloc(count, sizeof(uint));
+    *list     = calloc(count, sizeof(uint32_t));
 }

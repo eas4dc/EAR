@@ -137,9 +137,15 @@ typedef struct app_info {
     uint32_t step_id;
 } app_info_t;
 
+#define OPENSSL_TAG_SZ 16
+
 typedef struct request_header {
     int32_t type;
     uint32_t size;
+#ifdef OPENSSL_SUPPORT
+    unsigned char tag[OPENSSL_TAG_SZ];
+
+#endif
 } request_header_t;
 
 typedef struct eard_policy_info {

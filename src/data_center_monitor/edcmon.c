@@ -22,12 +22,12 @@ static void handle_signal(int sig, siginfo_t *si, void *unused)
     (void) unused; // Suppress unused parameter warning
 
     verbose(0, "Received signal %d", sig);
-    plugin_manager_close();
+    plugin_manager_exit();
 }
 
 int main(int argc, char *argv[])
 {
-    printf("%s: Started....\n", argv[0]);
+    verbose(0, "%s: Started....", argv[0]);
 
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));

@@ -13,6 +13,7 @@ export FEAT_EXAMON
 export FEAT_DB_CASSANDRA
 export FEAT_DB_PROMETHEUS
 export FEAT_WF_SUPPORT   
+export FEAT_OPENSSL_SUPPORT   
 export FEAT_DLB
 export FEAT_EARL_LITE
 export DCGMI
@@ -72,6 +73,8 @@ export ROOTDIR
 export SRCDIR
 export DESTDIR
 export ETCDIR
+export OPENSSL_BASE
+export OPENSSL_LDFLAGS
 #export TMPDIR
 export DOCDIR
 export CHOWN_USR

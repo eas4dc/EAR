@@ -132,7 +132,7 @@ static uint *powermon_restore_cpufreq_list;
 /************** RECOVERY HW SETTINGS *************/
 
 /** This function is called to restore any setting when the job \p app begins.
- * By now, this function restores the IMC frequency and the GPU frequency of the node.
+ * By now, this function restores the IMC frequency and the GPU frpowermon_restore_cpufreq_listequency of the node.
  * \todo GPU restoring can be improved, as we can know the GPUs used by the job. */
 static void set_default_powermon_init(powermon_app_t *app);
 
@@ -987,11 +987,12 @@ void powermon_new_configuration()
 
 state_t powermon_create_idle_context()
 {
-    job_id jid = 0, sid = 0;
-    uint ID;
-    int cc = 0;
     powermon_app_t *pmapp;
     char shmem_path[GENERIC_NAME];
+    job_id jid = 0, sid = 0;
+    apinfo_t info;
+    int cc = 0;
+    uint ID;
 
     verbose(VJOBPMON, "Creating idle context");
     current_ear_app[cc] = calloc(1, sizeof(powermon_app_t));
@@ -1007,9 +1008,10 @@ state_t powermon_create_idle_context()
     pmapp->app.job.id      = jid;
     pmapp->app.job.step_id = sid;
 
+    cpufreq_get_info(&info);
+    freq_count = info.devs_count;
     cpufreq_data_alloc(&pmapp->freq_job1, &pmapp->freq_diff);
     cpufreq_data_alloc(&freq_job2, NULL);
-    cpufreq_count_devices(no_ctx, &freq_count);
 
     ID = create_ID(jid, sid);
 
@@ -1177,7 +1179,7 @@ void job_init_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh, application_t
     copy_energy_data(&pmapp->energy_init, &c_energy);
 
     // CPU Frequency
-    state_assert(s, cpufreq_read(no_ctx, pmapp->freq_job1), );
+    state_assert(s, cpufreq_read(pmapp->freq_job1), );
 
     verbose(VJOBPMON, "job_init_powermon_app end %lu/%lu is_mpi %d", pmapp->app.job.id, pmapp->app.job.step_id,
             pmapp->app.is_mpi);
@@ -1233,8 +1235,8 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
         pmapp->app.power_sig.DRAM_power = accum_dram_power(&app_power);
         pmapp->app.power_sig.PCK_power  = accum_cpu_power(&app_power);
         // CPU Frequency
-        state_assert(
-            s, cpufreq_read_diff(no_ctx, freq_job2, pmapp->freq_job1, pmapp->freq_diff, &pmapp->app.power_sig.avg_f), );
+        state_assert(s,
+                     cpufreq_read_diff(freq_job2, pmapp->freq_job1, pmapp->freq_diff, &pmapp->app.power_sig.avg_f), );
         ulong lcpus;
         if (pmapp->app.is_mpi) {
             pstate_freqtoavg(pmapp->app_info->node_mask, pmapp->freq_diff, freq_count, &pmapp->app.power_sig.avg_f,
@@ -1680,10 +1682,13 @@ void powermon_new_task(new_task_req_t *newtask)
 
         verbose(VTASKMON, "Setting CPU freq %.2f GHz and pstate %u", (float) pmapp->policy_freq / 1000000, app_pstate);
 
-        verbose_affinity_mask(VTASKMON, &newtask->mask, man.cpu.devs_count);
+        verbose_affinity_mask(VTASKMON, &newtask->mask, man.cpufreq.devs_count);
 
         /* CPU freq. */
-        fill_cpufreq_list(&newtask->mask, man.cpu.devs_count, app_pstate, ps_nothing, powermon_restore_cpufreq_list);
+        // clang-format off
+        fill_cpufreq_list(&newtask->mask, man.cpufreq.devs_count, app_pstate,
+            ps_nothing, powermon_restore_cpufreq_list);
+        // clang-format on
         mgt_cpufreq_set_current_list(no_ctx, powermon_restore_cpufreq_list);
 
         /* *********************/
@@ -1758,14 +1763,14 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
     // prio_idx_list attribute to PRIO_SAME for robustness.
     if (state_fail(mgt_cpufreq_prio_get_current_list(pmapp->prio_idx_list))) {
 
-        for (int i = 0; i < man.pri.devs_count; i++) {
+        for (int i = 0; i < man.cpuprio.devs_count; i++) {
             pmapp->prio_idx_list[i] = PRIO_SAME;
         }
     }
 
     if (VERB_ON(VPMON_DEBUG)) {
         verbose(VPMON_DEBUG, "Priority system enabled: %d | Stored current priority list:", mgt_cpuprio_is_enabled());
-        mgt_cpuprio_data_print((cpuprio_t *) man.pri.list1, pmapp->prio_idx_list, verb_channel);
+        mgt_cpuprio_data_print((cpuprio_t *) man.cpuprio.list1, pmapp->prio_idx_list, verb_channel);
     }
 
     pmapp->is_job = is_job;
@@ -2628,7 +2633,7 @@ void *eard_power_monitoring(void *noinfo)
     powermon_freq_list   = frequency_get_freq_rank_list();
     powermon_num_pstates = frequency_get_num_pstates();
 
-    powermon_restore_cpufreq_list = calloc(man.cpu.devs_count, sizeof(uint));
+    powermon_restore_cpufreq_list = calloc(man.cpufreq.devs_count, sizeof(uint));
 
 #if USE_GPUS
     if (gpu_mgr_init() != EAR_SUCCESS) {
@@ -2840,19 +2845,19 @@ uint powermon_is_idle()
     return (!max_context_created || contexts_created_finished == contexts_created);
 }
 
-uint powermon_current_power()
+uint32_t powermon_current_power()
 {
-    return (uint) last_calculated_power;
+    return (uint32_t) last_calculated_power;
 }
 
-uint powermon_get_powercap_def()
+uint32_t powermon_get_powercap_def()
 {
-    return (uint) my_node_conf->powercap;
+    return my_node_conf->powercap;
 }
 
-uint powermon_get_max_powercap_def()
+uint32_t powermon_get_max_powercap_def()
 {
-    return (uint) my_node_conf->max_powercap;
+    return my_node_conf->max_powercap;
 }
 
 static void set_default_powermon_init(powermon_app_t *app)
@@ -2911,7 +2916,7 @@ static void set_default_powermon_end(powermon_app_t *app, uint idle)
 
             /* We'll set what it is configured in the ear.conf (idle governor and P-State). */
             cgov        = my_node_conf->idle_governor;
-            rest_pstate = ear_min(my_node_conf->idle_pstate, man.cpu.list1_count - 1);
+            rest_pstate = ear_min(my_node_conf->idle_pstate, man.cpufreq.list1_count - 1);
 
         } else {
             /* We'll restore the P-State we found before job had started. */
@@ -2934,7 +2939,7 @@ static void set_default_powermon_end(powermon_app_t *app, uint idle)
 
             verbose(VCONF, "[End job %lu/%lu] Restoring to governor `%s` the CPU set in the job's mask...",
                     app->app.job.id, app->app.job.step_id, cgov);
-            verbose_affinity_mask(VCONF + 2, &app->plug_mask, man.cpu.devs_count);
+            verbose_affinity_mask(VCONF + 2, &app->plug_mask, man.cpufreq.devs_count);
 
             mgt_cpufreq_governor_set_mask(no_ctx, gov, app->plug_mask);
         }
@@ -2953,7 +2958,7 @@ static void set_default_powermon_end(powermon_app_t *app, uint idle)
 
         verbose(VCONF, "[%lu/%lu] Restoring to governor `%s` the CPU set in the mask...", app->app.job.id,
                 app->app.job.step_id, cgov);
-        verbose_affinity_mask(VCONF + 2, &app->plug_mask, man.cpu.devs_count);
+        verbose_affinity_mask(VCONF + 2, &app->plug_mask, man.cpufreq.devs_count);
 
         mgt_cpufreq_governor_set_mask(no_ctx, gov, app->plug_mask);
 
@@ -2979,9 +2984,9 @@ static void set_default_powermon_end(powermon_app_t *app, uint idle)
 
             verbose(VCONF, "[%lu/%lu] Restoring to CPU pstate %u with mask", app->app.job.id, app->app.job.step_id,
                     rest_pstate);
-            verbose_affinity_mask(VCONF + 2, &app->plug_mask, man.cpu.devs_count);
+            verbose_affinity_mask(VCONF + 2, &app->plug_mask, man.cpufreq.devs_count);
 
-            fill_cpufreq_list(&app->plug_mask, man.cpu.devs_count, rest_pstate, ps_nothing,
+            fill_cpufreq_list(&app->plug_mask, man.cpufreq.devs_count, rest_pstate, ps_nothing,
                               powermon_restore_cpufreq_list);
 
             mgt_cpufreq_set_current_list(no_ctx, powermon_restore_cpufreq_list);
@@ -2990,7 +2995,7 @@ static void set_default_powermon_end(powermon_app_t *app, uint idle)
 
     /* If the priority module is enabled, we restore the priority of the CPUs of the job. */
     if (mgt_cpuprio_is_enabled()) {
-        for (int i = 0; i < man.pri.devs_count; i++) {
+        for (int i = 0; i < man.cpuprio.devs_count; i++) {
             // If the CPU is not in the job mask, we won't touch the priority (PRIO_SAME).
             app->prio_idx_list[i] =
                 (CPU_ISSET(i, &app->plug_mask)) ? app->prio_idx_list[i] : PRIO_SAME; // TODO: Thread-save?
@@ -2998,7 +3003,7 @@ static void set_default_powermon_end(powermon_app_t *app, uint idle)
 
         if (VERB_ON(VPMON_DEBUG)) {
             verbose(VPMON_DEBUG, "Restoring priority list...");
-            mgt_cpuprio_data_print((cpuprio_t *) man.pri.list1, app->prio_idx_list, verb_channel);
+            mgt_cpuprio_data_print((cpuprio_t *) man.cpuprio.list1, app->prio_idx_list, verb_channel);
         }
         if (state_fail(mgt_cpuprio_set_current_list(app->prio_idx_list))) {
             error("Restoring the priority list for job %lu/%lu.", app->app.job.id, app->app.job.step_id);
@@ -3050,20 +3055,20 @@ static state_t store_current_task_governor(powermon_app_t *powermon_app, cpu_set
 
         sprintf(powermon_app->governor.name, "%s", Goverstr.unknown);
 
-        uint *governor_list = (uint *) malloc(man.cpu.devs_count * sizeof(uint));
+        uint *governor_list = (uint *) malloc(man.cpufreq.devs_count * sizeof(uint));
         if (governor_list) {
             if (state_ok(mgt_cpufreq_governor_get_list(no_ctx, governor_list))) {
 
                 int i = 0;
-                while (i < man.cpu.devs_count && !CPU_ISSET(i, mask)) {
+                while (i < man.cpufreq.devs_count && !CPU_ISSET(i, mask)) {
                     i++;
                 }
 
-                if (i < man.cpu.devs_count) {
+                if (i < man.cpufreq.devs_count) {
                     mgt_governor_tostr(governor_list[i], powermon_app->governor.name);
 
                     powermon_app->governor.max_f = frequency_pstate_to_freq(0);
-                    powermon_app->governor.min_f = frequency_pstate_to_freq(man.cpu.list1_count - 1);
+                    powermon_app->governor.min_f = frequency_pstate_to_freq(man.cpufreq.list1_count - 1);
 
                 } else {
                     verbose(VCONF, "%sWARNING%s No CPU found in mask.", COL_YLW, COL_CLR);

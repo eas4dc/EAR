@@ -46,9 +46,11 @@ void stress_free()
 
 void stress_bandwidth(ullong ms)
 {
+#if __ARCH_X86
     int *pmem1 = (int *) mem1;
     int *pmem2 = (int *) mem2;
-    int pN     = N / sizeof(int);
+#endif
+    int pN = N / sizeof(int);
     timestamp_t now;
     int n;
 

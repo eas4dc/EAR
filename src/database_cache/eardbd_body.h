@@ -13,25 +13,25 @@
 
 #include <common/output/verbose.h>
 
-#define VERB_LEVEL             0 // Verbose level (deprecated)
-#define VL0                    0
-#define VL2                    VL0 + 2
-#define line                   "---------------------------------------------------------------"
-#define col1                   "\x1b[35m"
-#define col2                   "\x1b[0m"
+#define VERB_LEVEL        0 // Verbose level (deprecated)
+#define VL0               0
+#define VL2               VL0 + 2
+#define line              "---------------------------------------------------------------"
+#define col1              "\x1b[35m"
+#define col2              "\x1b[0m"
+#define print_line(level) verb(level, col1 line col2);
 
-#define print_line(level)      verb(level, col1 line col2);
-
-#define verb_who_noarg(format) verb(VERB_LEVEL, "%s, %s", str_who[mirror_iam], format);
-
-#define verb_who(format, ...)  verb(VERB_LEVEL, "%s, " format, str_who[mirror_iam], __VA_ARGS__);
-
-#define verb_master(...)                                                                                               \
+// Verbose with the word 'server' or 'mirror' with arguments
+#define verb0(format) verb(VERB_LEVEL, "%s, %s", str_who[mirror_iam], format);
+// Verbose with the word 'server' or 'mirror' with no arguments
+#define verb1(format, ...) verb(VERB_LEVEL, "%s, " format, str_who[mirror_iam], __VA_ARGS__);
+// Verbose for master
+#define verb2(...)                                                                                                     \
     if (!forked || master_iam) {                                                                                       \
         verb(VERB_LEVEL, __VA_ARGS__);                                                                                 \
     }
-
-#define verb_master_line(...)                                                                                          \
+// Verbose for master with added line
+#define verb3(...)                                                                                                     \
     if (!forked || master_iam) {                                                                                       \
         verbosen(VERB_LEVEL, col1 line "\n" __VA_ARGS__);                                                              \
         verbosen(VERB_LEVEL, col2 "\n");                                                                               \

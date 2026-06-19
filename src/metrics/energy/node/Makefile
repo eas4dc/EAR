@@ -15,7 +15,8 @@ ener_BINS = \
     grace_hopper_module_power.so \
 	hwmon.so \
     ipmi_sensors.so \
-    ipmi_raw.so
+    ipmi_raw.so \
+    script.so
 
 ifeq ($(SYSTEM_TYPE), 3)
     ener_BINS += energy_eard_nm.so

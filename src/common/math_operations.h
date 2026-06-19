@@ -48,6 +48,7 @@ overflow_zeros(ullong, u64);
 overflow_mixed(ullong, u64);
 overflow_magic(ullong, u64);
 overflow_magic(uint, u32);
+overflow_magic(double, f64);
 
 /* Round functions:
  *  ceil: given an integer number, rounds a value up to a specific digit.

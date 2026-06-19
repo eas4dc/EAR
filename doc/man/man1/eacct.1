@@ -1,35 +1,49 @@
 .\" Manpage for eacct.
-.TH man 1 "October 2024" "5.2" "eacct man page"
+.TH man 1 "June 2026" "7.0" "eacct man page"
 .SH NAME
-eacct \- See a report of the last job executions reported by EAR's daemons.
+eacct \- See a report of the last job executions reported by EAR's services.
 .SH SYNOPSIS
 eacct [options]
 
 .SH DESCRIPTION
 
-eacct is a simple command to see a jobs' energy accounting information. It can also retrieve EARL events that occurred on a job execution.
+eacct is a command to see a jobs' energy accounting information.
 
 .SH OPTIONS
+.nf
+.ft CW
+eacct --help
+Usage: eacct [options]
 
-    -h      displays this message
-    -v      displays current EAR version
-    -u      specifies the user whose applications will be retrieved. Only available to privileged users. [default: all users]
-    -j      specifies the job id and step id to retrieve with the format [jobid.stepid] or the format [jobid1,jobid2,...,jobid_n].
-                                A user can only retrieve its own jobs unless said user is privileged. [default: all jobs]
-    -a      specifies the application names that will be retrieved. [default: all app_ids]
-    -c      specifies the file where the output will be stored in CSV format. [default: no file]
-    -t      specifies the energy_tag of the jobs that will be retrieved. [default: all tags].
-    -s      specifies the minimum start time of the jobs that will be retrieved in YYYY-MM-DD. [default: no filter].
-    -e      specifies the maximum end time of the jobs that will be retrieved in YYYY-MM-DD. [default: no filter].
-    -l      shows the information for each node for each job instead of the global statistics for said job.
-    -x      shows the last EAR events. Nodes, job ids, and step ids can be specified as if were showing job information.
-    -m      prints power signatures regardless of whether mpi signatures are available or not.
-    -r      shows the EAR loop signatures. Nodes, job ids, and step ids can be specified as if were showing job information.
-    -o      modifies the -r option to also show the corresponding jobs. Should be used with -j.
-    -n      specifies the number of jobs to be shown, starting from the most recent one. [default: 20][to get all jobs use -n all]
-    -F      specifies the format string to be used.
-    -f      specifies the file where the user-database can be found. If this option is used, the information will be read from the file and not the database.
-    -b      verbose mode for debugging purposes
+Options:
+  -h, --help                       Displays this message.
+  -v, --version                    Displays the current EAR version.
+  -b, --verbose                    Enables verbose mode for debugging purposes.
+
+Filters:
+  -j, --jobs <jobid[.stepid]>      Filters by job ID and optional step ID.
+                                   Also accepts comma-separated job IDs: jobid1,jobid2,...,jobidN.
+  -u, --user <user>                Filters by username, only for authorized users.
+                                   Non-privileged users can only retrieve their own jobs.
+  -a, --app-name <app_id>          Filters by application ID. Default: all applications.
+  -s, --start-time <YYYY-MM-DD>    Filters by start time. Default: no filter.
+  -e, --end-time <YYYY-MM-DD>      Filters by end time. Default: no filter.
+	-t, --energy-tag                 Filter by energy tag.
+  -n, --limit <num|all>            Limits the number of jobs shown, from the most recent.
+                                   Default: 5.
+
+Output:
+  -l, --long-apps                  Shows per-node metrics.
+  -r, --loops                      Shows EAR runtime signatures.
+  -o, --ext_loops                  Shows extended loop information. Use with --loops.
+  -p, --eard-power-signatures      Prints EARD signatures even when EARL signatures are available.
+  -F, --format <format>            Uses a custom format string. See the man page.
+  -c, --csv <path|no_file>         Generates CSV output.
+                                   Use 'no_file' to print CSV output to STDOUT. Default: off.
+  -x, --events [job filter]        Shows the last EAR events.
+
+.ft R
+.fi
 
 .SH Format characters
 
@@ -186,6 +200,380 @@ For the full list of options, please refer to the tables above in section "Forma
 
 
 When using the -c option (CSV output), every field will be printed regardless of the format string.
+
+.SH EACCT CSV OUTPUT FIELDS
+When
+.B eacct
+is used with the
+.B \-c
+option, output is written in CSV format.  When
+.B \-c
+is combined with
+.B \-l
+or
+.B \-r ,
+the CSV file contains the full set of metrics stored in the EAR database.
+
+The following fields may appear in CSV output:
+
+.TP
+.B JOBID
+The job ID.
+
+.TP
+.B STEPID
+The step ID.
+
+.TP
+.B APPID
+The EARAM application ID used to identify the workload. This value is useful
+to distinguish different applications executed in a workflow within the same
+job step.
+
+.TP
+.B USERID
+The user name of the user who executed the job.
+
+.TP
+.B GROUPID
+The group name of the user who executed the job.
+
+.TP
+.B ACCOUNTID
+The account name of the user who executed the job.
+
+.TP
+.B JOBNAME
+The job name, or the executable name if no job name was provided.
+
+.TP
+.B ENERGY_TAG
+The energy tag used if the user set one for the job step.
+
+.TP
+.B JOB_START_TIME
+Unix epoch timestamp, in seconds, when the job step started.
+
+.TP
+.B JOB_END_TIME
+Unix epoch timestamp, in seconds, when the job step ended.
+
+.TP
+.B JOB_EARL_START_TIME
+Unix epoch timestamp, in seconds, when EARAM started monitoring the job step;
+that is, the application start time.
+
+.TP
+.B JOB_EARL_END_TIME
+Unix epoch timestamp, in seconds, when EARAM ended monitoring the job step;
+that is, the application end time.
+
+.TP
+.B POLICY
+Energy optimization policy name used by EARAM.
+.B MO
+means monitoring-only.
+
+.TP
+.B POLICY_TH
+The policy threshold used by the EARAM optimization policy.
+
+.TP
+.B JOB_NPROCS
+The number of processes involved in the application.
+
+.TP
+.B JOB_TYPE
+The job type.
+
+.TP
+.B JOB_DEF_FREQ
+The default frequency at which the job started.
+
+.TP
+.B EARL_ENABLED
+Indicates whether the job step ran with EARL enabled. This field is deprecated.
+
+.TP
+.B EAR_LEARNING
+Indicates whether the application was run in the learning phase.
+
+.TP
+.B NODENAME
+The node name to which the rest of the row information belongs.
+
+.TP
+.B AVG_CPUFREQ_KHZ
+Average CPU frequency of the job step executed on the node, expressed in kHz.
+This value is computed by EARAM.
+
+.TP
+.B AVG_IMCFREQ_KHZ
+Average uncore frequency of the job step executed on the node, expressed in
+kHz. On AMD sockets, this is the default data fabric frequency. This value is
+computed by EARAM.
+
+.TP
+.B DEF_FREQ_KHZ
+The default frequency of the job step executed on the node, expressed in kHz.
+This value corresponds to the default frequency that the EAR Library sets at
+the beginning of the execution, and has the same value as
+.BR JOB_DEF_FREQ .
+
+.TP
+.B TIME_SEC
+Execution time period, in seconds, covered by the application metrics reported
+by EARAM.
+
+.TP
+.B CPI
+CPU cycles per instruction. This is a hint for CPU-bound or memory-bound
+classification.
+
+.TP
+.B TPI
+Memory transactions per instruction. This is a hint for CPU-bound or
+memory-bound classification.
+
+.TP
+.B MEM_GBS
+CPU main-memory bandwidth, in GB/s. This is a hint for CPU-bound or
+memory-bound classification.
+
+.TP
+.B IO_MBS
+I/O read and write throughput, in MB/s.
+
+.TP
+.B PERC_MPI
+Percentage of
+.B TIME_SEC
+spent in MPI calls.
+
+.TP
+.B DC_NODE_POWER_W
+Average node power over the time period, in watts. This value differs from
+.B NODEMGR_DC_NODE_POWER_W
+because it is computed and reported by EARAM.
+
+.TP
+.B DRAM_POWER_W
+Average DRAM power over the time period, in watts. This field is not available
+on AMD sockets. This value differs from
+.B NODEMGR_DRAM_POWER_W
+because it is computed and reported by EARAM.
+
+.TP
+.B PCK_POWER_W
+Average RAPL package power over the time period, in watts. This value shows the
+aggregated power of all sockets in a package. This value differs from
+.B NODEMGR_PCK_POWER_W
+because it is computed and reported by EARAM.
+
+.TP
+.B CYCLES
+Total number of cycles retrieved during the time period.
+
+.TP
+.B INSTRUCTIONS
+Total number of instructions retrieved during the time period.
+
+.TP
+.B CPU_GFLOPS
+Total number of CPU giga-floating-point operations per second during the time
+period.
+
+.TP
+.B CPU_UTIL
+CPU time of the application.
+
+.TP
+.B L1_MISSES
+Total number of L1 cache misses during the time period.
+
+.TP
+.B L2_MISSES
+Total number of L2 cache misses during the time period.
+
+.TP
+.B L3_MISSES
+Total number of L3 or LLC cache misses during the time period.
+
+.TP
+.B SPOPS_SINGLE
+Total number of single-precision 64-bit floating-point operations.
+
+.TP
+.B SPOPS_128
+Total number of single-precision 128-bit floating-point operations.
+
+.TP
+.B SPOPS_256
+Total number of single-precision 256-bit floating-point operations.
+
+.TP
+.B SPOPS_512
+Total number of single-precision 512-bit floating-point operations.
+
+.TP
+.B DPOPS_SINGLE
+Total number of double-precision 64-bit floating-point operations.
+
+.TP
+.B DPOPS_128
+Total number of double-precision 128-bit floating-point operations.
+
+.TP
+.B DPOPS_256
+Total number of double-precision 256-bit floating-point operations.
+
+.TP
+.B DPOPS_512
+Total number of double-precision 512-bit floating-point operations.
+
+.TP
+.B NODEMGR_DC_NODE_POWER_W
+Average node power over the time period, in watts. This value differs from
+.B DC_NODE_POWER_W
+because it is computed and reported by the Node Manager, EARD, independently of
+whether EARAM was enabled.
+
+.TP
+.B NODEMGR_DRAM_POWER_W
+Average DRAM power over the time period, in watts. This field is not available
+on AMD sockets. This value differs from
+.B DRAM_POWER_W
+because it is computed and reported by the Node Manager, EARD, independently of
+whether EARAM was enabled.
+
+.TP
+.B NODEMGR_PCK_POWER_W
+Average RAPL package power over the time period, in watts. This value shows the
+aggregated power of all sockets in a package. This value differs from
+.B PCK_POWER_W
+because it is computed and reported by the Node Manager, EARD, independently of
+whether EARAM was enabled.
+
+.TP
+.B NODEMGR_MAX_DC_POWER_W
+The peak DC node power computed by the Node Manager.
+
+.TP
+.B NODEMGR_MIN_DC_POWER_W
+The minimum DC node power computed by the Node Manager.
+
+.TP
+.B NODEMGR_TIME_SEC
+Execution time period, in seconds, covered by the job-step metrics reported by
+the Node Manager.
+
+.TP
+.B NODEMGR_AVG_CPUFREQ_KHZ
+Average CPU frequency computed by the Node Manager during the job-step
+execution time.
+
+.TP
+.B NODEMGR_DEF_FREQ_KHZ
+Default frequency set by the Node Manager when the job step began.
+
+.SS GPU CSV fields
+If EAR is installed in a cluster with GPU partitions, the following additional
+CSV fields may be present. In fields named
+.BR GPUx_* ,
+.B x
+identifies the GPU index.
+
+.TP
+.B GPUx_POWER_W
+Average power of GPU
+.BR x ,
+in watts.
+
+.TP
+.B GPUx_FREQ_KHZ
+Average frequency of GPU
+.BR x ,
+in kHz.
+
+.TP
+.B GPUx_MEM_FREQ_KHZ
+Average memory frequency of GPU
+.BR x ,
+in kHz.
+
+.TP
+.B GPUx_UTIL_PERC
+Average utilization percentage of GPU
+.BR x .
+
+.TP
+.B GPUx_MEM_UTIL_PERC
+Average memory-utilization percentage of GPU
+.BR x .
+
+.TP
+.B GPUx_GFLOPS
+GFLOPS reported for GPU
+.BR x .
+
+.TP
+.B GPUx_TEMP
+Average temperature of GPU
+.BR x .
+
+.TP
+.B GPUx_MEMTEMP
+Average memory temperature of GPU
+.BR x .
+
+.TP
+.B GPUi_GR_ENGINE_ACTIVE
+Graphics-engine activity.
+
+.TP
+.B GPUi_SM_ACTIVE
+SM activity.
+
+.TP
+.B GPUi_SM_OCCUPANCY
+SM occupancy.
+
+.TP
+.B GPUi_TENSOR_ACTIVE
+Tensor activity.
+
+.TP
+.B GPUi_DRAM_ACTIVE
+Memory-bandwidth utilization.
+
+.TP
+.B GPUi_FP64_ACTIVE
+FP64 engine activity.
+
+.TP
+.B GPUi_FP32_ACTIVE
+FP32 engine activity.
+
+.TP
+.B GPUi_FP16_ACTIVE
+FP16 engine activity.
+
+.TP
+.B GPUi_PCIE_TX_BYTES
+PCIe bandwidth for writes.
+
+.TP
+.B GPUi_PCIE_RX_BYTES
+PCIe bandwidth for reads.
+
+.TP
+.B GPUi_NVLINK_TX_BYTES
+NVLink bandwidth for writes.
+
+.TP
+.B GPUi_NVLINK_RX_BYTES
+NVLink bandwidth for reads.
+
 
 
 

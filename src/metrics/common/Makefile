@@ -63,11 +63,6 @@ libmetrics-common.a: Makefile $(comm_OBJS)
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<
 
-post: nvml_test
-
-nvml_test: nvml.c nvml.h
-	$(CC) $(CFLAGS) $(CUDA_CFLAGS) -DTEST=1 -o $@ nvml.c ../../common/libcommon.a -ldl -lpthread
-
 ######## SUBFOLDERS
 
 %.components:

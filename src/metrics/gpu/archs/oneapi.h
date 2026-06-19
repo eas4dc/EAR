@@ -13,24 +13,8 @@
 
 #include <metrics/gpu/gpu.h>
 
-void gpu_oneapi_load(gpu_ops_t *ops, int force_api);
-
-void gpu_oneapi_get_info(apinfo_t *info);
-
-void gpu_oneapi_get_devices(gpu_devs_t **devs, uint *devs_count);
-
-state_t gpu_oneapi_init(ctx_t *c);
-
-state_t gpu_oneapi_dispose(ctx_t *c);
-
-void gpu_oneapi_set_monitoring_mode(int mode_in);
+GPU_DEFINES(oneapi);
 
 state_t gpu_oneapi_pool(void *p);
-
-state_t gpu_oneapi_read(ctx_t *c, gpu_t *data);
-
-state_t gpu_oneapi_read_raw(ctx_t *c, gpu_t *data);
-
-void gpu_oneapi_data_diff(gpu_t *data2, gpu_t *data1, gpu_t *data_diff);
 
 #endif

@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-// #define SHOW_DEBUGS 1
+// z#define SHOW_DEBUGS 1
 // #define DEBUG_POWER_CONSUMING 1
 
 #include <common/hardware/bithack.h>

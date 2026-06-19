@@ -20,47 +20,50 @@
 #include <stdlib.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static uint is_loaded;
 static apinfo_t info;
 static temp_ops_t ops;
 
-void temp_load(topology_t *tp, uint force_api)
+void temp_load(topology_t *tp, int options)
 {
     while (pthread_mutex_trylock(&lock))
         ;
-    if (is_loaded) {
+    if (info.api != API_NONE) {
         goto leave;
     }
-    if (API_IS(force_api, API_DUMMY)) {
+    if (API_IS(options, API_DUMMY)) {
         goto dummy;
     }
 #if WF_SUPPORT
-    temp_eard_load(tp, &ops, force_api);
+    temp_eard_load(tp, &ops, options);
 #endif
-    temp_hwmon_load(tp, &ops, force_api);
-    temp_intel63_load(tp, &ops, force_api);
+    temp_hwmon_load(tp, &ops, options);
+    temp_intel63_load(tp, &ops, options);
 dummy:
-    temp_dummy_load(tp, &ops, force_api);
+    temp_dummy_load(tp, &ops, options);
     temp_get_info(&info);
-    is_loaded = 1;
 leave:
+    pthread_mutex_unlock(&lock);
+}
+
+void temp_unload()
+{
+    while (pthread_mutex_trylock(&lock))
+        ;
+    if (info.api != API_NONE) {
+        ops.unload();
+        memset(&ops, 0, sizeof(temp_ops_t));
+        memset(&info, 0, sizeof(apinfo_t));
+    }
     pthread_mutex_unlock(&lock);
 }
 
 void temp_get_info(apinfo_t *info)
 {
     memset(info, 0, sizeof(apinfo_t));
-    ops.get_info(info);
-}
-
-state_t temp_init()
-{
-    return ops.init();
-}
-
-void temp_dispose()
-{
-    ops.dispose();
+    info->layer = "TEMPERATURE";
+    if (ops.get_info != NULL) {
+        ops.get_info(info);
+    }
 }
 
 // Getters
@@ -127,22 +130,3 @@ void temp_data_print(llong *list, llong avrg, int fd)
     temp_data_tostr(list, avrg, buffer, 1024);
     dprintf(fd, "%s", buffer);
 }
-
-#if TEST
-static topology_t tp;
-static llong t1[128];
-static llong t2[128];
-static llong tD[128];
-static llong tA;
-
-int main(int argc, char **argv)
-{
-    topology_init(&tp);
-    temp_load(&tp, API_FREE);
-    temp_read(t1, &tA);
-    sleep(1);
-    temp_read_copy(t2, t1, tD, &tA);
-    temp_data_print(tD, tA, verb_channel);
-    return 0;
-}
-#endif

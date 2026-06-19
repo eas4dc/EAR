@@ -51,4 +51,7 @@ state_t user_all_ids_by_user_get(user_t *user, char *username);
 /** Checks the ruid and rgid and returns 1 if it's a privileged user, 0 if it's not. */
 int is_privileged_command(cluster_conf_t *my_conf);
 
+/** Checks the ruid and rgid and returns 1 if it's an authorized user, 0 if it's not. . It includes Admin*/
+int is_authorized_command(cluster_conf_t *my_conf);
+
 #endif // EAR_USER_H

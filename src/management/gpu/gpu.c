@@ -8,11 +8,8 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 // #define SHOW_DEBUGS 1
+
 #include <common/output/debug.h>
 #include <management/gpu/archs/dummy.h>
 #include <management/gpu/archs/eard.h>
@@ -21,6 +18,9 @@
 #include <management/gpu/archs/oneapi.h>
 #include <management/gpu/archs/rsmi.h>
 #include <management/gpu/gpu.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #ifndef USE_PVC_HWMON
 #warning "USE_PVC_HWMON not defined! Defining it to 0..."
@@ -30,7 +30,8 @@
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static mgt_gpu_ops_t ops;
 static uint loaded;
-static ulong *generic_list;
+static uint32_t *power_list;
+static ulong *freq_list;
 static uint devs_count;
 
 __attribute__((used)) void mgt_gpu_load(int force_api)
@@ -76,12 +77,31 @@ __attribute__((used)) state_t mgt_gpu_init(ctx_t *c)
 
 __attribute__((used)) state_t mgt_gpu_dispose(ctx_t *c)
 {
+    if (power_list != NULL) {
+        free(power_list);
+        power_list = NULL;
+    }
+    if (freq_list != NULL) {
+        free(freq_list);
+        freq_list = NULL;
+    }
+    loaded = 0;
     apis_multiret(ops.dispose, c);
 }
 
 state_t mgt_gpu_get_devices(ctx_t *c, gpu_devs_t **devs, uint *devs_count)
 {
-    preturn(ops.get_devices, c, devs, devs_count);
+    state_t s = EAR_SUCCESS;
+    if (ops.get_devices != NULL) {
+        s = ops.get_devices(c, devs, devs_count);
+#if SHOW_DEBUGS
+        if (devs != NULL) {
+            gpu_topology_t tp = {.devs = *devs, .devs_count = *devs_count};
+            gpu_topology_print(&tp, debug_channel);
+        }
+#endif
+    }
+    return s;
 }
 
 __attribute__((used)) state_t mgt_gpu_count_devices(ctx_t *c, uint *dev_count)
@@ -111,11 +131,11 @@ state_t mgt_gpu_freq_limit_reset(ctx_t *c)
 
 state_t mgt_gpu_freq_limit_reset_dev(ctx_t *c, int gpu)
 {
-    if (generic_list == NULL) {
-        mgt_gpu_data_alloc(&generic_list);
+    if (freq_list == NULL) {
+        mgt_gpu_freq_data_alloc(&freq_list);
     }
-    mgt_gpu_freq_limit_get_default(c, generic_list);
-    return mgt_gpu_freq_limit_set_dev(c, generic_list[gpu], gpu);
+    mgt_gpu_freq_limit_get_default(c, freq_list);
+    return mgt_gpu_freq_limit_set_dev(c, freq_list[gpu], gpu);
 }
 
 state_t mgt_gpu_freq_limit_set(ctx_t *c, ulong *khz)
@@ -126,12 +146,12 @@ state_t mgt_gpu_freq_limit_set(ctx_t *c, ulong *khz)
 state_t mgt_gpu_freq_limit_set_dev(ctx_t *c, ulong freq, int gpu)
 {
     // Check 0s
-    if (generic_list == NULL) {
-        mgt_gpu_data_alloc(&generic_list);
+    if (freq_list == NULL) {
+        mgt_gpu_freq_data_alloc(&freq_list);
     }
-    mgt_gpu_data_null(generic_list);
-    generic_list[gpu] = freq;
-    return mgt_gpu_freq_limit_set(c, generic_list);
+    mgt_gpu_freq_data_null(freq_list);
+    freq_list[gpu] = freq;
+    return mgt_gpu_freq_limit_set(c, freq_list);
 }
 
 state_t mgt_gpu_freq_get_valid(ctx_t *c, uint dev, ulong freq_ref, ulong *freq_near)
@@ -229,17 +249,17 @@ state_t mgt_gpu_freq_get_available(ctx_t *c, const ulong ***list_khz, const uint
     preturn(ops.freq_list, c, list_khz, list_len);
 }
 
-state_t mgt_gpu_power_cap_get_current(ctx_t *c, ulong *watts)
+state_t mgt_gpu_power_cap_get_current(ctx_t *c, uint32_t *watts)
 {
     preturn(ops.power_cap_get_current, c, watts);
 }
 
-state_t mgt_gpu_power_cap_get_default(ctx_t *c, ulong *watts)
+state_t mgt_gpu_power_cap_get_default(ctx_t *c, uint32_t *watts)
 {
     preturn(ops.power_cap_get_default, c, watts);
 }
 
-state_t mgt_gpu_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts_max)
+state_t mgt_gpu_power_cap_get_rank(ctx_t *c, uint32_t *watts_min, uint32_t *watts_max)
 {
     preturn(ops.power_cap_get_rank, c, watts_min, watts_max);
 }
@@ -251,29 +271,41 @@ state_t mgt_gpu_power_cap_reset(ctx_t *c)
 
 state_t mgt_gpu_power_cap_reset_dev(ctx_t *c, int gpu)
 {
-    if (generic_list == NULL) {
-        mgt_gpu_data_alloc(&generic_list);
+    if (power_list == NULL) {
+        mgt_gpu_power_data_alloc(&power_list);
     }
-    mgt_gpu_power_cap_get_default(c, generic_list);
-    return mgt_gpu_power_cap_set_dev(c, generic_list[gpu], gpu);
+    mgt_gpu_power_cap_get_default(c, power_list);
+    return mgt_gpu_power_cap_set_dev(c, power_list[gpu], gpu);
 }
 
-state_t mgt_gpu_power_cap_set(ctx_t *c, ulong *watts)
+state_t mgt_gpu_power_cap_set(ctx_t *c, uint32_t *watts)
 {
     preturn(ops.power_cap_set, c, watts);
 }
 
-state_t mgt_gpu_power_cap_set_dev(ctx_t *c, ulong watts, int gpu)
+state_t mgt_gpu_power_cap_set_dev(ctx_t *c, uint32_t watts, int gpu)
 {
-    if (generic_list == NULL) {
-        mgt_gpu_data_alloc(&generic_list);
+    if (power_list == NULL) {
+        mgt_gpu_power_data_alloc(&power_list);
     }
-    mgt_gpu_data_null(generic_list);
-    generic_list[gpu] = watts;
-    return mgt_gpu_power_cap_set(c, generic_list);
+    mgt_gpu_power_data_null(power_list);
+    power_list[gpu] = watts;
+    return mgt_gpu_power_cap_set(c, power_list);
 }
 
-state_t mgt_gpu_data_alloc(ulong **data)
+state_t mgt_gpu_power_data_alloc(uint32_t **data)
+{
+    if (data == NULL) {
+        return_msg(EAR_ERROR, Generr.input_null);
+    }
+    *data = calloc(devs_count, sizeof(uint32_t));
+    if (*data == NULL) {
+        return_msg(EAR_ERROR, strerror(errno));
+    }
+    return EAR_SUCCESS;
+}
+
+state_t mgt_gpu_freq_data_alloc(ulong **data)
 {
     if (data == NULL) {
         return_msg(EAR_ERROR, Generr.input_null);
@@ -285,20 +317,21 @@ state_t mgt_gpu_data_alloc(ulong **data)
     return EAR_SUCCESS;
 }
 
-state_t mgt_gpu_data_free(ulong **data)
-{
-    if (data != NULL) {
-        free(*data);
-    }
-    return EAR_SUCCESS;
-}
-
-state_t mgt_gpu_data_null(ulong *data)
+state_t mgt_gpu_freq_data_null(ulong *data)
 {
     if (data == NULL) {
         return_msg(EAR_ERROR, Generr.input_null);
     }
     memset(data, 0, devs_count * sizeof(ulong));
+    return EAR_SUCCESS;
+}
+
+state_t mgt_gpu_power_data_null(uint32_t *data)
+{
+    if (data == NULL) {
+        return_msg(EAR_ERROR, Generr.input_null);
+    }
+    memset(data, 0, devs_count * sizeof(uint32_t));
     return EAR_SUCCESS;
 }
 
@@ -309,8 +342,8 @@ int mgt_gpu_is_supported()
 
 char *mgt_gpu_features_tostr(char *buffer, size_t length)
 {
-    ulong list_max[128];
-    ulong list_min[128];
+    uint32_t list_max[128];
+    uint32_t list_min[128];
     const ulong **list;
     const uint *count;
     int i, j = 0;
@@ -321,7 +354,7 @@ char *mgt_gpu_features_tostr(char *buffer, size_t length)
     }
     mgt_gpu_power_cap_get_rank(no_ctx, list_min, list_max);
     for (i = 0; i < devs_count; ++i) {
-        j += sprintf(&buffer[j], "GPU%d: %4lu to %4lu W\n", i, list_max[i], list_min[i]);
+        j += sprintf(&buffer[j], "GPU%d: %4u to %4u W\n", i, list_max[i], list_min[i]);
     }
     return buffer;
 }

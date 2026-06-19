@@ -1495,7 +1495,7 @@ int db_read_applications(application_t **apps, uint is_learning, int max_apps, c
                 current_job_id, max_apps, current_job_id);
     } else if (!is_learning && node_name != NULL) {
         /*        sprintf(query,  "SELECT Applications.* FROM Applications INNER JOIN "\
-                  "Jobs ON job_id = id where job_id < (SELECT max(id) FROM (SELECT (id) FROM "\
+                  "Jobs ON job_id = id where job_id < (SELECT max(job_id) FROM (SELECT (job_id) FROM "\
                   "Jobs WHERE id > %d ORDER BY id asc limit %u) as t1)+1 and "\
                   "job_id > %d AND node_id='%s' GROUP BY job_id, step_id", current_job_id, max_apps, current_job_id,
            node_name); */

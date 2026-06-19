@@ -38,6 +38,10 @@ state_t msr_read(uint cpu, void *buffer, size_t count, off_t offset);
 /** Writes data (buffer) in a MSR for specific CPU and memory offset. */
 state_t msr_write(uint cpu, const void *buffer, size_t count, off_t offset);
 
+/*
+ * Development helpers
+ */
+
 /** Prints a register of all threads in the node. */
 void msr_print(topology_t *tp, off_t offset);
 

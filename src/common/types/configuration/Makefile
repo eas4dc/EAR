@@ -24,6 +24,11 @@ all: $(conf_OBJS)
 %.o: %.c cluster_conf.h
 	$(CC) $(CFLAGS) -c $<
 
+post: cluster_conf_tests
+
+cluster_conf_tests: tests/cluster_conf_tests.c $(SRCDIR)/common/libcommon.a
+	$(CC) $(CFLAGS) $(CMOCKA_CPPFLAGS) $(CC_FLAGS) -o $@ $^ $(CMOCKA_LDFLAGS) $(CMOCKA_LIBS)
+
 ######## OPTIONS
 
 install:

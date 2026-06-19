@@ -72,13 +72,13 @@ request_header_t correct_data_prop(int target_idx, int total_ips, int *ips, requ
 
 request_header_t data_nodelist(request_t *command, cluster_conf_t *my_cluster_conf, void **data);
 
-void internal_send_command_nodes(request_t *command, int port, int base_distance, int num_sends);
+state_t internal_send_command_nodes(request_t *command, int port, int base_distance, int num_sends);
 
-void send_command_nodelist(request_t *command, cluster_conf_t *my_cluster_conf);
+state_t send_command_nodelist(request_t *command, cluster_conf_t *my_cluster_conf);
 
 void send_command_all(request_t command, cluster_conf_t *my_cluster_conf);
 
-void correct_error_nodes(request_t *command, int self_ip, uint port);
+state_t correct_error_nodes(request_t *command, int self_ip, uint port);
 
 request_header_t correct_data_prop_nodes(request_t *command, int self_ip, uint port, void **data);
 

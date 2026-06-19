@@ -10,6 +10,7 @@
 
 #ifndef METRICS_COMMON_APIS_H
 #define METRICS_COMMON_APIS_H
+// clang-format off
 
 #include <common/types/generic.h>
 
@@ -20,6 +21,7 @@
 #define all_devs               -1
 #define all_cpus               all_devs
 #define all_cores              -2
+#define API_MASK               0xFF
 #define API_NONE               0
 #define API_FREE               API_NONE
 #define API_DUMMY              1
@@ -46,8 +48,9 @@
 #define API_ACPI_POWER         22
 #define API_GRACE_CPU          23
 #define API_HWMON              24
+#define API_FILE               25
+#define API_DEMO               26
 #define API_PVC_HWMON          30
-
 #define GRANULARITY_NONE       0
 #define GRANULARITY_DUMMY      1
 #define GRANULARITY_PROCESS    2
@@ -60,15 +63,32 @@
 #define GRANULARITY_CCD        8
 #define GRANULARITY_IMC        9
 #define GRANULARITY_SOCKET     10
-#define SCOPE_NONE             0
-#define SCOPE_DUMMY            1
-#define SCOPE_PROCESS          2
-#define SCOPE_NODE             3
+#define GRANULARITY_NODE       11
+#define SCOPE_MASK             0xF00
+#define SCOPE_NONE             0x000
+#define SCOPE_DUMMY            0x100 // ¿Isn't it useless?
+#define SCOPE_PROCESS          0x200
+#define SCOPE_JOB              0x400
+#define SCOPE_NODE             0x300
+#define O_NO_LOOP              0x1000
+#define O_POOL                 0x2000
 #define MONITORING_MODE_STOP   -1
 #define MONITORING_MODE_IDLE   0
 #define MONITORING_MODE_RUN    1
-
-#define API_IS(flag, api)      (flag == api)
+// For update() functions
+#define UPD_PID_ADD            1    // <value = PID>, adds the PID to account its metrics
+#define UPD_PID_REMOVE         2    // <value = PID>, removes the PID from the accounting list
+#define UPD_PIDS_CLEAN         3    // <value = NULL>, cleans all the accounted PIDs
+#define UPD_DEMO1_SET          10+0 // <value = NULL>, when API_DEMO, set the Idle demo
+#define UPD_DEMO2_SET          10+1 // <value = NULL>, set the Cpu-intensive demo
+#define UPD_DEMO3_SET          10+2 // <value = NULL>, set the Mem-intensive demo
+#define UPD_DEMO4_SET          10+3 // <value = NULL>, set the Gpu-intensive demo
+//  8 bits for API        (256 possibilities)
+//  4 bits for SCOPE      (8 possibilities)
+// 20 bits for OTHER OPTS (20 slots)
+#define API_IS(options, api)           ((options & 0x0FF) == api)
+#define SCOPE_IS(options, scope)       ((options & 0xF00) == scope)
+#define OPTION_IS_SET(options, option) ((options & option) == option)
 
 typedef struct ctx_s {
     void *context;
@@ -76,27 +96,37 @@ typedef struct ctx_s {
 
 typedef struct apinfo_s {
     char *layer;
-    uint api;
-    uint api_under;
-    uint ok;
+    uint  api;
+    uint  api_under; // API used under a remote API
+    uint  ok;        // Obsolete value, future union?
     char *api_str;
-    uint devs_count;
-    uint granularity;
+    uint  devs_count;
+    uint  granularity;
     char *granularity_str;
-    uint scope;
+    uint  scope;
     char *scope_str;
-    uint bits;
-    uint dev_model;
-    void *list1;
-    void *list2;
+    uint  empty; // Future purpose
+    uint  dev_model;
+    // This is a miscellaneous extra-space
+    union {
+        void *list1;
+        void *avail_list;
+        void *devs_list;
+    };
+    union {
+        void *list2;
+        void *current_list;
+    };
     void *list3;
-    uint list1_count;
-    uint list2_count;
+    union {
+        uint list1_count;
+        uint avail_count;
+    };
+    union {
+        uint list2_count;
+        uint current_count;
+    };
     uint list3_count;
-    void *avail_list;
-    uint avail_count;
-    void *current_list;
-    void *set_list;
 } apinfo_t;
 
 #define metrics_t apinfo_t
@@ -120,6 +150,8 @@ typedef struct metrics_gpus_s {
     }
 
 /* Conditional put. */
+#define apis_pif(op, func, cond) apis_pin(op, func, cond)
+
 #define apis_pin(op, func, cond)                                                                                       \
     if (cond) {                                                                                                        \
         apis_put(op, func);                                                                                            \
@@ -132,7 +164,7 @@ typedef struct metrics_gpus_s {
 #define apis_loaded(ops) (ops->init != NULL)
 
 /* Verbose "if not loaded" */
-#define apis_not(ops) (ops->init == NULL)
+#define api_already_loaded(ops) (ops->read != NULL)
 
 /* Adds a new function to an array. */
 #define apis_add(ops, func) apis_append((void **) ops, func);
@@ -168,4 +200,5 @@ void apinfo_tostr(apinfo_t *info);
         p1 = p2;                                                                                                       \
     }
 
+// clang-format on
 #endif

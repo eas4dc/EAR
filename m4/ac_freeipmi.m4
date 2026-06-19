@@ -58,11 +58,11 @@ AC_DEFUN([X_AC_FREEIPMI],
 							[_cv_freeipmi_dir_root],
 							[
 									X_AC_FREEIPMI_FIND_ROOT_DIR([])
-
+							
 									if test -z "$_cv_freeipmi_dir_root"; then
 											_x_ac_freeipmi_dirs_root="${_ax_ld_dirs_root}"
 											_x_ac_freeipmi_custom="yes"
-
+									
 											X_AC_FREEIPMI_FIND_ROOT_DIR([])
 									fi
 							]

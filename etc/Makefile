@@ -16,6 +16,7 @@ gen_FOLDERS = $(DESTDIR)/bin \
               $(DESTDIR)/lib/plugins/powercap \
               $(DESTDIR)/lib/plugins/reports \
               $(DESTDIR)/lib/plugins/tracer \
+              $(DESTDIR)/lib/plugins/eargm \
               $(DESTDIR)/sbin
 
 etc_FOLDERS = $(ETCDIR) \

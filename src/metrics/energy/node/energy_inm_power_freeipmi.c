@@ -118,7 +118,7 @@ static int sdr_get_home_directory(char *buf, unsigned int buflen)
     long int tbuf_len;
     char *tbuf = NULL;
 
-    tbuf_len = 4096; /* XXX */
+    tbuf_len = 2 * 4096; /* XXX */
 
     if (!(tbuf = malloc(tbuf_len))) {
         debug("malloc error\n");
@@ -223,6 +223,7 @@ static int sdr_cache_get_cache_directory(const char *cache_dir, char *buf, unsig
 static int sdr_get_cache_filename(const char *hostname, char *buf, unsigned int buflen)
 {
     char sdrcachebuf[MAXPATHLEN + 1];
+    memset(sdrcachebuf, 0, sizeof(sdrcachebuf));
     char *cache_directory = 0;
     char *ptr;
 
@@ -240,10 +241,13 @@ static int sdr_get_cache_filename(const char *hostname, char *buf, unsigned int 
     if (sdr_cache_get_cache_directory(cache_directory, sdrcachebuf, MAXPATHLEN) < 0)
         return (-1);
 
-    snprintf(buf, buflen, "%s/%s-%s.%s", sdrcachebuf, SDR_CACHE_FILENAME_PREFIX, hostnamebuf,
-             hostname ? hostname : "localhost");
-
+    if (snprintf(buf, buflen, "%s/%s-%s.%s", sdrcachebuf, SDR_CACHE_FILENAME_PREFIX, hostnamebuf,
+                 hostname ? hostname : "localhost") > buflen) {
+        debug("sdr nametruncated %s\n", buf);
+        return -1;
+    }
     debug("sdr name success %s\n", buf);
+
     return (0);
 }
 

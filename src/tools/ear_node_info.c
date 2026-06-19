@@ -71,7 +71,7 @@ void show_gpu_info()
     }
 
     ulong *curr_gpuf;
-    check(mgt_gpu_data_alloc(&curr_gpuf), "mgt_gpu_data_alloc");
+    check(mgt_gpu_freq_data_alloc(&curr_gpuf), "mgt_gpu_freq_data_alloc");
     check(mgt_gpu_freq_limit_get_current(no_ctx, curr_gpuf), "mgt_gpu_freq_limit_get_current");
     for (uint cgpu = 0; cgpu < gpu_dev; cgpu++) {
         printf("EAR GPU info : GPU freq[%u] = %lu\n", cgpu, curr_gpuf[cgpu]);

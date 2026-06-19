@@ -78,7 +78,7 @@ state_t policy_init(polctx_t *c)
      */
     int gpu_master_optimizer = policy_gpu_opt_enabled();
 
-    mgt_gpu_data_alloc(&gfreqs);
+    mgt_gpu_freq_data_alloc(&gfreqs);
 
     for (int i = 0; i < gpu_count; i++) {
         if (g_freq)

@@ -892,7 +892,6 @@ int main(int argc, char *argv[])
     // IMC frequency
     verbose(VCONF, "Initializing IMCfreq metrics API ");
     imcfreq_load(&node_desc, NO_EARD);
-    state_assert(s, imcfreq_init(no_ctx), eard_error("Error: imcfreq_init."));
 
     // Services
     // services_init(&node_desc, my_node_conf);

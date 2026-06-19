@@ -147,15 +147,15 @@ static state_t metrics_apis_update(void *whatever)
     metrics_read_copy(&mr2, &mr1, &mrD);
     // metrics_data_print(&mrD, 0);
     char tmp[1024];
-    cpufreq_data_tostr(mrD.cpu_diff, mrD.cpu_avrg, tmp, sizeof(tmp));
+    cpufreq_data_tostr(mrD.cpufreq_diff, mrD.cpufreq_avrg, tmp, sizeof(tmp));
     printf("CPU frequency %s\n", tmp);
-    imcfreq_data_tostr(mrD.imc_diff, &mrD.imc_avrg, tmp, sizeof(tmp));
+    imcfreq_data_tostr(mrD.imcfreq_diff, &mrD.imcfreq_avrg, tmp, sizeof(tmp));
     printf("IMC frequency %s\n", tmp);
-    cpupow_data_tostr(mrD.pow_diff, mrD.time, tmp, sizeof(tmp));
+    cpupow_data_tostr(mrD.cpupow_diff, mrD.time, tmp, sizeof(tmp));
     printf("CPU power %s\n", tmp);
-    dram_data_tostr(mrD.pow_diff, mrD.time, tmp, sizeof(tmp));
+    dram_data_tostr(mrD.cpupow_diff, mrD.time, tmp, sizeof(tmp));
     printf("DRAM power %s\n", tmp);
-    energy_to_power_tostr(&mrD.nod_avrg, 2000, tmp);
+    energy_to_power_tostr(&mrD.nodepow_avrg, 2000, tmp);
     printf("Node power %s\n", tmp);
 
     printf(" ====================================== \n");

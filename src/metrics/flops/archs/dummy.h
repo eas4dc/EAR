@@ -13,18 +13,6 @@
 
 #include <metrics/flops/flops.h>
 
-void flops_dummy_load(topology_t *tp, flops_ops_t *ops);
-
-void flops_dummy_get_info(apinfo_t *info);
-
-state_t flops_dummy_init();
-
-state_t flops_dummy_dispose();
-
-state_t flops_dummy_read(flops_t *fl);
-
-void flops_dummy_data_diff(flops_t *fl2, flops_t *fl1, flops_t *flD, double *gfs);
-
-void flops_dummy_internals_tostr(char *buffer, int length);
+FLOPS_DEFINES(dummy);
 
 #endif // METRICS_FLOPS_DUMMY_H

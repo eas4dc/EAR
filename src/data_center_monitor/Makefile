@@ -1,4 +1,7 @@
 CFLAGS = $(CC_FLAGS) -I$(SRCDIR)
+LDFLAGS = -lm -lpthread -ldl
+
+LDFLAGS += $(OPENSSL_LDFLAGS)
 
 ######## RULES
 
@@ -10,7 +13,7 @@ edcmon_PERM = 0770
 all: all.components $(edcmon_BINS)
 
 edcmon: edcmon.c
-	$(CC) $(CFLAGS) -rdynamic -o $@ $^ $(call whole,$(SRCDIR)/common/libcommon.a) -lm -lpthread -ldl
+	$(CC) $(CFLAGS) -rdynamic -o $@ $^ $(call whole,$(SRCDIR)/common/libcommon.a) $(LDFLAGS)
 
 ######## OPTIONS
 

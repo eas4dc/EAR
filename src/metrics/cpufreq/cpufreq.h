@@ -20,41 +20,47 @@
 typedef struct cpufreq_s {
     ulong freq_aperf;
     ulong freq_mperf;
-    uint error;
+    uint state;
 } cpufreq_t;
 
 typedef struct cpufreq_ops_s {
-    state_t (*init)(ctx_t *c);
-    state_t (*dispose)(ctx_t *c);
-    state_t (*count_devices)(ctx_t *c, uint *cpu_count);
-    state_t (*read)(ctx_t *c, cpufreq_t *f);
-    state_t (*data_diff)(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
+    void (*unload)();
+    void (*get_info)(apinfo_t *info);
+    state_t (*read)(cpufreq_t *f);
 } cpufreq_ops_t;
 
-state_t cpufreq_load(topology_t *tp, int force_api);
+// API building scheme
+#define CPUFREQ_F_LOAD(name)     void cpufreq_##name##_load(topology_t *tp, cpufreq_ops_t *ops, int options)
+#define CPUFREQ_F_UNLOAD(name)   void cpufreq_##name##_unload()
+#define CPUFREQ_F_GET_INFO(name) void cpufreq_##name##_get_info(apinfo_t *info)
+#define CPUFREQ_F_READ(name)     state_t cpufreq_##name##_read(cpufreq_t *f)
 
-state_t cpufreq_get_api(uint *api);
+#define CPUFREQ_DEFINES(name)                                                                                          \
+    CPUFREQ_F_LOAD(name);                                                                                              \
+    CPUFREQ_F_UNLOAD(name);                                                                                            \
+    CPUFREQ_F_GET_INFO(name);                                                                                          \
+    CPUFREQ_F_READ(name);
 
-state_t cpufreq_init(ctx_t *c);
+void cpufreq_load(topology_t *tp, int options);
 
-state_t cpufreq_dispose(ctx_t *c);
+void cpufreq_unload();
 
-state_t cpufreq_count_devices(ctx_t *c, uint *dev_count);
+void cpufreq_get_info(apinfo_t *info);
 
-state_t cpufreq_read(ctx_t *c, cpufreq_t *ef);
+state_t cpufreq_read(cpufreq_t *ef);
 
-state_t cpufreq_read_diff(ctx_t *c, cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
+state_t cpufreq_read_diff(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
 
-state_t cpufreq_read_copy(ctx_t *c, cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
+state_t cpufreq_read_copy(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
 
 // Helpers
-state_t cpufreq_data_diff(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
+void cpufreq_data_diff(cpufreq_t *f2, cpufreq_t *f1, ulong *freqs, ulong *average);
 
-state_t cpufreq_data_alloc(cpufreq_t **f, ulong **freqs);
+void cpufreq_data_alloc(cpufreq_t **f, ulong **freqs);
 
-state_t cpufreq_data_copy(cpufreq_t *dst, cpufreq_t *src);
+void cpufreq_data_copy(cpufreq_t *dst, cpufreq_t *src);
 
-state_t cpufreq_data_free(cpufreq_t **f, ulong **freqs);
+void cpufreq_data_free(cpufreq_t **f, ulong **freqs);
 
 void cpufreq_data_print(ulong *freqs, ulong average, int fd);
 

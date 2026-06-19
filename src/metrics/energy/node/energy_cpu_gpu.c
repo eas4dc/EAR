@@ -72,9 +72,8 @@ state_t energy_init(void **c)
         verbose(VCPU_GPU, "CPU-GPU plugin: loading GPU");
         // Loading GPU
         gpu_load(NO_EARD);
-        state_assert(s, gpu_init(no_ctx), plugin_exit_action);
         gpu_data_alloc(&gpu_data);
-        gpu_count_devices(no_ctx, &gpu_num);
+        gpu_get_devices(NULL, &gpu_num);
         gpu_energy_loaded = 1;
         verbose(VCPU_GPU, "CPU-GPU plugin: GPU load ok %u GPUs", gpu_num);
     }
@@ -93,10 +92,10 @@ state_t energy_dispose(void **c)
         energy_cpu_data_free(no_ctx, &energy_cpu_data);
     }
     if (gpu_energy_loaded) {
-        gpu_dispose(no_ctx);
         gpu_energy_loaded = 0;
         /* Free data allocated */
         gpu_data_free(&gpu_data);
+        gpu_unload();
     }
     return EAR_SUCCESS;
 }
@@ -138,7 +137,7 @@ state_t energy_dc_read(void *c, edata_t energy_mj)
 
     /* GPU */
     penergy_mj->gpu_num = (uint) gpu_num;
-    gpu_read(no_ctx, gpu_data);
+    gpu_read(gpu_data);
 
     /* COPY data */
     energy_cpu_data_copy(no_ctx, penergy_mj->cpu_energy, energy_cpu_data);
@@ -291,10 +290,9 @@ state_t energy_not_privileged_init()
         verbose(VCPU_GPU, "CPU-GPU plugin: loading GPU not privileged");
         // Loading GPU
         gpu_load(EARD);
-        state_assert(s, gpu_init(no_ctx), plugin_exit_action);
         // gpu_count_system_devices(no_ctx, &gpu_num_no_priv);
         gpu_data_alloc(&gpu_data);
-        gpu_count_devices(no_ctx, &gpu_num_no_priv);
+        gpu_get_devices(NULL, &gpu_num_no_priv);
         gpu_num = gpu_num_no_priv;
         verbose(VCPU_GPU, "CPU-GPU plugin:  detected %u GPUs\n", gpu_num_no_priv);
         gpu_energy_loaded = 1;

@@ -16,72 +16,60 @@
 #include <stdlib.h>
 
 static uint devs_count;
+static uint eard_api;
 
 #define RPC_GET_API       RPC_MET_BWIDTH_GET_API
 #define RPC_COUNT_DEVICES RPC_MET_BWIDTH_COUNT_DEVICES
 #define RPC_READ          RPC_MET_BWIDTH_READ
 
-state_t bwidth_eard_load(topology_t *tp, bwidth_ops_t *ops, uint eard)
+BWIDTH_F_LOAD(eard)
 {
-    uint eard_api;
     state_t s;
 
-    if (!eard) {
+    if (ops->read != NULL) {
+        return;
+    }
+    if (!API_IS(options, API_EARD)) {
         debug("EARD (daemon) not required");
-        return_msg(EAR_ERROR, "EARD (daemon) not required");
+        return;
     }
     if (!eards_connected()) {
         debug("EARD (daemon) not connected");
-        return_msg(EAR_ERROR, "EARD (daemon) not connected");
+        return;
     }
     // Get API
     if (state_fail(s = eard_rpc(RPC_GET_API, NULL, 0, (char *) &eard_api, sizeof(uint)))) {
-        return s;
+        return;
     }
     if (eard_api == API_NONE || eard_api == API_DUMMY) {
         debug("EARD (daemon) has loaded DUMMY/NONE API");
-        return_msg(EAR_ERROR, "EARD (daemon) has loaded DUMMY/NONE API");
+        return;
     }
     // Get devices
     if (state_fail(s = eard_rpc(RPC_COUNT_DEVICES, NULL, 0, (char *) &devs_count, sizeof(uint)))) {
-        return s;
+        return;
     }
     debug("Remote #devices: %u", devs_count);
+    apis_put(ops->unload, bwidth_eard_unload);
     apis_put(ops->get_info, bwidth_eard_get_info);
-    apis_put(ops->init, bwidth_eard_init);
-    apis_put(ops->dispose, bwidth_eard_dispose);
     apis_put(ops->read, bwidth_eard_read);
     debug("Loaded EARD");
-    return EAR_SUCCESS;
 }
 
-BWIDTH_F_GET_INFO(bwidth_eard_get_info)
+BWIDTH_F_UNLOAD(eard)
 {
-    info->api = API_EARD;
-    // Granularity and scope are invented by now
+}
+
+BWIDTH_F_GET_INFO(eard)
+{
+    info->api         = API_EARD;
+    info->api_under   = eard_api;
     info->scope       = SCOPE_NODE;
     info->granularity = GRANULARITY_IMC;
-    // EARD doesn't have to add 1
-    info->devs_count = devs_count;
+    info->devs_count  = devs_count;
 }
 
-state_t bwidth_eard_init(ctx_t *c)
-{
-    return EAR_SUCCESS;
-}
-
-state_t bwidth_eard_dispose(ctx_t *c)
-{
-    return EAR_SUCCESS;
-}
-
-state_t bwidth_eard_count_devices(ctx_t *c, uint *devs_count_in)
-{
-    *devs_count_in = devs_count;
-    return EAR_SUCCESS;
-}
-
-state_t bwidth_eard_read(ctx_t *c, bwidth_t *b)
+BWIDTH_F_READ(eard)
 {
     state_t s = eard_rpc(RPC_READ, NULL, 0, (char *) b, sizeof(bwidth_t) * devs_count);
     debug("Received CAS0 %llu", b[0].cas);
