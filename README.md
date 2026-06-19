@@ -1,4 +1,4 @@
-# Energy Aware Runtime version 6.0
+# Energy Aware Runtime version 7.0
 
 <img src="etc/images/logo.png" align="right" width="440">
 Energy Aware Runtime (EAR) package provides an energy management framework for super computers. EAR contains different components, all together provide three main services:
