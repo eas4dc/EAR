@@ -3,7 +3,7 @@
 <img src="etc/images/logo.png" align="right" width="440">
 Energy Aware Runtime (EAR) package provides an energy management framework for super computers. EAR contains different components, all together provide three main services:
 
-1) A **easy-to-use and lightweight optimizarion service** to automatically select the optimal CPU frequency according to the application and the node characteristics. This service is provided by two components: the EAR library (**EARL**) and the EAR daemon (**EARD**). EARL is a smart component which is loaded next to the application, intercepting  MPI calls and selecting the CPU frequency based on the application behaviour on the fly. The library is loaded automatically through the EAR SLURM plugin (**EARPLUG, earplug.so**).
+1) A **easy-to-use and lightweight optimization service** to automatically select the optimal CPU frequency according to the application and the node characteristics. This service is provided by two components: the EAR library (**EARL**) and the EAR daemon (**EARD**). EARL is a smart component which is loaded next to the application, intercepting  MPI calls and selecting the CPU frequency based on the application behaviour on the fly. The library is loaded automatically through the EAR SLURM plugin (**EARPLUG, earplug.so**).
 
 
 2) A complete **energy and performance accounting and monitoring system** based on SQL database (MariaDB and PostgreSQL are supported). The energy accounting system is configurable in terms of application details and update frequency. The EAR database daemon (**EARDBD**) is used to cache those metrics prior to DB insertions.
@@ -15,7 +15,7 @@ For more information, please consult the [wiki](https://gitlab.bsc.es/ear_team/e
 
 License
 -------
-EAR is an open source software and it is licensed under EPL-2.0 license. Full text of the licence can be found in the COPYING.EPL-2.0 file.
+EAR is an open source software and it is licensed under EPL-2.0 license. Full text of the license can be found in the COPYING.EPL-2.0 file.
 
 Contact: [ear-support@bsc.es](mailto:ear-support@bsc.es)
 
