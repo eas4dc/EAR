@@ -94,7 +94,7 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *j, u
 
 
 /** It must be called at when job ends. */
-void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job);
+void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job, uint from_mpi);
 
 
 /** Called by dynamic_configuration thread when a new task is created. */

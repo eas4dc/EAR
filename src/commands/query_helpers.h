@@ -29,7 +29,7 @@ typedef struct query_addons
 	int end_time;
 	char e_tag[64];
 	char app_id[64];
-	char job_ids[64];
+	char *job_ids;
 	char step_ids[64];
 } query_adds_t;
 

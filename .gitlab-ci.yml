@@ -16,6 +16,9 @@ stages:          # List of stages for jobs, and their order of execution
   - test
   - release
 
+include: tests/daemon/.powermon-stress.yml
+include: gitlab_cicd/automatic-synch.yml
+
 image: registry.gitlab.bsc.es/ear_team/ear-ci
 
 compile-no-mpi-loader:

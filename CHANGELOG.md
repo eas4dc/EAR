@@ -42,7 +42,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 Several minor fixes in IMCFreq amd19 management API.
 - v6.0 Fixed errors with ereport's -G option.
 
-## [5.2.6] - Unreleased
+## [5.2.7] - 2026-08-13
+
+### Added
+
+- CI: Power Monitor stress tests.
+
+### Fixed
+
+- Power monitor locking issues fixes.
+- eacct SIGSEGV when requesting a large number of jobs fixed.
+
+## [5.2.6] - 2026-04-20
 
 ### Changed
 

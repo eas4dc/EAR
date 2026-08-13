@@ -54,6 +54,7 @@
 #include <common/system/folder.h>
 #include <common/system/lock.h>
 #include <common/system/monitor.h>
+#include <common/system/process.h>
 #include <common/system/version.h>
 #include <common/types/application.h>
 #include <common/types/pc_app_info.h>
@@ -309,6 +310,13 @@ static state_t check_eard_earl_compatibility(state_t eard_connect_state)
 static void print_local_data()
 {
     char ver[64];
+#if HEALTH_CHECK
+    process_health_t curr_eard_resources;
+    if (state_ok(process_health_get(getpid(), &curr_eard_resources))) {
+        process_health_print_fd(&curr_eard_resources, verb_channel);
+    }
+#endif
+
     if (masters_info.my_master_rank == 0 || using_verb_files) {
         version_to_str(ver);
 #if MPI
