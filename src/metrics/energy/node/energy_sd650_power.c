@@ -9,25 +9,28 @@
  **********************************************************************/
 
 // #define SHOW_DEBUGS 1
-#include <string.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <pthread.h>
-#include <common/states.h>
-#include <common/system/poll.h>
-#include <common/system/lock.h>
-#include <common/system/monitor.h>
-#include <common/output/verbose.h>
+#include <common/config.h>
+
 #include <common/colors.h>
 #include <common/math_operations.h>
-#include <metrics/energy/node/energy_sd650.h>
+#include <common/output/verbose.h>
+#include <common/states.h>
+#include <common/system/lock.h>
+#include <common/system/monitor.h>
+#include <common/system/poll.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <metrics/energy/node/energy_node.h>
+#include <metrics/energy/node/energy_sd650.h>
+#include <pthread.h>
+#include <stdatomic.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 static struct sd650_node_power last_power_value;
 static ulong  accum_sd650_energy = 0;
@@ -35,133 +38,194 @@ static ulong  last_time = 0;
 static uint sd650_power_initialized = 0;
 static uint monitor_done = 0;
 
-static pthread_mutex_t sd650_power_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t sd650_power_lock         = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t sd650_power_reading_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct ipmi_intf sd650_context_for_pool;
-static struct ipmi_intf sd650_context_for_mail;
+static struct ipmi_intf sd650_context_for_main;
 static suscription_t *sd650_power_sus;
 static state_t sd650_power_thread_main(void *p);
 static state_t sd650_power_thread_init(void *p);
 
-static int opendev(struct ipmi_intf *intf){
-  intf->fd = open("/dev/ipmi0", O_RDWR);
-  if (intf->fd < 0) {
-  	intf->fd = open("/dev/ipmi/0", O_RDWR);
-    if (intf->fd < 0) {
-  	  intf->fd = open("/dev/ipmidev/0", O_RDWR);
-    };
-  };
-  debug("SD650_power: DEV open FD=%d", intf->fd);
-	return intf->fd;
-};
+static uint valid_power = 0;
+#if FAKE_PLUGIN_POWER_READING
+static atomic_int reading = 0;
+#endif
 
-static void closedev(struct ipmi_intf * intf){
-  if (intf->fd >= 0){
-    close(intf->fd);
-    intf->fd = -1 ;
-  };
-  debug("SD650_power: DEV closed");
-};
-
-static struct ipmi_rs * sendcmd(struct ipmi_intf * intf, struct ipmi_rq * req)
+static int opendev(struct ipmi_intf *intf)
 {
-	struct ipmi_req _req;
-	struct ipmi_recv recv;
-	struct ipmi_addr addr;
-	struct ipmi_system_interface_addr bmc_addr = {
-		.addr_type =	IPMI_SYSTEM_INTERFACE_ADDR_TYPE,
-		.channel =	IPMI_BMC_CHANNEL,
-		};
-	struct ipmi_ipmb_addr ipmb_addr = {
-		.addr_type =	IPMI_IPMB_ADDR_TYPE,
-		.channel =	intf->channel & 0x0f,
-		};
-	static struct ipmi_rs rsp;
-	uint8_t * data = NULL;
-	static int curr_seq = 0;
-	afd_set_t rset;
+#if FAKE_PLUGIN_POWER_READING
+    intf->fd = 100;
+    debug("No open");
+#else
+    intf->fd = open("/dev/ipmi0", O_RDWR);
+    if (intf->fd < 0) {
+        intf->fd = open("/dev/ipmi/0", O_RDWR);
+        if (intf->fd < 0) {
+            intf->fd = open("/dev/ipmidev/0", O_RDWR);
+        };
+    };
+    debug("SD650_power: DEV open FD=%d", intf->fd);
+#endif
+    return intf->fd;
+};
 
-	debug("SD650_power: sendcmd %p %p", intf, req);
-	
-	if (intf == NULL || req == NULL) return NULL;
-	memset(&_req, 0, sizeof(struct ipmi_req));
-	
-	if (intf->addr != 0){
-		ipmb_addr.slave_addr = intf->addr;
-		ipmb_addr.lun = req->msg.lun;
-		_req.addr = (unsigned char *) &ipmb_addr;
-		_req.addr_len = sizeof(ipmb_addr);
-	
-	}else {
-	bmc_addr.lun = req->msg.lun;
-	_req.addr = (unsigned char *) &bmc_addr;
-	_req.addr_len = sizeof(bmc_addr);
-	};
-	_req.msgid = curr_seq++;
-	
-	_req.msg.data = req->msg.data;
-	_req.msg.data_len = req->msg.data_len;
-	_req.msg.netfn = req->msg.netfn;
-	_req.msg.cmd = req->msg.cmd;
+static void closedev(struct ipmi_intf *intf)
+{
+#if FAKE_PLUGIN_POWER_READING
+    debug("NO close");
+    return;
+#else
+    if (intf->fd >= 0) {
+        close(intf->fd);
+        intf->fd = -1;
+    };
+    debug("SD650_power: DEV closed");
+#endif
+};
 
-	debug("IOCTL FD=%d", intf->fd);
-	
-	if (ioctl(intf->fd, IPMICTL_SEND_COMMAND, &_req) < 0) {
-  		debug("Unable to send command\n");
-  		if (data != NULL) free(data);
-   		return NULL;
-	};
-	
-	AFD_ZERO(&rset);
-	AFD_SET(intf->fd, &rset);
+static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req, struct ipmi_rs *rsp)
+{
+    struct ipmi_req _req;
+#if !defined(FAKE_PLUGIN_POWER_READING) || (FAKE_PLUGIN_POWER_READING == 0)
+    struct ipmi_recv recv;
+    struct ipmi_addr addr;
+#endif
+    struct ipmi_system_interface_addr bmc_addr = {
+        .addr_type = IPMI_SYSTEM_INTERFACE_ADDR_TYPE,
+        .channel   = IPMI_BMC_CHANNEL,
+    };
+    struct ipmi_ipmb_addr ipmb_addr = {
+        .addr_type = IPMI_IPMB_ADDR_TYPE,
+        .channel   = intf->channel & 0x0f,
+    };
+    // Moved as argument
+    // static struct ipmi_rs rsp;
+    uint8_t *data              = NULL;
+    static atomic_int curr_seq = 0;
+    afd_set_t rset;
 
-	debug("SD650_power waiting for data to be available");	
-	if (aselectv(&rset, NULL) < 0) {
-   		debug("I/O Error\n");
-   		if (data != NULL) free(data);
-   		return NULL;
-	};
-	debug("SD650_power aselectv returns");
-	if (AFD_ISSET(intf->fd, &rset) == 0) {
-   		debug("No data available\n");
-   		if (data != NULL) free(data);
-   		return NULL;
-	};
-	
-	recv.addr = (unsigned char *) &addr;
-	recv.addr_len = sizeof(addr);
-	recv.msg.data = rsp.data;
-	recv.msg.data_len = sizeof(rsp.data);
+    debug("SD650_power: sendcmd %p %p", intf, req);
 
-	debug("IOCTL FD=%d", intf->fd);
-	if (ioctl(intf->fd, IPMICTL_RECEIVE_MSG_TRUNC, &recv) < 0) {
-  		debug("Error receiving message\n");
-   		if (errno != EMSGSIZE) {
-      	if (data != NULL) free(data);
-      	return NULL;
-   		};
-	};
+    if (intf == NULL || req == NULL)
+        return NULL;
 
+    if (ear_trylock(&sd650_power_reading_lock) != EAR_SUCCESS) {
+        debug("SD650_power: power_reading Lock not available");
+        return NULL;
+    }
 
-	/* save completion code */
-	rsp.ccode = recv.msg.data[0];
-	rsp.data_len = recv.msg.data_len - 1;
-	
-	if( recv.msg.data[0] == 0 ) {
-	
-	/* save response data for caller */
-	if (rsp.ccode == 0 && rsp.data_len > 0) {
-   	memmove(rsp.data, rsp.data + 1, rsp.data_len);
-   	rsp.data[recv.msg.data_len] = 0;
-	};
-	
-	if (data != NULL)
-   	free(data);
-	return &rsp;
-	};
-	rsp.ccode = recv.msg.data[0];
-	rsp.data_len = recv.msg.data_len - 1;
-	return &rsp;
-};//sendcmd
+    memset(&_req, 0, sizeof(struct ipmi_req));
+
+    if (intf->addr != 0) {
+        ipmb_addr.slave_addr = intf->addr;
+        ipmb_addr.lun        = req->msg.lun;
+        _req.addr            = (unsigned char *) &ipmb_addr;
+        _req.addr_len        = sizeof(ipmb_addr);
+
+    } else {
+        bmc_addr.lun  = req->msg.lun;
+        _req.addr     = (unsigned char *) &bmc_addr;
+        _req.addr_len = sizeof(bmc_addr);
+    };
+    _req.msgid = atomic_fetch_add(&curr_seq, 1);
+
+    _req.msg.data     = req->msg.data;
+    _req.msg.data_len = req->msg.data_len;
+    _req.msg.netfn    = req->msg.netfn;
+    _req.msg.cmd      = req->msg.cmd;
+
+    debug("IOCTL FD=%d", intf->fd);
+#if FAKE_PLUGIN_POWER_READING
+#else
+    if (ioctl(intf->fd, IPMICTL_SEND_COMMAND, &_req) < 0) {
+        debug("Unable to send command\n");
+        if (data != NULL)
+            free(data);
+        ear_unlock(&sd650_power_reading_lock);
+        return NULL;
+    };
+#endif
+
+    AFD_ZERO(&rset);
+    AFD_SET(intf->fd, &rset);
+
+    debug("SD650_power waiting for data to be available");
+
+    struct timeval tout;
+    tout.tv_sec  = MAX_TIMEOUT_ENERGY_READING;
+    tout.tv_usec = 0;
+
+#if FAKE_PLUGIN_POWER_READING
+    atomic_fetch_add(&reading, 1);
+    if ((reading % 10) == 0) {
+        debug("Item %d: Delay %ld secs !!!!", reading, tout.tv_sec);
+        sleep(tout.tv_sec);
+        debug("End Delay!!!!");
+        if (data != NULL)
+            free(data);
+        ear_unlock(&sd650_power_reading_lock);
+        return NULL;
+    }
+    rsp->ccode = 0;
+#else
+    if (aselectv(&rset, &tout) <= 0) {
+        debug("I/O Error\n");
+        if (data != NULL)
+            free(data);
+        ear_unlock(&sd650_power_reading_lock);
+        return NULL;
+    };
+
+    debug("SD650_power aselectv returns timeout ", );
+
+    if (AFD_ISSET(intf->fd, &rset) == 0) {
+        debug("No data available\n");
+        if (data != NULL)
+            free(data);
+        ear_unlock(&sd650_power_reading_lock);
+        return NULL;
+    };
+
+    recv.addr         = (unsigned char *) &addr;
+    recv.addr_len     = sizeof(addr);
+    recv.msg.data     = rsp->data;
+    recv.msg.data_len = sizeof(rsp->data);
+
+    debug("IOCTL FD=%d", intf->fd);
+    if (ioctl(intf->fd, IPMICTL_RECEIVE_MSG_TRUNC, &recv) < 0) {
+        debug("Error receiving message\n");
+        if (errno != EMSGSIZE) {
+            if (data != NULL)
+                free(data);
+            ear_unlock(&sd650_power_reading_lock);
+            return NULL;
+        };
+    };
+
+    /* save completion code */
+    rsp->ccode    = recv.msg.data[0];
+    rsp->data_len = recv.msg.data_len - 1;
+
+    if (recv.msg.data[0] == 0) {
+
+        /* save response data for caller */
+        if (rsp->ccode == 0 && rsp->data_len > 0) {
+            memmove(rsp->data, rsp->data + 1, rsp->data_len);
+            rsp->data[recv.msg.data_len] = 0;
+        };
+
+        if (data != NULL)
+            free(data);
+        ear_unlock(&sd650_power_reading_lock);
+        return rsp;
+    };
+    rsp->ccode    = recv.msg.data[0];
+    rsp->data_len = recv.msg.data_len - 1;
+#endif
+    ear_unlock(&sd650_power_reading_lock);
+    debug("Send command finished");
+    return rsp;
+}; // sendcmd
 
 /* Information gathered from Lenovo document:
  *
@@ -198,13 +262,17 @@ static struct ipmi_rs * sendcmd(struct ipmi_intf * intf, struct ipmi_rq * req)
 /* The lock must be gathered outside the function */
 static state_t sd650_power_reading(struct ipmi_intf *intf,struct sd650_node_power * power_data)
 {
-  struct ipmi_rs * rsp;
-  struct ipmi_rq req;
-  uint8_t msg_data[5];
-  uint8_t *bytes_rs;
-  struct ipmi_data out;
+    struct ipmi_rs *rsp, rsp_in;
+    struct ipmi_rq req;
+    uint8_t msg_data[5];
+#if !defined(FAKE_PLUGIN_POWER_READING) || (FAKE_PLUGIN_POWER_READING == 0)
+    uint8_t *bytes_rs;
+#endif
+    struct ipmi_data out;
 
-  debug("SD650_power: sd650_power_reading starts");
+    (void) out;
+
+    debug("SD650_power: sd650_power_reading starts");
 
   memset(&req, 0, sizeof(req));
   req.msg.netfn = SD650_NETFN;
@@ -220,80 +288,50 @@ static state_t sd650_power_reading(struct ipmi_intf *intf,struct sd650_node_powe
 
   memset(power_data, 0 , sizeof(struct sd650_node_power));
 
-  rsp = sendcmd(intf, &req);
-  if (rsp == NULL) {
-	 debug("sendcmd returns NULL");
-        out.mode=-1;
+    rsp = sendcmd(intf, &req, &rsp_in);
+    if (rsp == NULL) {
+        debug("sendcmd returns NULL");
+        out.mode = -1;
         return EAR_ERROR;
   };
   if (rsp->ccode > 0) {
 	debug("ccode error %d", rsp->ccode);
         out.mode=-1;
         return EAR_ERROR;
-        };
+    };
+#if FAKE_PLUGIN_POWER_READING
+    memset(power_data, 0, sizeof(struct sd650_node_power));
+    power_data->seconds    = 0;
+    power_data->mseconds   = 0;
+    power_data->node_power = 500;
+    power_data->gpu_power  = 1000;
+#else
 
-  out.data_len=rsp->data_len;
-  debug("data len %d ",out.data_len);
-  int i;
-  for (i=0;i<rsp->data_len; i++) {
-        out.data[i]=rsp->data[i];
-        debug("data[%d]=%x ",i,out.data[i]);
-  }
-  debug("\n");
-	
-  /* Processing answer */
-	bytes_rs = out.data;
-	memset(power_data, 0, sizeof(struct sd650_node_power));
- 	power_data->seconds 		= (bytes_rs[FIRST_BYTE_POWER_SEC+3] << 24) | (bytes_rs[FIRST_BYTE_POWER_SEC+2] << 16) | (bytes_rs[FIRST_BYTE_POWER_SEC+1] << 8) | (bytes_rs[FIRST_BYTE_POWER_SEC]);
- 	power_data->mseconds 		= (bytes_rs[FIRST_BYTE_POWER_MSEC+1] << 8) | (bytes_rs[FIRST_BYTE_POWER_MSEC]);
- 	power_data->node_power 	= (bytes_rs[FIRST_BYTE_NODE_POWER+1] << 8) | (bytes_rs[FIRST_BYTE_NODE_POWER]);
- 	power_data->gpu_power 	= (bytes_rs[FIRST_BYTE_GPU_POWER+1] << 8) | (bytes_rs[FIRST_BYTE_GPU_POWER]);
+    out.data_len = rsp->data_len;
+    debug("data len %d ", out.data_len);
+    int i;
+    for (i = 0; i < rsp->data_len; i++) {
+        out.data[i] = rsp->data[i];
+        debug("data[%d]=%x ", i, out.data[i]);
+    }
+    debug("\n");
 
-	debug("SD650_power: Secs %lu msecs %lu Node power %lu GPU power %lu", power_data->seconds, power_data->mseconds, power_data->node_power, power_data->gpu_power);
-  return EAR_SUCCESS;
-};
+    /* Processing answer */
+    bytes_rs = out.data;
+    memset(power_data, 0, sizeof(struct sd650_node_power));
+    power_data->seconds = (bytes_rs[FIRST_BYTE_POWER_SEC + 3] << 24) | (bytes_rs[FIRST_BYTE_POWER_SEC + 2] << 16) |
+                          (bytes_rs[FIRST_BYTE_POWER_SEC + 1] << 8) | (bytes_rs[FIRST_BYTE_POWER_SEC]);
+    power_data->mseconds   = (bytes_rs[FIRST_BYTE_POWER_MSEC + 1] << 8) | (bytes_rs[FIRST_BYTE_POWER_MSEC]);
+    power_data->node_power = (bytes_rs[FIRST_BYTE_NODE_POWER + 1] << 8) | (bytes_rs[FIRST_BYTE_NODE_POWER]);
+    power_data->gpu_power  = (bytes_rs[FIRST_BYTE_GPU_POWER + 1] << 8) | (bytes_rs[FIRST_BYTE_GPU_POWER]);
 
-/* Not used in this plugin */
-#if 0
-static state_t sd650_ene(struct ipmi_intf *intf,struct ipmi_data * out)
-{
-	struct ipmi_rs * rsp;
-	struct ipmi_rq req;
-	uint8_t msg_data[5];
-
-  memset(&req, 0, sizeof(req));
-  req.msg.netfn = SD650_NETFN;
-  req.msg.cmd = SD650_CMD;
-  msg_data[0]=0x4;
-  msg_data[1]=0x2;
-  msg_data[2]=0x0;
-  msg_data[3]=0x0;
-  msg_data[4]=0x0;
-  intf->addr=0x0;
-  req.msg.data = msg_data;
-  req.msg.data_len = sizeof(msg_data);
-
-  rsp = sendcmd(intf, &req);
-  if (rsp == NULL) {
-        out->mode=-1;
-        return EAR_ERROR;
-  };
-  if (rsp->ccode > 0) {
-        out->mode=-1;
-        return EAR_ERROR;
-        };
-
-  out->data_len=rsp->data_len;
-	debug("data len %d ",out->data_len);
-  int i;
-  for (i=0;i<rsp->data_len; i++) {
-  	out->data[i]=rsp->data[i];
-		debug("data[%d]=%x ",i,out->data[i]);
-  }
-	debug("\n");
-	return EAR_SUCCESS;
-}
 #endif
+    valid_power = 1;
+
+    debug("SD650_power: Secs %lu msecs %lu Node power %lu GPU power %lu", power_data->seconds, power_data->mseconds,
+          power_data->node_power, power_data->gpu_power);
+    return EAR_SUCCESS;
+};
 
 /* Used by monitor */
 static state_t sd650_power_thread_main(void *p)
@@ -307,34 +345,51 @@ static state_t sd650_power_thread_main(void *p)
 
 	debug("%sSD650_power sd650_power_thread_main%s", COL_RED, COL_CLR);
 
-	if( ear_trylock(&sd650_power_lock) != EAR_SUCCESS){ 
-		debug("SD650_power: Lock not available");
-		return EAR_SUCCESS;
-	}
+    st = sd650_power_reading(&sd650_context_for_pool, &out);
+    if (ear_trylock(&sd650_power_lock) != EAR_SUCCESS) {
+        debug("SD650_power: Lock not available");
+        return EAR_ERROR;
+    }
+    if (st == EAR_SUCCESS) {
+        debug("SD650_power sd650_power_reading success");
 
-	st = sd650_power_reading(&sd650_context_for_pool, &out);
-	if (st == EAR_SUCCESS){
-		debug("SD650_power sd650_power_reading success");
+        curr_time       = (ulong) timestamp_getconvert(TIME_MSECS);
+        current_elapsed = overflow_zeros_u64(curr_time, last_time);
+        // current_elapsed = SD650_POWER_PERIOD;
+        // current_elapsed is msec
+        current_energy = current_elapsed * (out.node_power + out.gpu_power);
+        /* Energy is reported in MJ */
+        accum_sd650_energy += current_energy;
+        memcpy(&last_power_value, &out, sizeof(struct sd650_node_power));
 
-		curr_time = out.seconds * 1000 + out.mseconds;
-		current_elapsed = curr_time -last_time;
-		//current_elapsed = SD650_POWER_PERIOD;
-		current_energy = (current_elapsed/1000) * (out.node_power +  out.gpu_power);
-		/* Energy is reported in MJ */
-		accum_sd650_energy += (current_energy*1000);
-  		memcpy(&last_power_value,&out,sizeof(struct sd650_node_power));
-		last_time = curr_time;
+        debug("AVG power in elapsed %lu msec (curr %lu last %lu) is %lu Current energy %lu Accumulated energy %lu\n",
+              current_elapsed, curr_time, last_time, out.node_power + out.gpu_power, current_energy,
+              accum_sd650_energy);
+        last_time = curr_time;
+        // last_time is msec
+        ear_unlock(&sd650_power_lock);
 
-		ear_unlock(&sd650_power_lock);
-
-		debug("AVG power in elapsed %lu msec is %lu Total energy %lu\n",current_elapsed,out.node_power +  out.gpu_power, accum_sd650_energy);
-
-	}else{
-		ear_unlock(&sd650_power_lock);
-		debug("SD650_power: Error ");
-		return EAR_ERROR;
-	}
-	return EAR_SUCCESS;
+    } else {
+        if (valid_power) {
+            debug("Error but using estimation");
+            /* Using last value */
+            curr_time       = (ulong) timestamp_getconvert(TIME_MSECS);
+            current_elapsed = overflow_zeros_u64(curr_time, last_time);
+            // current_elapsed is msec
+            current_energy = current_elapsed * (last_power_value.node_power + last_power_value.gpu_power);
+            accum_sd650_energy += current_energy;
+            // last_time is msec
+            debug("Estimated: AVG power in elapsed %lu msec (curr %lu last %lu) is %lu Curr energy %lu Total energy "
+                  "%lu\n",
+                  current_elapsed, curr_time, last_time, out.node_power + out.gpu_power, current_energy,
+                  accum_sd650_energy);
+            last_time = curr_time;
+        }
+        ear_unlock(&sd650_power_lock);
+        debug("SD650_power: Error ");
+        return (valid_power ? EAR_SUCCESS : EAR_ERROR);
+    }
+    return EAR_SUCCESS;
 }
 
 static state_t sd650_power_thread_init(void *p)
@@ -345,23 +400,27 @@ static state_t sd650_power_thread_init(void *p)
 
 	debug("%sSD650_power sd650_power_thread_init%s", COL_GRE, COL_CLR);
 
-	ear_lock(&sd650_power_lock);
-        ret= opendev(&sd650_context_for_pool);
-        if (ret<0){
-                debug("SD650_poer: opendev failed");
-                ear_unlock(&sd650_power_lock);
-                return EAR_ERROR;
-        }
+    ret = opendev(&sd650_context_for_pool);
+    if (ret < 0) {
+        debug("SD650_poer: opendev failed");
+        return EAR_ERROR;
+    }
 
-        st = sd650_power_reading(&sd650_context_for_pool, &first_power);
-        if (st != EAR_SUCCESS){
-                debug("SD650_power: energy_init fails");
-		ear_unlock(&sd650_power_lock);
-                return EAR_ERROR;
-        }
-        last_time = first_power.seconds * 1000 + first_power.mseconds;
-        memcpy(&last_power_value, &first_power, sizeof(struct sd650_node_power));
-	debug("SD650_power Init AVG power in last %lu sec is %lu Total energy %lu\n",last_time,first_power.node_power +  first_power.gpu_power, accum_sd650_energy);
+    st = sd650_power_reading(&sd650_context_for_pool, &first_power);
+    if (ear_trylock(&sd650_power_lock) != EAR_SUCCESS) {
+        debug("SD650_power: Lock not available");
+        return EAR_ERROR;
+    }
+
+    if (st != EAR_SUCCESS) {
+        debug("SD650_power: energy_init fails");
+        ear_unlock(&sd650_power_lock);
+        return EAR_ERROR;
+    }
+    last_time = (ulong) timestamp_getconvert(TIME_MSECS);
+    memcpy(&last_power_value, &first_power, sizeof(struct sd650_node_power));
+    debug("Init: SD650_power Init AVG power in last %lu sec is %lu Total energy %lu\n", last_time,
+          first_power.node_power + first_power.gpu_power, accum_sd650_energy);
 
 	ear_unlock(&sd650_power_lock);
 
@@ -382,21 +441,21 @@ state_t energy_init(void **c)
 
 	debug("SD650_power context allocated %p", (struct ipmi_intf *)*c);
 
-	ear_lock(&sd650_power_lock);
-	if (sd650_power_initialized){ 
-		memcpy((struct ipmi_intf *)*c, &sd650_context_for_mail, sizeof(struct ipmi_intf));
-		ear_unlock(&sd650_power_lock);
-		return EAR_SUCCESS;
-	}
+    ear_lock(&sd650_power_lock);
+    if (sd650_power_initialized) {
+        memcpy((struct ipmi_intf *) *c, &sd650_context_for_main, sizeof(struct ipmi_intf));
+        ear_unlock(&sd650_power_lock);
+        return EAR_SUCCESS;
+    }
 
-	/* Open a static dev for main queries */
-        ret= opendev((struct ipmi_intf *)&sd650_context_for_mail);
-	if (ret<0){ 
-		debug("SD650_poer: opendev failed");
-		ear_unlock(&sd650_power_lock);
-		return EAR_ERROR;
-	}
-	memcpy((struct ipmi_intf *)*c, &sd650_context_for_mail, sizeof(struct ipmi_intf));
+    /* Open a static dev for main queries */
+    ret = opendev((struct ipmi_intf *) &sd650_context_for_main);
+    if (ret < 0) {
+        debug("SD650_poer: opendev failed");
+        ear_unlock(&sd650_power_lock);
+        return EAR_ERROR;
+    }
+    memcpy((struct ipmi_intf *) *c, &sd650_context_for_main, sizeof(struct ipmi_intf));
 	
 	if (!monitor_is_initialized()){
 		debug("SD650_power initializing monitor");
@@ -432,13 +491,17 @@ state_t energy_dispose(void **c)
 }
 state_t energy_datasize(size_t *size)
 {
-	*size = sizeof(unsigned long);
-	return EAR_SUCCESS;
+    if (!size)
+        return EAR_ERROR;
+    *size = sizeof(unsigned long);
+    return EAR_SUCCESS;
 }
 state_t energy_frequency(ulong *freq_us)
 {
-	*freq_us = 10000;	
-	return EAR_SUCCESS;
+    if (!freq_us)
+        return EAR_ERROR;
+    *freq_us = 10000;
+    return EAR_SUCCESS;
 }
 #define FIRST_BYTE_TMS 12
 #define FIRST_BYTE_TS 8
@@ -452,9 +515,13 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
 	struct sd650_node_power out;
 	ulong  current_elapsed;
 
-	ulong *penergy_mj=(ulong *)energy_mj;
-	debug("SD650_power: energy_dc_read\n");
-	if (!sd650_power_initialized) 	return EAR_ERROR;
+    ulong *penergy_mj = (ulong *) energy_mj;
+
+    if (!penergy_mj || !time_ms)
+        return EAR_ERROR;
+    debug("SD650_power: energy_dc_time_read\n");
+    if (!sd650_power_initialized)
+        return EAR_ERROR;
 
 
 	/* Given we are reading every 2 secs, we compute the current power */
@@ -462,24 +529,52 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
 	ulong current_energy;
 	state_t st;
 
-	*penergy_mj = accum_sd650_energy;
-	*time_ms    = last_time;
+    opendev(&sd650_context_for_main);
+    st = sd650_power_reading(&sd650_context_for_main, &out);
+    closedev(&sd650_context_for_main);
+    if (ear_trylock(&sd650_power_lock) != EAR_SUCCESS) {
+        debug("Error because of lock");
+        return EAR_ERROR;
+    }
+    *penergy_mj = accum_sd650_energy;
+    *time_ms    = last_time;
 
-	if ( ear_trylock(&sd650_power_lock) != EAR_SUCCESS) return EAR_ERROR;
-	opendev(&sd650_context_for_mail);
-	st = sd650_power_reading(&sd650_context_for_mail, &out);
-	closedev(&sd650_context_for_mail);
+    if (st == EAR_ERROR) {
+        if (valid_power) {
+            /* Using last value */
+            curr_time       = (ulong) timestamp_getconvert(TIME_MSECS);
+            current_elapsed = overflow_zeros_u64(curr_time, last_time);
+            current_energy  = current_elapsed * (last_power_value.node_power + last_power_value.gpu_power);
+            accum_sd650_energy += current_energy;
+            *penergy_mj = accum_sd650_energy;
+            *time_ms    = curr_time;
+            debug("Estimated: AVG power in elapsed %lu msec (curr %lu last %lu) is %lu Curr energy %lu Total energy "
+                  "%lu\n",
+                  current_elapsed, curr_time, last_time, out.node_power + out.gpu_power, current_energy,
+                  accum_sd650_energy);
+            last_time = curr_time;
+        }
 
-	if (st == EAR_ERROR){
-		ear_unlock(&sd650_power_lock);
-		return EAR_ERROR;
-	}
-        curr_time = out.seconds * 1000 + out.mseconds;
-        current_elapsed = curr_time - last_time;
-	if (current_elapsed == 0){
-		ear_unlock(&sd650_power_lock);
-		return EAR_SUCCESS;
-	}
+        ear_unlock(&sd650_power_lock);
+        return (valid_power ? EAR_SUCCESS : EAR_ERROR);
+    }
+
+    /* At this point the power is supposed to be valid */
+    curr_time       = (ulong) timestamp_getconvert(TIME_MSECS);
+    current_elapsed = overflow_zeros_u64(curr_time, last_time);
+    if (current_elapsed == 0) {
+        ear_unlock(&sd650_power_lock);
+        return EAR_SUCCESS;
+    }
+
+    current_energy = current_elapsed * (out.node_power + out.gpu_power);
+    /* Energy is reported in MJ */
+    accum_sd650_energy += current_energy;
+    debug("Estimated: AVG power in elapsed %lu msec (curr %lu last %lu) is %lu Curr energy %lu Total energy %lu\n",
+          current_elapsed, curr_time, last_time, out.node_power + out.gpu_power, current_energy, accum_sd650_energy);
+    last_time = curr_time;
+
+    memcpy(&last_power_value, &out, sizeof(struct sd650_node_power));
 
         current_energy = (current_elapsed/1000) * (out.node_power +  out.gpu_power);
         /* Energy is reported in MJ */
@@ -502,15 +597,19 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
 
 state_t energy_dc_read(void *c, edata_t energy_mj)
 {
-	ulong my_time;
-	return energy_dc_time_read(c, energy_mj, &my_time);
+    ulong my_time;
+    debug("energy_dc_read");
+    return energy_dc_time_read(c, energy_mj, &my_time);
 }
 
 state_t energy_ac_read(void *c, edata_t energy_mj)
 {
-	ulong *penergy_mj = (ulong *)energy_mj;
-	*penergy_mj = 0;
-	return EAR_SUCCESS;
+    ulong *penergy_mj = (ulong *) energy_mj;
+
+    if (!penergy_mj)
+        return EAR_ERROR;
+    *penergy_mj = 0;
+    return EAR_SUCCESS;
 }
 
 
@@ -528,12 +627,17 @@ unsigned long diff_node_energy(ulong init,ulong end)
 
 state_t energy_units(uint *units)
 {
-  *units = 1000;
-  return EAR_SUCCESS;
+    if (!units)
+        return EAR_ERROR;
+
+    *units = 1000;
+    return EAR_SUCCESS;
 }
 state_t energy_accumulated(unsigned long *e,edata_t init,edata_t end)
 {
-  ulong *pinit = (ulong *)init,*pend=(ulong *)end;
+    ulong *pinit = (ulong *) init, *pend = (ulong *) end;
+    if (!pinit || !pend || !e)
+        return EAR_ERROR;
 
   unsigned long total = diff_node_energy(*pinit,*pend);
   *e = total;
@@ -541,16 +645,17 @@ state_t energy_accumulated(unsigned long *e,edata_t init,edata_t end)
 }
 state_t energy_to_str(char *str,edata_t e)
 {
-  ulong *pe = (ulong *)e;
-  sprintf(str,"%lu",*pe);
-  return EAR_SUCCESS;
+    ulong *pe = (ulong *) e;
+    if (!str || !pe)
+        return EAR_ERROR;
+    sprintf(str, "%lu", *pe);
+    return EAR_SUCCESS;
 }
 
 uint energy_data_is_null(edata_t e)  
 {
-  ulong *pe = (ulong *)e;
-  return (*pe == 0);
-
+    ulong *pe = (ulong *) e;
+    if (!pe)
+        return 1;
+    return (*pe == 0);
 }
-
-

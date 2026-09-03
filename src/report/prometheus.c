@@ -247,7 +247,7 @@ state_t report_periodic_metrics(report_id_t *id, periodic_metric_t *mets, uint c
 
     for (i = 0; i < count; i++) {
         strcpy(job_text, "");
-        strncpy(node_id, mets[i].node_id, 64); //to prevent buffer overflows since the original node_id is 256 chars
+        xstrncpy(node_id, mets[i].node_id, 64); // to prevent buffer overflows since the original node_id is 256 chars
         if (mets[i].job_id != 0) {
             sprintf(job_text, ", jobid=%lu, stepid=%lu", mets[i].job_id, mets[i].step_id);
         }

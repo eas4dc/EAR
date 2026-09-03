@@ -42,6 +42,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 Several minor fixes in IMCFreq amd19 management API.
 - v6.0 Fixed errors with ereport's -G option.
 
+## [5.2.8] - 2026-09-03
+
+### Fixed
+
+- Improve timeout management of energy readings.
+- EARD: Fixed race condition in the computation of the power of node sharing jobs.
+- Fix file permissions of EAR Library node sharing regions.
+
 ## [5.2.7] - 2026-08-13
 
 ### Added

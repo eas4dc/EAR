@@ -10,25 +10,26 @@
 
 //#define SHOW_DEBUGS 1
 
-#include <math.h>
-#include <errno.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <string.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/time.h>
-#include <pthread.h>
-#include <sys/ioctl.h>
-#include <common/states.h> //clean
-#include <common/system/poll.h>
+#include <common/config.h>
+
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
+#include <common/states.h> //clean
+#include <common/system/poll.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <math.h>
 #include <metrics/energy/node/energy_nm.h>
 #include <metrics/energy/node/energy_node.h>
+#include <pthread.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 static pthread_mutex_t ompi_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint8_t cmd_arg;
@@ -108,18 +109,22 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	AFD_ZERO(&rset);
 	AFD_SET(intf->fd, &rset);
 
-	if (aselectv(&rset, NULL) < 0) {
-		debug("I/O Error\n");
-		if (data != NULL)
-			free(data);
-		return NULL;
-	};
-	if (AFD_ISSET(intf->fd, &rset) == 0) {
-		debug("No data available\n");
-		if (data != NULL)
-			free(data);
-		return NULL;
-	};
+    struct timeval tout;
+    tout.tv_sec  = MAX_TIMEOUT_ENERGY_READING;
+    tout.tv_usec = 0;
+
+    if (aselectv(&rset, &tout) <= 0) {
+        debug("I/O Error\n");
+        if (data != NULL)
+            free(data);
+        return NULL;
+    };
+    if (AFD_ISSET(intf->fd, &rset) == 0) {
+        debug("No data available\n");
+        if (data != NULL)
+            free(data);
+        return NULL;
+    };
 
 	recv.addr = (unsigned char *) &addr;
 	recv.addr_len = sizeof(addr);
@@ -378,14 +383,20 @@ state_t energy_dispose(void **c) {
 }
 state_t energy_datasize(size_t *size)
 {
-	debug("energy_datasize %lu\n",sizeof(unsigned long));
-	*size=sizeof(unsigned long);
-	return EAR_SUCCESS;
+    debug("energy_datasize %lu\n", sizeof(unsigned long));
+    if (!size)
+        return EAR_ERROR;
+
+    *size = sizeof(unsigned long);
+    return EAR_SUCCESS;
 }
 
-state_t energy_frequency(ulong *freq_us) {
-	*freq_us = 1000000;
-	return EAR_SUCCESS;
+state_t energy_frequency(ulong *freq_us)
+{
+    if (!freq_us)
+        return EAR_ERROR;
+    *freq_us = 1000000;
+    return EAR_SUCCESS;
 }
 
 state_t energy_dc_read(void *c, edata_t energy_mj) {
@@ -398,14 +409,20 @@ state_t energy_dc_read(void *c, edata_t energy_mj) {
 	
 	debug("energy_dc_read\n");
 
-	*penergy_mj = 0;
-	st = nm_ene((struct ipmi_intf *)c,&out);
-	if (st != EAR_SUCCESS) return st;
-	FIRST_BYTE_EMJ = out.data_len-8;
-	bytes_rs = out.data;
-	energyp = (unsigned long *)&bytes_rs[FIRST_BYTE_EMJ];
-	*penergy_mj = (unsigned long)be64toh(*energyp);
-	return EAR_SUCCESS;
+    debug("energy_dc_read\n");
+
+    if (!penergy_mj)
+        return EAR_ERROR;
+
+    *penergy_mj = 0;
+    st          = nm_ene((struct ipmi_intf *) c, &out);
+    if (st != EAR_SUCCESS)
+        return st;
+    FIRST_BYTE_EMJ = out.data_len - 8;
+    bytes_rs       = out.data;
+    energyp        = (unsigned long *) &bytes_rs[FIRST_BYTE_EMJ];
+    *penergy_mj    = (unsigned long) be64toh(*energyp);
+    return EAR_SUCCESS;
 }
 
 state_t energy_power_limit(void *c, unsigned long limit,unsigned long target) {
@@ -416,7 +433,6 @@ state_t energy_power_limit(void *c, unsigned long limit,unsigned long target) {
   return st;
 }
 
-
 state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms) {
 	struct ipmi_data out;
 	unsigned long  *energyp;
@@ -426,23 +442,30 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms) {
 	struct timeval t;
 	ulong *penergy_mj = (ulong *) energy_mj;
 
-	*penergy_mj = 0;
-	*time_ms = 0;
-	st = nm_ene((struct ipmi_intf *) c, &out);
-	if (st != EAR_SUCCESS) return st;
-	bytes_rs = out.data;
-	FIRST_BYTE_EMJ = out.data_len - 8;
-	energyp = (unsigned long *) &bytes_rs[FIRST_BYTE_EMJ];
-	*penergy_mj = (unsigned long) be64toh(*energyp);
-	gettimeofday(&t, NULL);
-	*time_ms = t.tv_sec * 1000 + t.tv_usec / 1000;
-	return EAR_SUCCESS;
+    if (!penergy_mj || !time_ms)
+        return EAR_ERROR;
+
+    *penergy_mj = 0;
+    *time_ms    = 0;
+    st          = nm_ene((struct ipmi_intf *) c, &out);
+    if (st != EAR_SUCCESS)
+        return st;
+    bytes_rs       = out.data;
+    FIRST_BYTE_EMJ = out.data_len - 8;
+    energyp        = (unsigned long *) &bytes_rs[FIRST_BYTE_EMJ];
+    *penergy_mj    = (unsigned long) be64toh(*energyp);
+    gettimeofday(&t, NULL);
+    *time_ms = t.tv_sec * 1000 + t.tv_usec / 1000;
+    return EAR_SUCCESS;
 }
 
-state_t energy_ac_read(void *c, edata_t energy_mj) {
-	ulong *penergy_mj = (ulong *) energy_mj;
-	*penergy_mj = 0;
-	return EAR_SUCCESS;
+state_t energy_ac_read(void *c, edata_t energy_mj)
+{
+    ulong *penergy_mj = (ulong *) energy_mj;
+    if (!penergy_mj)
+        return EAR_ERROR;
+    *penergy_mj = 0;
+    return EAR_SUCCESS;
 }
 
 unsigned long diff_node_energy(ulong init,ulong end)
@@ -455,23 +478,34 @@ unsigned long diff_node_energy(ulong init,ulong end)
   }
   return ret;
 }
-state_t energy_units(uint *units) {
-	*units = 1000;
-	return EAR_SUCCESS;
+
+state_t energy_units(uint *units)
+{
+    if (!units)
+        return EAR_ERROR;
+    *units = 1000;
+    return EAR_SUCCESS;
 }
 
-state_t energy_accumulated(unsigned long *e, edata_t init, edata_t end) {
-	ulong *pinit = (ulong *) init, *pend = (ulong *) end;
+state_t energy_accumulated(unsigned long *e, edata_t init, edata_t end)
+{
+    ulong *pinit = (ulong *) init, *pend = (ulong *) end;
 
-	unsigned long total = diff_node_energy(*pinit, *pend);
-	*e = total;
-	return EAR_SUCCESS;
+    if (!e || !pinit || !pend)
+        return EAR_ERROR;
+
+    unsigned long total = diff_node_energy(*pinit, *pend);
+    *e                  = total;
+    return EAR_SUCCESS;
 }
 
-state_t energy_to_str(char *str, edata_t e) {
-        ulong *pe = (ulong *) e;
-        sprintf(str, "%lu", *pe);
-        return EAR_SUCCESS;
+state_t energy_to_str(char *str, edata_t e)
+{
+    ulong *pe = (ulong *) e;
+    if (!pe || !str)
+        return EAR_ERROR;
+    sprintf(str, "%lu", *pe);
+    return EAR_SUCCESS;
 }
 
 state_t power_limit(ulong limit)
@@ -479,10 +513,11 @@ state_t power_limit(ulong limit)
 	verbose(1,"Energy Intel Node Manager setting limit to %lu",limit);
 	return EAR_SUCCESS;
 }
-uint energy_data_is_null(edata_t e)  
+
+uint energy_data_is_null(edata_t e)
 {
-  ulong *pe=(ulong *)e;
-  return (*pe == 0);
-
+    ulong *pe = (ulong *) e;
+    if (!pe)
+        return 1;
+    return (*pe == 0);
 }
-

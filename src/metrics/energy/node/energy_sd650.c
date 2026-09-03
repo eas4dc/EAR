@@ -7,6 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
+#include <common/config.h>
 
 #include <string.h>
 #include <stddef.h>
@@ -67,82 +68,85 @@ static struct ipmi_rs * sendcmd(struct ipmi_intf * intf, struct ipmi_rq * req)
    	return NULL;
 	memset(&_req, 0, sizeof(struct ipmi_req));
 	
-	if (intf->addr != 0){
-		ipmb_addr.slave_addr = intf->addr;
-		ipmb_addr.lun = req->msg.lun;
-		_req.addr = (unsigned char *) &ipmb_addr;
-		_req.addr_len = sizeof(ipmb_addr);
-	
-	}else {
-	bmc_addr.lun = req->msg.lun;
-	_req.addr = (unsigned char *) &bmc_addr;
-	_req.addr_len = sizeof(bmc_addr);
-	};
-	_req.msgid = curr_seq++;
-	
-	_req.msg.data = req->msg.data;
-	_req.msg.data_len = req->msg.data_len;
-	_req.msg.netfn = req->msg.netfn;
-	_req.msg.cmd = req->msg.cmd;
-	
-	if (ioctl(intf->fd, IPMICTL_SEND_COMMAND, &_req) < 0) {
-  	debug("Unable to send command\n");
-  	if (data != NULL)
-     	free(data);
-   	return NULL;
-	};
-	
-	AFD_ZERO(&rset);
-	AFD_SET(intf->fd, &rset);
-	
-	if (aselectv(&rset, NULL) < 0) {
-   	debug("I/O Error\n");
-   	if (data != NULL)
-      	free(data);
-   	return NULL;
-	};
-	if (AFD_ISSET(intf->fd, &rset) == 0) {
-   	debug("No data available\n");
-   	if (data != NULL)
-      	free(data);
-   	return NULL;
-	};
-	
-	recv.addr = (unsigned char *) &addr;
-	recv.addr_len = sizeof(addr);
-	recv.msg.data = rsp.data;
-	recv.msg.data_len = sizeof(rsp.data);
-	if (ioctl(intf->fd, IPMICTL_RECEIVE_MSG_TRUNC, &recv) < 0) {
-  	debug("Error receiving message\n");
-   if (errno != EMSGSIZE) {
-      if (data != NULL)
-	 			free(data);
-      	return NULL;
-   		};
-		};
+    if (intf->addr != 0) {
+        ipmb_addr.slave_addr = intf->addr;
+        ipmb_addr.lun        = req->msg.lun;
+        _req.addr            = (unsigned char *) &ipmb_addr;
+        _req.addr_len        = sizeof(ipmb_addr);
 
+    } else {
+        bmc_addr.lun  = req->msg.lun;
+        _req.addr     = (unsigned char *) &bmc_addr;
+        _req.addr_len = sizeof(bmc_addr);
+    };
+    _req.msgid = curr_seq++;
 
-	/* save completion code */
-	rsp.ccode = recv.msg.data[0];
-	rsp.data_len = recv.msg.data_len - 1;
-	
-	if( recv.msg.data[0] == 0 ) {
-	
-	/* save response data for caller */
-	if (rsp.ccode == 0 && rsp.data_len > 0) {
-   	memmove(rsp.data, rsp.data + 1, rsp.data_len);
-   	rsp.data[recv.msg.data_len] = 0;
-	};
-	
-	if (data != NULL)
-   	free(data);
-	return &rsp;
-	};
-	rsp.ccode = recv.msg.data[0];
-	rsp.data_len = recv.msg.data_len - 1;
-	return &rsp;
-};//sendcmd
-	
+    _req.msg.data     = req->msg.data;
+    _req.msg.data_len = req->msg.data_len;
+    _req.msg.netfn    = req->msg.netfn;
+    _req.msg.cmd      = req->msg.cmd;
+
+    if (ioctl(intf->fd, IPMICTL_SEND_COMMAND, &_req) < 0) {
+        debug("Unable to send command\n");
+        if (data != NULL)
+            free(data);
+        return NULL;
+    };
+
+    AFD_ZERO(&rset);
+    AFD_SET(intf->fd, &rset);
+
+    struct timeval tout;
+    tout.tv_sec  = MAX_TIMEOUT_ENERGY_READING;
+    tout.tv_usec = 0;
+
+    if (aselectv(&rset, &tout) <= 0) {
+        debug("I/O Error\n");
+        if (data != NULL)
+            free(data);
+        return NULL;
+    };
+
+    if (AFD_ISSET(intf->fd, &rset) == 0) {
+        debug("No data available\n");
+        if (data != NULL)
+            free(data);
+        return NULL;
+    };
+
+    recv.addr         = (unsigned char *) &addr;
+    recv.addr_len     = sizeof(addr);
+    recv.msg.data     = rsp.data;
+    recv.msg.data_len = sizeof(rsp.data);
+    if (ioctl(intf->fd, IPMICTL_RECEIVE_MSG_TRUNC, &recv) < 0) {
+        debug("Error receiving message\n");
+        if (errno != EMSGSIZE) {
+            if (data != NULL)
+                free(data);
+            return NULL;
+        };
+    };
+
+    /* save completion code */
+    rsp.ccode    = recv.msg.data[0];
+    rsp.data_len = recv.msg.data_len - 1;
+
+    if (recv.msg.data[0] == 0) {
+
+        /* save response data for caller */
+        if (rsp.ccode == 0 && rsp.data_len > 0) {
+            memmove(rsp.data, rsp.data + 1, rsp.data_len);
+            rsp.data[recv.msg.data_len] = 0;
+        };
+
+        if (data != NULL)
+            free(data);
+        return &rsp;
+    };
+    rsp.ccode    = recv.msg.data[0];
+    rsp.data_len = recv.msg.data_len - 1;
+    return &rsp;
+}; // sendcmd
 
 // Robert Wolford provided command: ipmitool raw 0x3a 0x32 4 1 0 0 0 --> low frequency command
 // Robert Wolford provided command: ipmitool raw 0x3a 0x32 4 2 0 0 0 --> High frequency command : Energy (J,mJ) and Time (sec,ms)
@@ -228,13 +232,17 @@ state_t energy_dispose(void **c)
 }
 state_t energy_datasize(size_t *size)
 {
-	*size=sizeof(unsigned long);
-	return EAR_SUCCESS;
+    if (!size)
+        return EAR_ERROR;
+    *size = sizeof(unsigned long);
+    return EAR_SUCCESS;
 }
 state_t energy_frequency(ulong *freq_us)
 {
-	*freq_us=10000;	
-	return EAR_SUCCESS;
+    if (!freq_us)
+        return EAR_ERROR;
+    *freq_us = 10000;
+    return EAR_SUCCESS;
 }
 #define FIRST_BYTE_TMS 12
 #define FIRST_BYTE_TS 8
@@ -250,14 +258,19 @@ state_t energy_dc_read(void *c, edata_t energy_mj)
 	state_t st;
 	ulong *penergy_mj=(ulong *)energy_mj;
 
-	*penergy_mj=0;
-	st=sd650_ene((struct ipmi_intf *)c,&out);
-	if (st!=EAR_SUCCESS) return st;
-	bytes_rs=out.data;
-	aux_ej=(bytes_rs[FIRST_BYTE_EJ+3] << 24) | (bytes_rs[FIRST_BYTE_EJ+2] << 16) | (bytes_rs[FIRST_BYTE_EJ+1] << 8) | (bytes_rs[FIRST_BYTE_EJ]);
-	aux_emj=(bytes_rs[FIRST_BYTE_EMJ+1] << 8)  | (bytes_rs[FIRST_BYTE_EMJ]);
-	*penergy_mj=	((ulong)aux_ej*1000)+(ulong)aux_emj;
-	return EAR_SUCCESS;
+    if (!penergy_mj)
+        return EAR_ERROR;
+
+    *penergy_mj = 0;
+    st          = sd650_ene((struct ipmi_intf *) c, &out);
+    if (st != EAR_SUCCESS)
+        return st;
+    bytes_rs = out.data;
+    aux_ej   = (bytes_rs[FIRST_BYTE_EJ + 3] << 24) | (bytes_rs[FIRST_BYTE_EJ + 2] << 16) |
+             (bytes_rs[FIRST_BYTE_EJ + 1] << 8) | (bytes_rs[FIRST_BYTE_EJ]);
+    aux_emj     = (bytes_rs[FIRST_BYTE_EMJ + 1] << 8) | (bytes_rs[FIRST_BYTE_EMJ]);
+    *penergy_mj = ((ulong) aux_ej * 1000) + (ulong) aux_emj;
+    return EAR_SUCCESS;
 }
 
 
@@ -272,24 +285,32 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
 	state_t st;
 	ulong *penergy_mj = (ulong *)energy_mj;
 
-	*penergy_mj = 0;
-	*time_ms = 0;
-	st = sd650_ene((struct ipmi_intf *)c,&out);
-	if (st != EAR_SUCCESS) return st;
-	bytes_rs = out.data;
-	aux_ej = (bytes_rs[FIRST_BYTE_EJ+3] << 24) | (bytes_rs[FIRST_BYTE_EJ+2] << 16) | (bytes_rs[FIRST_BYTE_EJ+1] << 8) | (bytes_rs[FIRST_BYTE_EJ]);
-	aux_emj = (bytes_rs[FIRST_BYTE_EMJ+1] << 8)  | (bytes_rs[FIRST_BYTE_EMJ]);
-	*penergy_mj =	((ulong)aux_ej*1000)+(ulong)aux_emj;
-	aux_tms = bytes_rs[FIRST_BYTE_TMS+1] <<  8 | bytes_rs[FIRST_BYTE_TMS];
-	aux_ts = bytes_rs[FIRST_BYTE_TS+3] << 24 | bytes_rs[FIRST_BYTE_TS+2] << 16 | bytes_rs[FIRST_BYTE_TS+1] << 8 | bytes_rs[FIRST_BYTE_TS];
-	*time_ms = ((ulong)aux_ts*1000)+(ulong)aux_tms;
-	return EAR_SUCCESS;
+    if (!penergy_mj || !time_ms)
+        return EAR_ERROR;
+
+    *penergy_mj = 0;
+    *time_ms    = 0;
+    st          = sd650_ene((struct ipmi_intf *) c, &out);
+    if (st != EAR_SUCCESS)
+        return st;
+    bytes_rs = out.data;
+    aux_ej   = (bytes_rs[FIRST_BYTE_EJ + 3] << 24) | (bytes_rs[FIRST_BYTE_EJ + 2] << 16) |
+             (bytes_rs[FIRST_BYTE_EJ + 1] << 8) | (bytes_rs[FIRST_BYTE_EJ]);
+    aux_emj     = (bytes_rs[FIRST_BYTE_EMJ + 1] << 8) | (bytes_rs[FIRST_BYTE_EMJ]);
+    *penergy_mj = ((ulong) aux_ej * 1000) + (ulong) aux_emj;
+    aux_tms     = bytes_rs[FIRST_BYTE_TMS + 1] << 8 | bytes_rs[FIRST_BYTE_TMS];
+    aux_ts = bytes_rs[FIRST_BYTE_TS + 3] << 24 | bytes_rs[FIRST_BYTE_TS + 2] << 16 | bytes_rs[FIRST_BYTE_TS + 1] << 8 |
+             bytes_rs[FIRST_BYTE_TS];
+    *time_ms = ((ulong) aux_ts * 1000) + (ulong) aux_tms;
+    return EAR_SUCCESS;
 }
 state_t energy_ac_read(void *c, edata_t energy_mj)
 {
-	ulong *penergy_mj = (ulong *)energy_mj;
-	*penergy_mj = 0;
-	return EAR_SUCCESS;
+    ulong *penergy_mj = (ulong *) energy_mj;
+    if (!penergy_mj)
+        return EAR_ERROR;
+    *penergy_mj = 0;
+    return EAR_SUCCESS;
 }
 
 
@@ -307,28 +328,36 @@ unsigned long diff_node_energy(ulong init,ulong end)
 
 state_t energy_units(uint *units)
 {
-  *units=1000;
-  return EAR_SUCCESS;
+    if (!units)
+        return EAR_ERROR;
+    *units = 1000;
+    return EAR_SUCCESS;
 }
 state_t energy_accumulated(unsigned long *e,edata_t init,edata_t end)
 {
 	ulong *pinit = (ulong *)init,*pend=(ulong *)end;
 
-  unsigned long total = diff_node_energy(*pinit,*pend);
-  *e = total;
-  return EAR_SUCCESS;
+    if (!e || !pinit || !pend)
+        return EAR_ERROR;
+
+    unsigned long total = diff_node_energy(*pinit, *pend);
+    *e                  = total;
+    return EAR_SUCCESS;
 }
 state_t energy_to_str(char *str,edata_t e)
 {
-  ulong *pe = (ulong *)e;
-  sprintf(str,"%lu",*pe);
-  return EAR_SUCCESS;
+    ulong *pe = (ulong *) e;
+    if (!str || !pe)
+        return EAR_ERROR;
+    sprintf(str, "%lu", *pe);
+    return EAR_SUCCESS;
 }
 
 uint energy_data_is_null(edata_t e)  
 {
-  ulong *pe = (ulong *)e;
-  return (*pe == 0);
-
+    ulong *pe = (ulong *) e;
+    if (!pe)
+        return 1;
+    return (*pe == 0);
 }
 

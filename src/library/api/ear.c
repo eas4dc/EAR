@@ -521,14 +521,14 @@ state_t create_eid_folder(char *tmp, int jid, int sid, uint AID)
     strcat(EID_application_path, ".app");
 
     verbose(WF_SUPPORT_VERB + 1, "EARL: Creating app folder %s", EID_application_path);
-    ret = mkdir(EID_application_path, S_IRWXU);
+    ret = mkdir(EID_application_path, S_IRWXU | S_IROTH | S_IXOTH);
     if ((ret < 0) && (errno != EEXIST)) {
         verbose(WF_SUPPORT_VERB + 1, "EAR error EID folder cannot be created (%s) (%s)", EID_application_path,
                 strerror(errno));
         node_mgr_info_unlock();
         return EAR_ERROR;
     }
-    chmod(EID_application_path, S_IRUSR | S_IWUSR | S_IXUSR);
+    chmod(EID_application_path, S_IRUSR | S_IWUSR | S_IXUSR | S_IROTH | S_IXOTH);
     verbose(WF_SUPPORT_VERB + 1, "EID folder (%s) created", EID_application_path);
 
     /* Application folder */

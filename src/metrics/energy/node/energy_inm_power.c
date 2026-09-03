@@ -13,27 +13,28 @@
 #define FIRST_SIGNIFICANT_BYTE 3
 #define POWER_PERIOD 5
 
-#include <math.h>
 #include <errno.h>
-#include <stdio.h>
 #include <fcntl.h>
-#include <string.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/time.h>
-#include <pthread.h>
-#include <sys/ioctl.h>
-#include <common/states.h>
-#include <common/system/poll.h>
-#include <common/types/generic.h>
+#include <math.h>
+
+#include <common/config.h>
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
+#include <common/states.h>
+#include <common/system/monitor.h>
+#include <common/system/poll.h>
+#include <common/types/generic.h>
 #include <metrics/energy/node/energy_inm_power.h>
 #include <metrics/energy/node/energy_node.h>
-#include <common/system/monitor.h>
+#include <pthread.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 /* For error control */
 #define MAX_TIMES_POWER_SUPPORTED 10
@@ -128,18 +129,22 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
 	AFD_ZERO(&rset);
 	AFD_SET(intf->fd, &rset);
 
-	if (aselectv(&rset, NULL) < 0) {
-		debug("I/O Error\n");
-		if (data != NULL)
-			free(data);
-		return NULL;
-	};
-	if (AFD_ISSET(intf->fd, &rset) == 0) {
-		debug("No data available\n");
-		if (data != NULL)
-			free(data);
-		return NULL;
-	};
+    struct timeval tout;
+    tout.tv_sec  = MAX_TIMEOUT_ENERGY_READING;
+    tout.tv_usec = 0;
+
+    if (aselectv(&rset, &tout) <= 0) {
+        debug("I/O Error\n");
+        if (data != NULL)
+            free(data);
+        return NULL;
+    };
+    if (AFD_ISSET(intf->fd, &rset) == 0) {
+        debug("No data available\n");
+        if (data != NULL)
+            free(data);
+        return NULL;
+    };
 
 	recv.addr = (unsigned char *) &addr;
 	recv.addr_len = sizeof(addr);

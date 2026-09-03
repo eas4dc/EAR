@@ -2440,81 +2440,78 @@ void update_pmapps(power_data_t *last_pmon, nm_data_t *nm)
         if (state_fail(ear_trylock(&app_lock)))
             continue;
         debug("%sApp lock", COL_RED);
-        if (current_ear_app[cc] != NULL) {
+        if (current_ear_app[cc] == NULL) {
+            ear_unlock(&app_lock);
+            continue;
+        }
 
-            state_t lock_st;
-            if ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS) {
-                error("Locking context %u for testing its power: %s", cc, state_msg);
-                ear_unlock(&app_lock);
-                debug("%s", COL_CLR);
-                return;
-            }
-            debug("%s", COL_CLR);
-            uint cont = 0;
-            if (!current_ear_app[cc]) {
-                ear_unlock(&powermon_app_mutex[cc]);
-                cont = 1;
-            }
-            pmapp = current_ear_app[cc];
+        state_t lock_st;
+        if ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS) {
+            error("Locking context %u for testing its power: %s", cc, state_msg);
             ear_unlock(&app_lock);
             debug("%s", COL_CLR);
-            if (cont)
-                continue;
-
-            /* We must update the current signature */
-            lcpus = pmapp->earl_num_cpus;
-            if (lcpus) {
-
-                cpu_ratio = (num_jobs > 1) ? (float) lcpus / (float) tcpus : 1;
-
-                verbose(VEARD_NMGR,"Job %lu/%lu has %lu of %lu CPUs. Ratio: %f",
-                        pmapp->app.job.id, pmapp->app.job.step_id, lcpus, tcpus, cpu_ratio);
-            } else {
-
-                if (is_job_in_node(pmapp->app.job.id, &alloc)) {
-
-                    // cpu_ratio = (float) alloc->num_cpus / (float) tcpus;
-		    cpu_ratio = ((tcpus && alloc->num_cpus) ? (float) alloc->num_cpus / (float) tcpus : 1);
-
-                    verbose(VEARD_NMGR, "Job %lu/%lu without node mask, using ratio %f = %u/%lu",
-                            pmapp->app.job.id, pmapp->app.job.step_id, cpu_ratio, alloc->num_cpus, tcpus); 
-                } else {
-                    verbose(VEARD_NMGR,"Warning, no cpus detected using num_jobs %lu", num_jobs);
-                    //cpu_ratio = 1.0 / (float) num_jobs;
-                    cpu_ratio = (num_jobs ? 1.0 / (float) num_jobs : 1);
-                }
-            }
-
-            my_dc_power = accum_node_power(last_pmon) * cpu_ratio;
-            pmapp->accum_ps.DC_energy 	+= accum_node_power(last_pmon) * cpu_ratio * time_consumed;
-            pmapp->accum_ps.DRAM_energy += accum_dram_power(last_pmon) * cpu_ratio * time_consumed;
-            pmapp->accum_ps.PCK_energy 	+= accum_cpu_power(last_pmon)  * cpu_ratio * time_consumed;
-
-
-            if (pmapp->app.is_mpi) {
-                pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) *
-                                         time_consumed;
-            } else {
-
-                pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) *
-                                         time_consumed;
-            }
-
-
-            pmapp->accum_ps.max = ear_max(pmapp->accum_ps.max, my_dc_power);
-
-            if (pmapp->accum_ps.min > 0) {
-                pmapp->accum_ps.min = ear_min(pmapp->accum_ps.min, my_dc_power);
-            }
-            else {
-                pmapp->accum_ps.min = my_dc_power;			
-            }
-#if USE_GPUS
-            float gpu_ratio = 1;
-            pmapp->accum_ps.GPU_energy = accum_gpu_power(last_pmon) * gpu_ratio * time_consumed;
-#endif
-            ear_unlock(&powermon_app_mutex[cc]);
+            return;
         }
+        debug("%s", COL_CLR);
+        uint cont = 0;
+        if (!current_ear_app[cc]) {
+            ear_unlock(&powermon_app_mutex[cc]);
+            cont = 1;
+        }
+        pmapp = current_ear_app[cc];
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        if (cont)
+            continue;
+
+        /* We must update the current signature */
+        lcpus = pmapp->earl_num_cpus;
+        if (lcpus) {
+
+            cpu_ratio = (num_jobs > 1) ? (float) lcpus / (float) tcpus : 1;
+
+            verbose(VEARD_NMGR, "Job %lu/%lu has %lu of %lu CPUs. Ratio: %f", pmapp->app.job.id, pmapp->app.job.step_id,
+                    lcpus, tcpus, cpu_ratio);
+        } else {
+
+            if (is_job_in_node(pmapp->app.job.id, &alloc)) {
+
+                // cpu_ratio = (float) alloc->num_cpus / (float) tcpus;
+                cpu_ratio = ((tcpus && alloc->num_cpus) ? (float) alloc->num_cpus / (float) tcpus : 1);
+
+                verbose(VEARD_NMGR, "Job %lu/%lu without node mask, using ratio %f = %u/%lu", pmapp->app.job.id,
+                        pmapp->app.job.step_id, cpu_ratio, alloc->num_cpus, tcpus);
+            } else {
+                verbose(VEARD_NMGR, "Warning, no cpus detected using num_jobs %lu", num_jobs);
+                // cpu_ratio = 1.0 / (float) num_jobs;
+                cpu_ratio = (num_jobs ? 1.0 / (float) num_jobs : 1);
+            }
+        }
+
+        my_dc_power = accum_node_power(last_pmon) * cpu_ratio;
+        pmapp->accum_ps.DC_energy += accum_node_power(last_pmon) * cpu_ratio * time_consumed;
+        pmapp->accum_ps.DRAM_energy += accum_dram_power(last_pmon) * cpu_ratio * time_consumed;
+        pmapp->accum_ps.PCK_energy += accum_cpu_power(last_pmon) * cpu_ratio * time_consumed;
+
+        if (pmapp->app.is_mpi) {
+            pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) * time_consumed;
+        } else {
+
+            pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) * time_consumed;
+        }
+
+        pmapp->accum_ps.max = ear_max(pmapp->accum_ps.max, my_dc_power);
+
+        if (pmapp->accum_ps.min > 0) {
+            pmapp->accum_ps.min = ear_min(pmapp->accum_ps.min, my_dc_power);
+        } else {
+            pmapp->accum_ps.min = my_dc_power;
+        }
+#if USE_GPUS
+        float gpu_ratio            = 1;
+        pmapp->accum_ps.GPU_energy = accum_gpu_power(last_pmon) * gpu_ratio * time_consumed;
+#endif
+        ear_unlock(&powermon_app_mutex[cc]);
     }
 
     verbose(VEARD_NMGR,"-----------------------------------------");

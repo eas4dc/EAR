@@ -15,7 +15,7 @@
 #include <common/states.h>
 #include <common/types/generic.h>
 
-#define MAX_LOCK_INTENTS 1000000000
+#define MAX_LOCK_INTENTS 1000
 
 #define ear_lock(lock) \
     pthread_mutex_lock(lock);
@@ -29,4 +29,4 @@ state_t ear_trylock(pthread_mutex_t *lock);
     { ear_unlock(lock); \
     return state; }
 
-#endif //COMMON_LOCK_H
+#endif // COMMON_LOCK_H

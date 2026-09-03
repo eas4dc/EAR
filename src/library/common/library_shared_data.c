@@ -9,6 +9,7 @@
  **************************************************************************/
 
 #define _GNU_SOURCE
+// #define SHOW_DEBUGS 1
 
 #include <sched.h>
 #include <fcntl.h>
@@ -84,14 +85,11 @@ int get_shared_signatures_path(char *tmp, uint ID, uint AID, char *path)
 
 lib_shared_data_t *create_lib_shared_data_area(char *path)
 {
-	lib_shared_data_t sh_data, *my_area;
-    mode_t perms = S_IRUSR | S_IWUSR;
-	my_area =
-	    (lib_shared_data_t *) create_shared_area(path, perms,
-						     (char *)&sh_data,
-						     sizeof(lib_shared_data_t),
-						     &fd_conf, 1, NULL);
-	return my_area;
+    lib_shared_data_t sh_data, *my_area;
+    mode_t perms = S_IRUSR | S_IWUSR | S_IROTH;
+    my_area      = (lib_shared_data_t *) create_shared_area(path, perms, (char *) &sh_data, sizeof(lib_shared_data_t),
+                                                            &fd_conf, 1, NULL);
+    return my_area;
 }
 
 lib_shared_data_t *attach_lib_shared_data_area(char *path, int *fd)
@@ -100,6 +98,11 @@ lib_shared_data_t *attach_lib_shared_data_area(char *path, int *fd)
 							sizeof
 							(lib_shared_data_t),
 							O_RDWR, fd, NULL);
+}
+
+lib_shared_data_t *attach_client_lib_shared_data_area(char *path, int *fd)
+{
+    return (lib_shared_data_t *) attach_shared_area(path, sizeof(lib_shared_data_t), O_RDONLY, fd, NULL);
 }
 
 void dettach_lib_shared_data_area(int fd)
@@ -127,8 +130,8 @@ shsignature_t *create_shared_signatures_area(char *path, int np)
 {
 	shsignature_t *my_sig, *p2;
 
-	my_sig = (shsignature_t *) malloc(sizeof(shsignature_t) * np);
-	mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
+    my_sig       = (shsignature_t *) malloc(sizeof(shsignature_t) * np);
+    mode_t perms = S_IRUSR | S_IWUSR | S_IROTH;
     p2 = create_shared_area(path, perms, (char *) my_sig, sizeof(shsignature_t) * np, &fd_signatures, 1, NULL);
 	free(my_sig);
 	return p2;
@@ -139,6 +142,11 @@ shsignature_t *attach_shared_signatures_area(char *path, int np, int *fd)
 	return (shsignature_t *) attach_shared_area(path,
 						    sizeof(shsignature_t) * np,
 						    O_RDWR, fd, NULL);
+}
+
+shsignature_t *attach_client_shared_signatures_area(char *path, int np, int *fd)
+{
+    return (shsignature_t *) attach_shared_area(path, sizeof(shsignature_t) * np, O_RDONLY, fd, NULL);
 }
 
 void dettach_shared_signatures_area(int fd)
@@ -752,21 +760,21 @@ void init_earl_node_mgr_info()
 		release_earl_node_mgr_info();
 	}
 
-	if (node_mgr_info_lock() == EAR_SUCCESS) {
-		for (uint j = 0; j < MAX_CPUS_SUPPORTED; j++) {
-			if (node_mgr_data[j].jid != -1)
-				total_num_earl_apps +=
-				    ear_max(node_mgr_data[j].num_earl_apps, 1);
-		}
-	} else {
-		verbose(WF_SUPPORT_VERB,
-			"ERROR: EARL cannot get node_mgr_info_lock");
-		node_mgr_job_info = NULL;
-		return;
-	}
+    if (node_mgr_info_lock() == EAR_SUCCESS) {
+        for (uint j = 0; j < MAX_CPUS_SUPPORTED; j++) {
+            /* node_mgr_data stores jobs. it is shared with eard */
+            if (node_mgr_data[j].jid != -1)
+                verbose(WF_SUPPORT_VERB, "Job %lu detected at pos %d with %d apps. Total %u", node_mgr_data[j].jid, j,
+                        node_mgr_data[j].num_earl_apps, total_num_earl_apps);
+            total_num_earl_apps += ear_max(node_mgr_data[j].num_earl_apps, 1);
+        }
+    } else {
+        verbose(WF_SUPPORT_VERB, "ERROR: EARL cannot get node_mgr_info_lock");
+        node_mgr_job_info = NULL;
+        return;
+    }
 
-	verbose(WF_SUPPORT_VERB + 1, " EARL[%d]: allocation %d apps", getpid(),
-		total_num_earl_apps);
+    verbose(WF_SUPPORT_VERB, " EARL[%d]: allocation %u apps", getpid(), total_num_earl_apps);
 
 	node_mgr_job_info =
 	    calloc(total_num_earl_apps, sizeof(node_mgr_sh_data_t));
@@ -777,13 +785,14 @@ void init_earl_node_mgr_info()
 		return;
 	}
 
-	/* Initialize data */
-	for (int i = 0; i < total_num_earl_apps; i++) {
-		node_mgr_job_info[i].fd_lib = -1;
-		node_mgr_job_info[i].fd_sig = -1;
-		node_mgr_job_info[i].libsh = NULL;
-		node_mgr_job_info[i].shsig = NULL;
-	}
+    /* Initialize data */
+    for (int i = 0; i < total_num_earl_apps; i++) {
+        /* node_mgr_job_info is used to store each app running with EARL */
+        node_mgr_job_info[i].fd_lib = -1;
+        node_mgr_job_info[i].fd_sig = -1;
+        node_mgr_job_info[i].libsh  = NULL;
+        node_mgr_job_info[i].shsig  = NULL;
+    }
 
 	uint curr_app = 0;
 
@@ -818,9 +827,8 @@ void init_earl_node_mgr_info()
 			continue;
 		}
 
-		verbose_master(WF_SUPPORT_VERB,
-			       "looking for apps in %lu.%lu job folder (%s)",
-			       jid, sid, SID_folder_name);
+        verbose_master(WF_SUPPORT_VERB, "JOB[%d] looking for apps in %lu.%lu job folder (%s) app=%u", j, jid, sid,
+                       SID_folder_name, curr_app);
 
 		int abort_init = 0;
 		while (!abort_init
@@ -829,32 +837,23 @@ void init_earl_node_mgr_info()
 					       DT_DIR))) {
 			/* Filtering . and .. folders */
 
-			appid_folder = strtok(appid_folder_full, ".app");
-			lid = (job_id) atoi(appid_folder);
-			verbose_master(WF_SUPPORT_VERB,
-				       "New APP[%d] detected for %lu/%lu/%lu",
-				       curr_app, jid, sid, lid);
-			if (curr_app == total_num_earl_apps) {
-				verbose_warning_master
-				    ("Initialzing node_mgr_earl info. Current total apps: %d Count based on folders %d. Reallocating memory old address %p",
-				     total_num_earl_apps, curr_app,
-				     node_mgr_job_info);
-				node_mgr_job_info =
-				    realloc(node_mgr_job_info,
-					    sizeof(node_mgr_sh_data_t) *
-					    (total_num_earl_apps + 1));
-				if (node_mgr_job_info == NULL) {
-					verbose_master(WF_SUPPORT_VERB,
-						       "EARL error!!, memory cannot be reallocated");
-					abort_init = 1;
-					continue;
-				}
-				total_num_earl_apps++;
-				verbose_master(WF_SUPPORT_VERB,
-					       "New Area space %p, total apps %d",
-					       node_mgr_job_info,
-					       total_num_earl_apps);
-			}
+            appid_folder = strtok(appid_folder_full, ".app");
+            lid          = (job_id) atoi(appid_folder);
+            verbose_master(WF_SUPPORT_VERB, "New APP[%u] detected for %lu/%lu/%lu", curr_app, jid, sid, lid);
+            if (curr_app == total_num_earl_apps) {
+                verbose_warning_master("Initialzing node_mgr_earl info. Current total apps: %u Count based on folders "
+                                       "%d. Reallocating memory old address %p",
+                                       total_num_earl_apps, curr_app, node_mgr_job_info);
+                node_mgr_job_info = realloc(node_mgr_job_info, sizeof(node_mgr_sh_data_t) * (total_num_earl_apps + 1));
+                if (node_mgr_job_info == NULL) {
+                    verbose_master(WF_SUPPORT_VERB, "EARL error!!, memory cannot be reallocated");
+                    abort_init = 1;
+                    continue;
+                }
+                total_num_earl_apps++;
+                verbose_master(WF_SUPPORT_VERB, "New Area space %p, total apps %u", node_mgr_job_info,
+                               total_num_earl_apps);
+            }
 
 			node_mgr_job_info[curr_app].jid = jid;
 			node_mgr_job_info[curr_app].sid = sid;
@@ -866,78 +865,54 @@ void init_earl_node_mgr_info()
 			node_mgr_job_info[curr_app].libsh = NULL;
 			node_mgr_job_info[curr_app].shsig = NULL;
 
-			if (lid == AID) {
-				verbose_master(2,
-					       "[%d] Self detected in pos %d",
-					       getpid(), curr_app);
-				node_mgr_earl_index = curr_app;
-			}
+            if (lid == AID) {
+                verbose_master(2, "[%d] Self detected in pos %d (%lu%lu/%lu)", getpid(), curr_app,
+                               node_mgr_job_info[curr_app].jid, node_mgr_job_info[curr_app].sid,
+                               node_mgr_job_info[curr_app].lid);
+                node_mgr_earl_index = curr_app;
+            }
 
-			if (apps) {
-				/* Mapping lib_shared_region */
-				verbose_master(2,
-					       "[%d] Job %lu.%lu.%lu is sharing the node",
-					       getpid(), jid, sid, lid);
-				if (get_lib_shared_data_path
-				    (tmp, ID, lid,
-				     lib_shared_region_path_jobs) ==
-				    EAR_SUCCESS) {
-					node_mgr_job_info[curr_app].libsh =
-					    attach_lib_shared_data_area
-					    (lib_shared_region_path_jobs,
-					     &node_mgr_job_info[curr_app].
-					     fd_lib);
-					if (node_mgr_job_info[curr_app].libsh ==
-					    NULL)
-						continue;
-				} else {
-					continue;
-				}
-				verbose_master(2,
-					       "[%d] lib_shared_data mapped for %lu.%lu.%lu",
-					       getpid(), jid, sid, lid);
-				/* Mapping shared signatures */
-				if (get_shared_signatures_path
-				    (tmp, ID, lid,
-				     sig_shared_region_path_jobs) ==
-				    EAR_SUCCESS) {
-					node_mgr_job_info[curr_app].shsig =
-					    attach_shared_signatures_area
-					    (sig_shared_region_path_jobs,
-					     node_mgr_job_info[curr_app].libsh->
-					     num_processes,
-					     &node_mgr_job_info[curr_app].
-					     fd_sig);
-					if (node_mgr_job_info[curr_app].shsig ==
-					    NULL) {
-						dettach_lib_shared_data_area
-						    (node_mgr_job_info
-						     [curr_app].fd_lib);
-						node_mgr_job_info[curr_app].
-						    libsh = NULL;
-						continue;
-					} else {
-						verbose_master(2,
-							       "[%d] shared_signatures mapped for %lu.%lu.%lu",
-							       getpid(), jid,
-							       sid, lid);
-					}
-				} else {
-					dettach_lib_shared_data_area
-					    (node_mgr_job_info[curr_app].
-					     fd_lib);
-					node_mgr_job_info[curr_app].libsh =
-					    NULL;
-					continue;
-				}
-			}
-			curr_app++;
-		}
-	}
-	node_mgr_info_unlock();
-	verbose_master(WF_SUPPORT_VERB,
-		       "init_earl_node_mgr_info done: Total apps computed %d , based on folders %d",
-		       total_num_earl_apps, curr_app);
+            if (apps) {
+                /* Mapping lib_shared_region */
+                verbose_master(2, "[%d] Job %lu.%lu.%lu is sharing the node", getpid(), jid, sid, lid);
+                if (get_lib_shared_data_path(tmp, ID, lid, lib_shared_region_path_jobs) == EAR_SUCCESS) {
+                    node_mgr_job_info[curr_app].libsh = attach_client_lib_shared_data_area(
+                        lib_shared_region_path_jobs, &node_mgr_job_info[curr_app].fd_lib);
+                    if (node_mgr_job_info[curr_app].libsh == NULL) {
+                        verbose_master(2, "Warning, libshared area cannot be mapped");
+                        continue;
+                    }
+                } else {
+                    verbose_master(2, "Warning, libshared path cannot be created");
+                    continue;
+                }
+                verbose_master(2, "[%d] lib_shared_data mapped for %lu.%lu.%lu", getpid(), jid, sid, lid);
+                /* Mapping shared signatures */
+                if (get_shared_signatures_path(tmp, ID, lid, sig_shared_region_path_jobs) == EAR_SUCCESS) {
+                    node_mgr_job_info[curr_app].shsig = attach_client_shared_signatures_area(
+                        sig_shared_region_path_jobs, node_mgr_job_info[curr_app].libsh->num_processes,
+                        &node_mgr_job_info[curr_app].fd_sig);
+                    if (node_mgr_job_info[curr_app].shsig == NULL) {
+                        dettach_lib_shared_data_area(node_mgr_job_info[curr_app].fd_lib);
+                        node_mgr_job_info[curr_app].libsh = NULL;
+                        verbose_master(2, "Warning, shared signatured cannot be mapped");
+                        continue;
+                    } else {
+                        verbose_master(2, "[%d] shared_signatures mapped for %lu.%lu.%lu", getpid(), jid, sid, lid);
+                    }
+                } else {
+                    dettach_lib_shared_data_area(node_mgr_job_info[curr_app].fd_lib);
+                    node_mgr_job_info[curr_app].libsh = NULL;
+                    verbose_master(2, "Warning, shared signatured path cannot be created");
+                    continue;
+                }
+            }
+            curr_app++;
+        }
+    }
+    node_mgr_info_unlock();
+    verbose_master(WF_SUPPORT_VERB, "init_earl_node_mgr_info done: Total apps computed %u , based on folders %u",
+                   total_num_earl_apps, curr_app);
 #else
 	node_mgr_earl_index = node_mgr_index;
 	node_mgr_job_info =
@@ -1254,17 +1229,17 @@ void update_earl_node_mgr_info()
 void verbose_jobs_in_node(int vl, ear_njob_t *nmgr_eard,
 			  node_mgr_sh_data_t *nmgr_earl)
 {
-	while (node_mgr_info_lock() != EAR_SUCCESS) ;
-	if (VERB_GET_LV() >= vl) {
-		if ((nmgr_eard == NULL) || (nmgr_earl == NULL)) {
-			node_mgr_info_unlock();
-			return;
-		}
-		verbose_master(vl, "%s--- Jobs in node list ---", COL_BLU);
-		char sig_buff[1024];
-		for (uint i = 0; i < total_num_earl_apps; i++) {
-			if ((nmgr_earl[i].libsh != NULL)
-			    && (nmgr_earl[i].shsig != NULL)) {
+    while (node_mgr_info_lock() != EAR_SUCCESS)
+        ;
+    if (VERB_GET_LV() >= vl) {
+        if ((nmgr_eard == NULL) || (nmgr_earl == NULL)) {
+            node_mgr_info_unlock();
+            return;
+        }
+        verbose_master(vl, "%s--- Jobs in node list Total apps: %d---", COL_BLU, total_num_earl_apps);
+        char sig_buff[1024];
+        for (uint i = 0; i < total_num_earl_apps; i++) {
+            if ((nmgr_earl[i].libsh != NULL) && (nmgr_earl[i].shsig != NULL)) {
 
 				signature_to_str(&nmgr_earl[i].libsh->
 						 job_signature, sig_buff,
