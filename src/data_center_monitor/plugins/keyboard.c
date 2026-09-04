@@ -96,13 +96,20 @@ static void *command_read(void *x)
     while (!is_closing) {
         printf("Enter command: ");
         fflush(stdout);
-        scanf("%s", command);
+        if (scanf("%127s", command) != 1) {
+            command_exit(NULL);
+            break;
+        }
         for (k = 0; k < keys_count; ++k) {
             if (is(command, keys[k].command)) {
                 for (p = 0; p < keys[k].params_count; ++p) {
-                    scanf("%s", params[p]);
+                    if (scanf("%127s", params[p]) != 1) {
+                        command_exit(NULL);
+                        break;
+                    }
                 }
-                keys[k].callback(params);
+                if (p == keys[k].params_count)
+                    keys[k].callback(params);
             }
         }
     }

@@ -21,7 +21,7 @@ static rule_t *ruleset = NULL;
 
 state_t rule_add(rule_t *rule)
 {
-    ruleset = realloc(ruleset, sizeof(rule_t) * num_rules + 1);
+    ruleset = realloc(ruleset, sizeof(rule_t) * (num_rules + 1));
 
     memcpy(&ruleset[num_rules], rule, sizeof(rule_t));
 
@@ -35,7 +35,7 @@ state_t rule_add_list(rule_t *rules, int count)
     if (rules == NULL || num_rules < 1)
         return EAR_ERROR;
 
-    ruleset = realloc(ruleset, sizeof(rule_t) * num_rules + count);
+    ruleset = realloc(ruleset, sizeof(rule_t) * (num_rules + count));
 
     memcpy(&ruleset[num_rules], rules, sizeof(rule_t) * count);
 

@@ -12,6 +12,7 @@
 #define _GNU_SOURCE
 #include <common/config.h>
 #include <common/string_enhanced.h>
+#include <common/system/file.h>
 #include <common/system/symplug.h>
 #include <dlfcn.h>
 #include <library/loader/module_common.h>
@@ -251,7 +252,7 @@ static void usage_and_exit()
              "If you want to run your application with EAR set \"export %s = \"intel\"|\"open mpi\". "
              "Otherwise use \"--ear=off\" to disable the EAR library. \n",
              FLAG_LOAD_MPI_VERSION, FLAG_LOAD_MPI_VERSION);
-    write(2, message, strlen(message));
+    ear_fd_write(STDERR_FILENO, message, strlen(message));
     exit(1);
 }
 

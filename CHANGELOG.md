@@ -6,11 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.0] - 2026-09-04
+
 ### Added
-- development Added flops to ZEN5.
+- Added CHANGELOG update by a CI job.
 
 ### Changed
-- development Updated AMD with changes for ZEN3, ZEN4 and ZEN5.
+- erun: Set SLURM_JOB_ID to non-zero by default.
+- Update EAR logo
+
+### Fixed
+- EARD: Power monitor locks fixes.
+- eacct SIGSEGV when requesting a large number of jobs fixed.
+- Fix GCC 15 compilation warnings.
+- EARD: Fixed race condition in the computation of the power of node sharing jobs.
+- Fixed compiler warnings promoted to errors by `-Wall -Werror` across PCI I/O, MPI Library loading, global-manager and `erun` cleanup, command input, database-accounting formatting, and keyboard input handling.
+- fix `ear_control.c` clang-format.
+- Fix the computation of max and min power at job end.
 
 ## [6.3.1] - 2026-06-04
 
@@ -136,7 +148,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v6.0 Improving earl-eard connect to avoid blocking.
 - v6.0 Fixed socket count in acpi\_power.
 
-## [5.2.6] - Unreleased
+## [5.2.8] - 2026-09-03
+
+### Fixed
+
+- Improve timeout management of energy readings.
+- EARD: Fixed race condition in the computation of the power of node sharing jobs.
+- Fix file permissions of EAR Library node sharing regions.
+
+## [5.2.7] - 2026-08-13
+
+### Added
+
+- CI: Power Monitor stress tests.
+
+### Fixed
+
+- Power monitor locking issues fixes.
+- eacct SIGSEGV when requesting a large number of jobs fixed.
+
+## [5.2.6] - 2026-04-20
 
 ### Changed
 

@@ -10,6 +10,8 @@
 
 #define _XOPEN_SOURCE 700 // to get rid of the warning
 
+#include <errno.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,10 +50,14 @@ cluster_conf_t my_conf;
 #define STANDARD_NODENAME_LENGTH 25
 #define APP_TEXT_FILE_FIELDS     22
 
-#define PUE                      1.2
-#define CARBON_INTENSITY         174
+/* Keep command-line and SQL query sizes bounded for bulk job queries. */
+#define EACCT_MAX_JOB_IDS     4096
+#define EACCT_QUERY_BASE_SIZE 2048
 
-#define DEFAULT_QUERY_LIMIT      5
+#define PUE                   1.2
+#define CARBON_INTENSITY      174
+
+#define DEFAULT_QUERY_LIMIT   5
 
 int32_t full_length      = 0;
 int32_t verbose          = 0;
@@ -61,6 +67,52 @@ int32_t print_gpus       = 1;
 int32_t loop_extended    = 0;
 bool display_user_column = false;
 char csv_path[256]       = "";
+
+static size_t eacct_query_size(const query_adds_t *query_adds, unsigned int job_ids_uses)
+{
+    size_t job_ids_size = 0;
+
+    if (query_adds->job_ids != NULL) {
+        job_ids_size = strlen(query_adds->job_ids);
+    }
+    return EACCT_QUERY_BASE_SIZE + (job_ids_size * job_ids_uses);
+}
+
+static char *parse_job_ids(const char *value)
+{
+    const char *current = value;
+    char *end;
+    unsigned long job_id;
+    unsigned int count = 0;
+
+    if (*value == '\0') {
+        fprintf(stderr, "Job ID list cannot be empty.\n");
+        return NULL;
+    }
+
+    do {
+        errno  = 0;
+        job_id = strtoul(current, &end, 10);
+        if (end == current || errno == ERANGE || job_id > INT_MAX) {
+            fprintf(stderr, "Invalid job ID list.\n");
+            return NULL;
+        }
+        if (++count > EACCT_MAX_JOB_IDS) {
+            fprintf(stderr, "A maximum of %d job IDs can be requested.\n", EACCT_MAX_JOB_IDS);
+            return NULL;
+        }
+        if (*end == '\0') {
+            break;
+        }
+        if (*end != ',' || *(end + 1) == '\0') {
+            fprintf(stderr, "Invalid job ID list.\n");
+            return NULL;
+        }
+        current = end + 1;
+    } while (true);
+
+    return strdup(value);
+}
 
 #if COLORS
 static void print_colors_legend()
@@ -108,7 +160,7 @@ void usage(char *app)
            "\t\t-h\tdisplays this message\n"
            "\t\t-v\tdisplays current EAR version\n"
            "\t\t-j\tspecifies the job id and step id to retrieve with the format [jobid.stepid] or the format "
-           "[jobid1,jobid2,...,jobid_n].\n"
+           "[jobid1,jobid2,...,jobid_n] (maximum 4096 job IDs).\n"
            "\t\t-l\tshows the information for each node for each job instead of the global statistics for said job.\n"
            "\t\t-r\tshows the EAR loop signatures. Users, job ids, and step ids can be specified as if were showing "
            "job information.\n"
@@ -924,8 +976,13 @@ void postgresql_print_events(PGresult *res, int fd)
 
 void read_events(char *user, query_adds_t *q_a)
 {
-    char query[512];
+    char *query = calloc(eacct_query_size(q_a, 1), sizeof(char));
     char subquery[128];
+
+    if (query == NULL) {
+        fprintf(stderr, "Unable to allocate query buffer.\n");
+        return;
+    }
 
     if (strlen(my_conf.database.user_commands) < 1) {
         fprintf(stderr, "Warning: commands' user is not defined in ear.conf\n");
@@ -949,7 +1006,7 @@ void read_events(char *user, query_adds_t *q_a)
     add_int_comp_filter(query, "event_type", 100, 0);
     if (q_a->job_id >= 0)
         add_int_filter(query, "job_id", q_a->job_id);
-    else if (strlen(q_a->job_ids) > 0)
+    else if (q_a->job_ids && strlen(q_a->job_ids) > 0)
         add_int_list_filter(query, "job_id", q_a->job_ids);
     if (q_a->step_id >= 0)
         add_int_filter(query, "step_id", q_a->step_id);
@@ -978,6 +1035,7 @@ void read_events(char *user, query_adds_t *q_a)
 
     if (result == NULL) {
         printf("Database error\n");
+        free(query);
         return;
     }
 
@@ -986,6 +1044,7 @@ void read_events(char *user, query_adds_t *q_a)
 #elif DB_PSQL
     postgresql_print_events(result, fd);
 #endif
+    free(query);
 }
 
 #define LOOPS_QUERY "SELECT * FROM Loops "
@@ -1002,7 +1061,7 @@ void format_loop_query(char *user, char *query, char *base_query, query_adds_t *
 
     if (q_a->job_id >= 0)
         add_int_filter(query, "Loops.job_id", q_a->job_id);
-    else if (strlen(q_a->job_ids) > 0)
+    else if (q_a->job_ids && strlen(q_a->job_ids) > 0)
         add_int_list_filter(query, "Loops.job_id", q_a->job_ids);
     if (q_a->step_id >= 0)
         add_int_filter(query, "Loops.step_id", q_a->step_id);
@@ -1023,18 +1082,24 @@ void format_loop_query(char *user, char *query, char *base_query, query_adds_t *
 
 void read_jobs_from_loops(query_adds_t *q_a)
 {
-    char query[256], subquery[256], tmp_path[512];
+    char *query = calloc(eacct_query_size(q_a, 1), sizeof(char));
+    char subquery[256], tmp_path[512];
     char ***values;
     int columns, rows;
     int fd = STDOUT_FILENO, ret;
 
+    if (query == NULL) {
+        fprintf(stderr, "Unable to allocate query buffer.\n");
+        return;
+    }
+
     if (strlen(csv_path) > 0 && strcmp(csv_path, "no_file")) {
         char *aux = strrchr(csv_path, '/');
         if (aux != NULL) {
+            size_t prefix_len = (size_t) (aux - csv_path + 1);
             aux++; // move the pointer from the '/' to the next part
-            snprintf(tmp_path, strlen(csv_path) - strlen(aux), "%s", csv_path);
-            strcat(tmp_path, "out_jobs.");
-            strcat(tmp_path, aux);
+            memcpy(tmp_path, csv_path, prefix_len);
+            snprintf(tmp_path + prefix_len, sizeof(tmp_path) - prefix_len, "out_jobs.%s", aux);
         } else {
             sprintf(tmp_path, "out_jobs.%s", csv_path);
         }
@@ -1046,6 +1111,7 @@ void read_jobs_from_loops(query_adds_t *q_a)
         printf("running query DESCRIBE Jobs\n");
     if (ret != EAR_SUCCESS) {
         printf("Error reading Loop description from database.\n");
+        free(query);
         return;
     }
     const char *header_names[NUM_HEADER_NAMES] = {
@@ -1060,6 +1126,7 @@ void read_jobs_from_loops(query_adds_t *q_a)
     for (int32_t i = 1; i < NUM_HEADER_NAMES; i++) {
         dprintf(fd, ";%s", header_names[i]);
     }
+    // print_header(fd, values, columns, rows);
     dprintf(fd, "\n"); // print_header does not print a new_line
     db_free_results(values, columns, rows);
 
@@ -1069,7 +1136,7 @@ void read_jobs_from_loops(query_adds_t *q_a)
 
     if (q_a->job_id >= 0)
         add_int_filter(query, "job_id", q_a->job_id);
-    else if (strlen(q_a->job_ids) > 0)
+    else if (q_a->job_ids && strlen(q_a->job_ids) > 0)
         add_int_list_filter(query, "job_id", q_a->job_ids);
     else
         printf("WARNING: -o option is meant to be used with a -j specification\n\n");
@@ -1091,16 +1158,23 @@ void read_jobs_from_loops(query_adds_t *q_a)
     ret = db_run_query_string_results(query, &values, &columns, &rows);
     if (ret != EAR_SUCCESS) {
         printf("Error reading Jobs from database\n");
+        free(query);
         return;
     }
 
     print_values(fd, values, columns, rows);
     db_free_results(values, columns, rows);
+    free(query);
 }
 
 void read_loops(char *user, query_adds_t *q_a, char *format)
 {
-    char query[1024];
+    char *query = calloc(eacct_query_size(q_a, 1), sizeof(char));
+
+    if (query == NULL) {
+        fprintf(stderr, "Unable to allocate query buffer.\n");
+        return;
+    }
 
     if (strlen(my_conf.database.user_commands) < 1) {
         fprintf(stderr, "Warning: commands' user is not defined in ear.conf\n");
@@ -1120,6 +1194,7 @@ void read_loops(char *user, query_adds_t *q_a, char *format)
     int num_loops;
 
     num_loops = db_read_loops_query(&loops, query);
+    free(query);
 
     if (num_loops < 1) {
         fprintf(stderr, "No loops retrieved\n");
@@ -1155,7 +1230,12 @@ void read_applications_from_database(char *user, query_adds_t *q_a, char *format
 #if USE_DB
     int num_apps = 0;
     char subquery[256];
-    char query[512];
+    char *query = calloc(eacct_query_size(q_a, 2), sizeof(char));
+
+    if (query == NULL) {
+        fprintf(stderr, "Unable to allocate query buffer.\n");
+        return;
+    }
 
     if (strlen(my_conf.database.user_commands) < 1) {
         fprintf(stderr, "Warning: commands' user is not defined in ear.conf\n");
@@ -1171,11 +1251,11 @@ void read_applications_from_database(char *user, query_adds_t *q_a, char *format
 
     sprintf(query, "SELECT Applications.* FROM Applications join Jobs on Applications.job_id=Jobs.job_id and "
                    "Applications.step_id = Jobs.step_id and Jobs.local_id = Applications.local_id where Jobs.job_id in "
-                   "(select job_id from (select distinct(job_id) from Jobs");
+                   "(select job_id from (select job_id, end_time from Jobs");
     application_t *apps;
     if (q_a->job_id >= 0)
         add_int_filter(query, "job_id", q_a->job_id);
-    else if (strlen(q_a->job_ids) > 0)
+    else if (q_a->job_ids && strlen(q_a->job_ids) > 0)
         add_int_list_filter(query, "job_id", q_a->job_ids);
     if (q_a->step_id >= 0)
         add_int_filter(query, "step_id", q_a->step_id);
@@ -1201,7 +1281,7 @@ void read_applications_from_database(char *user, query_adds_t *q_a, char *format
     reset_query_filters();
     if (q_a->job_id >= 0)
         add_int_filter(query, "job_id", q_a->job_id);
-    else if (strlen(q_a->job_ids) > 0)
+    else if (q_a->job_ids && strlen(q_a->job_ids) > 0)
         add_int_list_filter(query, "job_id", q_a->job_ids);
     if (q_a->step_id >= 0)
         add_int_filter(query, "Jobs.step_id", q_a->step_id);
@@ -1221,6 +1301,7 @@ void read_applications_from_database(char *user, query_adds_t *q_a, char *format
     }
 
     num_apps = db_read_applications_query(&apps, query);
+    free(query);
 
     if (verbose) {
         printf("Finalized retrieving applications\n");
@@ -1353,7 +1434,11 @@ int main(int argc, char *argv[])
                                        ? -1
                                        : query_adds.limit; // if the limit is still the default
                 if (strchr(optarg, ',')) {
-                    strcpy(query_adds.job_ids, optarg);
+                    query_adds.job_ids = parse_job_ids(optarg);
+                    if (query_adds.job_ids == NULL) {
+                        free_cluster_conf(&my_conf);
+                        exit(EXIT_FAILURE);
+                    }
                 } else {
                     query_adds.job_id = atoi(strtok(optarg, "."));
                     token             = strtok(NULL, ".");
@@ -1370,7 +1455,11 @@ int main(int argc, char *argv[])
                 is_events = 1;
                 if (optind < argc && strchr(argv[optind], '-') == NULL) {
                     if (strchr(argv[optind], ',')) {
-                        strcpy(query_adds.job_ids, argv[optind]);
+                        query_adds.job_ids = parse_job_ids(argv[optind]);
+                        if (query_adds.job_ids == NULL) {
+                            free_cluster_conf(&my_conf);
+                            exit(EXIT_FAILURE);
+                        }
                     } else {
                         query_adds.job_id = atoi(strtok(argv[optind], "."));
                         token             = strtok(NULL, ".");
@@ -1471,5 +1560,6 @@ int main(int argc, char *argv[])
 #endif
 
     free_cluster_conf(&my_conf);
+    free(query_adds.job_ids);
     exit(0);
 }

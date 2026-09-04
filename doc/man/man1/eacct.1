@@ -14,7 +14,7 @@ eacct is a simple command to see a jobs' energy accounting information. It can a
     -h      displays this message
     -v      displays current EAR version
     -u      specifies the user whose applications will be retrieved. Only available to privileged users. [default: all users]
-    -j      specifies the job id and step id to retrieve with the format [jobid.stepid] or the format [jobid1,jobid2,...,jobid_n].
+    -j      specifies the job id and step id to retrieve with the format [jobid.stepid] or the format [jobid1,jobid2,...,jobid_n]. A maximum of 4096 job IDs can be requested in a list.
                                 A user can only retrieve its own jobs unless said user is privileged. [default: all jobs]
     -a      specifies the application names that will be retrieved. [default: all app_ids]
     -c      specifies the file where the output will be stored in CSV format. [default: no file]

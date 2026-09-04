@@ -37,6 +37,7 @@
 #include <common/output/verbose.h>
 #include <common/states.h>
 #include <common/system/execute.h>
+#include <common/system/file.h>
 #include <common/system/folder.h>
 #include <common/utils/sched_support.h>
 
@@ -480,7 +481,11 @@ int send_mail(uint level, double energy)
             error("Warning mail file cannot be created at %s (%s)", mail_filename, strerror(errno));
             return 0;
         }
-        write(fd, buff, strlen(buff));
+        if (state_fail(ear_fd_write(fd, buff, strlen(buff)))) {
+            error("Warning mail file write failed: %s", strerror(errno));
+            close(fd);
+            return 0;
+        }
         close(fd);
         sprintf(command, "mailx -s \"Energy limit warning\" %s < %s", my_cluster_conf.eargm.mail, mail_filename);
         execute_with_fork(command);

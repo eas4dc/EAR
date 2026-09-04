@@ -1041,7 +1041,8 @@ int get_node_server_mirror(cluster_conf_t *conf, const char *hostname, char *mir
 {
     char hostalias[SZ_NAME_MEDIUM];
     node_island_t *is;
-    const char *a, *n;
+    char *a;
+    const char *n;
     int found_server;
     int found_mirror;
     int found_both;

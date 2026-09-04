@@ -866,7 +866,8 @@ int main(int argc, char *argv[])
 
                 verbosen(0, "Introduce root's password:");
                 fflush(stdout);
-                fgets(passw, sizeof(passw), stdin);
+                if (fgets(passw, sizeof(passw), stdin) == NULL)
+                    passw[0] = '\0';
                 t.c_lflag |= ECHO;
                 tcsetattr(STDIN_FILENO, TCSANOW, &t);
                 strclean(passw, '\n');
@@ -885,8 +886,8 @@ int main(int argc, char *argv[])
             case 'u':
                 verbosen(0, "Introduce root's user: ");
                 fflush(stdout);
-                fgets(root_user, sizeof(root_user), stdin);
-                strclean(root_user, '\n');
+                if (fgets(root_user, sizeof(root_user), stdin) != NULL)
+                    strclean(root_user, '\n');
                 fprintf(stdout, " ");
                 break;
             case 'o':

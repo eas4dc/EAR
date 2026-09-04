@@ -10,6 +10,8 @@
 
 // #define SHOW_DEBUGS 1
 
+#include <common/config.h>
+
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
 #include <common/states.h> //clean
@@ -106,7 +108,11 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
     AFD_ZERO(&rset);
     AFD_SET(intf->fd, &rset);
 
-    if (aselectv(&rset, NULL) < 0) {
+    struct timeval tout;
+    tout.tv_sec  = MAX_TIMEOUT_ENERGY_READING;
+    tout.tv_usec = 0;
+
+    if (aselectv(&rset, &tout) <= 0) {
         debug("I/O Error\n");
         if (data != NULL)
             free(data);
@@ -376,12 +382,17 @@ state_t energy_dispose(void **c)
 state_t energy_datasize(size_t *size)
 {
     debug("energy_datasize %lu\n", sizeof(unsigned long));
+    if (!size)
+        return EAR_ERROR;
+
     *size = sizeof(unsigned long);
     return EAR_SUCCESS;
 }
 
 state_t energy_frequency(ulong *freq_us)
 {
+    if (!freq_us)
+        return EAR_ERROR;
     *freq_us = 1000000;
     return EAR_SUCCESS;
 }
@@ -396,6 +407,9 @@ state_t energy_dc_read(void *c, edata_t energy_mj)
     ulong *penergy_mj = (ulong *) energy_mj;
 
     debug("energy_dc_read\n");
+
+    if (!penergy_mj)
+        return EAR_ERROR;
 
     *penergy_mj = 0;
     st          = nm_ene((struct ipmi_intf *) c, &out);
@@ -427,6 +441,9 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
     struct timeval t;
     ulong *penergy_mj = (ulong *) energy_mj;
 
+    if (!penergy_mj || !time_ms)
+        return EAR_ERROR;
+
     *penergy_mj = 0;
     *time_ms    = 0;
     st          = nm_ene((struct ipmi_intf *) c, &out);
@@ -444,7 +461,9 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
 state_t energy_ac_read(void *c, edata_t energy_mj)
 {
     ulong *penergy_mj = (ulong *) energy_mj;
-    *penergy_mj       = 0;
+    if (!penergy_mj)
+        return EAR_ERROR;
+    *penergy_mj = 0;
     return EAR_SUCCESS;
 }
 
@@ -461,6 +480,8 @@ unsigned long diff_node_energy(ulong init, ulong end)
 
 state_t energy_units(uint *units)
 {
+    if (!units)
+        return EAR_ERROR;
     *units = 1000;
     return EAR_SUCCESS;
 }
@@ -468,6 +489,9 @@ state_t energy_units(uint *units)
 state_t energy_accumulated(unsigned long *e, edata_t init, edata_t end)
 {
     ulong *pinit = (ulong *) init, *pend = (ulong *) end;
+
+    if (!e || !pinit || !pend)
+        return EAR_ERROR;
 
     unsigned long total = diff_node_energy(*pinit, *pend);
     *e                  = total;
@@ -477,6 +501,8 @@ state_t energy_accumulated(unsigned long *e, edata_t init, edata_t end)
 state_t energy_to_str(char *str, edata_t e)
 {
     ulong *pe = (ulong *) e;
+    if (!pe || !str)
+        return EAR_ERROR;
     sprintf(str, "%lu", *pe);
     return EAR_SUCCESS;
 }
@@ -490,5 +516,7 @@ state_t power_limit(ulong limit)
 uint energy_data_is_null(edata_t e)
 {
     ulong *pe = (ulong *) e;
+    if (!pe)
+        return 1;
     return (*pe == 0);
 }

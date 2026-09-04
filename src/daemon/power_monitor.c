@@ -100,6 +100,7 @@ nm_data_t nm_init, nm_end, nm_diff, last_nm;
 dom_power_t pdomain;
 cpu_set_t in_jobs_mask;
 
+// This lock protects the current_ear_app
 static pthread_mutex_t app_lock = PTHREAD_MUTEX_INITIALIZER;
 static ehandler_t my_eh_pm;
 static char *TH_NAME = "PowerMon";
@@ -334,7 +335,13 @@ int mark_contexts_to_finish_by_pid()
 
     debug("marking_contexts_to_finish by pid");
 
-    for (i = 0; i <= max_context_created; i++) {
+    if (state_fail(ear_trylock(&app_lock))) {
+        error("Locking pmon_app global vector in mark_contexts_to_finish_by_pid");
+        return 0;
+    }
+    debug("%sApp lock", COL_RED);
+
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
 
         if (current_ear_app[i] != NULL) {
 
@@ -348,17 +355,22 @@ int mark_contexts_to_finish_by_pid()
                 state_t lock_st;
                 if ((lock_st = ear_trylock(&powermon_app_mutex[i])) != EAR_SUCCESS) {
                     error("Locking context %d to mark it as FINISHED: %s", i, state_msg);
+                    ear_unlock(&app_lock);
+                    debug("%s", COL_CLR);
                     return found_contexts;
                 }
 
-                current_ear_app[i]->state = APP_FINISHED;
+                if (current_ear_app[i]) {
+                    current_ear_app[i]->state = APP_FINISHED;
+                    found_contexts++;
+                }
 
                 ear_unlock(&powermon_app_mutex[i]);
-
-                found_contexts++;
             }
         }
     }
+    ear_unlock(&app_lock);
+    debug("%s", COL_CLR);
 
     return found_contexts;
 }
@@ -374,18 +386,24 @@ int mark_contexts_to_finish_by_jobid(job_id id, job_id step_id)
 
     debug("marking_contexts_to_finish %lu %lu", id, step_id);
 
+    if (state_fail(ear_trylock(&app_lock))) {
+        error("Locking pmon_app global vector in mark_contexts_to_finish_by_jobid %lu/%lu", id, step_id);
+        return 0;
+    }
+    debug("%sApp lock", COL_RED);
     for (i = 0; i <= max_context_created; i++) {
 
         if (current_ear_app[i] != NULL) {
             state_t lock_st;
             if ((lock_st = ear_trylock(&powermon_app_mutex[i])) != EAR_SUCCESS) {
                 error("Locking context %d to mark it as FINISHED: %s", i, state_msg);
+                ear_unlock(&app_lock);
+                debug("%s", COL_CLR);
                 return found_contexts;
             }
 
-            if (current_ear_app[i]->app.job.id == id) {
+            if (current_ear_app[i] && current_ear_app[i]->app.job.id == id) {
                 current_ear_app[i]->state = APP_FINISHED;
-
                 found_contexts++;
             }
 
@@ -393,18 +411,31 @@ int mark_contexts_to_finish_by_jobid(job_id id, job_id step_id)
         }
     }
 
+    ear_unlock(&app_lock);
+    debug("%s", COL_CLR);
+
     return found_contexts;
 }
 
 void finish_pending_contexts(ehandler_t *eh)
 {
-    for (int i = 0; i <= max_context_created; i++) {
-        if ((current_ear_app[i] != NULL) && (current_ear_app[i]->state == APP_FINISHED)) {
-            verbose(VJOBPMON, "Finishing the %lu/%lu context...", current_ear_app[i]->app.job.id,
-                    current_ear_app[i]->app.job.step_id);
-
-            powermon_end_job(eh, current_ear_app[i]->app.job.id, current_ear_app[i]->app.job.step_id, 0);
+    for (int i = 0; i < MAX_NESTED_LEVELS; i++) {
+        if (state_fail(ear_trylock(&app_lock)))
+            return;
+        debug("%sApp lock", COL_RED);
+        int cc = i;
+        if (state_fail(ear_trylock(&powermon_app_mutex[cc]))) {
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
+            continue;
         }
+        powermon_app_t *pmapp = current_ear_app[cc];
+        if (pmapp && (pmapp->state == APP_FINISHED)) {
+            verbose(VJOBPMON, "Finishing the %lu/%lu context...", pmapp->app.job.id, pmapp->app.job.step_id);
+            powermon_end_job(eh, pmapp->app.job.id, pmapp->app.job.step_id, 0, 1);
+        }
+        ear_unlock(&app_lock);
+        ear_unlock(&powermon_app_mutex[cc]);
     }
 }
 
@@ -412,6 +443,7 @@ int find_context_for_job(job_id id, job_id sid)
 {
     int i = 0, pos = -1;
     debug("find_context_for_job %lu %lu", id, sid);
+
     while ((i <= max_context_created) && (pos < 0)) {
         if ((current_ear_app[i] != NULL) && (current_ear_app[i]->app.job.id == id) &&
             (current_ear_app[i]->app.job.step_id == sid)) {
@@ -428,95 +460,59 @@ int find_context_for_job(job_id id, job_id sid)
 }
 
 /* This function is called at job or step end. TODO: Thread-save here. */
-static void end_context(int cc, uint get_lock)
+static void end_context(int cc, powermon_app_t *pmapp)
 {
-    int ID, i;
-    int new_max;
+    int ID;
 
     debug("end_context %d", cc);
+    if (!pmapp) {
+        error("End context and null pmapp");
+        return;
+    }
 
-    if (current_ear_app[cc] != NULL) {
+    free_energy_data(&pmapp->energy_init);
 
-        state_t lock_st;
-        if (get_lock && ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS)) {
-            error("Locking context %d at ending: %s", cc, state_msg);
-            return;
-        }
+    ID = create_ID(pmapp->app.job.id, pmapp->app.job.step_id);
 
-        // We check again if the current context is NULL because we free memory
-        // in a non-thread-save zone.
-        if (current_ear_app[cc] != NULL) {
+    /* 0 means no context or Idle context */
+    shared_eard_joblist[cc] = 0;
+    if (get_jobmon_path(ear_tmp, ID, jobpmon_path) != EAR_SUCCESS) {
+        error("Creating job pmon path in end_context");
+    }
+    /* Releasing self shared area */
+    debug("Releasing self shared area for context %d at %s fd %d", cc, jobpmon_path, pmapp->fd_shared_areas[SELF]);
+    jobmon_shared_area_dispose(jobpmon_path, NULL, pmapp->fd_shared_areas[SELF]);
 
-            free_energy_data(&current_ear_app[cc]->energy_init);
+    del_job_in_node(pmapp->app.job.id);
 
-            ID = create_ID(current_ear_app[cc]->app.job.id, current_ear_app[cc]->app.job.step_id);
+    get_settings_conf_path(ear_tmp, ID, shmem_path);
 
-            /* 0 means no context or Idle context */
-            shared_eard_joblist[cc] = 0;
-            if (get_jobmon_path(ear_tmp, ID, jobpmon_path) != EAR_SUCCESS) {
-                error("Creating job pmon path in end_context");
-            }
-            /* Releasing self shared area */
-            debug("Releasing self shared area for context %d at %s fd %d", cc, jobpmon_path,
-                  current_ear_app[cc]->fd_shared_areas[SELF]);
-            jobmon_shared_area_dispose(jobpmon_path, NULL, current_ear_app[cc]->fd_shared_areas[SELF]);
+    debug("Releasing shared settings area for context %d at %s fd %d", cc, shmem_path,
+          pmapp->fd_shared_areas[SETTINGS_AREA]);
+    settings_conf_shared_area_dispose(shmem_path, pmapp->settings, pmapp->fd_shared_areas[SETTINGS_AREA]);
+    get_resched_path(ear_tmp, ID, shmem_path);
+    resched_shared_area_dispose(shmem_path, pmapp->resched, pmapp->fd_shared_areas[RESCHED_AREA]);
 
-            del_job_in_node(current_ear_app[cc]->app.job.id);
+    get_app_mgt_path(ear_tmp, ID, shmem_path);
+    app_mgt_shared_area_dispose(shmem_path, pmapp->app_info, pmapp->fd_shared_areas[APP_MGT_AREA]);
 
-            get_settings_conf_path(ear_tmp, ID, shmem_path);
+    get_pc_app_info_path(ear_tmp, ID, shmem_path);
+    pc_app_info_shared_area_dispose(shmem_path, pmapp->pc_app_info, pmapp->fd_shared_areas[PC_APP_AREA]);
 
-            debug("Releasing shared settings area for context %d at %s fd %d", cc, shmem_path,
-                  current_ear_app[cc]->fd_shared_areas[SETTINGS_AREA]);
-            settings_conf_shared_area_dispose(shmem_path, current_ear_app[cc]->settings,
-                                              current_ear_app[cc]->fd_shared_areas[SETTINGS_AREA]);
-            get_resched_path(ear_tmp, ID, shmem_path);
-            resched_shared_area_dispose(shmem_path, current_ear_app[cc]->resched,
-                                        current_ear_app[cc]->fd_shared_areas[RESCHED_AREA]);
+    cpufreq_data_free(&pmapp->freq_job1, &pmapp->freq_diff);
 
-            get_app_mgt_path(ear_tmp, ID, shmem_path);
-            app_mgt_shared_area_dispose(shmem_path, current_ear_app[cc]->app_info,
-                                        current_ear_app[cc]->fd_shared_areas[APP_MGT_AREA]);
-
-            get_pc_app_info_path(ear_tmp, ID, shmem_path);
-            pc_app_info_shared_area_dispose(shmem_path, current_ear_app[cc]->pc_app_info,
-                                            current_ear_app[cc]->fd_shared_areas[PC_APP_AREA]);
-
-            cpufreq_data_free(&current_ear_app[cc]->freq_job1, &current_ear_app[cc]->freq_diff);
-
-            free(current_ear_app[cc]->prio_idx_list);
-            current_ear_app[cc]->prio_idx_list = NULL; // This is redundant since we free
-                                                       // immediatelly the current context.
-
-            num_contexts--;
-
-            if (get_lock)
-                ear_unlock(&powermon_app_mutex[cc]);
+    free(pmapp->prio_idx_list);
 
 #if USE_PMON_SHARED_AREA
-            /* Releasing self shared area */
-            jobmon_shared_area_dispose(jobpmon_path, current_ear_app[cc], current_ear_app[cc]->fd_shared_areas[SELF]);
+    /* Releasing self shared area */
+    jobmon_shared_area_dispose(jobpmon_path, pmapp, pmapp->fd_shared_areas[SELF]);
 #else
-            jobmon_shared_area_dispose(jobpmon_path, (powermon_app_t *) current_ear_app[cc]->sh_self,
-                                       current_ear_app[cc]->fd_shared_areas[SELF]);
-            free(current_ear_app[cc]);
+    jobmon_shared_area_dispose(jobpmon_path, (powermon_app_t *) pmapp->sh_self, pmapp->fd_shared_areas[SELF]);
+    free(pmapp);
 #endif
-
-            current_ear_app[cc] = NULL;
-
-            if (cc == max_context_created) {
-                new_max = 0;
-
-                for (i = 0; i <= max_context_created; i++) {
-                    if ((current_ear_app[i] != NULL) && (i > new_max))
-                        new_max = i;
-                }
-
-                debug("New max_context_created %d", new_max);
-                max_context_created = new_max;
-            }
-        }
-    }
 }
+
+#if 0
 
 /* This function will be called when job ends to be sure there is not steps pending to clean. */
 void clean_job_contexts(job_id id)
@@ -553,22 +549,33 @@ void clean_contexts_diff_than(job_id id)
         }
     }
 }
+#endif
 
 int select_last_context()
 {
 
     int i = 0, pos = -1;
-
+#if SHOW_DEBUGS
+    int jid, sid;
+#endif
+    if (state_fail(ear_trylock(&app_lock)))
+        return pos;
+    debug("%sApp lock", COL_RED);
     while ((i < MAX_NESTED_LEVELS) && (pos < 0)) {
-        if (current_ear_app[i] != NULL)
+        if (current_ear_app[i] != NULL) {
             pos = i;
-        else
+#if SHOW_DEBUGS
+            jid = current_ear_app[pos]->app.job.id;
+            sid = current_ear_app[pos]->app.job.step_id;
+#endif
+        } else
             i++;
     }
+    ear_unlock(&app_lock);
+    debug("%s", COL_CLR);
 
     if (pos >= 0) {
-        debug("select_last_context selects context %d (%lu,%lu)", pos, current_ear_app[pos]->app.job.id,
-              current_ear_app[pos]->app.job.step_id);
+        debug("select_last_context selects context %d (%d,%d)", pos, jid, sid);
     } else {
         debug("select_last_context no contexts actives");
     }
@@ -580,6 +587,8 @@ int select_last_context()
 void powermon_purge_old_jobs()
 {
     powermon_app_t *pmapp;
+    // Disabled
+    return;
     for (uint cc = 1; cc <= max_context_created; cc++) {
 
         if (current_ear_app[cc] != NULL) {
@@ -598,10 +607,17 @@ void powermon_purge_old_jobs()
     }
 }
 
+// Lock is already acquired
+
 /* TODO: Thread-save here?: It's not possible because mutex is inside the context that will be created. */
 static int new_context(job_id id, job_id sid, char *user, char *group, int *cc)
 {
+    char jobpmon_path[GENERIC_NAME];
+    char settings_path[GENERIC_NAME];
     char shmem_path[GENERIC_NAME];
+    char resched_path[GENERIC_NAME];
+    char app_mgt_path[GENERIC_NAME];
+    char pc_app_path[GENERIC_NAME];
     uint ID;
     int ccontext;
 
@@ -623,14 +639,16 @@ static int new_context(job_id id, job_id sid, char *user, char *group, int *cc)
     ccontext = pos;
     *cc      = ccontext;
 
-    current_ear_app[ccontext] = (powermon_app_t *) calloc(1, sizeof(powermon_app_t));
+    powermon_app_t *aux_pmon_app = (powermon_app_t *) calloc(1, sizeof(powermon_app_t));
 
-    if (current_ear_app[ccontext] == NULL) {
+    if (aux_pmon_app == NULL) {
         *cc = -1;
         error("Panic: malloc returns NULL for current context");
         return EAR_ERROR;
     }
 
+// Lock is already acquired
+#if 0
     int err_num;
     if ((err_num = pthread_mutex_init(&powermon_app_mutex[ccontext], NULL))) {
         error("Initializing mutex for context %d (%lu/%lu): %s", ccontext, id, sid, strerror(err_num));
@@ -640,126 +658,134 @@ static int new_context(job_id id, job_id sid, char *user, char *group, int *cc)
         error("Locking new context");
         return EAR_ERROR;
     }
+#endif
 
-    if (ccontext > max_context_created)
-        max_context_created = ccontext;
-
-    alloc_energy_data(&current_ear_app[ccontext]->energy_init);
+    alloc_energy_data(&aux_pmon_app->energy_init);
 
     /* This info will be overwritten later */
-    current_ear_app[ccontext]->app.job.id      = id;
-    current_ear_app[ccontext]->app.job.step_id = sid;
+    aux_pmon_app->app.job.id      = id;
+    aux_pmon_app->app.job.step_id = sid;
     debug("New context created: %d", ccontext);
-
-    add_job_in_node(id);
 
     /* We must create per jobid, stepid shared memory regions. */
     ID = create_ID(id, sid);
-    /* Shared vector with joblist */
-    shared_eard_joblist[ccontext] = ID;
 
     /* Start: Mapping my own data in a shared file */
-    if (get_jobmon_path(ear_tmp, ID, jobpmon_path) != EAR_SUCCESS) {
+    if (get_jobmon_path(ear_tmp, ID, shmem_path) != EAR_SUCCESS) {
         error("Error creating jobpmon path");
-        ear_unlock(&powermon_app_mutex[ccontext]);
+        free_energy_data(&aux_pmon_app->energy_init);
+        free(aux_pmon_app);
+        // ear_unlock(&powermon_app_mutex[ccontext]);
         return EAR_ERROR;
     }
+    memcpy(jobpmon_path, shmem_path, strlen(shmem_path) + 1);
     // We use the new shared area rather than the allocated area
     powermon_app_t *aux1, *aux2;
-    aux1 = current_ear_app[ccontext];
-    if ((aux2 = create_jobmon_shared_area(jobpmon_path, current_ear_app[ccontext],
-                                          &current_ear_app[ccontext]->fd_shared_areas[SELF], user)) == NULL) {
+    aux1 = aux_pmon_app;
+    if ((aux2 = create_jobmon_shared_area(jobpmon_path, aux_pmon_app, &aux_pmon_app->fd_shared_areas[SELF], user)) ==
+        NULL) {
         error("Error creating shared memory for pmon for ((%lu,%lu)", id, sid);
-        ear_unlock(&powermon_app_mutex[ccontext]);
+        // ear_unlock(&powermon_app_mutex[ccontext]);
+        free_energy_data(&aux1->energy_init);
+        free(aux1);
         return EAR_ERROR;
     }
-    current_ear_app[ccontext]->sh_self = (void *) aux2;
+    aux1->sh_self = (void *) aux2;
 #if USE_PMON_SHARED_AREA
     // This option forces eard to use the shared pmapp region, otherwise it is not updated dynamically
     // it could be used to see the list of jobs but not to update job state etc
-    current_ear_app[ccontext] = aux2;
+    // moved at the end: current_ear_app[ccontext] = aux2;
+    // free_energy_data(&aux1->energy_init);
     free(aux1);
 #endif
-    verbose(VJOBPMON, "(%lu/%lu) 'Self' context in '%s' (fd %d)", id, sid, jobpmon_path,
-            current_ear_app[ccontext]->fd_shared_areas[SELF]);
+    verbose(VJOBPMON, "(%lu/%lu) 'Self' context in '%s' (fd %d)", id, sid, jobpmon_path, aux2->fd_shared_areas[SELF]);
     /* End of Pmon mapping */
 
     get_settings_conf_path(ear_tmp, ID, shmem_path);
+    memcpy(settings_path, shmem_path, strlen(shmem_path) + 1);
 
-    current_ear_app[ccontext]->settings = create_settings_conf_shared_area(
-        shmem_path, &current_ear_app[ccontext]->fd_shared_areas[SETTINGS_AREA], my_cluster_conf.ear_owner);
-    if (current_ear_app[ccontext]->settings == NULL) {
+    aux2->settings =
+        create_settings_conf_shared_area(shmem_path, &aux2->fd_shared_areas[SETTINGS_AREA], my_cluster_conf.ear_owner);
+    if (aux2->settings == NULL) {
         error("Error creating shared memory between EARD & EARL for (%lu,%lu)", id, sid);
-        ear_unlock(&powermon_app_mutex[ccontext]);
+        // ear_unlock(&powermon_app_mutex[ccontext]);
+        jobmon_shared_area_dispose(jobpmon_path, NULL, aux2->fd_shared_areas[SELF]);
         return EAR_ERROR;
     }
-
-    debug("(%lu/%lu) Settings for new context '%s' (fd %d)", id, sid, shmem_path,
-          current_ear_app[ccontext]->fd_shared_areas[SETTINGS_AREA]);
+    debug("(%lu/%lu) Settings for new context '%s' (fd %d)", id, sid, shmem_path, aux2->fd_shared_areas[SETTINGS_AREA]);
 
     /* Context 0 is the default one */
-    memcpy(current_ear_app[ccontext]->settings, current_ear_app[0]->settings, sizeof(settings_conf_t));
+    memcpy(aux2->settings, current_ear_app[0]->settings, sizeof(settings_conf_t));
 
     get_resched_path(ear_tmp, ID, shmem_path);
+    memcpy(resched_path, shmem_path, strlen(shmem_path) + 1);
 
-    current_ear_app[ccontext]->resched =
-        create_resched_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[RESCHED_AREA], user);
+    aux2->resched = create_resched_shared_area(shmem_path, &aux2->fd_shared_areas[RESCHED_AREA], user);
 
-    if (current_ear_app[ccontext]->resched == NULL) {
+    if (aux2->resched == NULL) {
         error("Error creating resched shared memory between EARD & EARL for (%lu,%lu)", id, sid);
-        ear_unlock(&powermon_app_mutex[ccontext]);
+        // ear_unlock(&powermon_app_mutex[ccontext]);
+        jobmon_shared_area_dispose(jobpmon_path, NULL, aux2->fd_shared_areas[SELF]);
+        settings_conf_shared_area_dispose(settings_path, aux2->settings, aux2->fd_shared_areas[SETTINGS_AREA]);
         return EAR_ERROR;
     }
     debug("(%lu/%lu) Resched path for new context in '%s' (fd %d)", id, sid, shmem_path,
-          current_ear_app[ccontext]->fd_shared_areas[RESCHED_AREA]);
+          aux2->fd_shared_areas[RESCHED_AREA]);
 
-    current_ear_app[ccontext]->resched->force_rescheduling = 0;
+    aux2->resched->force_rescheduling = 0;
 
-    cpufreq_data_alloc(&current_ear_app[ccontext]->freq_job1, &current_ear_app[ccontext]->freq_diff);
+    cpufreq_data_alloc(&aux2->freq_job1, &aux2->freq_diff);
 
     /* This area is for application data */
 
     get_app_mgt_path(ear_tmp, ID, shmem_path);
+    memcpy(app_mgt_path, shmem_path, strlen(shmem_path) + 1);
 
-    current_ear_app[ccontext]->app_info =
-        create_app_mgt_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[APP_MGT_AREA], user);
+    aux2->app_info = create_app_mgt_shared_area(shmem_path, &aux2->fd_shared_areas[APP_MGT_AREA], user);
 
-    if (current_ear_app[ccontext]->app_info == NULL) {
+    if (aux2->app_info == NULL) {
         error("Error creating shared memory between EARD & EARL for app_mgt (%lu,%lu)", id, sid);
-        ear_unlock(&powermon_app_mutex[ccontext]);
+        // ear_unlock(&powermon_app_mutex[ccontext]);
+        jobmon_shared_area_dispose(jobpmon_path, NULL, aux2->fd_shared_areas[SELF]);
+        settings_conf_shared_area_dispose(settings_path, aux2->settings, aux2->fd_shared_areas[SETTINGS_AREA]);
+        resched_shared_area_dispose(resched_path, aux2->resched, aux2->fd_shared_areas[RESCHED_AREA]);
         return EAR_ERROR;
     }
     debug("(%lu/%lu) App. mgt. for new context in '%s' (fd %d)", id, sid, shmem_path,
-          current_ear_app[ccontext]->fd_shared_areas[APP_MGT_AREA]);
+          aux2->fd_shared_areas[APP_MGT_AREA]);
 
     /* Default value for app_info */
 
     get_pc_app_info_path(ear_tmp, ID, shmem_path);
+    memcpy(pc_app_path, shmem_path, strlen(shmem_path) + 1);
 
-    current_ear_app[ccontext]->pc_app_info =
-        create_pc_app_info_shared_area(shmem_path, &current_ear_app[ccontext]->fd_shared_areas[PC_APP_AREA], user);
-    if (current_ear_app[ccontext]->pc_app_info == NULL) {
+    aux2->pc_app_info = create_pc_app_info_shared_area(shmem_path, &aux2->fd_shared_areas[PC_APP_AREA], user);
+    if (aux2->pc_app_info == NULL) {
         error("Error creating shared memory between EARD & EARL for pc_app_info (%lu,%lu)", id, sid);
-        ear_unlock(&powermon_app_mutex[ccontext]);
+        // ear_unlock(&powermon_app_mutex[ccontext]);
+        jobmon_shared_area_dispose(jobpmon_path, NULL, aux2->fd_shared_areas[SELF]);
+        settings_conf_shared_area_dispose(settings_path, aux2->settings, aux2->fd_shared_areas[SETTINGS_AREA]);
+        resched_shared_area_dispose(resched_path, aux2->resched, aux2->fd_shared_areas[RESCHED_AREA]);
+        app_mgt_shared_area_dispose(app_mgt_path, aux2->app_info, aux2->fd_shared_areas[APP_MGT_AREA]);
         return EAR_ERROR;
     }
     debug("(%lu/%lu) Powercap app. info for new context in '%s' (fd %d)", id, sid, shmem_path,
-          current_ear_app[ccontext]->fd_shared_areas[PC_APP_AREA]);
+          aux2->fd_shared_areas[PC_APP_AREA]);
 
-    current_ear_app[ccontext]->pc_app_info->cpu_mode = powercap_get_cpu_strategy();
+    aux2->pc_app_info->cpu_mode = powercap_get_cpu_strategy();
 
 #if USE_GPUS
-    current_ear_app[ccontext]->pc_app_info->gpu_mode = powercap_get_gpu_strategy();
+    aux2->pc_app_info->gpu_mode = powercap_get_gpu_strategy();
 #endif
 
     /* accum_ps is the accumulated power signature when sharing nodes */
-    memset(&(current_ear_app[ccontext]->accum_ps), 0, sizeof(accum_power_sig_t));
+    memset(&(aux2->accum_ps), 0, sizeof(accum_power_sig_t));
 
-    current_ear_app[ccontext]->exclusive = (num_jobs_in_node() == 1);
+    aux2->exclusive = (num_jobs_in_node() == 1);
 
     cpuprio_t *prio_list_dummy; // The priority API requires a valid pointer to cpuprio_t
                                 // to call the alloc method, although we won't need it here.
-    mgt_cpuprio_data_alloc(&prio_list_dummy, &current_ear_app[ccontext]->prio_idx_list);
+    mgt_cpuprio_data_alloc(&prio_list_dummy, &aux2->prio_idx_list);
     free(prio_list_dummy);
 
     /* Default value for pc_app_info
@@ -770,7 +796,14 @@ static int new_context(job_id id, job_id sid, char *user, char *group, int *cc)
 
     num_contexts++;
 
-    ear_unlock(&powermon_app_mutex[ccontext]);
+    current_ear_app[ccontext] = aux2;
+    /* Shared vector with joblist */
+    shared_eard_joblist[ccontext] = ID;
+    add_job_in_node(id);
+    if (ccontext > max_context_created)
+        max_context_created = ccontext;
+
+    // ear_unlock(&powermon_app_mutex[ccontext]);
 
     return EAR_SUCCESS;
 }
@@ -851,12 +884,14 @@ void clean_job_area(uint ID)
     folder_remove(job_path);
 }
 
+#if 0
 static state_t test_job_folder(uint ID)
 {
     char job_path[MAX_PATH_SIZE];
     xsnprintf(job_path, sizeof(job_path), "%s/%u", ear_tmp, ID);
     return folder_exists(job_path);
 }
+#endif
 
 powermon_app_t *get_powermon_app()
 {
@@ -1141,7 +1176,8 @@ void job_init_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh, application_t
 {
     state_t s;
 
-    verbose(VJOBPMON, "job_init_powermon_app init %lu/%lu ", new_app->job.id, new_app->job.step_id);
+    verbose(VJOBPMON, "job_init_powermon_app init %lu/%lu (from APP %u)", new_app->job.id, new_app->job.step_id,
+            from_mpi);
 
     if (pmapp == NULL) {
         verbose(VJOBPMON, "Error, job_init_powermon_app with null pmapp");
@@ -1209,29 +1245,32 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
 
     read_enegy_data(ceh, &c_energy);
     compute_power(&pmapp->energy_init, &c_energy, &app_power);
+    double curr_DC_power   = accum_node_power(&app_power);
+    double curr_dram_power = accum_dram_power(&app_power);
+    double curr_pck_power  = accum_cpu_power(&app_power);
+
+    /* Last test : This is just a workaround because there is also GPU power*/
+    if (curr_DC_power < (curr_dram_power + curr_pck_power))
+        curr_DC_power = curr_dram_power + curr_pck_power;
 
     if (pmapp->exclusive) {
 
         verbose(VJOBPMON, "[%lu/%lu] Computing power signature. Job executed in exclusive mode", pmapp->app.job.id,
                 pmapp->app.job.step_id);
 
-        pmapp->app.power_sig.DC_power = accum_node_power(&app_power);
-
-        /* Filter */
-        if (pmapp->app.power_sig.DC_power > my_node_conf->max_sig_power)
-            pmapp->app.power_sig.DC_power = my_node_conf->max_sig_power;
-        if (pmapp->app.power_sig.DC_power < my_node_conf->min_sig_power)
-            pmapp->app.power_sig.DC_power = my_node_conf->min_sig_power;
+        /* Filter based on ear.conf */
+        if (curr_DC_power > my_node_conf->max_sig_power)
+            curr_DC_power = my_node_conf->max_sig_power;
+        if (curr_DC_power < my_node_conf->min_sig_power)
+            curr_DC_power = my_node_conf->min_sig_power;
 
         /* Compute max and min */
-        pmapp->app.power_sig.max_DC_power =
-            ear_max(pmapp->app.power_sig.max_DC_power, pmapp->app.power_sig.max_DC_power);
-        pmapp->app.power_sig.min_DC_power =
-            ear_min(pmapp->app.power_sig.min_DC_power, pmapp->app.power_sig.max_DC_power);
+        pmapp->app.power_sig.max_DC_power = ear_max(curr_DC_power, pmapp->app.power_sig.max_DC_power);
+        pmapp->app.power_sig.min_DC_power = ear_min(curr_DC_power, pmapp->app.power_sig.min_DC_power);
 
         /* DRAM and PCK */
-        pmapp->app.power_sig.DRAM_power = accum_dram_power(&app_power);
-        pmapp->app.power_sig.PCK_power  = accum_cpu_power(&app_power);
+        pmapp->app.power_sig.DRAM_power = curr_dram_power;
+        pmapp->app.power_sig.PCK_power  = curr_pck_power;
         // CPU Frequency
         state_assert(
             s, cpufreq_read_diff(no_ctx, freq_job2, pmapp->freq_job1, pmapp->freq_diff, &pmapp->app.power_sig.avg_f), );
@@ -1241,6 +1280,7 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
                              &lcpus);
         }
     } else {
+        /* Not exclusive and is_mpi means EARL is used */
         if (pmapp->app.is_mpi) {
             verbose(VJOBPMON, "Computing power signature. Job executed in NOT exclusive mode. Using EARL signature");
             pmapp->app.power_sig.DC_power   = pmapp->app.signature.DC_power;
@@ -1257,8 +1297,8 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
 
         if (pmapp->app.power_sig.DC_power > my_node_conf->max_sig_power)
             pmapp->app.power_sig.DC_power = my_node_conf->max_sig_power;
-        if (pmapp->app.power_sig.DC_power < my_node_conf->min_sig_power)
-            pmapp->app.power_sig.DC_power = my_node_conf->min_sig_power;
+        /* DC power is not fixed at the lower bound because a job might have low dc power assigned when sharing
+         * resources.*/
 
         pmapp->app.power_sig.max_DC_power = ear_max(pmapp->accum_ps.max, pmapp->app.power_sig.DC_power);
         pmapp->app.power_sig.min_DC_power = ear_min(pmapp->accum_ps.min, pmapp->app.power_sig.DC_power);
@@ -1476,17 +1516,27 @@ void powermon_loop_signature(job_id jid, job_id sid, loop_t *loops)
 {
     int cc;
     powermon_app_t *pmapp;
+    if (state_fail(ear_trylock(&app_lock))) {
+        error("Locking pmon_app failure for %lu/%lu in runtime signature report", jid, sid);
+        return;
+    }
+    debug("%sApp lock", COL_RED);
     cc = find_context_for_job(jid, sid);
     if (cc < 0) {
         verbose(VJOBPMON, "powermon_loop_signature and no current context for %lu/%lu", jid, sid);
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
         return;
     }
+
     pmapp = current_ear_app[cc];
 
     debug("New loop signature for %lu/%lu, iterations %lu", pmapp->app.job.id, pmapp->app.job.step_id,
           loops->total_iterations);
 
     copy_loop(&pmapp->last_loop, loops);
+    ear_unlock(&app_lock);
+    debug("%s", COL_CLR);
     return;
 }
 
@@ -1497,17 +1547,23 @@ void powermon_mpi_init(ehandler_t *eh, application_t *appID)
 {
 
     ulong jid, sid;
-    jid = appID->job.id;
-    sid = appID->job.step_id;
     powermon_app_t *pmapp;
 
     if (appID == NULL) {
         error("powermon_mpi_init: NULL appID");
         return;
     }
+    jid = appID->job.id;
+    sid = appID->job.step_id;
 
     verbose(VTASKMON, "powermon_mpi_init job_id %lu step_id %lu (is_mpi %u)", appID->job.id, appID->job.step_id,
             appID->is_mpi);
+    if (state_fail(ear_trylock(&app_lock))) {
+        error("Locking  pmon_app global vector for app init %lu/%lu cannot be acquired", appID->job.id,
+              appID->job.step_id);
+        return;
+    }
+    debug("%sApp lock", COL_RED);
 
     int cc = find_context_for_job(jid, sid);
 
@@ -1521,6 +1577,8 @@ void powermon_mpi_init(ehandler_t *eh, application_t *appID)
 
         if (cc < 0) {
             verbose(VJOBPMON, "ERROR: Context not created!");
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
             return;
         }
     }
@@ -1529,8 +1587,16 @@ void powermon_mpi_init(ehandler_t *eh, application_t *appID)
     if (pmapp) {
         state_t lock_st;
         if ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS) {
-            error("Locking context %lu/%lu updating the number of local ids: %s", pmapp->app.job.id,
-                  pmapp->app.job.step_id, state_msg);
+            error("Locking context %u updating the number of local ids: %s", cc, state_msg);
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
+            return;
+        }
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        pmapp = current_ear_app[cc]; // double check
+        if (!pmapp) {
+            ear_unlock(&powermon_app_mutex[cc]);
             return;
         }
 
@@ -1568,27 +1634,42 @@ void powermon_mpi_finalize(ehandler_t *eh, ulong jid, ulong sid)
     /* jid,sid can finish in a different order than expected */
     debug("powermon_mpi_finalize %lu %lu", jid, sid);
 
+    if (state_fail(ear_trylock(&app_lock))) {
+        error("Locking  pmon_app global vector for app finalize %lu/%lu cannot be acquired", jid, sid);
+        return;
+    }
+    debug("%sApp lock", COL_RED);
     cc = find_context_for_job(jid, sid);
     if (cc < 0) {
         error("powermon_mpi_finalize %lu,%lu and no context created for it", jid, sid);
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
         return;
     }
 
-    pmapp = current_ear_app[cc];
-
     state_t lock_st;
     if ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS) {
-        error("Locking context %lu/%lu updating the number of local ids: %s", pmapp->app.job.id, pmapp->app.job.step_id,
-              state_msg);
+        error("Locking context %u updating the number of local ids: %s", cc, state_msg);
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        return;
+    }
+    pmapp = current_ear_app[cc];
+    if (!pmapp || !pmapp->local_ids) { // Double check
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        ear_unlock(&powermon_app_mutex[cc]);
         return;
     }
 
     pmapp->local_ids--;
 
-    ear_unlock(&powermon_app_mutex[cc]);
-
-    if (pmapp->local_ids > 0)
+    if (pmapp->local_ids > 0) {
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        ear_unlock(&powermon_app_mutex[cc]);
         return;
+    }
 
     /* We set ccontex to the specific one */
 
@@ -1599,8 +1680,11 @@ void powermon_mpi_finalize(ehandler_t *eh, ulong jid, ulong sid)
     set_powercapstatus_mode(AUTO_CONFIG);
 
     if (!pmapp->job_created) { // If the job is not submitted through slurm, end_job would not be submitted
-        powermon_end_job(eh, pmapp->app.job.id, pmapp->app.job.step_id, 0);
+        powermon_end_job(eh, pmapp->app.job.id, pmapp->app.job.step_id, 0, 1);
     }
+    ear_unlock(&app_lock);
+    debug("%s", COL_CLR);
+    ear_unlock(&powermon_app_mutex[cc]);
     debug("powermon_mpi_finalize done for %lu,%lu", jid, sid);
 }
 
@@ -1618,21 +1702,34 @@ void powermon_new_task(new_task_req_t *newtask)
 
     /* Getting the context of the task. */
 
+    if (state_fail(ear_trylock(&app_lock))) {
+        error("Global app lock cannot be acquired for PID %d JOB %lu/%lu", newtask->pid, newtask->jid, newtask->sid);
+        return;
+    }
+    debug("%sApp lock", COL_RED);
+
     int curr_job_ctx_idx = find_context_for_job(newtask->jid, newtask->sid);
 
     if (curr_job_ctx_idx < 0) {
         error("New task %d and context %lu/%lu not created.", newtask->pid, newtask->jid, newtask->sid);
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
         return;
     }
 
-    pmapp = current_ear_app[curr_job_ctx_idx];
-
     /* ******************************** */
 
-    state_t lock_st;
-    if ((lock_st = ear_trylock(&powermon_app_mutex[curr_job_ctx_idx])) != EAR_SUCCESS) {
-        error("Locking context %lu/%lu at receiving new task request: %s", pmapp->app.job.id, pmapp->app.job.step_id,
-              state_msg);
+    if (state_fail(ear_trylock(&powermon_app_mutex[curr_job_ctx_idx]))) {
+        error("Locking context %u at receiving new task request: %s", curr_job_ctx_idx, state_msg);
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        return;
+    }
+    pmapp = current_ear_app[curr_job_ctx_idx];
+    ear_unlock(&app_lock);
+    debug("%s", COL_CLR);
+    if (!pmapp) {
+        ear_unlock(&powermon_app_mutex[curr_job_ctx_idx]);
         return;
     }
 
@@ -1714,21 +1811,31 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
         return;
     }
 
+    // Get the global lock
+    if (!from_mpi) {
+        if (state_fail(ear_trylock(&app_lock))) {
+            error("Locking  pmon_app global vector for new_job %lu/%lu cannot be acquired", appID->job.id,
+                  appID->job.step_id);
+            return;
+        }
+        debug("%sApp lock", COL_RED);
+    }
     uint new_app_id = create_ID(appID->job.id, appID->job.step_id);
 
     /* Creating ID folder */
-    verbose(VJOBPMON + 1, "Creating job area for %lu/%lu (%u)", appID->job.id, appID->job.step_id, new_app_id);
+    verbose(VJOBPMON + 1, "Creating job area for %lu/%lu (%u) (from APP %u)", appID->job.id, appID->job.step_id,
+            new_app_id, from_mpi);
     create_job_area(new_app_id, appID->job.user_id);
 
     energy_tag_t *my_tag;
-
-    if (!powermon_is_idle() && is_job)
+    // Executed with app global lock. No get app_lock
+    uint in_idle = powermon_is_idle(0);
+    if (!in_idle && is_job)
         check_status_of_jobs(appID->job.id);
+    if (in_idle)
+        powercap_idle_to_run();
 
     verbose(VJOBPMON, "%s--- powermon_new_job (%lu,%lu) ---%s", COL_BLU, appID->job.id, appID->job.step_id, COL_CLR);
-
-    if (powermon_is_idle())
-        powercap_idle_to_run();
 
     set_powercapstatus_mode(AUTO_CONFIG);
 
@@ -1737,16 +1844,32 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
     if (pmapp == NULL) {
         if (new_context(appID->job.id, appID->job.step_id, appID->job.user_id, appID->job.group_id, &ccontext) ==
             EAR_SUCCESS) {
-            pmapp = current_ear_app[ccontext];
         } else {
             error("Maximum number of contexts reached, no more concurrent jobs supported.");
+            if (!from_mpi) {
+                ear_unlock(&app_lock);
+                debug("%s", COL_CLR);
+            }
             return;
         }
     }
 
-    state_t lock_st;
-    if ((lock_st = ear_trylock(&powermon_app_mutex[ccontext])) != EAR_SUCCESS) {
-        error("Locking context %lu/%lu for new job: %s", pmapp->app.job.id, pmapp->app.job.step_id, state_msg);
+    if (state_fail(ear_trylock(&powermon_app_mutex[ccontext]))) {
+        error("Locking context %u for new job: %s", ccontext, state_msg);
+
+        if (!from_mpi) {
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
+        }
+        return;
+    }
+    if (!from_mpi) {
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+    }
+    pmapp = current_ear_app[ccontext];
+    if (!pmapp) {
+        ear_unlock(&powermon_app_mutex[ccontext]);
         return;
     }
 
@@ -1876,30 +1999,70 @@ void powermon_new_job(powermon_app_t *pmapp, ehandler_t *eh, application_t *appI
 }
 
 /* This function is called by dynamic_configuration thread when a end_job command arrives. */
-void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job)
+void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job, uint from_mpi)
 {
-
     // Application disconnected
     powermon_app_t summary, *pmapp;
 
     int curr_ctx;
 
     /* jid--sid can finish in a different order than expected */
-    verbose(VJOBPMON, "*********** End job %lu/%lu ***********", jid, sid);
+    verbose(VJOBPMON, "*********** End job %lu/%lu ***********(from APP %u)", jid, sid, from_mpi);
+
+    // Global lock
+    if (!from_mpi) {
+        if (state_fail(ear_trylock(&app_lock))) {
+            error("Locking  pmon_app global vector for end_job %lu/%lu cannot be acquired", jid, sid);
+            return;
+        }
+        debug("%sApp lock", COL_RED);
+    }
 
     curr_ctx = find_context_for_job(jid, sid);
 
     if (curr_ctx < 0) {
         error("At powermon_end_job: no context found (%lu, %lu).", jid, sid);
+        if (!from_mpi) {
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
+        }
         return;
     }
 
+    if (!from_mpi) {
+        if (state_fail(ear_trylock(&powermon_app_mutex[curr_ctx]))) {
+            error("Locking context %u ending the job: %s", curr_ctx, state_msg);
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
+            return;
+        }
+    }
     pmapp = current_ear_app[curr_ctx];
 
-    state_t lock_st;
-    if ((lock_st = ear_trylock(&powermon_app_mutex[curr_ctx])) != EAR_SUCCESS) {
-        error("Locking context %lu/%lu ending the job: %s", pmapp->app.job.id, pmapp->app.job.step_id, state_msg);
+    if (!pmapp) { // Double check
+        if (!from_mpi) {
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
+            ear_unlock(&powermon_app_mutex[curr_ctx]);
+        }
         return;
+    }
+    current_ear_app[curr_ctx] = NULL;
+    num_contexts--;
+    // New max_context_created
+    if (curr_ctx == max_context_created) {
+        uint new_max = 0;
+        for (uint i = 0; i <= max_context_created; i++) {
+            if ((current_ear_app[i] != NULL) && (i > new_max))
+                new_max = i;
+        }
+
+        debug("New max_context_created %d", new_max);
+        max_context_created = new_max;
+    }
+    if (!from_mpi) {
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
     }
 
     /* We set ccontex to the specific one */
@@ -1930,10 +2093,16 @@ void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job)
 
     powercap_end_job();
 
-    end_context(curr_ctx, 0);
+    end_context(curr_ctx, pmapp);
+
+    if (!from_mpi)
+        ear_unlock(&powermon_app_mutex[curr_ctx]);
+
+    // Move at the end to execute without the lock
 
     if (summary.state != APP_FINISHED) {
-        if (powermon_is_idle()) {
+        // Executed without lock . get_lock
+        if (powermon_is_idle(1)) {
 #if USE_GPUS
             verbose(VCONF, "GPU set to idle monitor mode");
             gpu_set_monitoring_mode(MONITORING_MODE_IDLE);
@@ -1952,7 +2121,6 @@ void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job)
     nodemgr_clean_job(jid, sid);
 
     clean_job_area(ID);
-    ear_unlock(&powermon_app_mutex[curr_ctx]);
 
     verbose(VJOBPMON, "***************************************");
 
@@ -1960,7 +2128,8 @@ void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job)
 }
 
 /*
- * These functions are called by dynamic_configuration thread: Used to notify when a configuracion setting is changed
+ * These functions are called by dynamic_configuration thread: Used to notify when a configuracion setting is
+ * changed
  *
  */
 
@@ -2068,10 +2237,11 @@ void powermon_new_def_freq(uint p_id, ulong def)
     save_eard_conf(&eard_dyn_conf);
 }
 
-/** Sets temporally the default and max frequency to the same value. When application is not mpi, automatically chages
- * the node freq if needed */
+/** Sets temporally the default and max frequency to the same value. When application is not mpi, automatically
+ * chages the node freq if needed */
 void powermon_set_freq(ulong freq)
 {
+
     int nump;
     uint ps, cc;
     powermon_app_t *pmapp;
@@ -2127,19 +2297,23 @@ void update_pmapps(power_data_t *last_pmon, nm_data_t *nm)
 
     for (uint cc = 1; cc <= max_context_created; cc++) {
 
+        if (state_fail(ear_trylock(&app_lock)))
+            continue;
+        debug("%sApp lock", COL_RED);
         if (current_ear_app[cc] != NULL) {
 
+            if (state_fail(ear_trylock(&powermon_app_mutex[cc]))) {
+                error("Locking context %u for updating its mask: %s", cc, state_msg);
+                ear_unlock(&app_lock);
+                debug("%s", COL_CLR);
+                continue;
+            }
             pmapp = current_ear_app[cc];
 
-            state_t lock_st;
-            if ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS) {
-                error("Locking context %lu/%lu for updating its mask: %s", pmapp->app.job.id, pmapp->app.job.step_id,
-                      state_msg);
-                uint ID;
-                ID = create_ID(pmapp->app.job.id, pmapp->app.job.step_id);
-                if (test_job_folder(ID) != EAR_SUCCESS) {
-                    error("Application %lu/%lu exists for folder does not", pmapp->app.job.id, pmapp->app.job.step_id);
-                }
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
+            if (!pmapp) { // Double check
+                ear_unlock(&powermon_app_mutex[cc]);
                 continue;
             }
 
@@ -2167,7 +2341,8 @@ void update_pmapps(power_data_t *last_pmon, nm_data_t *nm)
             }
 
             ear_unlock(&powermon_app_mutex[cc]);
-        }
+        } else
+            ear_unlock(&app_lock);
     }
 
     verbose_jobs_in_node(VCONF);
@@ -2175,67 +2350,81 @@ void update_pmapps(power_data_t *last_pmon, nm_data_t *nm)
     for (uint cc = 1; cc <= max_context_created; cc++) {
 
         verbose(VEARD_NMGR, "Testing context %d", cc);
-
-        if (current_ear_app[cc] != NULL) {
-
-            pmapp = current_ear_app[cc];
-
-            state_t lock_st;
-            if ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS) {
-                error("Locking context %lu/%lu for testing its power: %s", pmapp->app.job.id, pmapp->app.job.step_id,
-                      state_msg);
-                return;
-            }
-
-            /* We must update the current signature */
-            lcpus = pmapp->earl_num_cpus;
-            if (lcpus) {
-
-                cpu_ratio = (num_jobs > 1) ? (float) lcpus / (float) tcpus : 1;
-
-                verbose(VEARD_NMGR, "Job %lu/%lu has %lu of %lu CPUs. Ratio: %f", pmapp->app.job.id,
-                        pmapp->app.job.step_id, lcpus, tcpus, cpu_ratio);
-            } else {
-
-                if (is_job_in_node(pmapp->app.job.id, &alloc)) {
-
-                    // cpu_ratio = (float) alloc->num_cpus / (float) tcpus;
-                    cpu_ratio = ((tcpus && alloc->num_cpus) ? (float) alloc->num_cpus / (float) tcpus : 1);
-
-                    verbose(VEARD_NMGR, "Job %lu/%lu without node mask, using ratio %f = %u/%lu", pmapp->app.job.id,
-                            pmapp->app.job.step_id, cpu_ratio, alloc->num_cpus, tcpus);
-                } else {
-                    verbose(VEARD_NMGR, "Warning, no cpus detected using num_jobs %lu", num_jobs);
-                    // cpu_ratio = 1.0 / (float) num_jobs;
-                    cpu_ratio = (num_jobs ? 1.0 / (float) num_jobs : 1);
-                }
-            }
-
-            my_dc_power = accum_node_power(last_pmon) * cpu_ratio;
-            pmapp->accum_ps.DC_energy += accum_node_power(last_pmon) * cpu_ratio * time_consumed;
-            pmapp->accum_ps.DRAM_energy += accum_dram_power(last_pmon) * cpu_ratio * time_consumed;
-            pmapp->accum_ps.PCK_energy += accum_cpu_power(last_pmon) * cpu_ratio * time_consumed;
-
-            if (pmapp->app.is_mpi) {
-                pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) * time_consumed;
-            } else {
-
-                pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) * time_consumed;
-            }
-
-            pmapp->accum_ps.max = ear_max(pmapp->accum_ps.max, my_dc_power);
-
-            if (pmapp->accum_ps.min > 0) {
-                pmapp->accum_ps.min = ear_min(pmapp->accum_ps.min, my_dc_power);
-            } else {
-                pmapp->accum_ps.min = my_dc_power;
-            }
-#if USE_GPUS
-            float gpu_ratio            = 1;
-            pmapp->accum_ps.GPU_energy = accum_gpu_power(last_pmon) * gpu_ratio * time_consumed;
-#endif
-            ear_unlock(&powermon_app_mutex[cc]);
+        if (state_fail(ear_trylock(&app_lock)))
+            continue;
+        debug("%sApp lock", COL_RED);
+        if (current_ear_app[cc] == NULL) {
+            ear_unlock(&app_lock);
+            continue;
         }
+
+        state_t lock_st;
+        if ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS) {
+            error("Locking context %u for testing its power: %s", cc, state_msg);
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
+            return;
+        }
+        debug("%s", COL_CLR);
+        uint cont = 0;
+        if (!current_ear_app[cc]) {
+            ear_unlock(&powermon_app_mutex[cc]);
+            cont = 1;
+        }
+        pmapp = current_ear_app[cc];
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        if (cont)
+            continue;
+
+        /* We must update the current signature */
+        lcpus = pmapp->earl_num_cpus;
+        if (lcpus) {
+
+            cpu_ratio = (num_jobs > 1) ? (float) lcpus / (float) tcpus : 1;
+
+            verbose(VEARD_NMGR, "Job %lu/%lu has %lu of %lu CPUs. Ratio: %f", pmapp->app.job.id, pmapp->app.job.step_id,
+                    lcpus, tcpus, cpu_ratio);
+        } else {
+
+            if (is_job_in_node(pmapp->app.job.id, &alloc)) {
+
+                // cpu_ratio = (float) alloc->num_cpus / (float) tcpus;
+                cpu_ratio = ((tcpus && alloc->num_cpus) ? (float) alloc->num_cpus / (float) tcpus : 1);
+
+                verbose(VEARD_NMGR, "Job %lu/%lu without node mask, using ratio %f = %u/%lu", pmapp->app.job.id,
+                        pmapp->app.job.step_id, cpu_ratio, alloc->num_cpus, tcpus);
+            } else {
+                verbose(VEARD_NMGR, "Warning, no cpus detected using num_jobs %lu", num_jobs);
+                // cpu_ratio = 1.0 / (float) num_jobs;
+                cpu_ratio = (num_jobs ? 1.0 / (float) num_jobs : 1);
+            }
+        }
+
+        my_dc_power = accum_node_power(last_pmon) * cpu_ratio;
+        pmapp->accum_ps.DC_energy += accum_node_power(last_pmon) * cpu_ratio * time_consumed;
+        pmapp->accum_ps.DRAM_energy += accum_dram_power(last_pmon) * cpu_ratio * time_consumed;
+        pmapp->accum_ps.PCK_energy += accum_cpu_power(last_pmon) * cpu_ratio * time_consumed;
+
+        if (pmapp->app.is_mpi) {
+            pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) * time_consumed;
+        } else {
+
+            pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) * time_consumed;
+        }
+
+        pmapp->accum_ps.max = ear_max(pmapp->accum_ps.max, my_dc_power);
+
+        if (pmapp->accum_ps.min > 0) {
+            pmapp->accum_ps.min = ear_min(pmapp->accum_ps.min, my_dc_power);
+        } else {
+            pmapp->accum_ps.min = my_dc_power;
+        }
+#if USE_GPUS
+        float gpu_ratio            = 1;
+        pmapp->accum_ps.GPU_energy = accum_gpu_power(last_pmon) * gpu_ratio * time_consumed;
+#endif
+        ear_unlock(&powermon_app_mutex[cc]);
     }
 
     verbose(VEARD_NMGR, "-----------------------------------------");
@@ -2259,18 +2448,46 @@ void update_historic_info(power_data_t *last_pmon, nm_data_t *nm, power_data_t *
     double maxpower, minpower, rapl_dram, rapl_pck, corrected_power, pckp, dramp, gpup, gpu_power, node_dom_power;
     powermon_app_t *pmapp;
     uint current_jobs_running_in_node = 0;
+    int cc;
 
     /* last_pmon is the last short power monitor period info. pmon_info can be larger. Use last_pmon  for fine grain
      * power metrics*/
 
-    pmapp    = current_ear_app[max_context_created];
+    update_pmapps(last_pmon, nm);
+
+    // This section computes max and mins and reports data
+    if (state_fail(ear_trylock(&app_lock))) {
+        error("App lock cannot be acquired during update_historic_info");
+        return;
+    }
+    debug("%sApp lock", COL_RED);
+    cc = max_context_created;
+    // Double check
+    if (cc < 0 || cc >= MAX_NESTED_LEVELS || current_ear_app[cc] == NULL) {
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        return;
+    }
+    if (state_fail(ear_trylock(&powermon_app_mutex[cc]))) {
+        error("App context %d cannot be acquired at update_historic_info", cc);
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        return;
+    }
+    pmapp = current_ear_app[cc];
+    if (!pmapp) {
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        ear_unlock(&powermon_app_mutex[cc]);
+        return;
+    }
+    ear_unlock(&app_lock);
+    debug("%s", COL_CLR);
     jid      = pmapp->app.job.id;
     sid      = pmapp->app.job.step_id;
     mpi      = pmapp->app.is_mpi;
     maxpower = pmapp->app.power_sig.max_DC_power;
     minpower = pmapp->app.power_sig.min_DC_power;
-
-    update_pmapps(last_pmon, nm);
 
     /* If there is no powercap, last_pmon and pmon_info is the same info. Otherwise, last_pmon is a short period and
      * pmon_info corresponds with the period set in the ear.conf */
@@ -2292,8 +2509,9 @@ void update_historic_info(power_data_t *last_pmon, nm_data_t *nm, power_data_t *
         verbose(VEARD_NMGR, "Error asking for the number of jobs in node");
     }
 
+// This verbosity should be moved  to the next loop
 #if VERBOSE_POWERMON
-    print_app_mgt_data(pmapp->app_info);
+    // print_app_mgt_data(pmapp->app_info);
     verbose(VNODEPMON, "%s", COL_BLU);
 #if USE_GPUS
     verbose(VNODEPMON_BASIC,
@@ -2305,36 +2523,65 @@ void update_historic_info(power_data_t *last_pmon, nm_data_t *nm, power_data_t *
 #endif
     verbose_node_metrics(&my_nm_id, nm);
     verbose(VNODEPMON, "%s", COL_CLR);
+    ear_unlock(&powermon_app_mutex[cc]);
+#else
+    ear_unlock(&powermon_app_mutex[cc]);
+#endif
 
     /* We use last context as reference but we print all of them */
     if (verb_level >= VEARD_NMGR) {
-        for (uint cc = 0; cc < MAX_CPUS_SUPPORTED; cc++) {
+        for (uint cc = 0; cc <= max_context_created; cc++) {
+            if (state_fail(ear_trylock(&app_lock)))
+                continue;
+            debug("%sApp lock", COL_RED);
+            if (state_fail(ear_trylock(&powermon_app_mutex[cc]))) {
+                ear_unlock(&app_lock);
+                debug("%s", COL_CLR);
+                continue;
+            }
+
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
             pmapp = current_ear_app[cc];
-            if ((pmapp != NULL) && !(is_null(&pmapp->last_loop) == 1)) {
+            if (pmapp && !(is_null(&pmapp->last_loop) == 1)) {
                 signature_print_simple_fd(verb_channel, &pmapp->last_loop.signature);
                 verbose(VEARD_NMGR, " ");
             }
+            ear_unlock(&powermon_app_mutex[cc]);
         }
     }
     report_periodic_power(fd_periodic, last_pmon);
-#endif
 
-    pmapp = current_ear_app[max_context_created];
-
-    while (pthread_mutex_trylock(&app_lock))
-        ; // TODO: Remove
-
-    /* We compute max and mins */
-    if (pmapp->app.job.id > 0) {
-        if ((last_pmon->avg_dc > maxpower) && (last_pmon->avg_dc < my_node_conf->max_error_power)) {
-            pmapp->app.power_sig.max_DC_power = last_pmon->avg_dc;
+    if (state_ok(ear_trylock(&app_lock))) {
+        debug("%sApp lock", COL_RED);
+        cc = max_context_created;
+        if (state_fail(ear_trylock(&powermon_app_mutex[cc]))) {
+            ear_unlock(&app_lock);
+            debug("%s", COL_CLR);
+            goto powermon_actions;
         }
-        if ((last_pmon->avg_dc < minpower) && (minpower >= my_node_conf->min_sig_power)) {
-            pmapp->app.power_sig.min_DC_power = last_pmon->avg_dc;
+        pmapp = current_ear_app[cc];
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        if (!pmapp)
+            goto unlock_app;
+
+        /* We compute max and mins */
+        if (pmapp && pmapp->app.job.id > 0) {
+            maxpower = pmapp->app.power_sig.max_DC_power;
+            minpower = pmapp->app.power_sig.min_DC_power;
+            if ((last_pmon->avg_dc > maxpower) && (last_pmon->avg_dc < my_node_conf->max_error_power)) {
+                pmapp->app.power_sig.max_DC_power = last_pmon->avg_dc;
+            }
+            if ((last_pmon->avg_dc < minpower) && (minpower >= my_node_conf->min_sig_power)) {
+                pmapp->app.power_sig.min_DC_power = last_pmon->avg_dc;
+            }
         }
+
+    unlock_app:
+        ear_unlock(&powermon_app_mutex[cc]);
     }
-
-    pthread_mutex_unlock(&app_lock); // TODO: Remove
+powermon_actions:
 
     /* Pending fields for periodic_metric. we compute anyway because we use for error checking */
     current_sample.start_time = pmon_info->begin;
@@ -2418,8 +2665,8 @@ void update_historic_info(power_data_t *last_pmon, nm_data_t *nm, power_data_t *
 void create_powermon_out()
 {
     char output_name[MAX_PATH_SIZE * 4];
-    char *header =
-        "job_id;begin_time;end_time;mpi_init_time;mpi_finalize_time;avg_dc_power;max_dc_power;min_dc_power\n";
+    char *header = "job_id;begin_time;end_time;mpi_init_time;mpi_finalize_time;avg_dc_power;max_dc_power;"
+                   "min_dc_power\n";
     mode_t my_mask;
     // We are using EAR_TMP but this info will go to the DB
     my_mask = umask(0);
@@ -2485,13 +2732,30 @@ void powermon_mpi_signature(application_t *app)
         error("powermon_mpi_signature: and NULL app provided");
         return;
     }
+    if (state_fail(ear_trylock(&app_lock)))
+        return;
+
+    debug("%sApp lock", COL_RED);
     cc = find_context_for_job(app->job.id, app->job.step_id);
     if (cc < 0) {
         error("powermon_mpi_signature and no context created for (%lu,%lu)", app->job.id, app->job.step_id);
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        return;
+    }
+    if (state_fail(ear_trylock(&powermon_app_mutex[cc]))) {
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
         return;
     }
 
     pmapp = current_ear_app[cc];
+    ear_unlock(&app_lock);
+    debug("%s", COL_CLR);
+    if (!pmapp) {
+        ear_unlock(&powermon_app_mutex[cc]);
+        return;
+    }
 
     check_rt_error_for_signature(app);
 
@@ -2511,6 +2775,7 @@ void powermon_mpi_signature(application_t *app)
             app->job.step_id, pmapp->app.signature.avg_f);
 
     save_eard_conf(&eard_dyn_conf);
+    ear_unlock(&powermon_app_mutex[cc]);
 }
 
 void powermon_init_nm()
@@ -2819,23 +3084,38 @@ void powermon_report_event(uint event_type, llong value)
     int cc = max_context_created;
     jid    = current_ear_app[cc]->app.job.id;
     sid    = current_ear_app[cc]->app.job.step_id;
-    debug("powermon_report_event: sending event %u with value %lu", event_type, value);
+    debug("powermon_report_event: sending event %u with value %lld", event_type, value);
     log_report_eard_powercap_event(&rid, jid, sid, event_type, value);
 }
 
-uint powermon_is_idle()
+uint powermon_is_idle(uint get_lock)
 {
     int contexts_created          = 0;
     int contexts_created_finished = 0;
+    // Global lock
+    if (get_lock) {
+        if (state_fail(ear_trylock(&app_lock)))
+            return (num_contexts > 1);
+        debug("%sApp lock", COL_RED);
+    }
+    powermon_app_t *pmapp;
 
     for (int i = 0; i <= max_context_created; i++) {
-        powermon_app_t *pmapp = current_ear_app[i];
+        if (state_fail(ear_trylock(&powermon_app_mutex[i])))
+            continue;
+        pmapp = current_ear_app[i];
         if (pmapp) {
             contexts_created++;
             if (pmapp->state == APP_FINISHED) {
                 contexts_created_finished++;
             }
         }
+        ear_unlock(&powermon_app_mutex[i]);
+    }
+
+    if (get_lock) {
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
     }
     return (!max_context_created || contexts_created_finished == contexts_created);
 }

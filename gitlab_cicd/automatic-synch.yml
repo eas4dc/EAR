@@ -1,0 +1,9 @@
+automatic-sync:
+  stage: .post
+  image: rockylinux:9-minimal
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^v[0-9]+$/ && $CI_COMMIT_REF_PROTECTED == "true"'
+      allow_failure: true
+  script:
+    - microdnf install -y jq
+    - bash gitlab_cicd/automatic_branch_synch.sh

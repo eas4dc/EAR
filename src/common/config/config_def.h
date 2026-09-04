@@ -145,6 +145,7 @@
 #define DEFAULT_POWER                     300
 #define GRACE_T1                          3
 #define MAX_TIME_DYNAIS_WITHOUT_SIGNATURE 15
+#define MAX_TIMEOUT_ENERGY_READING        1
 #define METRICS_OVH                       0
 
 /*

@@ -61,36 +61,30 @@ void _add_string_filter(char *query, char *addition, char *value, bool quotes)
 
 void add_int_filter(char *query, char *addition, int value)
 {
-    char query_tmp[512];
-    strcpy(query_tmp, query);
     if (query_filters < 1)
-        strcat(query_tmp, " WHERE ");
+        strcat(query, " WHERE ");
     else
-        strcat(query_tmp, " AND ");
+        strcat(query, " AND ");
 
-    strcat(query_tmp, addition);
-    strcat(query_tmp, "=");
-    strcat(query_tmp, "%llu");
-    sprintf(query, query_tmp, value);
+    strcat(query, addition);
+    strcat(query, "=");
+    sprintf(query + strlen(query), "%d", value);
     query_filters++;
 }
 
 void add_int_comp_filter(char *query, char *addition, int value, char greater_than)
 {
-    char query_tmp[512];
-    strcpy(query_tmp, query);
     if (query_filters < 1)
-        strcat(query_tmp, " WHERE ");
+        strcat(query, " WHERE ");
     else
-        strcat(query_tmp, " AND ");
+        strcat(query, " AND ");
 
-    strcat(query_tmp, addition);
+    strcat(query, addition);
     if (greater_than)
-        strcat(query_tmp, ">");
+        strcat(query, ">");
     else
-        strcat(query_tmp, "<");
-    strcat(query_tmp, "%llu");
-    sprintf(query, query_tmp, value);
+        strcat(query, "<");
+    sprintf(query + strlen(query), "%d", value);
     query_filters++;
 }
 

@@ -15,6 +15,10 @@ stages:          # List of stages for jobs, and their order of execution
   - deploy
   - release
 
+include: tests/daemon/.powermon-stress.yml
+include: .gitlab/.changelog-ci.yml
+include: gitlab_cicd/automatic-synch.yml
+
 image: registry.gitlab.bsc.es/ear_team/ear-ci:v6
 
 debugs_disabled:

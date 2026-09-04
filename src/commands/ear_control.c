@@ -422,21 +422,21 @@ void check_app_status(app_status_t status, ip_table_t *ips, int num_ips, char is
                 sprintf(job_id, "%s", "-");
                 sprintf(step_id, "%s", "-");
             } else {
-                sprintf(job_id, "%-7" PRId32, status.job_id);
+                sprintf(job_id, "%-7ld", status.job_id);
                 if (status.step_id == (int32_t) BATCH_STEP)
                     sprintf(step_id, "%-8s", "batch");
                 else if (status.step_id == (int32_t) INTERACT_STEP)
                     sprintf(step_id, "%-8s", "interact");
                 else
-                    sprintf(step_id, "%-8" PRId32, status.step_id);
+                    sprintf(step_id, "%-8ld", status.step_id);
             }
             if (is_master)
                 printf("%-7s-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf", job_id, step_id, status.nodes,
                        status.signature.DC_power, status.signature.CPI, status.signature.GBS, status.signature.Gflops,
                        status.signature.time, (double) status.signature.avg_f / 1000000);
             else
-                printf("%15s %7" PRId32 "-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf", ips[i].name,
-                       status.job_id, step_id, status.master_rank, status.signature.DC_power, status.signature.CPI,
+                printf("%15s %7ld-%-8s %6d %10.2lf %8.2lf %8.2lf %8.2lf %8.2lf %8.2lf", ips[i].name, status.job_id,
+                       step_id, status.master_rank, status.signature.DC_power, status.signature.CPI,
                        status.signature.GBS, status.signature.Gflops, status.signature.time,
                        (double) status.signature.avg_f / 1000000);
 #if USE_GPUS

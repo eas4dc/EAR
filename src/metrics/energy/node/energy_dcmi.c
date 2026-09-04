@@ -10,6 +10,8 @@
 
 // #define SHOW_DEBUGS 1
 
+#include <common/config.h>
+
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
 #include <common/states.h>
@@ -31,7 +33,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#define MAX_LOCK_TRIES  1000000000
+#define MAX_LOCK_TRIES  100
 #define MIN_READ_PERIOD 2000 /*!< The minimum period time to for the periodic thread to read the power. */
 
 /* For error control */
@@ -122,7 +124,11 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
     AFD_ZERO(&rset);
     AFD_SET(intf->fd, &rset);
 
-    if (aselectv(&rset, NULL) < 0) {
+    struct timeval tout;
+    tout.tv_sec  = MAX_TIMEOUT_ENERGY_READING;
+    tout.tv_usec = 0;
+
+    if (aselectv(&rset, &tout) <= 0) {
         debug("I/O Error\n");
         if (data != NULL)
             free(data);
@@ -440,14 +446,15 @@ state_t dcmi_thread_main(void *p)
     st = dcmi_power_reading(&dcmi_context_for_pool, &out, &dcmi_current_power_reading);
     if (st == EAR_ERROR) {
         debug("dcmi_power_reading fails in dcmi_thread_main");
+        closedev(&dcmi_context_for_pool);
+        st = dcmi_thread_init(NULL);
         pthread_mutex_unlock(&ompi_lock);
         return st;
     }
 
     /* We use this timestamp because DCMI fails */
     timestamp_get(&curr_time);
-    dcmi_elapsed   = timestamp_diff(&curr_time, &last_timestamp, TIME_SECS);
-    last_timestamp = curr_time;
+    dcmi_elapsed = timestamp_diff(&curr_time, &last_timestamp, TIME_MSECS);
 
     if (dcmi_current_power_reading.current_power > 0) {
         // current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;
@@ -455,7 +462,9 @@ state_t dcmi_thread_main(void *p)
         current_energy  = current_elapsed * dcmi_current_power_reading.current_power;
 
         /* Energy is reported in MJ */
-        dcmi_accumulated_energy += (current_energy * 1000);
+        dcmi_accumulated_energy += (current_energy);
+        last_timestamp = curr_time;
+        memcpy(&dcmi_last_power_reading, &dcmi_current_power_reading, sizeof(dcmi_power_data_t));
         verbose(2, "DCMI AVG power in last %lu sec is %lu", current_elapsed, dcmi_current_power_reading.current_power);
     } else {
         debug("Current power is 0 in dcmi power reading pool reading, Resetting the context");
@@ -463,7 +472,6 @@ state_t dcmi_thread_main(void *p)
         st = dcmi_thread_init(NULL);
     }
 
-    memcpy(&dcmi_last_power_reading, &dcmi_current_power_reading, sizeof(dcmi_power_data_t));
     pthread_mutex_unlock(&ompi_lock);
     return EAR_SUCCESS;
 }
@@ -569,6 +577,9 @@ state_t energy_datasize(size_t *size)
 {
     debug("energy_datasize %lu\n", sizeof(ulong));
 
+    if (!size)
+        return EAR_ERROR;
+
     *size = sizeof(ulong);
 
     return EAR_SUCCESS;
@@ -576,6 +587,8 @@ state_t energy_datasize(size_t *size)
 
 state_t energy_frequency(ulong *freq_us)
 {
+    if (!freq_us)
+        return EAR_ERROR;
     *freq_us = dcmi_timeframe;
     return EAR_SUCCESS;
 }
@@ -583,6 +596,8 @@ state_t energy_frequency(ulong *freq_us)
 state_t energy_to_str(char *str, edata_t e)
 {
     ulong *pe = (ulong *) e;
+    if (!pe || !str)
+        return EAR_ERROR;
     sprintf(str, "%lu", *pe);
     return EAR_SUCCESS;
 }
@@ -600,6 +615,8 @@ unsigned long diff_node_energy(ulong init, ulong end)
 
 state_t energy_units(uint *units)
 {
+    if (!units)
+        return EAR_ERROR;
     *units = 1000;
     return EAR_SUCCESS;
 }
@@ -607,12 +624,15 @@ state_t energy_units(uint *units)
 state_t energy_accumulated(unsigned long *e, edata_t init, edata_t end)
 {
     ulong *pinit = (ulong *) init, *pend = (ulong *) end;
+    if (!pinit || !pend || !e)
+        return 0;
 
     ulong total = diff_node_energy(*pinit, *pend);
     *e          = total;
     return EAR_SUCCESS;
 }
 
+#if 0
 // TODO: re-factor the code along with thread_main and energy_dc_time_read
 state_t energy_dc_read(void *c, edata_t energy_mj)
 {
@@ -645,7 +665,7 @@ state_t energy_dc_read(void *c, edata_t energy_mj)
 
     /* We use this timestamp because DCMI fails */
     timestamp_get(&curr_time);
-    dcmi_elapsed   = timestamp_diff(&curr_time, &last_timestamp, TIME_SECS);
+    dcmi_elapsed   = timestamp_diff(&curr_time, &last_timestamp, TIME_MSECS);
     last_timestamp = curr_time;
 
     if (dcmi_current_power_reading.current_power > 0) {
@@ -654,7 +674,7 @@ state_t energy_dc_read(void *c, edata_t energy_mj)
         current_energy  = current_elapsed * dcmi_current_power_reading.current_power;
 
         /* Energy is reported in MJ */
-        dcmi_accumulated_energy += (current_energy * 1000);
+        dcmi_accumulated_energy += current_energy;
         memcpy(&dcmi_last_power_reading, &dcmi_current_power_reading, sizeof(dcmi_power_data_t));
 
         debug("AVG power in last %lu ms is %lu", current_elapsed, dcmi_current_power_reading.current_power);
@@ -667,11 +687,14 @@ state_t energy_dc_read(void *c, edata_t energy_mj)
 
     return st;
 }
+#endif
 
 state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
 {
     ulong *penergy_mj = (ulong *) energy_mj;
     state_t st        = EAR_SUCCESS;
+    timestamp curr_time;
+    ulong dcmi_elapsed;
 
     debug("energy_dc_read\n");
 
@@ -679,7 +702,10 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
     struct ipmi_data out;
     int etries = 0, lret;
 
-    ulong current_elapsed, current_energy;
+    ulong current_energy;
+
+    if (!penergy_mj || !time_ms)
+        return EAR_ERROR;
 
     while ((lret = pthread_mutex_trylock(&ompi_lock)) && (etries < MAX_LOCK_TRIES)) {
         etries++;
@@ -695,30 +721,43 @@ state_t energy_dc_time_read(void *c, edata_t energy_mj, ulong *time_ms)
         return st;
     }
 
+    /* We use this timestamp because DCMI fails */
+    timestamp_get(&curr_time);
+    dcmi_elapsed = timestamp_diff(&curr_time, &last_timestamp, TIME_MSECS);
+
     if (dcmi_current_power_reading.current_power > 0) {
-        current_elapsed = dcmi_current_power_reading.timestamp - dcmi_last_power_reading.timestamp;
-        current_energy  = current_elapsed * dcmi_current_power_reading.current_power;
+        current_energy = dcmi_elapsed * dcmi_current_power_reading.current_power;
+        last_timestamp = curr_time;
 
         /* Energy is reported in MJ */
-        dcmi_accumulated_energy += (current_energy * 1000);
+        dcmi_accumulated_energy += current_energy;
+        memcpy(&dcmi_last_power_reading, &dcmi_current_power_reading, sizeof(dcmi_power_data_t));
 
-        debug("AVG power in last %lu ms is %lu", current_elapsed, dcmi_current_power_reading.current_power);
+        debug("AVG power in last %lu ms is %lu", dcmi_elapsed, dcmi_current_power_reading.current_power);
     } else {
         debug("Current power is 0 in dcmi power reading pool reading");
         st = EAR_ERROR;
     }
 
-    memcpy(&dcmi_last_power_reading, &dcmi_current_power_reading, sizeof(dcmi_power_data_t));
-
-    *penergy_mj = dcmi_accumulated_energy;
-    *time_ms    = dcmi_last_power_reading.timestamp * 1000;
+    if (penergy_mj)
+        *penergy_mj = dcmi_accumulated_energy;
+    if (time_ms)
+        *time_ms = timestamp_convert(&curr_time, TIME_MSECS);
     pthread_mutex_unlock(&ompi_lock);
 
     return st;
 }
 
+state_t energy_dc_read(void *c, edata_t energy_mj)
+{
+    ulong my_time;
+    return energy_dc_time_read(c, energy_mj, &my_time);
+}
+
 uint energy_data_is_null(edata_t e)
 {
     ulong *pe = (ulong *) e;
+    if (!pe)
+        return 1;
     return (*pe == 0);
 }

@@ -54,6 +54,7 @@
 #include <common/system/folder.h>
 #include <common/system/lock.h>
 #include <common/system/monitor.h>
+#include <common/system/process.h>
 #include <common/system/version.h>
 #include <common/types/application.h>
 #include <common/types/pc_app_info.h>
@@ -309,6 +310,13 @@ static state_t check_eard_earl_compatibility(state_t eard_connect_state, eard_st
 static void print_local_data()
 {
     char ver[64];
+#if HEALTH_CHECK
+    process_health_t curr_eard_resources;
+    if (state_ok(process_health_get(getpid(), &curr_eard_resources))) {
+        process_health_print_fd(&curr_eard_resources, verb_channel);
+    }
+#endif
+
     if (masters_info.my_master_rank == 0 || using_verb_files) {
         version_to_str(ver);
 #if MPI
@@ -514,14 +522,14 @@ state_t create_eid_folder(char *tmp, int jid, int sid, uint AID)
     strcat(EID_application_path, ".app");
 
     verbose(WF_SUPPORT_VERB + 1, "EARL: Creating app folder %s", EID_application_path);
-    ret = mkdir(EID_application_path, S_IRWXU);
+    ret = mkdir(EID_application_path, S_IRWXU | S_IROTH | S_IXOTH);
     if ((ret < 0) && (errno != EEXIST)) {
         verbose(WF_SUPPORT_VERB + 1, "EAR error EID folder cannot be created (%s) (%s)", EID_application_path,
                 strerror(errno));
         node_mgr_info_unlock();
         return EAR_ERROR;
     }
-    chmod(EID_application_path, S_IRUSR | S_IWUSR | S_IXUSR);
+    chmod(EID_application_path, S_IRUSR | S_IWUSR | S_IXUSR | S_IROTH | S_IXOTH);
     verbose(WF_SUPPORT_VERB + 1, "EID folder (%s) created", EID_application_path);
 
     /* Application folder */

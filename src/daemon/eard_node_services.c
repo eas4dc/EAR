@@ -799,7 +799,7 @@ int services_met_temp(eard_head_t *head, int req_fd, int ack_fd)
  * be already created */
 uint is_anonymous(ulong jid, ulong sid);
 
-state_t init_local_connections(local_connection_t **my_con, int num_con)
+static state_t init_local_connections(local_connection_t **my_con, int num_con)
 {
     int i;
     local_connection_t *lcon;
@@ -811,7 +811,7 @@ state_t init_local_connections(local_connection_t **my_con, int num_con)
     return EAR_SUCCESS;
 }
 
-state_t add_local_fd(local_connection_t *my_con, int fd, int pos)
+static state_t add_local_fd(local_connection_t *my_con, int fd, int pos)
 {
     if (pos >= NUM_LOCAL_FDS) {
         return_msg(EAR_ERROR, "No more FDs in local connection");
@@ -820,7 +820,8 @@ state_t add_local_fd(local_connection_t *my_con, int fd, int pos)
     return EAR_SUCCESS;
 }
 
-int is_new_job(local_connection_t *my_con, ulong jid, ulong sid)
+#if 0
+static int is_new_job(local_connection_t *my_con, ulong jid, ulong sid)
 {
     int i;
     i = 0;
@@ -830,14 +831,26 @@ int is_new_job(local_connection_t *my_con, ulong jid, ulong sid)
         return 1;
     return 0;
 }
+#endif
 
-int add_new_local_connection(local_connection_t *my_con, ulong jid, ulong sid, ulong lid)
+static void print_active_connections(void)
+{
+    for (uint i = 0; i < num_local_con; i++) {
+        verbose(VEARD_LAPI, "LOCAL[%u] jid %lu sid %lu lid %lu anonymous %lu cancelled %d FDACK %d FDREQ %d", i,
+                eard_local_conn[i].jid, eard_local_conn[i].sid, eard_local_conn[i].lid, eard_local_conn[i].anonymous,
+                eard_local_conn[i].cancelled, eard_local_conn[i].fds[ACK_LOCAL_FD],
+                eard_local_conn[i].fds[REQ_LOCAL_FD]);
+    }
+}
+
+static int add_new_local_connection(local_connection_t *my_con, ulong jid, ulong sid, ulong lid)
 {
     int i = 0;
     while ((my_con[i].jid != ULONG_MAX) && (i < num_local_con))
         i++;
     if (i == num_local_con) {
         error("Maximum number of local connections reached");
+        print_active_connections();
         return -1;
     }
     my_con[i].jid       = jid;
@@ -851,10 +864,10 @@ int add_new_local_connection(local_connection_t *my_con, ulong jid, ulong sid, u
     return i;
 }
 
-int get_local_connection_ack(local_connection_t *my_con, int reqfd)
+static int get_local_connection_ack(local_connection_t *my_con, int reqfd)
 {
     int i = 0;
-    while ((my_con[i].fds[REQ_LOCAL_FD] != reqfd) && (i < num_local_con)) {
+    while ((i < num_local_con) && (my_con[i].fds[REQ_LOCAL_FD] != reqfd)) {
         // debug("Check local conn req=%d in pos %d req=%d
         // ack=%d",reqfd,i,my_con[i].fds[REQ_LOCAL_FD],my_con[i].fds[ACK_LOCAL_FD]);
         i++;
@@ -866,10 +879,10 @@ int get_local_connection_ack(local_connection_t *my_con, int reqfd)
     return my_con[i].fds[ACK_LOCAL_FD];
 }
 
-int get_local_connection_by_fd(local_connection_t *my_con, int reqfd, int ackfd)
+static int get_local_connection_by_fd(local_connection_t *my_con, int reqfd, int ackfd)
 {
     int i = 0;
-    while (!((my_con[i].fds[REQ_LOCAL_FD] == reqfd) && (my_con[i].fds[ACK_LOCAL_FD] == ackfd)) && (i < num_local_con))
+    while ((i < num_local_con) && !((my_con[i].fds[REQ_LOCAL_FD] == reqfd) && (my_con[i].fds[ACK_LOCAL_FD] == ackfd)))
         i++;
     if (i == num_local_con) {
         return_msg(EAR_ERROR, "Local connection not found");
@@ -877,20 +890,20 @@ int get_local_connection_by_fd(local_connection_t *my_con, int reqfd, int ackfd)
     return i;
 }
 
-int get_local_connection_by_id(local_connection_t *my_con, ulong jid, ulong sid)
+static int get_local_connection_by_id(local_connection_t *my_con, ulong jid, ulong sid)
 {
     int i = 0;
-    while (!((my_con[i].jid == jid) && (my_con[i].sid == sid) && !my_con[i].cancelled) && (i < num_local_con))
+    while ((i < num_local_con) && !((my_con[i].jid == jid) && (my_con[i].sid == sid) && !my_con[i].cancelled))
         i++;
     if (i == num_local_con)
         return -1;
     return i;
 }
 
-int get_local_connection_by_req(local_connection_t *my_con, int reqfd)
+static int get_local_connection_by_req(local_connection_t *my_con, int reqfd)
 {
     int i = 0;
-    while ((my_con[i].fds[REQ_LOCAL_FD] != reqfd) && (i < num_local_con))
+    while ((i < num_local_con) && (my_con[i].fds[REQ_LOCAL_FD] != reqfd))
         i++;
     if (i == num_local_con) {
         return_msg(EAR_ERROR, "Local connection not found");
@@ -898,7 +911,7 @@ int get_local_connection_by_req(local_connection_t *my_con, int reqfd)
     return i;
 }
 
-void clean_local_connection(local_connection_t *my_con)
+static void clean_local_connection(local_connection_t *my_con)
 {
     my_con->jid               = ULONG_MAX;
     my_con->sid               = 0;
@@ -907,6 +920,17 @@ void clean_local_connection(local_connection_t *my_con)
     my_con->cancelled         = 0;
     my_con->fds[REQ_LOCAL_FD] = -1;
     my_con->fds[ACK_LOCAL_FD] = -1;
+}
+
+static void close_active_connections(void)
+{
+    for (uint i = 0; i < num_local_con; i++) {
+        if (eard_local_conn[i].fds[REQ_LOCAL_FD] != -1)
+            close(eard_local_conn[i].fds[REQ_LOCAL_FD]);
+        if (eard_local_conn[i].fds[ACK_LOCAL_FD] != -1)
+            close(eard_local_conn[i].fds[ACK_LOCAL_FD]);
+        clean_local_connection(&eard_local_conn[i]);
+    }
 }
 
 uint is_privileged_service(uint service)
@@ -1011,16 +1035,21 @@ void connect_service(struct daemon_req *new_req)
     /* We must create a new local connection, for now, 1 connection per job is allowed  */
     if ((newc = add_new_local_connection(eard_local_conn, new_job->id, new_job->step_id, new_req->con_id.lid)) < 0) {
         error("Error opening slot for new local connection");
+        return;
     }
     debug("application %d.%lu asks for new connection ", pid, lid);
     verbose(VEARD_LAPI, "Opening %s", ear_commack);
     ear_ack_fd = open(ear_commack, O_WRONLY);
     if (ear_ack_fd < 0) {
         error("ERROR while opening ack_private pipe %s (%s)", ear_commack, strerror(errno));
+        clean_local_connection(&eard_local_conn[newc]);
+        return;
     }
     /* We must associate the ack pipe with th local connection */
     if (add_local_fd(&eard_local_conn[newc], ear_ack_fd, ACK_LOCAL_FD) != EAR_SUCCESS) {
         error("Opening adding local ack newc");
+        clean_local_connection(&eard_local_conn[newc]);
+        return;
     }
     /* we send and ack to the earl */
     if (write(ear_ack_fd, &ack, sizeof(ack)) != sizeof(ack)) {
@@ -1369,7 +1398,7 @@ state_t service_close_by_id(ulong jid, ulong sid)
             verbose(VRAPI - 1, "From powermon end job: Closing FDS (req %d, ack %d) communication (%lu, %lu)",
                     eard_local_conn[i].fds[REQ_LOCAL_FD], eard_local_conn[i].fds[ACK_LOCAL_FD], eard_local_conn[i].jid,
                     eard_local_conn[i].sid);
-            // Should we do that ?? clean_local_connection(&eard_local_conn[i]);
+            clean_local_connection(&eard_local_conn[i]);
         }
     } while (i >= 0);
     return EAR_SUCCESS;
@@ -1547,9 +1576,13 @@ state_t eard_local_api(char *ear_owner)
     verbose(VEARD_LAPI, "Creating comm in %s for node %s", ear_tmp, nodename);
 
     AFD_ZERO(&rfds_basic);
-    /* This function creates the pipe for new local connections */
+
     verbose(VEARD_LAPI, "Initializing local connections");
-    if (init_local_connections(&eard_local_conn, node_desc.cpu_count) != EAR_SUCCESS) {
+    /* This function creates the pipe for new local connections
+     * We asumed there are not more processes than CPU resources available.
+     * This might be a limitation for new workflows on a limited hardware. Thus,
+     * we init with the square number of CPUs although is an arbitrary decision. */
+    if (init_local_connections(&eard_local_conn, node_desc.cpu_count * node_desc.cpu_count) != EAR_SUCCESS) {
         error("Error initializing local connections");
         _exit(0);
     }
@@ -1603,8 +1636,10 @@ state_t eard_local_api(char *ear_owner)
                         if (ack_fd >= 0) {
                             service_select(i, ack_fd);
                         } else {
-                            error("at eard_node_services: ack_fd is %d. This shouldn't happen.", ack_fd);
-                            _exit(0);
+                            error("at eard_node_services: ack_fd is %d. This shouldn't happen. Closing active "
+                                  "connections",
+                                  ack_fd);
+                            close_active_connections();
                         }
                     } // IF AFD_ISSET
                 } // for
