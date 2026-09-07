@@ -19,12 +19,10 @@
 #include <common/output/verbose.h>
 #include <common/types/roofline.h>
 
-static void create_filename(char *filename, char *path, char *prefix, char *architecture)
+static int create_filename(char *filename, size_t size, char *path, char *prefix, char *architecture)
 {
-    strcat(filename, path);
-    strcat(filename, prefix);
-    strcat(filename, architecture);
-    strcat(filename, ".data");
+    int n = snprintf(filename, size, "%s%s%s.data", path, prefix, architecture);
+    return (n > 0 && (size_t) n < size);
 }
 
 void roofline_print(roofline_t *roofline)
@@ -40,7 +38,9 @@ state_t load_roofline(char *path, char *architecture, roofline_t *final_roofline
     }
 
     char filename[128] = "";
-    create_filename(filename, path, "roofline.", architecture);
+    if (!create_filename(filename, sizeof(filename), path, "roofline.", architecture)) {
+        return EAR_ERROR;
+    }
     FILE *f = fopen(filename, "rb");
 
     char buff[1024];

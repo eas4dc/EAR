@@ -92,11 +92,14 @@ static char app_directory_pathname[MAX_PATH_SIZE];
 #endif
 
 #define CLOSE_LOCAL_COMM()                                                                                             \
-    close(ear_fd_req_global);                                                                                          \
+    if (ear_fd_req_global >= 0)                                                                                        \
+        close(ear_fd_req_global);                                                                                      \
     ear_fd_req_global = -1;                                                                                            \
-    close(ear_fd_ack);                                                                                                 \
+    if (ear_fd_ack >= 0)                                                                                               \
+        close(ear_fd_ack);                                                                                             \
     ear_fd_ack = -1;                                                                                                   \
-    close(ear_fd_req);                                                                                                 \
+    if (ear_fd_req >= 0)                                                                                               \
+        close(ear_fd_req);                                                                                             \
     ear_fd_req = -1;                                                                                                   \
     unlink(ear_commack);                                                                                               \
     unlink(ear_commreq);
@@ -592,9 +595,12 @@ void eards_connection_failure()
 void eards_new_process_disconnect()
 {
     // This function closes the EARD fd for new processes to connect again
-    close(ear_fd_req);
-    close(ear_fd_req_global);
-    close(ear_fd_ack);
+    if (ear_fd_req >= 0)
+        close(ear_fd_req);
+    if (ear_fd_req_global >= 0)
+        close(ear_fd_req_global);
+    if (ear_fd_ack >= 0)
+        close(ear_fd_ack);
 
     ear_fd_req_global = -1;
     ear_fd_req        = -1;

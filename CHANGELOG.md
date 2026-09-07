@@ -7,11 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- development Added flops to ZEN5.
+- v6 Added CHANGELOG update by a CI job
 
 ### Changed
+- development Updated AMD with changes for ZEN3, ZEN4 and ZEN5.
+- v6 Set SLURM_JOB_ID to non-zero.
 - New energy node API.
 
 ### Fixed
+- v6 Power monitor locks fixes.
+
+## [7.3.0] - 2026-08-05
+
+### Added
+
+- CI: Automatic changelog update.
+
+### Changed
+
+- Update version in readme
+- Use an image which has clang-format-19 already installed
+- erun: Set SLURM_JOB_ID to non-zero by default.
+- CI: Use an image which has clang-format-19 already installed.
+
+### Fixed
+
+- Power monitor locks fixes.
+- CI: Prevent updating github mirror on EAR public project.
+- Resolve "v7 DB insertion error" and fixes EARD race conditions between remote api and periodic monitor
+- Fix stack buffer overflow in medoids.c/roofline.c create_filename()
 
 ## [7.0.0] - 2026-06-19
 

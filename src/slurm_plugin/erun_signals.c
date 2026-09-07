@@ -36,7 +36,7 @@ void signals_handler(int signal, siginfo_t *info, void *context)
 
 void signals()
 {
-    struct sigaction action;
+    struct sigaction action = {0};
     sigset_t sigset;
 
     action.sa_handler   = NULL;

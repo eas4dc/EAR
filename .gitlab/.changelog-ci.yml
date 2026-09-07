@@ -1,0 +1,46 @@
+update_unreleased_changelog:
+  stage: quality
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_PATH == $CI_PROJECT_PATH && ($CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^v.*$/)'
+      when: manual
+  variables:
+    GIT_STRATEGY: clone
+    GIT_DEPTH: 0
+  script:
+    - apk add python3
+    - python3 etc/release/update_unreleased_changelog.py "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" CHANGELOG.md
+    - git diff -- CHANGELOG.md > CHANGELOG.md.diff
+  artifacts:
+    paths:
+      - CHANGELOG.md.diff
+    expire_in: 365 days
+
+apply_unreleased_changelog:
+  stage: quality
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: update_unreleased_changelog
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_PATH == $CI_PROJECT_PATH && ($CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^v.*$/)'
+      when: manual
+  variables:
+    GIT_STRATEGY: clone
+  script:
+    - git fetch origin "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+    - git checkout -B "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" "origin/$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+    - |
+      if test -s CHANGELOG.md.diff; then
+        git apply --check CHANGELOG.md.diff
+        git apply CHANGELOG.md.diff
+      fi
+    - |
+      if ! git diff --quiet -- CHANGELOG.md; then
+        git add CHANGELOG.md
+        git config user.name "CI Pipeline"
+        git config user.email "${GITLAB_USER_EMAIL:-ci@${CI_SERVER_HOST}}"
+        git commit -m "Update Unreleased CHANGELOG"
+        git remote set-url origin "https://oauth2:${AUTOMATION_ACCESS_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+        git push origin "HEAD:$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+      fi

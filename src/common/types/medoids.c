@@ -22,12 +22,10 @@
 #include <common/types/medoids.h>
 #include <unistd.h>
 
-static void create_filename(char *filename, char *path, char *prefix, char *architecture)
+static int create_filename(char *filename, size_t size, char *path, char *prefix, char *architecture)
 {
-    strcat(filename, path);
-    strcat(filename, prefix);
-    strcat(filename, architecture);
-    strcat(filename, ".data");
+    int n = snprintf(filename, size, "%s%s%s.data", path, prefix, architecture);
+    return (n > 0 && (size_t) n < size);
 }
 
 void medoids_print(medoids_t *phases)
@@ -71,7 +69,9 @@ state_t load_medoids(char *path, char *architecture, medoids_t *final_medoids)
         return EAR_ERROR;
     }
     char filename[128] = "";
-    create_filename(filename, path, "medoids.", architecture);
+    if (!create_filename(filename, sizeof(filename), path, "medoids.", architecture)) {
+        return EAR_ERROR;
+    }
     FILE *f = fopen(filename, "rb");
 
     char buff[4096];
@@ -109,7 +109,9 @@ state_t load_extremes(char *path, char *architecture, extremes_t *final_extremes
         return EAR_ERROR;
     }
     char filename[128] = "";
-    create_filename(filename, path, "extremes.", architecture);
+    if (!create_filename(filename, sizeof(filename), path, "extremes.", architecture)) {
+        return EAR_ERROR;
+    }
     FILE *f = fopen(filename, "rb");
 
     char buff[4096];

@@ -216,7 +216,7 @@ int32_t create_indexes(void *connection)
     }
 
     if (get_num_indexes(connection, "Jobs") < 3) {
-        sprintf(query, "CREATE INDEX idx_user_id ON Jobs (user_id)");
+        sprintf(query, "CREATE INDEX idx_user_id ON Jobs (user_name)");
         ret += run_query(connection, query);
     } else {
         fprintf(stdout, "Jobs indexes already created, skipping...\n");
@@ -288,6 +288,7 @@ int32_t create_tables(void *connection)
                        "L1_misses BIGINT unsigned, "
                        "L2_misses BIGINT unsigned, "
                        "L3_misses BIGINT unsigned, "
+                       "sp64_ops BIGINT unsigned, "
                        "sp128_ops BIGINT unsigned, "
                        "sp256_ops BIGINT unsigned, "
                        "sp512_ops BIGINT unsigned, "

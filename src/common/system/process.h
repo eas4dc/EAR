@@ -20,6 +20,20 @@ typedef struct process_data {
     pid_t pid;
 } process_data_t;
 
+typedef struct process_health {
+    pid_t pid;
+    ulong cpu_user_ns;
+    ulong cpu_system_ns;
+    ulong cpu_total_ns;
+    uint num_threads;
+    ulong vm_rss_kb;
+    ulong vm_size_kb;
+    uint open_fds;
+} process_health_t;
+
+state_t process_health_get(pid_t pid, process_health_t *health);
+void process_health_print_fd(process_health_t *health, int fd);
+
 /* */
 void process_data_initialize(process_data_t *prodata, char *name, char *path_pid);
 

@@ -41,7 +41,7 @@ const char *energy_names[] = {
         "energy_datasize",
         "energy_frequency",
         "energy_dc_read",
-        "energy_dc_ti   me_read",
+        "energy_dc_time_read",
         "energy_ac_read",
         "energy_units",
         "energy_accumulated",

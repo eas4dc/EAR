@@ -42,8 +42,9 @@ typedef typeof((MYSQL_BIND) {0}.is_null) ear_my_bool;
     "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
     "dram_bandwidth, io_bandwidth, TPI, CPI, cpu_gflops, elapsed_time, perc_MPI, L1_misses, L2_misses, L3_misses, "    \
     "sp64_ops, sp128_ops, sp256_ops, sp512_ops, dp64_ops, dp128_ops, dp256_ops, dp512_ops,"                            \
-    "instructions, cycles, avg_cpu_freq, avg_imc_f, def_cpu_freq, cpu_util, min_GPU_sig_id, max_GPU_sig_id) VALUES "   \
-    "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "instructions, cycles, avg_cpu_freq, avg_imc_freq, def_cpu_freq, cpu_util, min_GPU_sig_id, max_GPU_sig_id) "       \
+    "VALUES "                                                                                                          \
+    "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #define SIGNATURE_QUERY_SIMPLE                                                                                         \
     "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
@@ -55,7 +56,7 @@ typedef typeof((MYSQL_BIND) {0}.is_null) ear_my_bool;
     "INSERT INTO Signatures (node_power, dram_power, pck_power, "                                                      \
     "dram_bandwidth, io_bandwidth, TPI, CPI, cpu_gflops, elapsed_time, perc_MPI, L1_misses, L2_misses, L3_misses, "    \
     "sp64_ops, sp128_ops, sp256_ops, sp512_ops, dp64_ops, dp128_ops, dp256_ops, dp512_ops,"                            \
-    "instructions, cycles, avg_cpu_freq, avg_imc_f, def_cpu_freq, cpu_util) VALUES "                                   \
+    "instructions, cycles, avg_cpu_freq, avg_imc_freq, def_cpu_freq, cpu_util) VALUES "                                \
     "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #define SIGNATURE_QUERY_SIMPLE                                                                                         \
@@ -146,12 +147,13 @@ typedef typeof((MYSQL_BIND) {0}.is_null) ear_my_bool;
     "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"                                           \
     "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, L1_misses, L2_misses, L3_misses, "                                 \
     "FLOPS1, FLOPS2, FLOPS3, FLOPS4, FLOPS5, FLOPS6, FLOPS7, FLOPS8, "                                                 \
-    "instructions, cycles, avg_f, avg_imc_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "                           \
+    "instructions, cycles, avg_f, avg_imc_freq, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "                        \
     "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,?, ?, ?)"
 
 #define LEARNING_SIGNATURE_QUERY_SIMPLE                                                                                \
     "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power,  EDP,"                                          \
-    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f, min_GPU_sig_id, max_GPU_sig_id) VALUES "  \
+    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_freq, def_f, min_GPU_sig_id, max_GPU_sig_id) "      \
+    "VALUES "                                                                                                          \
     "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #else
@@ -159,12 +161,12 @@ typedef typeof((MYSQL_BIND) {0}.is_null) ear_my_bool;
     "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"                                           \
     "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, L1_misses, L2_misses, L3_misses, "                                 \
     "FLOPS1, FLOPS2, FLOPS3, FLOPS4, FLOPS5, FLOPS6, FLOPS7, FLOPS8, "                                                 \
-    "instructions, cycles, avg_f, avg_imc_f, def_f) "                                                                  \
+    "instructions, cycles, avg_f, avg_imc_freq, def_f) "                                                               \
     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 #define LEARNING_SIGNATURE_QUERY_SIMPLE                                                                                \
     "INSERT INTO Learning_signatures (DC_power, DRAM_power, PCK_power, EDP,"                                           \
-    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_f, def_f) "                                         \
+    "GBS, IO_MBS, TPI, CPI, Gflops, time, perc_MPI, avg_f, avg_imc_freq, def_f) "                                      \
     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 #endif
 
@@ -567,7 +569,7 @@ int mysql_batch_insert_jobs(MYSQL *connection, application_t *app, int num_apps)
         int offset = i * JOB_ARGS;
 
         for (int32_t j = 0; j < JOB_ARGS; j++) {
-            bind[i + offset].buffer_type = MYSQL_TYPE_LONG;
+            bind[j + offset].buffer_type = MYSQL_TYPE_LONG;
         }
 
         bind[0 + offset].is_unsigned = bind[1 + offset].is_unsigned = bind[2 + offset].is_unsigned =

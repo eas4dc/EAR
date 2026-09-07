@@ -226,14 +226,14 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
             if (mode != ERR_ONLY) {
                 printf("|%15s|%4s", ips[i].name, COL_GRE " OK " COL_CLR);
                 if ((uint32_t) ips[i].step_id == (uint32_t) BATCH_STEP)
-                    sprintf(step_id, "|%-8s|", "sbatch");
+                    sprintf(step_id, "|%8s|", "sbatch");
                 else if (ips[i].step_id == INTERACT_STEP)
-                    sprintf(step_id, "|%-8s|", "interact");
+                    sprintf(step_id, "|%8s|", "interact");
                 else
-                    sprintf(step_id, "|%-8d|", ips[i].step_id);
+                    sprintf(step_id, "|%8d|", ips[i].step_id);
 
                 if (mode == NODE_ONLY || mode == FULL_STATUS) {
-                    printf("|%5dW|%3dC|%.2lf|%.2lf|%6d|%8s|", ips[i].power, ips[i].temp,
+                    printf("|%4dW|%3dC|%4.2lf|%4.2lf|%6d%s", ips[i].power, ips[i].temp,
                            (double) ips[i].max_freq / 1000000.0, (double) ips[i].current_freq / 1000000.0,
                            ips[i].job_id, step_id);
                 }

@@ -15,6 +15,10 @@ stages:          # List of stages for jobs, and their order of execution
   - deploy
   - release
 
+include: tests/daemon/.powermon-stress.yml
+include: .gitlab/.changelog-ci.yml
+include: gitlab_cicd/automatic-synch.yml
+
 image: registry.gitlab.bsc.es/ear_team/ear-ci:v7
 
 debugs_disabled:
@@ -33,9 +37,8 @@ clang-format:
     - if: $CI_COMMIT_TAG
       when: never
     - when: always
-  image: rockylinux:8-minimal
+  image: registry.gitlab.bsc.es/ear_team/ear-ci:clang-format-19
   script:
-    - microdnf install -y clang-tools-extra-19.1.7-2.module+el8.10.0+1965+112b558b findutils
     - find src/ -name "*.[ch]" -exec clang-format --Werror --fail-on-incomplete-format --dry-run {} +
 
 compile-no-mpi-loader:
