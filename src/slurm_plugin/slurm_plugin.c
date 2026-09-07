@@ -8,14 +8,14 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
 #define _GNU_SOURCE
 #include <sched.h>
 #include <sys/sysinfo.h>
-
 #include <slurm_plugin/slurm_plugin.h>
-#include <slurm_plugin/slurm_plugin_environment.h>
-#include <slurm_plugin/slurm_plugin_options.h>
 #include <slurm_plugin/slurm_plugin_rcom.h>
+#include <slurm_plugin/slurm_plugin_options.h>
+#include <slurm_plugin/slurm_plugin_environment.h>
 #include <slurm_plugin/slurm_plugin_serialization.h>
 
 // Spank
@@ -38,7 +38,6 @@ int slurm_spank_init(spank_t sp, int ac, char **av)
     }
     // Here the --ear-... flags are registered.
     _opt_register(sp, ac, av);
-
     return ESPANK_SUCCESS;
 }
 
@@ -81,6 +80,7 @@ int slurm_spank_init_post_opt(spank_t sp, int ac, char **av)
 int slurm_spank_user_init_eard(spank_t sp)
 {
     plug_verbose(sp, 2, "function slurm_spank_user_init_eard");
+
     // If no shared services, EARD contact won't work, so plugin disabled.
     if (fail(plug_shared_readservs(sp, &sd))) {
         return ESPANK_ERROR;

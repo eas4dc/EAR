@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
 #include <common/types/application.h>
 #include <slurm_plugin/slurm_plugin_rcom.h>
 

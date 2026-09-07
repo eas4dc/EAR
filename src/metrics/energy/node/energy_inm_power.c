@@ -13,15 +13,17 @@
 #define FIRST_SIGNIFICANT_BYTE 3
 #define POWER_PERIOD           5
 
+#include <errno.h>
+#include <fcntl.h>
+#include <math.h>
+
+#include <common/config.h>
 #include <common/math_operations.h>
 #include <common/output/verbose.h>
 #include <common/states.h>
 #include <common/system/monitor.h>
 #include <common/system/poll.h>
 #include <common/types/generic.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <math.h>
 #include <metrics/energy/node/energy_inm_power.h>
 #include <metrics/energy/node/energy_node.h>
 #include <pthread.h>
@@ -124,7 +126,11 @@ static struct ipmi_rs *sendcmd(struct ipmi_intf *intf, struct ipmi_rq *req)
     AFD_ZERO(&rset);
     AFD_SET(intf->fd, &rset);
 
-    if (aselectv(&rset, NULL) < 0) {
+    struct timeval tout;
+    tout.tv_sec  = MAX_TIMEOUT_ENERGY_READING;
+    tout.tv_usec = 0;
+
+    if (aselectv(&rset, &tout) <= 0) {
         debug("I/O Error\n");
         if (data != NULL)
             free(data);

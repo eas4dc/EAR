@@ -84,12 +84,10 @@ static ulong rapl_size;
 extern pthread_mutex_t lock_rpc;
 static serial_buffer_t b;
 
-#if WF_SUPPORT
 /* Marks whether this API created by itself the application directory. */
 static uint app_directory_created;
 
 static char app_directory_pathname[MAX_PATH_SIZE];
-#endif
 
 #define CLOSE_LOCAL_COMM()                                                                                             \
     if (ear_fd_req_global >= 0)                                                                                        \
@@ -109,9 +107,7 @@ static sem_t *global_earl_eard_sem;
 static state_t create_base_path(char *base_path, size_t base_path_sz, char *tmp_path, uint job_step_id,
                                 uint app_local_id);
 
-#if WF_SUPPORT
 static state_t create_app_directory(char *path);
-#endif
 
 /** Saves EARD connection info to be restored in the case the client lose this info. */
 static state_t eards_save_connection(char *tmp, ulong job_id, ulong step_id, ulong local_id);
@@ -344,11 +340,9 @@ int eards_connected()
 state_t eards_connection()
 {
     application_t my_dummy_app;
-    my_dummy_app.job.id      = 0;
-    my_dummy_app.job.step_id = 0;
-#if WF_SUPPORT
+    my_dummy_app.job.id       = 0;
+    my_dummy_app.job.step_id  = 0;
     my_dummy_app.job.local_id = 0; // Create the folder if not exists
-#endif
     return (state_t) eards_connect(&my_dummy_app, getpid());
 }
 
@@ -408,7 +402,6 @@ int eards_connect(application_t *my_app, ulong lid)
     sprintf(ear_commreq_global, "%s/.ear_comm.globalreq", ear_tmp);
     verbose(VPROC_LAPI, "Opening Global comm pipe %s", ear_commreq_global);
 
-#if WF_SUPPORT
     char base_path[MAX_PATH_SIZE];
     /* Create the common base path used inside this block ("tmp/id/local_id") */
     state_t ret_st = create_base_path(base_path, sizeof(base_path), ear_tmp, (uint) my_id, (uint) my_app->job.local_id);
@@ -428,10 +421,6 @@ int eards_connect(application_t *my_app, ulong lid)
     /* Pipe full paths. They're stored at base_path as well. */
     sprintf(ear_commreq, "%s/.ear_comm.req_%d.%d.%lu", base_path, i, my_id, lid);
     sprintf(ear_commack, "%s/.ear_comm.ack_%d.%d.%lu", base_path, i, my_id, lid);
-#else
-    sprintf(ear_commreq, "%s/%u/.ear_comm.req_%d.%d.%lu", ear_tmp, (uint) my_id, i, my_id, lid);
-    sprintf(ear_commack, "%s/%u/.ear_comm.ack_%d.%d.%lu", ear_tmp, (uint) my_id, i, my_id, lid);
-#endif
     debug("comreq_global %s comreq %s comack %s", ear_commreq_global, ear_commreq, ear_commack);
     debug("comreq_self  : %s", ear_commreq);
     debug("comack_self  : %s", ear_commack);
@@ -578,11 +567,9 @@ int eards_connect(application_t *my_app, ulong lid)
     serial_alloc(&b, SIZE_8KB);
     connecting = 0;
 
-#if WF_SUPPORT
     if (state_fail(eards_save_connection(ear_tmp, my_app->job.id, my_app->job.step_id, my_app->job.local_id))) {
         verbose(2, "%sWarning%s Connection info saving failed: %s", COL_YLW, COL_CLR, state_msg);
     }
-#endif
 
     return EAR_SUCCESS;
 }
@@ -629,10 +616,8 @@ void eards_disconnect()
     sem_close(global_earl_eard_sem);
     AFD_ZERO(&eard_api_client_fd);
 
-#if WF_SUPPORT
     if (app_directory_created)
         folder_remove(app_directory_pathname);
-#endif
 
     app_connected = 0;
 }
@@ -773,55 +758,30 @@ ulong sendack(char *send_buf, size_t send_size, char *ack_buf, size_t ack_size, 
 
 ulong eards_write_app_signature(application_t *app)
 {
-#if WF_SUPPORT
     serial_clean(&b);
     application_serialize(&b, app);
     return eard_rpc(RPC_WRITE_APPLICATION, serial_data(&b), serial_size(&b), NULL, 0);
-#else
-    init_service(WRITE_APP_SIGNATURE);
-    memcpy(&req.req_data.app, app, sizeof(application_t));
-    return sendack((char *) &req, sizeof(req), (char *) &ack, sizeof(ulong), "APP signature", 0);
-#endif
 }
 
 ulong eards_write_wf_app_signature(application_t *app)
 {
-#if WF_SUPPORT
     serial_clean(&b);
     application_serialize(&b, app);
     return eard_rpc(RPC_WRITE_WF_APPLICATION, serial_data(&b), serial_size(&b), NULL, 0);
-#else
-    /* This case should never happen */
-    init_service(WRITE_WF_APP_SIGNATURE);
-    memcpy(&req.req_data.app, app, sizeof(application_t));
-    return sendack((char *) &req, sizeof(req), (char *) &ack, sizeof(ulong), "APP signature", 0);
-#endif
 }
 
 ulong eards_write_event(ear_event_t *event)
 {
-#if WF_SUPPORT
     serial_clean(&b);
     event_serialize(&b, event);
     return eard_rpc(RPC_WRITE_EVENT, serial_data(&b), serial_size(&b), NULL, 0);
-#else
-    init_service(WRITE_EVENT);
-    memcpy(&req.req_data.event, event, sizeof(ear_event_t));
-    return sendack((char *) &req, sizeof(req), (char *) &ack, sizeof(ulong), "EVENT write", 0);
-#endif
 }
 
 ulong eards_write_loop_signature(loop_t *loop)
 {
-#if WF_SUPPORT
     serial_clean(&b);
     loop_serialize(&b, loop);
     return eard_rpc(RPC_WRITE_LOOP, serial_data(&b), serial_size(&b), NULL, 0);
-#else
-    init_service(WRITE_LOOP_SIGNATURE);
-    memcpy(&req.req_data.loop, loop, sizeof(loop_t));
-    return sendack((char *) &req, sizeof(req), (char *) &ack, sizeof(ulong), "LOOP signature", 0);
-#endif
 }
 
 int eards_node_dc_energy(void *energy, ulong datasize)
@@ -891,7 +851,6 @@ static state_t create_base_path(char *base_path, size_t base_path_sz, char *tmp_
     }
 }
 
-#if WF_SUPPORT
 static state_t create_app_directory(char *path)
 {
     int ret = mkdir(path, S_IRWXU);
@@ -905,7 +864,6 @@ static state_t create_app_directory(char *path)
 
     return EAR_SUCCESS;
 }
-#endif
 
 static state_t create_global_pipe_semaphore()
 {

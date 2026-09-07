@@ -168,10 +168,16 @@ state_t pci_write(pci_t *pci, const void *buffer, size_t size, off_t addr)
 state_t pci_mwrite32(pci_t *pcis, uint pcis_count, const uint *buffer, off_t *addrs, uint addrs_count)
 {
     int p, a;
+    ssize_t written;
     for (p = 0; p < pcis_count; ++p) {
         for (a = 0; a < addrs_count; ++a) {
+            written = pwrite(pcis[p].fd, &buffer[a], sizeof(uint), addrs[a]);
+            if (written != sizeof(uint)) {
+                debug("PCI%d (fd %d), failed to write %lu bytes: %s (errno %d)", p, pcis[p].fd, sizeof(uint),
+                      strerror(errno), errno);
+                return_msg(EAR_ERROR, strerror(errno));
+            }
 #if SHOW_DEBUGS
-            uint written = pwrite(pcis[p].fd, &buffer[a], sizeof(uint), addrs[a]);
             debug("PCI%d (fd %d), in address %lx written value 0x%x (%u bytes)", p, pcis[p].fd, addrs[a], buffer[a],
                   written);
 #else

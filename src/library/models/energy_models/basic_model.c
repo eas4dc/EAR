@@ -16,11 +16,12 @@
 #include <daemon/shared_configuration.h>
 #include <library/common/verbose_lib.h>
 #include <library/models/energy_models/common.h>
-#include <management/cpufreq/frequency.h>
+#include <management/cpufreq/cpufreq.h>
 #include <stdlib.h>
 
 static coefficient_t **coefficients;
 static coefficient_t *coefficients_sm;
+static const pstate_t *available_pstates;
 static int num_coeffs;
 static uint num_pstates;
 static uint basic_model_init;
@@ -36,9 +37,13 @@ state_t energy_model_init(char *ear_coeffs_path, char *ear_tmp_path, architectur
 {
     char *hack_file = ear_getenv(HACK_EARL_COEFF_FILE);
     int i, ref;
+    state_t state;
 
     debug("Using basic_model\n");
-    num_pstates = (uint) arch_desc->pstates;
+    state = mgt_cpufreq_get_available_list(no_ctx, &available_pstates, &num_pstates);
+    if (state_fail(state)) {
+        return state;
+    }
     debug("Using %u pstates", num_pstates);
 
     coefficients = (coefficient_t **) malloc(sizeof(coefficient_t *) * num_pstates);
@@ -52,8 +57,8 @@ state_t energy_model_init(char *ear_coeffs_path, char *ear_tmp_path, architectur
         }
 
         for (ref = 0; ref < num_pstates; ref++) {
-            coefficients[i][ref].pstate_ref = frequency_pstate_to_freq(i);
-            coefficients[i][ref].pstate     = frequency_pstate_to_freq(ref);
+            coefficients[i][ref].pstate_ref = available_pstates[i].khz;
+            coefficients[i][ref].pstate     = available_pstates[ref].khz;
             coefficients[i][ref].available  = 0;
         }
     }
@@ -90,11 +95,12 @@ state_t energy_model_init(char *ear_coeffs_path, char *ear_tmp_path, architectur
         num_coeffs = num_coeffs / sizeof(coefficient_t);
         int ccoeff;
         for (ccoeff = 0; ccoeff < num_coeffs; ccoeff++) {
-            ref = frequency_closest_pstate(coefficients_sm[ccoeff].pstate_ref);
-            i   = frequency_closest_pstate(coefficients_sm[ccoeff].pstate);
-            if (frequency_is_valid_pstate(ref) && frequency_is_valid_pstate(i)) {
-                memcpy(&coefficients[ref][i], &coefficients_sm[ccoeff], sizeof(coefficient_t));
-                // verbose_master(3,"initializing coeffs for ref: %d i: %d\n", ref, i);
+            uint from_pstate;
+            uint to_pstate;
+            state_t from_state = mgt_cpufreq_get_index(no_ctx, coefficients_sm[ccoeff].pstate_ref, &from_pstate, 1);
+            state_t to_state   = mgt_cpufreq_get_index(no_ctx, coefficients_sm[ccoeff].pstate, &to_pstate, 1);
+            if (state_ok(from_state) && state_ok(to_state) && from_pstate < num_pstates && to_pstate < num_pstates) {
+                memcpy(&coefficients[from_pstate][to_pstate], &coefficients_sm[ccoeff], sizeof(coefficient_t));
             }
         }
     }

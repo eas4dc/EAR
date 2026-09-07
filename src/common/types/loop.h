@@ -25,9 +25,7 @@ typedef struct loop {
     loop_id_t id;
     ulong jid;
     ulong step_id;
-#if WF_SUPPORT
     ulong local_id;
-#endif
     char node_id[GENERIC_NAME];
     ulong total_iterations;
     signature_t signature;

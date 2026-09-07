@@ -53,7 +53,7 @@ post:
 	@ $(MAKE) -C 'system'   	$* || exit
 	@ $(MAKE) -C 'types'    	$* || exit
 	@ $(MAKE) -C 'utils'		$* || exit
-	#@ $(MAKE) -C 'external'		$* || exit
+# @ $(MAKE) -C 'external'		$* || exit
 
 ######## DEPENDENCIES
 

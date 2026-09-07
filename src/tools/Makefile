@@ -22,7 +22,6 @@ tool_BINS = \
 
 #enode_control
 
-ifeq ($(FEAT_WF_SUPPORT), 1)
 ifdef DB_BASE
 tool_BINS += \
     learning_show \
@@ -35,7 +34,6 @@ endif
 ifdef GSL_BASE
 tool_BINS += \
 	coeffs_compute
-endif
 endif
 tool_PATH = $(DESTDIR)/bin/tools
 tool_PERM = 0770

@@ -62,10 +62,8 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
     timestamp end;
     char mode[32];
     char gflops_str[128];
-#if WF_SUPPORT
     float GPU_GFlops = 0;
     ulong GPU_temp   = 0;
-#endif
 
     if (VERB_GET_LV() == 0)
         return;
@@ -223,17 +221,11 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
             verbose_master(GPU_SIG_VRB_LVL, "%s", gpu_sig_hdr);
 
             for (int i = 0; i < gpu_cnt; i++) {
-#if WF_SUPPORT
                 verbose_master(GPU_SIG_VRB_LVL, "%7d %-9.2f %-8lu %-10lu %-9.2f %lu)", i,
                                sig->signature.gpu_sig.gpu_data[i].GPU_power,
                                sig->signature.gpu_sig.gpu_data[i].GPU_util, sig->signature.gpu_sig.gpu_data[i].GPU_freq,
                                sig->signature.gpu_sig.gpu_data[i].GPU_GFlops,
                                sig->signature.gpu_sig.gpu_data[i].GPU_temp);
-#else
-                verbose_master(
-                    GPU_SIG_VRB_LVL, "%7d %-9.2f %-8lu %-10lu)", i, sig->signature.gpu_sig.gpu_data[i].GPU_power,
-                    sig->signature.gpu_sig.gpu_data[i].GPU_util, sig->signature.gpu_sig.gpu_data[i].GPU_freq);
-#endif
 
                 gpu_pwr_sum += sig->signature.gpu_sig.gpu_data[i].GPU_power;
                 gpu_freq_sum += (float) sig->signature.gpu_sig.gpu_data[i].GPU_freq;
@@ -245,10 +237,8 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
                     GPU_FREQ += sig->signature.gpu_sig.gpu_data[i].GPU_freq;
                     GPU_UTIL += sig->signature.gpu_sig.gpu_data[i].GPU_util;
                     GPU_mem_util += sig->signature.gpu_sig.gpu_data[i].GPU_mem_util;
-#if WF_SUPPORT
                     GPU_GFlops += sig->signature.gpu_sig.gpu_data[i].GPU_GFlops;
                     GPU_temp += sig->signature.gpu_sig.gpu_data[i].GPU_temp;
-#endif
                 }
             }
             verbose_master(GPU_SIG_VRB_LVL, "-------------------------------------");
@@ -258,9 +248,7 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
                 AVGGPUF      = (float) GPU_FREQ / (float) (gpu_used_cnt * 1000000.0);
                 GPU_UTIL     = GPU_UTIL / gpu_used_cnt;
                 GPU_mem_util = GPU_mem_util / gpu_used_cnt;
-#if WF_SUPPORT
-                GPU_temp = GPU_temp / gpu_used_cnt;
-#endif
+                GPU_temp     = GPU_temp / gpu_used_cnt;
             }
 
             gpu_freq_sum /= gpu_cnt;
@@ -283,12 +271,10 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
 #if USE_GPUS
         char gpu_temp_str[128] = "";
         if (gpu_cnt > 0) {
-#if WF_SUPPORT
             char gpu_glops[64];
             snprintf(gpu_glops, sizeof(gpu_glops), "/%.2f", GPU_GFlops);
             strcat(gflops_str, gpu_glops);
             sprintf(gpu_temp_str, "GPU temp %lu (avg)", GPU_temp);
-#endif
             verbosen(SIG_VRB_LVL, "%s", gpu_buff);
         }
 #endif
@@ -402,13 +388,11 @@ void state_verbose_signature(loop_t *sig, int master_rank, char *aname, char *nn
         verbose(SIG_VRB_LVL, "\tIO DATA: %s", io_info);
         verbosen(SIG_VRB_LVL, "\t%s", proc_data_str);
 
-#if WF_SUPPORT
         verbosen(SIG_VRB_LVL, "\n\tSocket CPU temp. (celsius) CPU power (W) DRAM power (W)");
         for (uint s = 0; s < sig->signature.cpu_sig.devs_count; s++) {
             verbosen(SIG_VRB_LVL, "\n\t%6u %-19lld %-13.2lf %-14.2lf", s, sig->signature.cpu_sig.temp[s],
                      sig->signature.cpu_sig.cpu_power[s], sig->signature.cpu_sig.dram_power[s]);
         }
-#endif
         verbose(SIG_VRB_LVL, "%s", COL_CLR);
     }
 }

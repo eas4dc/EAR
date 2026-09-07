@@ -522,14 +522,14 @@ state_t create_eid_folder(char *tmp, int jid, int sid, uint AID)
     strcat(EID_application_path, ".app");
 
     verbose(WF_SUPPORT_VERB + 1, "EARL: Creating app folder %s", EID_application_path);
-    ret = mkdir(EID_application_path, S_IRWXU);
+    ret = mkdir(EID_application_path, S_IRWXU | S_IROTH | S_IXOTH);
     if ((ret < 0) && (errno != EEXIST)) {
         verbose(WF_SUPPORT_VERB + 1, "EAR error EID folder cannot be created (%s) (%s)", EID_application_path,
                 strerror(errno));
         node_mgr_info_unlock();
         return EAR_ERROR;
     }
-    chmod(EID_application_path, S_IRUSR | S_IWUSR | S_IXUSR);
+    chmod(EID_application_path, S_IRUSR | S_IWUSR | S_IXUSR | S_IROTH | S_IXOTH);
     verbose(WF_SUPPORT_VERB + 1, "EID folder (%s) created", EID_application_path);
 
     /* Application folder */
@@ -803,13 +803,11 @@ void create_shared_regions()
         verbose_master(2, "Error creating node_mgr region");
     }
     ear_njob_t me;
-    me.jid           = application.job.id;
-    me.sid           = application.job.step_id;
-    me.creation_time = time(NULL);
-#if WF_SUPPORT
+    me.jid               = application.job.id;
+    me.sid               = application.job.step_id;
+    me.creation_time     = time(NULL);
     me.num_earl_apps     = 1;
     me.modification_time = me.creation_time;
-#endif
     CPU_ZERO(&me.node_mask);
     verbose_master(2, "Master (PID: %d)  Attaching to node_mgr region", getpid());
     if (nodemgr_attach_job(&me, &node_mgr_index) != EAR_SUCCESS) {
@@ -1803,11 +1801,9 @@ void ear_init()
     debug("User %s", application.job.user_id);
     strcpy(application.node_id, node_name);
     strcpy(application.job.user_acc, my_account);
-    application.job.id      = my_job_id;
-    application.job.step_id = my_step_id;
-#if WF_SUPPORT
+    application.job.id       = my_job_id;
+    application.job.step_id  = my_step_id;
     application.job.local_id = AID;
-#endif
 
     debug("Starting job");
     // sets the job start_time
@@ -2137,7 +2133,9 @@ void ear_init()
         }
     }
     verbosen_info_master("Node sharing strategy: ");
-    verbose_master(VEARL_INFO, "%s", (node_sharing_strategy == node) ? "node" : "job");
+    verbose_master(VEARL_INFO, "%s",
+                   (node_sharing_strategy == node) ? "node(all the CPUs in the node will be considered)"
+                                                   : "job(only CPUs used by jobs will be considered)");
 
     verbose_info2_master("Init CPU power models for node sharing.");
     if (cpu_power_model_load(system_conf, &arch_desc, API_NONE) == EAR_SUCCESS) {
@@ -3063,8 +3061,6 @@ static void release_shared_memory_areas()
     verbose(WF_SUPPORT_VERB, "EARL[%d] releasing shared memory regions", getpid());
     return;
 
-#if WF_SUPPORT
-
     /* WARNING */
 
     verbose(WF_SUPPORT_VERB, "EARL[%d] sig_shared_region", getpid());
@@ -3074,7 +3070,6 @@ static void release_shared_memory_areas()
     verbose(WF_SUPPORT_VERB, "EARL[%d] external_mgt", getpid());
     munmap(external_mgt, sizeof(ear_mgt_t));
     verbose(WF_SUPPORT_VERB, "EARL[%d] end releasing shared memory regions", getpid());
-#endif
 }
 
 static void reset_earl_environment()

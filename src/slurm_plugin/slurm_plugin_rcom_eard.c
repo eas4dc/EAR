@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
 #include <slurm_plugin/slurm_plugin_rcom.h>
 
 static int plug_rcom_eard_connect(spank_t sp, plug_serialization_t *sd, char *by)
@@ -41,8 +42,8 @@ static int plug_rcom_eard_job_sbatch(spank_t sp, plug_serialization_t *sd, int n
         return ESPANK_ERROR;
     }
     while (i < sd->job.nodes_count) {
-        plug_verbose(sp, 2, "connecting to EARD %d/%d: '%s:%d' (by SBATCH/SALLOC)", i, sd->job.nodes_count - 1,
-                     sd->job.nodes_list[i], port);
+        plug_verbose(sp, 2, "connecting to EARD %d/%d: '%s:%d' (by SBATCH/SALLOC)",
+            i, sd->job.nodes_count - 1, sd->job.nodes_list[i], port);
         ++i;
     }
     if (new_job) {
@@ -50,8 +51,8 @@ static int plug_rcom_eard_job_sbatch(spank_t sp, plug_serialization_t *sd, int n
         // To know if EARD was contacted previosly by SBATCH
         setenv_agnostic(sp, Var.con_eard_sbatch.mod, "1", 1);
     } else {
-        ear_nodelist_end_job(sd->job.app.job.id, sd->job.app.job.step_id, port, net_ext, sd->job.nodes_list,
-                             sd->job.nodes_count);
+        ear_nodelist_end_job(sd->job.app.job.id, sd->job.app.job.step_id, port, net_ext,
+                             sd->job.nodes_list, sd->job.nodes_count);
     }
     return ESPANK_SUCCESS;
 }

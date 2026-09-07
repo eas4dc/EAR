@@ -72,11 +72,9 @@ int loop_init(loop_t *loop, ulong job_id, ulong step_id, ulong local_id, const c
     if ((ret = create_loop_id(&loop->id, event, size, level)) != EAR_SUCCESS)
         return ret;
 
-    loop->jid     = job_id;
-    loop->step_id = step_id;
-#if WF_SUPPORT
+    loop->jid      = job_id;
+    loop->step_id  = step_id;
     loop->local_id = local_id;
-#endif
 
     memcpy(loop->node_id, node_id, sizeof loop->node_id);
 
@@ -184,11 +182,7 @@ int create_loop_header(char *header, char *path, int ts, uint num_gpus, int sing
         }
     }
 
-#if WF_SUPPORT
     char *HEADER_JOB = "JOBID;STEPID;APPID";
-#else
-    char *HEADER_JOB = "JOBID;STEPID";
-#endif // WF_SUPPORT
 
     char *HEADER_NOTS = ";NODENAME;AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;"
                         "ITER_TIME_SEC;CPI;TPI;MEM_GBS;IO_MBS;PERC_MPI;DC_NODE_POWER_W;"
@@ -200,8 +194,7 @@ int create_loop_header(char *header, char *path, int ts, uint num_gpus, int sing
                         "L1_HITRATE;L2_HITRATE;L3_HITRATE;LL_HITRATE;"
                         "SPOPS_SINGLE;SPOPS_128;SPOPS_256;SPOPS_512;DPOPS_SINGLE;DPOPS_128;"
                         "DPOPS_256;DPOPS_512";
-#if WF_SUPPORT
-    uint num_sockets = MAX_SOCKETS_SUPPORTED;
+    uint num_sockets  = MAX_SOCKETS_SUPPORTED;
     debug("Creating header for CPU signature with %u sockets", num_sockets);
     char cpu_sig_hdr[256] = "";
     for (uint s = 0; s < num_sockets; s++) {
@@ -210,20 +203,11 @@ int create_loop_header(char *header, char *path, int ts, uint num_gpus, int sing
         strcat(cpu_sig_hdr, temp_hdr);
     }
 
-#else
-    char *cpu_sig_hdr = "";
-#endif
-
 #if USE_GPUS
     char gpu_header[512];
-#if WF_SUPPORT
     char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"
                            "GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS;"
                            "GPU%d_TEMP;GPU%d_MEMTEMP";
-#else
-    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"
-                           "GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
-#endif // WF_SUPPORT
 #else
     char HEADER_GPU_SIG[1] = "\0";
 #endif
@@ -264,11 +248,7 @@ int create_loop_header(char *header, char *path, int ts, uint num_gpus, int sing
     if (single_column)
         num_gpus = ear_min(1, num_gpus);
     for (uint j = 0; j < num_gpus; ++j) {
-#if WF_SUPPORT
         sprintf(gpu_header, HEADER_GPU_SIG, j, j, j, j, j, j, j, j);
-#else
-        sprintf(gpu_header, HEADER_GPU_SIG, j, j, j, j, j);
-#endif
         strncat(HEADER, gpu_header, header_len - strlen(HEADER) - 1);
     }
 #endif // USE_GPUS
@@ -337,11 +317,7 @@ static int append_loop_text_file_no_job_int(char *path, loop_t *loop, int ts, ul
 
     assert(loop != NULL);
     assert(loop->node_id != NULL);
-#if WF_SUPPORT
     dprintf(fd, "%lu;%lu;%lu;", loop->jid, loop->step_id, loop->local_id);
-#else
-    dprintf(fd, "%lu;%lu;", loop->jid, loop->step_id);
-#endif
     dprintf(fd, "%s;", loop->node_id);
     signature_print_fd(fd, &loop->signature, 1, single_column, sep);
     print_loop_id_fd(fd, &loop->id);
@@ -368,11 +344,7 @@ state_t loop_print_fd(int fd, loop_t *loop, int ts, ullong currtime, int single_
         return EAR_ERROR;
     }
 
-#if WF_SUPPORT
     dprintf(fd, "%lu;%lu;%lu;", loop->jid, loop->step_id, loop->local_id);
-#else
-    dprintf(fd, "%lu;%lu;", loop->jid, loop->step_id);
-#endif
     dprintf(fd, "%s;", loop->node_id);
     signature_print_fd(fd, &loop->signature, 1, single_column, sep);
     print_loop_id_fd(fd, &loop->id);
@@ -397,9 +369,7 @@ void loop_serialize(serial_buffer_t *b, loop_t *loop)
     serial_dictionary_push_auto(b, loop->id.level);
     serial_dictionary_push_auto(b, loop->jid);
     serial_dictionary_push_auto(b, loop->step_id);
-#if WF_SUPPORT
     serial_dictionary_push_auto(b, loop->local_id);
-#endif
     serial_dictionary_push_auto(b, loop->node_id);
     serial_dictionary_push_auto(b, loop->total_iterations);
     signature_serialize(b, &loop->signature);
@@ -412,9 +382,7 @@ void loop_deserialize(serial_buffer_t *b, loop_t *loop)
     serial_dictionary_pop_auto(b, loop->id.level);
     serial_dictionary_pop_auto(b, loop->jid);
     serial_dictionary_pop_auto(b, loop->step_id);
-#if WF_SUPPORT
     serial_dictionary_pop_auto(b, loop->local_id);
-#endif
     serial_dictionary_pop_auto(b, loop->node_id);
     serial_dictionary_pop_auto(b, loop->total_iterations);
     signature_deserialize(b, &loop->signature);
@@ -423,11 +391,7 @@ void loop_deserialize(serial_buffer_t *b, loop_t *loop)
 state_t loop_create_header_str(char *header_dst, size_t header_dst_size, char *header_prefix, int ts, uint num_gpus,
                                int single_column)
 {
-#if WF_SUPPORT
     char *HEADER_JOB = "JOBID;STEPID;APPID";
-#else
-    char *HEADER_JOB = "JOBID;STEPID";
-#endif // WF_SUPPORT
 
     char *HEADER_NOTS = ";NODENAME;AVG_CPUFREQ_KHZ;AVG_IMCFREQ_KHZ;DEF_FREQ_KHZ;"
                         "ITER_TIME_SEC;CPI;TPI;MEM_GBS;IO_MBS;PERC_MPI;DC_NODE_POWER_W;"
@@ -439,8 +403,7 @@ state_t loop_create_header_str(char *header_dst, size_t header_dst_size, char *h
                         "L1_HITRATE;L2_HITRATE;L3_HITRATE;LL_HITRATE;"
                         "SPOPS_SINGLE;SPOPS_128;SPOPS_256;SPOPS_512;DPOPS_SINGLE;DPOPS_128;"
                         "DPOPS_256;DPOPS_512";
-#if WF_SUPPORT
-    uint num_sockets = MAX_SOCKETS_SUPPORTED;
+    uint num_sockets  = MAX_SOCKETS_SUPPORTED;
     debug("Creating header for CPU signature with %u sockets", num_sockets);
     char cpu_sig_hdr[256] = "";
     for (uint s = 0; s < num_sockets; s++) {
@@ -449,20 +412,11 @@ state_t loop_create_header_str(char *header_dst, size_t header_dst_size, char *h
         strcat(cpu_sig_hdr, temp_hdr);
     }
 
-#else
-    char *cpu_sig_hdr = "";
-#endif
-
 #if USE_GPUS
     char gpu_header[512];
-#if WF_SUPPORT
     char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"
                            "GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS;"
                            "GPU%d_TEMP;GPU%d_MEMTEMP";
-#else
-    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"
-                           "GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
-#endif // WF_SUPPORT
 #else
     char HEADER_GPU_SIG[1] = "\0";
 #endif
@@ -491,11 +445,7 @@ state_t loop_create_header_str(char *header_dst, size_t header_dst_size, char *h
     if (single_column)
         num_gpus = ear_min(1, num_gpus);
     for (uint j = 0; j < num_gpus; ++j) {
-#if WF_SUPPORT
         sprintf(gpu_header, HEADER_GPU_SIG, j, j, j, j, j, j, j, j);
-#else
-        sprintf(gpu_header, HEADER_GPU_SIG, j, j, j, j, j);
-#endif
         strncat(header_dst, gpu_header, header_dst_size - strlen(header_dst) - 1);
     }
 #endif // USE_GPUS

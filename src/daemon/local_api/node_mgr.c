@@ -77,7 +77,7 @@ state_t nodemgr_job_init(char *tmp, ear_njob_t **nodelist)
 
     /* The eard will create this area */
     xsnprintf(node_mgr_info, sizeof(node_mgr_info), "%s/%s", node_mgr_tmp, LOCK_NODE_MGR_INFO);
-    // verbose(WF_SUPPORT_VERB, "NODE MGR region path %s\n", node_mgr_info);
+    verbose(WF_SUPPORT_VERB, "NODE MGR region path %s\n", node_mgr_info);
     node_jobs_list = (ear_njob_t *) attach_shared_area(node_mgr_info, sizeof(ear_njob_t) * MAX_CPUS_SUPPORTED, O_RDWR,
                                                        &fd_node_mgr_info, NULL);
 
@@ -167,15 +167,9 @@ state_t nodemgr_get_num_jobs_attached(uint *num_jobs)
         return EAR_ERROR;
 
     for (uint i = 0; i < MAX_CPUS_SUPPORTED; i++) {
-#if WF_SUPPORT
         if (node_jobs_list[i].jid != -1) {
             total_jobs += ear_max(node_jobs_list[i].num_earl_apps, 1);
         }
-#else
-        if (node_jobs_list[i].jid != -1) {
-            total_jobs++;
-        }
-#endif
     }
 
     ear_file_unlock(fd_node_mgr_lck);
@@ -193,11 +187,11 @@ state_t nodemgr_attach_job(ear_njob_t *my_job, uint *my_index)
     uint pos;
     uint new;
 
-    // verbose(WF_SUPPORT_VERB,"Attaching job to node_mgr region %lu.%lu", my_job->jid, my_job->sid);
+    verbose(WF_SUPPORT_VERB, "Attaching job to node_mgr region %lu.%lu", my_job->jid, my_job->sid);
     new = (nodemgr_find_job(my_job, &pos) == EAR_ERROR);
 
     if (new) {
-        // verbose(WF_SUPPORT_VERB,"Adding new job in NODE MGR region ");
+        verbose(WF_SUPPORT_VERB, "Adding new job in NODE MGR region ");
         /* Get the lock */
         if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES))
             return EAR_ERROR;
@@ -218,15 +212,13 @@ state_t nodemgr_attach_job(ear_njob_t *my_job, uint *my_index)
         ear_file_unlock(fd_node_mgr_lck);
     } else {
         s = EAR_SUCCESS;
-#if WF_SUPPORT
-        // verbose(WF_SUPPORT_VERB,"Adding new app in NODE MGR region in pos %u", pos);
+        verbose(WF_SUPPORT_VERB, "Adding new app in NODE MGR region in pos %u", pos);
         if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES))
             return EAR_ERROR;
         node_jobs_list[pos].modification_time = my_job->modification_time;
         node_jobs_list[pos].num_earl_apps++;
-        // verbose(WF_SUPPORT_VERB,"PENDING add the mask");
+        verbose(WF_SUPPORT_VERB, "PENDING add the mask");
         ear_file_unlock(fd_node_mgr_lck);
-#endif
     }
     return s;
 }
@@ -268,17 +260,13 @@ state_t nodemgr_job_end(uint index)
     if (!ear_file_lock_timeout(fd_node_mgr_lck, MAX_LOCK_TRIES))
         return EAR_ERROR;
 
-#if WF_SUPPORT
     node_jobs_list[index].num_earl_apps--;
     if (node_jobs_list[index].num_earl_apps == 0) {
-#endif
-        node_jobs_list[index].jid           = -1;
-        node_jobs_list[index].sid           = -1;
-        node_jobs_list[index].creation_time = 0;
-#if WF_SUPPORT
+        node_jobs_list[index].jid               = -1;
+        node_jobs_list[index].sid               = -1;
+        node_jobs_list[index].creation_time     = 0;
         node_jobs_list[index].modification_time = 0;
     }
-#endif
 
     ear_file_unlock(fd_node_mgr_lck);
     return s;
@@ -297,12 +285,10 @@ state_t nodemgr_clean_job(job_id jid, job_id sid)
                 return EAR_ERROR;
 
             if ((node_jobs_list[i].jid == jid) && (node_jobs_list[i].sid == sid)) {
-                node_jobs_list[i].jid           = -1;
-                node_jobs_list[i].sid           = -1;
-                node_jobs_list[i].creation_time = 0;
-#if WF_SUPPORT
+                node_jobs_list[i].jid               = -1;
+                node_jobs_list[i].sid               = -1;
+                node_jobs_list[i].creation_time     = 0;
                 node_jobs_list[i].modification_time = 0;
-#endif
             }
 
             ear_file_unlock(fd_node_mgr_lck);

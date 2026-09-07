@@ -1631,11 +1631,9 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
     /* Avg IMC frequency */
     metrics->avg_imc_f = imcfreq_avrg[sign_app_loop_idx];
 
-#if WF_SUPPORT
     /* Temperature data */
     metrics->cpu_sig.devs_count = metrics_get(MET_TEMP)->devs_count;
     temp_data_copy(metrics->cpu_sig.temp, temp_diff[sign_app_loop_idx]);
-#endif
 
     /* Cache misses */
     // TODO: To be removed when using just cache_signature_t attribute
@@ -1809,17 +1807,13 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
         metrics->DRAM_power = 0;
 
         for (int p = 0; p < num_packs; p++) {
-            double rapl_dram    = (double) metrics_rapl[sign_app_loop_idx][p];
-            metrics->DRAM_power = metrics->DRAM_power + rapl_dram;
-#if WF_SUPPORT
+            double rapl_dram               = (double) metrics_rapl[sign_app_loop_idx][p];
+            metrics->DRAM_power            = metrics->DRAM_power + rapl_dram;
             metrics->cpu_sig.dram_power[p] = energy_cpu_compute_power(rapl_dram, time_s);
-#endif
 
-            double rapl_pck    = (double) metrics_rapl[sign_app_loop_idx][num_packs + p];
-            metrics->PCK_power = metrics->PCK_power + rapl_pck;
-#if WF_SUPPORT
+            double rapl_pck               = (double) metrics_rapl[sign_app_loop_idx][num_packs + p];
+            metrics->PCK_power            = metrics->PCK_power + rapl_pck;
             metrics->cpu_sig.cpu_power[p] = energy_cpu_compute_power(rapl_pck, time_s);
-#endif
             verbose_info2_master("computing dram[%d] power = %lf", p, metrics->cpu_sig.dram_power[p]);
             verbose_info2_master("computing cpu[%d]  power = %lf", p, metrics->cpu_sig.cpu_power[p]);
         }
@@ -1851,10 +1845,8 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
             metrics->gpu_sig.gpu_data[p].GPU_mem_freq = gpu_metrics_diff[sign_app_loop_idx][p].freq_mem;
             metrics->gpu_sig.gpu_data[p].GPU_util     = gpu_metrics_diff[sign_app_loop_idx][p].util_gpu;
             metrics->gpu_sig.gpu_data[p].GPU_mem_util = gpu_metrics_diff[sign_app_loop_idx][p].util_mem;
-#if WF_SUPPORT
             metrics->gpu_sig.gpu_data[p].GPU_temp     = gpu_metrics_diff[sign_app_loop_idx][p].temp_gpu;
             metrics->gpu_sig.gpu_data[p].GPU_temp_mem = gpu_metrics_diff[sign_app_loop_idx][p].temp_mem;
-#endif
             total_gpu_util += metrics->gpu_sig.gpu_data[p].GPU_util;
             total_gpu_power += metrics->gpu_sig.gpu_data[p].GPU_power;
         }
@@ -1877,7 +1869,6 @@ static void metrics_compute_signature_data(uint sign_app_loop_idx, signature_t *
                     error_lib("Getting global DCGMI metrics: %s", state_msg);
                 }
             }
-            // If WF_SUPPORT disabled, metrics is not filled.
             dcgmi_lib_compute_gpu_gflops(&sig_ext->dcgmis, metrics);
         }
 #endif // DCGMI
@@ -2784,10 +2775,8 @@ state_t metrics_new_iteration(signature_t *sig)
             sig->gpu_sig.gpu_data[i].GPU_mem_freq = gpu_metrics_busy_diff[i].freq_mem;
             sig->gpu_sig.gpu_data[i].GPU_util     = gpu_metrics_busy_diff[i].util_gpu;
             sig->gpu_sig.gpu_data[i].GPU_mem_util = gpu_metrics_busy_diff[i].util_mem;
-#if WF_SUPPORT
             sig->gpu_sig.gpu_data[i].GPU_temp     = gpu_metrics_busy_diff[i].temp_gpu;
             sig->gpu_sig.gpu_data[i].GPU_temp_mem = gpu_metrics_busy_diff[i].temp_mem;
-#endif
         }
     }
 #endif // USE_GPUS

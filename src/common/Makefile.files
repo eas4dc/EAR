@@ -85,11 +85,7 @@ full_OBJS = $(core_OBJS)
 ifdef DB_BASE
 db_OBJS += \
     $(SRCDIR)/common/database/db_helper.o \
-    $(SRCDIR)/common/database/postgresql_io_functions.o
-
-ifeq ($(FEAT_WF_SUPPORT), 1)
-    db_OBJS += \
+    $(SRCDIR)/common/database/postgresql_io_functions.o \
     $(SRCDIR)/common/database/mysql_io_functions.o 
-endif
 full_OBJS += $(db_OBJS)
 endif

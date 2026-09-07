@@ -34,11 +34,9 @@ typedef struct gpu_app {
     ulong GPU_mem_freq;
     ulong GPU_util;
     ulong GPU_mem_util;
-#if WF_SUPPORT
     float GPU_GFlops;
     ulong GPU_temp;
     ulong GPU_temp_mem;
-#endif
 } gpu_app_t;
 
 /** GPU part. */
@@ -175,9 +173,7 @@ typedef struct signature {
 #if USE_GPUS
     gpu_signature_t gpu_sig;
 #endif
-#if WF_SUPPORT
     cpu_signature_t cpu_sig;
-#endif
     proc_stat_signature_t ps_sig;
     cache_signature_t cache;
     void *sig_ext;

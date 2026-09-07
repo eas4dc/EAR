@@ -108,11 +108,7 @@ state_t report_applications(report_id_t *id, application_t *apps, uint count)
         return EAR_SUCCESS;
 
     for (uint i = 0; i < count; i++) {
-#if WF_SUPPORT
         ulong lid = apps[i].job.local_id;
-#else
-        ulong lid = 0;
-#endif
         dprintf(fd_apps,
                 "app[%u]: id %lu step %lu appid %lu user %s start_time %u end_time %u policy %s th %.3lf procs %lu "
                 "def_cpufreq %lu earl %d node %s ",

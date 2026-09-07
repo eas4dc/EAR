@@ -15,7 +15,7 @@
 #include <common/types/generic.h>
 #include <pthread.h>
 
-#define MAX_LOCK_INTENTS 1000000000
+#define MAX_LOCK_INTENTS 1000
 
 #define ear_lock(lock)   pthread_mutex_lock(lock);
 

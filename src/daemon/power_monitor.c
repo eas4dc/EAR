@@ -1247,29 +1247,32 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
 
     read_enegy_data(ceh, &c_energy);
     compute_power(&pmapp->energy_init, &c_energy, &app_power);
+    double curr_DC_power   = accum_node_power(&app_power);
+    double curr_dram_power = accum_dram_power(&app_power);
+    double curr_pck_power  = accum_cpu_power(&app_power);
+
+    /* Last test : This is just a workaround because there is also GPU power*/
+    if (curr_DC_power < (curr_dram_power + curr_pck_power))
+        curr_DC_power = curr_dram_power + curr_pck_power;
 
     if (pmapp->exclusive) {
 
         verbose(VJOBPMON, "[%lu/%lu] Computing power signature. Job executed in exclusive mode", pmapp->app.job.id,
                 pmapp->app.job.step_id);
 
-        pmapp->app.power_sig.DC_power = accum_node_power(&app_power);
-
-        /* Filter */
-        if (pmapp->app.power_sig.DC_power > my_node_conf->max_sig_power)
-            pmapp->app.power_sig.DC_power = my_node_conf->max_sig_power;
-        if (pmapp->app.power_sig.DC_power < my_node_conf->min_sig_power)
-            pmapp->app.power_sig.DC_power = my_node_conf->min_sig_power;
+        /* Filter based on ear.conf */
+        if (curr_DC_power > my_node_conf->max_sig_power)
+            curr_DC_power = my_node_conf->max_sig_power;
+        if (curr_DC_power < my_node_conf->min_sig_power)
+            curr_DC_power = my_node_conf->min_sig_power;
 
         /* Compute max and min */
-        pmapp->app.power_sig.max_DC_power =
-            ear_max(pmapp->app.power_sig.max_DC_power, pmapp->app.power_sig.max_DC_power);
-        pmapp->app.power_sig.min_DC_power =
-            ear_min(pmapp->app.power_sig.min_DC_power, pmapp->app.power_sig.max_DC_power);
+        pmapp->app.power_sig.max_DC_power = ear_max(curr_DC_power, pmapp->app.power_sig.max_DC_power);
+        pmapp->app.power_sig.min_DC_power = ear_min(curr_DC_power, pmapp->app.power_sig.min_DC_power);
 
         /* DRAM and PCK */
-        pmapp->app.power_sig.DRAM_power = accum_dram_power(&app_power);
-        pmapp->app.power_sig.PCK_power  = accum_cpu_power(&app_power);
+        pmapp->app.power_sig.DRAM_power = curr_dram_power;
+        pmapp->app.power_sig.PCK_power  = curr_pck_power;
         // CPU Frequency
         state_assert(s,
                      cpufreq_read_diff(freq_job2, pmapp->freq_job1, pmapp->freq_diff, &pmapp->app.power_sig.avg_f), );
@@ -1279,6 +1282,7 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
                              &lcpus);
         }
     } else {
+        /* Not exclusive and is_mpi means EARL is used */
         if (pmapp->app.is_mpi) {
             verbose(VJOBPMON, "Computing power signature. Job executed in NOT exclusive mode. Using EARL signature");
             pmapp->app.power_sig.DC_power   = pmapp->app.signature.DC_power;
@@ -1295,8 +1299,8 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
 
         if (pmapp->app.power_sig.DC_power > my_node_conf->max_sig_power)
             pmapp->app.power_sig.DC_power = my_node_conf->max_sig_power;
-        if (pmapp->app.power_sig.DC_power < my_node_conf->min_sig_power)
-            pmapp->app.power_sig.DC_power = my_node_conf->min_sig_power;
+        /* DC power is not fixed at the lower bound because a job might have low dc power assigned when sharing
+         * resources.*/
 
         pmapp->app.power_sig.max_DC_power = ear_max(pmapp->accum_ps.max, pmapp->app.power_sig.DC_power);
         pmapp->app.power_sig.min_DC_power = ear_min(pmapp->accum_ps.min, pmapp->app.power_sig.DC_power);
@@ -2367,76 +2371,78 @@ void update_pmapps(power_data_t *last_pmon, nm_data_t *nm)
         if (state_fail(ear_trylock(&app_lock)))
             continue;
         debug("%sApp lock", COL_RED);
-        if (current_ear_app[cc] != NULL) {
+        if (current_ear_app[cc] == NULL) {
+            ear_unlock(&app_lock);
+            continue;
+        }
 
-            state_t lock_st;
-            if ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS) {
-                error("Locking context %u for testing its power: %s", cc, state_msg);
-                ear_unlock(&app_lock);
-                debug("%s", COL_CLR);
-                return;
-            }
-            debug("%s", COL_CLR);
-            uint cont = 0;
-            if (!current_ear_app[cc]) {
-                ear_unlock(&powermon_app_mutex[cc]);
-                cont = 1;
-            }
-            pmapp = current_ear_app[cc];
+        state_t lock_st;
+        if ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS) {
+            error("Locking context %u for testing its power: %s", cc, state_msg);
             ear_unlock(&app_lock);
             debug("%s", COL_CLR);
-            if (cont)
-                continue;
-
-            /* We must update the current signature */
-            lcpus = pmapp->earl_num_cpus;
-            if (lcpus) {
-
-                cpu_ratio = (num_jobs > 1) ? (float) lcpus / (float) tcpus : 1;
-
-                verbose(VEARD_NMGR, "Job %lu/%lu has %lu of %lu CPUs. Ratio: %f", pmapp->app.job.id,
-                        pmapp->app.job.step_id, lcpus, tcpus, cpu_ratio);
-            } else {
-
-                if (is_job_in_node(pmapp->app.job.id, &alloc)) {
-
-                    // cpu_ratio = (float) alloc->num_cpus / (float) tcpus;
-                    cpu_ratio = ((tcpus && alloc->num_cpus) ? (float) alloc->num_cpus / (float) tcpus : 1);
-
-                    verbose(VEARD_NMGR, "Job %lu/%lu without node mask, using ratio %f = %u/%lu", pmapp->app.job.id,
-                            pmapp->app.job.step_id, cpu_ratio, alloc->num_cpus, tcpus);
-                } else {
-                    verbose(VEARD_NMGR, "Warning, no cpus detected using num_jobs %lu", num_jobs);
-                    // cpu_ratio = 1.0 / (float) num_jobs;
-                    cpu_ratio = (num_jobs ? 1.0 / (float) num_jobs : 1);
-                }
-            }
-
-            my_dc_power = accum_node_power(last_pmon) * cpu_ratio;
-            pmapp->accum_ps.DC_energy += accum_node_power(last_pmon) * cpu_ratio * time_consumed;
-            pmapp->accum_ps.DRAM_energy += accum_dram_power(last_pmon) * cpu_ratio * time_consumed;
-            pmapp->accum_ps.PCK_energy += accum_cpu_power(last_pmon) * cpu_ratio * time_consumed;
-
-            if (pmapp->app.is_mpi) {
-                pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) * time_consumed;
-            } else {
-
-                pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) * time_consumed;
-            }
-
-            pmapp->accum_ps.max = ear_max(pmapp->accum_ps.max, my_dc_power);
-
-            if (pmapp->accum_ps.min > 0) {
-                pmapp->accum_ps.min = ear_min(pmapp->accum_ps.min, my_dc_power);
-            } else {
-                pmapp->accum_ps.min = my_dc_power;
-            }
-#if USE_GPUS
-            float gpu_ratio            = 1;
-            pmapp->accum_ps.GPU_energy = accum_gpu_power(last_pmon) * gpu_ratio * time_consumed;
-#endif
-            ear_unlock(&powermon_app_mutex[cc]);
+            return;
         }
+        debug("%s", COL_CLR);
+        uint cont = 0;
+        if (!current_ear_app[cc]) {
+            ear_unlock(&powermon_app_mutex[cc]);
+            cont = 1;
+        }
+        pmapp = current_ear_app[cc];
+        ear_unlock(&app_lock);
+        debug("%s", COL_CLR);
+        if (cont)
+            continue;
+
+        /* We must update the current signature */
+        lcpus = pmapp->earl_num_cpus;
+        if (lcpus) {
+
+            cpu_ratio = (num_jobs > 1) ? (float) lcpus / (float) tcpus : 1;
+
+            verbose(VEARD_NMGR, "Job %lu/%lu has %lu of %lu CPUs. Ratio: %f", pmapp->app.job.id, pmapp->app.job.step_id,
+                    lcpus, tcpus, cpu_ratio);
+        } else {
+
+            if (is_job_in_node(pmapp->app.job.id, &alloc)) {
+
+                // cpu_ratio = (float) alloc->num_cpus / (float) tcpus;
+                cpu_ratio = ((tcpus && alloc->num_cpus) ? (float) alloc->num_cpus / (float) tcpus : 1);
+
+                verbose(VEARD_NMGR, "Job %lu/%lu without node mask, using ratio %f = %u/%lu", pmapp->app.job.id,
+                        pmapp->app.job.step_id, cpu_ratio, alloc->num_cpus, tcpus);
+            } else {
+                verbose(VEARD_NMGR, "Warning, no cpus detected using num_jobs %lu", num_jobs);
+                // cpu_ratio = 1.0 / (float) num_jobs;
+                cpu_ratio = (num_jobs ? 1.0 / (float) num_jobs : 1);
+            }
+        }
+
+        my_dc_power = accum_node_power(last_pmon) * cpu_ratio;
+        pmapp->accum_ps.DC_energy += accum_node_power(last_pmon) * cpu_ratio * time_consumed;
+        pmapp->accum_ps.DRAM_energy += accum_dram_power(last_pmon) * cpu_ratio * time_consumed;
+        pmapp->accum_ps.PCK_energy += accum_cpu_power(last_pmon) * cpu_ratio * time_consumed;
+
+        if (pmapp->app.is_mpi) {
+            pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) * time_consumed;
+        } else {
+
+            pmapp->accum_ps.avg_f += get_nm_cpufreq_with_mask(&my_nm_id, nm, pmapp->plug_mask) * time_consumed;
+        }
+
+        pmapp->accum_ps.max = ear_max(pmapp->accum_ps.max, my_dc_power);
+
+        if (pmapp->accum_ps.min > 0) {
+            pmapp->accum_ps.min = ear_min(pmapp->accum_ps.min, my_dc_power);
+        } else {
+            pmapp->accum_ps.min = my_dc_power;
+        }
+#if USE_GPUS
+        float gpu_ratio            = 1;
+        pmapp->accum_ps.GPU_energy = accum_gpu_power(last_pmon) * gpu_ratio * time_consumed;
+#endif
+        ear_unlock(&powermon_app_mutex[cc]);
     }
 
     verbose(VEARD_NMGR, "-----------------------------------------");

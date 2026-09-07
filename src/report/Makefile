@@ -37,10 +37,8 @@ repo_BINS += \
 	psql.so 
 endif
 ifeq ($(FEAT_DB_MYSQL),1)
-ifeq ($(FEAT_WF_SUPPORT), 1)
 repo_BINS += \
 	mysql.so 
-endif
 endif
 ifeq ($(FEAT_DB_CASSANDRA),1)
 repo_BINS += \

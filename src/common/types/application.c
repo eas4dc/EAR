@@ -35,13 +35,8 @@ void copy_application(application_t *destiny, application_t *source)
 
 void application_print_channel(FILE *file, application_t *app)
 {
-#if WF_SUPPORT
     fprintf(file, "application_t: id '%s', job id '%lu.%lu.%lu', node id '%s'\n", app->job.app_id, app->job.id,
             app->job.step_id, app->job.local_id, app->node_id);
-#else
-    fprintf(file, "application_t: id '%s', job id '%lu.%lu', node id '%s'\n", app->job.app_id, app->job.id,
-            app->job.step_id, app->node_id);
-#endif
     fprintf(file, "application_t: learning '%d', time '%lf', avg freq '%lu'\n", app->is_learning, app->signature.time,
             app->signature.avg_f);
     fprintf(file, "application_t: pow dc '%lf', pow ram '%lf', pow pack '%lf'\n", app->signature.DC_power,
@@ -242,14 +237,9 @@ void verbose_gpu_app(uint vl, application_t *myapp)
     uint gpui;
     for (gpui = 0; gpui < app->gpu_sig.num_gpus; gpui++) {
         mys = &app->gpu_sig.gpu_data[gpui];
-#if WF_SUPPORT
         verbose(vl, "GPU%u [Power %.2lf freq %lu flops %.2f mem_freq %lu util %lu mem_util %lu temp %lu]\n", gpui,
                 mys->GPU_power, mys->GPU_freq, mys->GPU_GFlops, mys->GPU_mem_freq, mys->GPU_util, mys->GPU_mem_util,
                 mys->GPU_temp);
-#else
-        verbose(vl, "GPU%u [Power %.2lf freq %lu mem_freq %lu util %lu mem_util %lu]\n", gpui, mys->GPU_power,
-                mys->GPU_freq, mys->GPU_mem_freq, mys->GPU_util, mys->GPU_mem_util);
-#endif
     }
 #endif
 }
@@ -283,26 +273,18 @@ void verbose_application_data(uint vl, application_t *app)
     /* Formatting the message */
 
     char job_info_txt[1024]; // app / user / account / job.step
-    int ret = snprintf(
-        job_info_txt, sizeof(job_info_txt),
-#if WF_SUPPORT
-        "--- App id: %s / user id: %s / account: %s / job.step.appid: %lu.%lu.%lu ---\n\n"
-#else
-        "--- App id: %s / user id: %s / account: %s / job.step.appid: %lu.%lu ---\n\n"
-#endif
-        "Processes: %lu\n"
-        "Start time: %s End time: %s\n"
-        "Start MPI : %s End MPI :  %s\n\n"
-        "(Power sign.) Wall time: %0.3lf s, nominal freq.: %0.2f GHz, avg. freq: %0.2f GHz\n"
-        "              DC/DRAM/PCK power: %0.3lf/%0.3lf/%0.3lf (W)\n"
-        "              Max/Min DC Power (W): %0.3lf/%0.3lf\n\n",
-#if WF_SUPPORT
-        app->job.app_id, app->job.user_id, app->job.user_acc, app->job.id, app->job.step_id, app->job.local_id,
-#else
-        app->job.app_id, app->job.user_id, app->job.user_acc, app->job.id, app->job.step_id,
-#endif
-        app->job.procs, st, et, stmpi, etmpi, app->power_sig.time, pdef_f, pavg_f, app->power_sig.DC_power,
-        app->power_sig.DRAM_power, app->power_sig.PCK_power, app->power_sig.max_DC_power, app->power_sig.min_DC_power);
+    int ret = snprintf(job_info_txt, sizeof(job_info_txt),
+                       "--- App id: %s / user id: %s / account: %s / job.step.appid: %lu.%lu.%lu ---\n\n"
+                       "Processes: %lu\n"
+                       "Start time: %s End time: %s\n"
+                       "Start MPI : %s End MPI :  %s\n\n"
+                       "(Power sign.) Wall time: %0.3lf s, nominal freq.: %0.2f GHz, avg. freq: %0.2f GHz\n"
+                       "              DC/DRAM/PCK power: %0.3lf/%0.3lf/%0.3lf (W)\n"
+                       "              Max/Min DC Power (W): %0.3lf/%0.3lf\n\n",
+                       app->job.app_id, app->job.user_id, app->job.user_acc, app->job.id, app->job.step_id,
+                       app->job.local_id, app->job.procs, st, et, stmpi, etmpi, app->power_sig.time, pdef_f, pavg_f,
+                       app->power_sig.DC_power, app->power_sig.DRAM_power, app->power_sig.PCK_power,
+                       app->power_sig.max_DC_power, app->power_sig.min_DC_power);
     if (ret < 0) {
         verbose(vl, "%sERROR%s Formatting application summary.", COL_RED, COL_CLR);
     } else if (ret >= sizeof(job_info_txt)) {
@@ -378,17 +360,10 @@ void verbose_application_data(uint vl, application_t *app)
                 mys = &app_sig->gpu_sig.gpu_data[gpui];
 
                 char gpu_i_sig_buff[256];
-#if WF_SUPPORT
                 snprintf(gpu_i_sig_buff, sizeof(gpu_i_sig_buff),
                          "GPU%u [Power %.2lf freq %lu flops %.2f mem_freq %lu util %lu mem_util %lu temp %lu]\n", gpui,
                          mys->GPU_power, mys->GPU_freq, mys->GPU_GFlops, mys->GPU_mem_freq, mys->GPU_util,
                          mys->GPU_mem_util, mys->GPU_temp);
-#else
-
-                snprintf(gpu_i_sig_buff, sizeof(gpu_i_sig_buff),
-                         "GPU%u [Power %.2lf freq %lu mem_freq %lu util %lu mem_util %lu]\n", gpui, mys->GPU_power,
-                         mys->GPU_freq, mys->GPU_mem_freq, mys->GPU_util, mys->GPU_mem_util);
-#endif
 
                 remain_gpusig_buff_len -= (strlen(gpu_i_sig_buff) - 1);
 
@@ -429,13 +404,8 @@ void report_mpi_application_data(int vl, application_t *app)
     char job_info_txt[1024]; // app / user / account / job.step
 
     snprintf(job_info_txt, sizeof(job_info_txt),
-#if WF_SUPPORT
              "--- App id: %s / user id: %s / account: %s / job.step: %lu.%lu.%lu ---\n", app->job.app_id,
              app->job.user_id, app->job.user_acc, app->job.id, app->job.step_id, app->job.local_id);
-#else
-             "--- App id: %s / user id: %s / account: %s / job.step: %lu.%lu ---\n", app->job.app_id, app->job.user_id,
-             app->job.user_acc, app->job.id, app->job.step_id);
-#endif
 
     char mpi_info_txt[512]; // signature details
 
@@ -529,17 +499,10 @@ void fill_basic_sig(application_t *app)
 state_t application_create_header_str(char *header_dst, size_t header_dst_size, char *header_prefix, uint num_gpus,
                                       char is_extended, int single_column)
 {
-#if WF_SUPPORT
     char *HEADER_JOB = "JOBID;STEPID;APPID;USERID;GROUPID;ACCOUNTID;JOBNAME;"
                        "ENERGY_TAG;JOB_START_TIME;JOB_END_TIME;JOB_START_DATE;"
                        "JOB_END_DATE;JOB_EARL_START_TIME;JOB_EARL_END_TIME;POLICY;"
                        "POLICY_TH;JOB_NPROCS;JOB_TYPE;JOB_DEF_FREQ";
-#else
-    char *HEADER_JOB = "JOBID;STEPID;USERID;GROUPID;ACCOUNTID;JOBNAME;"
-                       "ENERGY_TAG;JOB_START_TIME;JOB_END_TIME;JOB_START_DATE;"
-                       "JOB_END_DATE;JOB_EARL_START_TIME;JOB_EARL_END_TIME;POLICY;"
-                       "POLICY_TH;JOB_NPROCS;JOB_TYPE;JOB_DEF_FREQ";
-#endif // WF_SUPPORT
 
     char *HEADER_BASE = ";EARL_ENABLED;EAR_LEARNING_PHASE;NODENAME";
 
@@ -561,13 +524,8 @@ state_t application_create_header_str(char *header_dst, size_t header_dst_size, 
     }
 
 #if USE_GPUS
-#if WF_SUPPORT
     char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"
                            "GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC;GPU%d_GFLOPS;GPU%d_TEMP;GPU%d_MEMTEMP";
-#else
-    char *HEADER_GPU_SIG = ";GPU%d_POWER_W;GPU%d_FREQ_KHZ;GPU%d_MEM_FREQ_KHZ;"
-                           "GPU%d_UTIL_PERC;GPU%d_MEM_UTIL_PERC";
-#endif // WF_SUPPORT
 #else
     char HEADER_GPU_SIG[1] = "\0";
 #endif // USE_GPUS
@@ -576,7 +534,6 @@ state_t application_create_header_str(char *header_dst, size_t header_dst_size, 
     num_gpus = MAX_GPUS_SUPPORTED * USE_GPUS; // USE_GPUS can set a zero on num_gpus
     debug("Creating header with %d GPUS", num_gpus);
 
-#if WF_SUPPORT
     uint num_sockets = MAX_SOCKETS_SUPPORTED;
     debug("Creating header for CPU signature with %u sockets", num_sockets);
     char cpu_sig_hdr[256] = "";
@@ -585,11 +542,6 @@ state_t application_create_header_str(char *header_dst, size_t header_dst_size, 
         snprintf(temp_hdr, sizeof(temp_hdr), ";TEMP%u;CPU_POWER%u;DRAM_POWER%u", s, s, s);
         strcat(cpu_sig_hdr, temp_hdr);
     }
-
-#else
-    char *cpu_sig_hdr = "";
-
-#endif
 
     // Full version
     char *HEADER_POWER_SIG = ";NODEMGR_DC_NODE_POWER_W;NODEMGR_DRAM_POWER_W;NODEMGR_PCK_POWER_W;NODEMGR_MAX_DC_POWER_W;"
@@ -622,11 +574,7 @@ state_t application_create_header_str(char *header_dst, size_t header_dst_size, 
         num_gpus = ear_min(num_gpus, 1);
     for (int i = 0; i < num_gpus; i++) {
         char gpu_hdr[256];
-#if WF_SUPPORT
         snprintf(gpu_hdr, sizeof(gpu_hdr), HEADER_GPU_SIG, i, i, i, i, i, i, i, i);
-#else
-        snprintf(gpu_hdr, sizeof(gpu_hdr), HEADER_GPU_SIG, i, i, i, i, i);
-#endif
         strncat(HEADER, gpu_hdr, header_len - strlen(HEADER) - 1);
     }
 #endif

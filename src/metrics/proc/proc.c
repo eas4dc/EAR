@@ -117,7 +117,7 @@ void proc_data_diff(proc_t *pr2, proc_t *pr1, proc_t *prD)
         prD[i].utime = overflow_zeros_f64(pr2[i].utime, pr1[i].utime);
         prD[i].stime = overflow_zeros_f64(pr2[i].stime, pr1[i].stime);
         prD[i].cpu_util = (uint) (100.0 * ((prD[i].utime + prD[i].stime) / prD[i].secs));
-        prD[i].cpu_util = (prD[i].cpu_util > 100) ? 100 : prD[i].cpu_util;
+        // prD[i].cpu_util = (prD[i].cpu_util > 100) ? 100 : prD[i].cpu_util;
     }
     #if SHOW_DEBUGS
     proc_data_print(prD, fderr);

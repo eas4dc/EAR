@@ -399,20 +399,16 @@ void dcgmi_lib_compute_gpu_gflops(dcgmi_sig_t *dcgmi_sig, signature_t *metrics)
 
         verbose(DCGMI_MET_LVL, "GPU%u GFLOPS: fp16 %f fp32 %f fp64 %f tensor %f gflops_cycle %f gpu_f %f: %f", gpu_idx,
                 fp16, fp32, fp64, tensor, gflops_cycle, gpu_freq, dcgmi_sig->gpu_gflops[gpu_idx]);
-#if WF_SUPPORT
         metrics->gpu_sig.gpu_data[gpu_idx].GPU_GFlops = gflops_cycle * gpu_freq;
         verbose(DCGMI_MET_LVL, "Storing GPU GFLOPS into GPU signature (%f)",
                 metrics->gpu_sig.gpu_data[gpu_idx].GPU_GFlops);
-#endif
     }
 
-#if WF_SUPPORT
     // Fill positions left
     while (gpu_idx < MAX_GPUS_SUPPORTED) {
         metrics->gpu_sig.gpu_data[gpu_idx].GPU_GFlops = 0;
         gpu_idx++;
     }
-#endif
     return;
 }
 

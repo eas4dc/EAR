@@ -16,16 +16,17 @@
 #include <daemon/shared_configuration.h>
 #include <library/common/verbose_lib.h>
 #include <library/models/energy_models/common.h>
-#include <management/cpufreq/frequency.h>
+#include <management/cpufreq/cpufreq.h>
 #include <stdlib.h>
 
 static coefficient_t **coefficients;
 static coefficient_t *coefficients_sm;
+static const pstate_t *available_pstates;
 static int num_coeffs;
 static uint num_pstates;
 static uint basic_model_init;
 static architecture_t arch;
-static int avx512_pstate = 1, avx2_pstate = 1;
+static uint avx512_pstate = 1, avx2_pstate = 1;
 
 /** Returns whether the pair <from_ps, to_ps> is between the configured pstate list. */
 static int valid_range(ulong from_ps, ulong to_ps);
@@ -51,23 +52,50 @@ static uint projection_available(ulong from_ps, ulong to_ps);
 state_t energy_model_init(char *ear_coeffs_path, char *ear_tmp_path, architecture_t *arch_desc)
 {
     int i, ref;
+    uint nominal_pstate;
+    state_t state;
     char *hack_file = ear_getenv(HACK_EARL_COEFF_FILE);
 
     debug("Using avx512_model\n");
 
-    num_pstates = arch_desc->pstates;
+    state = mgt_cpufreq_get_available_list(no_ctx, &available_pstates, &num_pstates);
+    if (state_fail(state)) {
+        return state;
+    }
+    if (num_pstates == 0) {
+        return_msg(EAR_ERROR, "No CPU P-states available");
+    }
+
+    state = mgt_cpufreq_get_nominal(no_ctx, &nominal_pstate);
+    if (state_fail(state)) {
+        return state;
+    }
 
     copy_arch_desc(&arch, arch_desc);
     print_arch_desc(&arch);
 
     VERB_SET_EN(0);
 
-    avx512_pstate = frequency_closest_pstate(arch.max_freq_avx512);
-    avx2_pstate   = frequency_closest_pstate(arch.max_freq_avx2);
+    /* An omitted or below-minimum AVX limit means nominal frequency. */
+    avx512_pstate = nominal_pstate;
+    if (arch.max_freq_avx512 >= available_pstates[num_pstates - 1].khz) {
+        uint pstate;
+        if (state_ok(mgt_cpufreq_get_index(no_ctx, arch.max_freq_avx512, &pstate, 1))) {
+            avx512_pstate = pstate;
+        }
+    }
+
+    avx2_pstate = nominal_pstate;
+    if (arch.max_freq_avx2 >= available_pstates[num_pstates - 1].khz) {
+        uint pstate;
+        if (state_ok(mgt_cpufreq_get_index(no_ctx, arch.max_freq_avx2, &pstate, 1))) {
+            avx2_pstate = pstate;
+        }
+    }
 
     VERB_SET_EN(1);
 
-    debug("Pstate for maximum freq avx512 %lu=%d Pstate for maximum freq avx2 %lu=%d", arch.max_freq_avx512,
+    debug("Pstate for maximum freq avx512 %lu=%u Pstate for maximum freq avx2 %lu=%u", arch.max_freq_avx512,
           avx512_pstate, arch.max_freq_avx2, avx2_pstate);
 
     coefficients = (coefficient_t **) malloc(sizeof(coefficient_t *) * num_pstates);
@@ -83,8 +111,8 @@ state_t energy_model_init(char *ear_coeffs_path, char *ear_tmp_path, architectur
 
         for (ref = 0; ref < num_pstates; ref++) {
 
-            coefficients[i][ref].pstate_ref = frequency_pstate_to_freq(i);
-            coefficients[i][ref].pstate     = frequency_pstate_to_freq(ref);
+            coefficients[i][ref].pstate_ref = available_pstates[i].khz;
+            coefficients[i][ref].pstate     = available_pstates[ref].khz;
             coefficients[i][ref].available  = 0;
         }
     }
@@ -124,11 +152,12 @@ state_t energy_model_init(char *ear_coeffs_path, char *ear_tmp_path, architectur
 
         int ccoeff;
         for (ccoeff = 0; ccoeff < num_coeffs; ccoeff++) {
-            ref = frequency_closest_pstate(coefficients_sm[ccoeff].pstate_ref);
-            i   = frequency_closest_pstate(coefficients_sm[ccoeff].pstate);
-            if (frequency_is_valid_pstate(ref) && frequency_is_valid_pstate(i)) {
-                memcpy(&coefficients[ref][i], &coefficients_sm[ccoeff], sizeof(coefficient_t));
-                // verbose_master(3,"initializing coeffs for ref: %d i: %d\n", ref, i);
+            uint from_pstate;
+            uint to_pstate;
+            state_t from_state = mgt_cpufreq_get_index(no_ctx, coefficients_sm[ccoeff].pstate_ref, &from_pstate, 1);
+            state_t to_state   = mgt_cpufreq_get_index(no_ctx, coefficients_sm[ccoeff].pstate, &to_pstate, 1);
+            if (state_ok(from_state) && state_ok(to_state) && from_pstate < num_pstates && to_pstate < num_pstates) {
+                memcpy(&coefficients[from_pstate][to_pstate], &coefficients_sm[ccoeff], sizeof(coefficient_t));
             }
         }
     }
@@ -163,7 +192,7 @@ state_t energy_model_project_time(signature_t *signature, ulong from_ps, ulong t
                     pdest = avx512_pstate;
                 else
                     pdest = 1;
-                unsigned long nominal = frequency_pstate_to_freq(pdest);
+                unsigned long nominal = available_pstates[pdest].khz;
                 avx512_coeffs         = &coefficients[from_ps][pdest];
                 time_avx512           = project_time(avx512_coeffs, signature, coeff->pstate_ref, nominal);
             } else {

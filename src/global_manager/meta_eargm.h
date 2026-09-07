@@ -8,11 +8,16 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
-#define _XOPEN_SOURCE 700 // to get rid of the warning
-#define _GNU_SOURCE
-
 #ifndef META_EARGM
 #define META_EARGM
+
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700 // to get rid of the warning
+#endif
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 
 #include <common/config.h>
 #include <common/states.h>

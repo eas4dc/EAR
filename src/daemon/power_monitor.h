@@ -172,7 +172,7 @@ void node_energy_unlock();
 
 /** Returns whether only the Idle context exists,
  * or if all currently created contexts are marked as finished. */
-uint powermon_is_idle();
+uint powermon_is_idle(uint get_lock);
 
 /** \todo Add a description. */
 uint powermon_current_power();

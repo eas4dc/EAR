@@ -34,10 +34,8 @@ egmplug_BINS = \
     #default_plugin.so 
 
 ifdef DB_BASE
-ifeq ($(FEAT_WF_SUPPORT), 1)
 eargmd_BINS = \
     eargmd
-endif
 endif
 
 LDFLAGS += $(OPENSSL_LDFLAGS)

@@ -10,6 +10,7 @@
 
 /* clang-format off */
 #include <common/system/file.h>
+#include <common/system/execute.h>
 #include <slurm_plugin/slurm_plugin.h>
 #include <slurm_plugin/slurm_plugin_environment.h>
 #include <slurm_plugin/slurm_plugin_serialization.h>
@@ -143,10 +144,10 @@ void files_clean(int job_id, int step_id)
     ear_file_clean(path_slave_step);
     // 4. Creating the 'by the case' powerful cleaning command
     xsprintf(command, "rm -f %s/*.step 2> /dev/null", path_job);
-    ret = system(command);
+    execute(command);
     // 5. Creating the other 'by the case' powerful cleaning command
     xsprintf(command, "rm -f %s/*.lock 2> /dev/null", path_job);
-    ret = system(command);
+    execute(command);
     // 5. Write again master_step
     ear_file_write(path_master_step, (char *) &step_id, sizeof(int));
     (void) ret;
@@ -157,8 +158,7 @@ void folder_clean(int job_id)
 {
     // 1. Creating the cleaning command
     xsprintf(command, "rm -rfd %s 2> /dev/null", path_job);
-    int ret = system(command);
-    (void) ret;
+    execute(command);
 }
 
 // Flag --clean
@@ -166,6 +166,5 @@ void all_clean(char *path_tmp)
 {
     xsprintf(command, "rm -rfd %s/erun* &> /dev/null", path_tmp);
     plug_verbose(_sp, 3, "Executing %s", command);
-    int ret = system(command);
-    (void) ret;
+    execute(command);
 }

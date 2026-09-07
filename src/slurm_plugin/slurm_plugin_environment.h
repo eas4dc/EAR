@@ -11,6 +11,7 @@
 #ifndef EAR_SLURM_PLUGIN_ENVIRONMENT_H
 #define EAR_SLURM_PLUGIN_ENVIRONMENT_H
 
+/* clang-format off */
 #include <common/config/config_env.h>
 
 // Verbosity
@@ -59,7 +60,11 @@ struct context_s {
     plug_context_t remote;
     plug_context_t local;
 } Context __attribute__((weak)) = {
-    .error = S_CTX_ERROR, .srun = S_CTX_LOCAL, .sbatch = S_CTX_ALLOCATOR, .remote = S_CTX_REMOTE, .local = -1};
+    .error  = S_CTX_ERROR,
+    .srun   = S_CTX_LOCAL,
+    .sbatch = S_CTX_ALLOCATOR,
+    .remote = S_CTX_REMOTE,
+    .local  = -1 };
 
 struct constring_s {
     char *error;

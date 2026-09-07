@@ -142,11 +142,7 @@ state_t cpu_power_model_project(lib_shared_data_t *data, shsignature_t *sig, nod
     verbose_master(2, "EARL[%d] cpu_power_model_project symbol %s", getpid(),
                    ((cpu_power_models_syms_fun.project != NULL) ? "defined" : "not defined"));
     if (cpu_power_models_syms_fun.project != NULL) {
-#if WF_SUPPORT
         cpu_power_models_syms_fun.project(data, sig, nmgr, node_mgr_earl_index);
-#else
-        cpu_power_models_syms_fun.project(data, sig, nmgr, node_mgr_index);
-#endif
     }
     return EAR_SUCCESS;
 }

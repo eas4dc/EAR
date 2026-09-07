@@ -23,9 +23,7 @@
 typedef struct job {
     job_id id;      // ulong
     job_id step_id; // ulong
-#if WF_SUPPORT
     job_id local_id;
-#endif
     char user_id[GENERIC_NAME];
     char group_id[GENERIC_NAME];
     char app_id[GENERIC_NAME];

@@ -269,17 +269,10 @@ void states_begin_period(int my_id, ulong event, ulong size, ulong level)
 
     tries_current_loop           = 0;
     tries_current_loop_same_freq = 0;
-#if WF_SUPPORT
     if (state_fail(loop_init(&curr_loop, application.job.id, application.job.step_id, application.job.local_id,
                              application.node_id, event, size, level))) {
         verbose_error_master("Creating loop: %s", state_msg);
     }
-#else
-    if (state_fail(loop_init(&curr_loop, application.job.id, application.job.step_id, 0, application.node_id, event,
-                             size, level))) {
-        verbose_error_master("Creating loop: %s", state_msg);
-    }
-#endif
 
     policy_loop_init(&curr_loop.id);
 

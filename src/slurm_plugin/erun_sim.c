@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+/* clang-format off */
 #include <slurm_plugin/slurm_plugin.h>
 #include <slurm_plugin/slurm_plugin_environment.h>
 #include <slurm_plugin/slurm_plugin_serialization.h>
@@ -80,23 +81,37 @@ spank_err_t spank_get_item(spank_t spank, spank_item_t item, int *p)
     return ESPANK_SUCCESS;
 }
 
-char *slurm_hostlist_shift(hostlist_t host_list)
-{
-    static int count = 1;
-
-    if (count == 1) {
-        count = 0;
-        return host_list;
-    } else {
-        count = 1;
-        return NULL;
-    }
-}
-
 hostlist_t slurm_hostlist_create(char *node_list)
 {
-    char *copy = malloc(strlen(node_list) + 8);
-    return strcpy(copy, node_list);
+    // Simulation of the slurm.h function: create a new hostlist from a string
+    // representation, e.g. "cmp[0-5,12,20-25]". But for ERUN, the list is
+    // coming like "cmp1,cmp2,cmp3,etc". Then, we return a copy.
+    char *copy = calloc(strlen(node_list) + 8, sizeof(char));
+    return (hostlist_t) strcpy(copy, node_list);
+}
+
+char *slurm_hostlist_shift(hostlist_t host_list)
+{
+    static char buffer[128] = {0};
+    static char *copy = NULL;
+    char *p = NULL;
+    // Returning a node one by one
+    if (copy == NULL) {
+        copy = (char *) slurm_hostlist_create(host_list);
+    }
+    if ((p = strchr(copy, ',')) != NULL) {
+        *p = '\0';
+        strncpy(buffer, copy, 127);
+        copy = &p[1];
+    } else if (strlen(copy) > 1) {
+        strncpy(buffer, copy, 127);
+        copy = &copy[strlen(copy)];
+    } else {
+        copy = NULL;
+        return NULL;
+    }
+    // No need to free, because ERUN does it only once
+    return buffer;
 }
 
 spank_err_t spank_option_register_print(spank_t sp, struct spank_option *opt)

@@ -164,6 +164,11 @@ state_t mgt_cpufreq_get_nominal(ctx_t *c, uint *pstate_index)
     preturn(ops.get_nominal, c, pstate_index);
 }
 
+/** Given a frequency in KHz, returns its available P_STATE index.
+ * This function was created to ask for the P-State indexes of exact frequencies.
+ * The \p closest variable was added to also search the nearest frequency index.
+ * P_STATE 0 when turbo is enabled is not considered a real frequency,
+ * is a virtual value that enables the turbo frequency.*/
 state_t mgt_cpufreq_get_index(ctx_t *c, ullong freq_khz, uint *pstate_index, uint closest)
 {
     preturn(ops.get_index, c, freq_khz, pstate_index, closest);

@@ -33,9 +33,7 @@ void temp_load(topology_t *tp, int options)
     if (API_IS(options, API_DUMMY)) {
         goto dummy;
     }
-#if WF_SUPPORT
     temp_eard_load(tp, &ops, options);
-#endif
     temp_hwmon_load(tp, &ops, options);
     temp_intel63_load(tp, &ops, options);
 dummy:
