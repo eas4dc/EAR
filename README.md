@@ -1,4 +1,4 @@
-# Energy Aware Runtime version 7.0
+# Energy Aware Runtime
 
 <div align="center">
 <img src="etc/images/EAR_logo_PNG_no_background.png" height="200">
