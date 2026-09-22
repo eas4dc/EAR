@@ -163,8 +163,7 @@ static void init_general_configuration(int argc, char **argv, cluster_conf_t *co
         verb2("- redirecting '%s/eardbd.server/mirror.log'", conf_clus->install.dir_temp);
     }
     /* Reporting plugin */
-    if (state_fail(report_load(conf_clus->install.dir_plug, "dummy.so"))) {
-        // if (state_fail(report_load(conf_clus->install.dir_plug, conf_clus->db_manager.plugins))){
+    if (state_fail(report_load(conf_clus->install.dir_plug, conf_clus->db_manager.plugins))) {
         edb_error("Report error during loading: %s", state_msg);
         exit(EXIT_FAILURE);
     }
