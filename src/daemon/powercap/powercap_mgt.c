@@ -699,17 +699,20 @@ state_t pmgt_set_powercap_value(pwr_mgt_t *phandler, uint pid, uint domain, uint
     uint value;
     int cc;
     int i;
-    debug("entering set_powercap_value with domain %u and limit %lu", domain, limit);
+    powermon_app_t *pmapp;
+    debug("entering set_powercap_value with domain %u and limit %u", domain, limit);
     for (i = 0; i < NUM_DOMAINS; i++) {
         // We redistribute the power among all domains
         value = ear_max(limit * pdomains[i], 1);
         debug("Using %f weigth for domain %d: Total %lu allocated %u", pdomains[i], i, limit, value);
         ret = freturn(pcsyms_fun[i].set_powercap_value, pid, LEVEL_NODE, &value, current_util[i]);
 #ifndef SYN_TEST
-        for (cc = 0; cc <= max_context_created; cc++) {
-            if (current_ear_app[cc] != NULL) {
+        for (cc = 0; cc < MAX_NESTED_LEVELS; cc++) {
+            pmapp = NULL;
+            if (state_ok(powermon_context_trylock(cc, &pmapp))) {
                 /* PENDING to distribute power among running jobs proportionally to the number of resources*/
-                current_ear_app[cc]->settings->pc_opt.pper_domain[i] = limit * pdomains[i] / num_contexts;
+                pmapp->settings->pc_opt.pper_domain[i] = limit * pdomains[i] / num_contexts;
+                powermon_context_unlock(cc);
             }
         }
 #endif
@@ -962,9 +965,9 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
         for (i = 0; i < MAX_GPUS_SUPPORTED; i++)
             f[i] = 0;
 #endif
-    for (cc = 1; cc <= max_context_created; cc++) {
-        if (current_ear_app[cc] != NULL) {
-            pmapp = current_ear_app[cc];
+    for (cc = 1; cc < MAX_NESTED_LEVELS; cc++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(cc, &pmapp))) {
             /* For each app, we must merge CPUfreq and GPUfreq requested */
 #ifndef SYN_TEST
             if (domain == DOMAIN_CPU) {
@@ -981,6 +984,7 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
                     debug("Using plugin mask (step without EARL neither sbatch)");
                     m = pmapp->plug_mask;
                 } else { // sbatch with other steps inside
+                    powermon_context_unlock(cc);
                     continue;
                 }
                 // verbose_affinity_mask(&m, dom_size);
@@ -1000,6 +1004,7 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
             }
 #endif
 #endif
+            powermon_context_unlock(cc);
         }
     }
     if (domain == DOMAIN_CPU) {

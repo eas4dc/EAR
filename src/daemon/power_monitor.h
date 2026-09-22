@@ -17,6 +17,8 @@
 #ifndef _POWER_MONITORING_H_
 #define _POWER_MONITORING_H_
 
+#include <pthread.h>
+
 #define MAX_NESTED_LEVELS 16384
 #if 0
 #include <common/messaging/msg_conf.h>
@@ -167,6 +169,23 @@ void finish_pending_contexts(ehandler_t *eh);
 /** \todo Add a description. */
 uint node_energy_lock(uint *tries);
 
+/**
+ * SUCCESS:
+    pmapp valid
+    app_lock released
+    context mutex held
+
+FAILURE:
+    no context
+    no lock held
+
+Always set pmapp to NULL before using it
+*/
+state_t powermon_context_trylock(uint cc, powermon_app_t **pmapp);
+
+/** Releases a context lock */
+void powermon_context_unlock(uint cc);
+
 /** \todo Add a description. */
 void node_energy_unlock();
 
@@ -192,4 +211,21 @@ uint is_job_in_node(job_id id, job_context_t **jc);
 /** Checks all the job in eard internal data structures and cleans not valid data
  */
 void powermon_purge_old_jobs();
+
+#ifdef UNIT_TEST
+
+pthread_mutex_t *powermon_test_app_lock(void);
+pthread_mutex_t *powermon_test_context_mutexes(void);
+powermon_app_t **powermon_test_contexts(void);
+
+int powermon_test_num_contexts(void);
+int powermon_test_max_context_created(void);
+
+void powermon_test_set_num_contexts(int value);
+void powermon_test_set_max_context_created(int value);
+
+state_t powermon_test_detach_context(job_id jid, job_id sid, uint from_mpi, int *curr_ctx, powermon_app_t **pmapp);
+
+#endif
+
 #endif

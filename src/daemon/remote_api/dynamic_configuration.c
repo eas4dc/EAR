@@ -167,10 +167,15 @@ static void DC_set_sigusr1()
 ulong max_dyn_freq()
 {
     int i;
-    ulong max = 0;
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i]->settings->max_freq > max)
-            max = current_ear_app[i]->settings->max_freq;
+    ulong max             = 0;
+    powermon_app_t *pmapp = NULL;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+            if (pmapp->settings->max_freq > max)
+                max = pmapp->settings->max_freq;
+            powermon_context_unlock(i);
+        }
     }
     return max;
 }
@@ -183,16 +188,19 @@ int dynconf_inc_th(uint p_id, ulong th)
     resched_t *resched_conf;
     verbose(VCONF, "Increasing th by  %lu", th);
     dth = (double) th / 100.0;
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            dyn_conf     = current_ear_app[i]->settings;
-            resched_conf = current_ear_app[i]->resched;
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+            dyn_conf     = pmapp->settings;
+            resched_conf = pmapp->resched;
             if (dyn_conf->policy == p_id) {
                 if (((dyn_conf->settings[0] + dth) > 0) && ((dyn_conf->settings[0] + dth) <= 1.0)) {
                     dyn_conf->settings[0]            = dyn_conf->settings[0] + dth;
                     resched_conf->force_rescheduling = 1;
                 }
             }
+            powermon_context_unlock(i);
         }
     }
 
@@ -215,13 +223,16 @@ int dynconf_max_freq(ulong max_freq)
     verbose(VCONF, "Setting max freq to %lu/%lu", max_freq, new_max);
     if (new_max == 0)
         return EAR_ERROR;
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            dyn_conf     = current_ear_app[i]->settings;
-            resched_conf = current_ear_app[i]->resched;
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+            dyn_conf     = pmapp->settings;
+            resched_conf = pmapp->resched;
 
             dyn_conf->max_freq               = new_max;
             resched_conf->force_rescheduling = 1;
+            powermon_context_unlock(i);
         }
     }
     powermon_new_max_freq(max_freq);
@@ -240,16 +251,19 @@ int dynconf_def_freq(uint p_id, ulong def)
         new_def = lower_valid_freq(def, num_f, f_list);
     }
     verbose(VCONF, "Setting default freq for pid %u to %lu/%lu", p_id, def, new_def);
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            dyn_conf     = current_ear_app[i]->settings;
-            resched_conf = current_ear_app[i]->resched;
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+            dyn_conf     = pmapp->settings;
+            resched_conf = pmapp->resched;
 
             if (dyn_conf->policy == p_id) {
                 dyn_conf->def_freq               = new_def;
                 dyn_conf->def_p_state            = frequency_closest_pstate(dyn_conf->def_freq);
                 resched_conf->force_rescheduling = 1;
             }
+            powermon_context_unlock(i);
         }
     }
     powermon_new_def_freq(p_id, def);
@@ -269,14 +283,17 @@ int dynconf_set_freq(ulong freq)
     }
 
     verbose(VCONF, "Setting freq to %lu/%lu", freq, new_freq);
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            dyn_conf                         = current_ear_app[i]->settings;
-            resched_conf                     = current_ear_app[i]->resched;
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+            dyn_conf                         = pmapp->settings;
+            resched_conf                     = pmapp->resched;
             dyn_conf->max_freq               = new_freq;
             dyn_conf->def_freq               = new_freq;
             dyn_conf->def_p_state            = frequency_closest_pstate(dyn_conf->def_freq);
             resched_conf->force_rescheduling = 1;
+            powermon_context_unlock(i);
         }
     }
     powermon_set_freq(new_freq);
@@ -294,15 +311,17 @@ int dyncon_restore_conf()
     /* We copy the original configuration */
     copy_my_node_conf(my_node_conf, &my_original_node_conf);
     print_my_node_conf(my_node_conf);
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            dyn_conf     = current_ear_app[i]->settings;
-            resched_conf = current_ear_app[i]->resched;
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+            dyn_conf     = pmapp->settings;
+            resched_conf = pmapp->resched;
             pid          = dyn_conf->policy;
             my_policy    = get_my_policy_conf(my_node_conf, pid);
             if (my_policy == NULL) {
-                error("Policy %d not detected for job %lu/%lu", pid, current_ear_app[i]->app.job.id,
-                      current_ear_app[i]->app.job.step_id);
+                error("Policy %d not detected for job %lu/%lu", pid, pmapp->app.job.id, pmapp->app.job.step_id);
+                powermon_context_unlock(i);
                 continue;
             }
             dyn_conf->max_freq    = frequency_pstate_to_freq(my_node_conf->max_pstate);
@@ -310,6 +329,7 @@ int dyncon_restore_conf()
             dyn_conf->def_p_state = my_policy->p_state;
             memcpy(dyn_conf->settings, my_policy->settings, sizeof(double) * MAX_POLICY_SETTINGS);
             resched_conf->force_rescheduling = 1;
+            powermon_context_unlock(i);
         }
     }
     return EAR_SUCCESS;
@@ -326,15 +346,18 @@ int dynconf_set_def_pstate(uint p_states, uint p_id)
     if (p_id > my_cluster_conf.num_policies)
         return EAR_ERROR;
     my_node_conf->policies[p_id].p_state = p_states;
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            dyn_conf     = current_ear_app[i]->settings;
-            resched_conf = current_ear_app[i]->resched;
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+            dyn_conf     = pmapp->settings;
+            resched_conf = pmapp->resched;
             if (dyn_conf->policy == p_id) {
                 dyn_conf->def_p_state            = p_states;
                 dyn_conf->def_freq               = frequency_pstate_to_freq(p_states);
                 resched_conf->force_rescheduling = 1;
             }
+            powermon_context_unlock(i);
         }
     }
     return EAR_SUCCESS;
@@ -350,12 +373,16 @@ int dynconf_set_max_pstate(uint p_states)
         return EAR_ERROR;
     new_max_freq = frequency_pstate_to_freq(p_states);
     /* Update dynamic info */
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            dyn_conf                         = current_ear_app[i]->settings;
-            resched_conf                     = current_ear_app[i]->resched;
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+
+            dyn_conf                         = pmapp->settings;
+            resched_conf                     = pmapp->resched;
             dyn_conf->max_freq               = new_max_freq;
             resched_conf->force_rescheduling = 1;
+            powermon_context_unlock(i);
         }
     }
     powermon_new_max_freq(new_max_freq);
@@ -370,10 +397,14 @@ int dynconf_red_pstates(uint p_states)
     uint def_pstate, max_pstate;
     ulong new_def_freq, new_max_freq = 0;
     int variation = (int) p_states;
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            dyn_conf     = current_ear_app[i]->settings;
-            resched_conf = current_ear_app[i]->resched;
+
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+
+            dyn_conf     = pmapp->settings;
+            resched_conf = pmapp->resched;
             def_pstate   = frequency_closest_pstate(dyn_conf->def_freq);
             max_pstate   = frequency_closest_pstate(dyn_conf->max_freq);
             /* Reducing means incresing in the vector of pstates */
@@ -387,6 +418,7 @@ int dynconf_red_pstates(uint p_states)
             dyn_conf->max_freq               = new_max_freq;
             dyn_conf->def_freq               = new_def_freq;
             resched_conf->force_rescheduling = 1;
+            powermon_context_unlock(i);
         }
     }
 
@@ -409,15 +441,20 @@ int dynconf_set_th(ulong p_id, ulong th)
     dth = (double) th / 100.0;
     if ((dth < 0) || (dth > 1.0))
         return EAR_ERROR;
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            dyn_conf     = current_ear_app[i]->settings;
-            resched_conf = current_ear_app[i]->resched;
+
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+
+            dyn_conf     = pmapp->settings;
+            resched_conf = pmapp->resched;
             if (dyn_conf->policy == p_id) {
                 /*currently the first setting is changed, we could pass the setting id by parameter later on*/
                 dyn_conf->settings[0]            = dth;
                 resched_conf->force_rescheduling = 1;
             }
+            powermon_context_unlock(i);
         }
     }
     powermon_set_th(p_id, dth);
@@ -593,10 +630,13 @@ void update_current_settings(policy_conf_t *cpolicy_settings)
     settings_conf_t *dyn_conf;
     resched_t *resched_conf;
 
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            dyn_conf     = current_ear_app[i]->settings;
-            resched_conf = current_ear_app[i]->resched;
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+
+            dyn_conf     = pmapp->settings;
+            resched_conf = pmapp->resched;
             if (dyn_conf->policy == cpolicy_settings->policy) {
                 verbose(VRAPI, "current policy options: def freq %lu setting[0]=%.2lf def_pstate %u",
                         dyn_conf->def_freq, dyn_conf->settings[0], dyn_conf->def_p_state);
@@ -607,6 +647,7 @@ void update_current_settings(policy_conf_t *cpolicy_settings)
                 verbose(VRAPI, "new policy options: def freq %lu setting[0]=%.2lf def_pstate %u", dyn_conf->def_freq,
                         dyn_conf->settings[0], dyn_conf->def_p_state);
             }
+            powermon_context_unlock(i);
         }
     }
 }
@@ -742,13 +783,17 @@ void dyncon_set_risk(int fd, request_t *command)
                                     command->my_req.risk.level, command->my_req.risk.target, mfreq, &new_max_freq,
                                     f_list, num_f);
         }
-        for (i = 0; i <= max_context_created; i++) {
-            if (current_ear_app[i] != NULL) {
-                dyn_conf     = current_ear_app[i]->settings;
-                resched_conf = current_ear_app[i]->resched;
+
+        powermon_app_t *pmapp;
+        for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+            pmapp = NULL;
+            if (state_ok(powermon_context_trylock(i, &pmapp))) {
+
+                dyn_conf     = pmapp->settings;
+                resched_conf = pmapp->resched;
                 if (dyn_conf->policy == i) {
-                    verbose(VRAPI, "Current policy for job %lu/%lu is %d", current_ear_app[i]->app.job.id,
-                            current_ear_app[i]->app.job.step_id, i);
+                    verbose(VRAPI, "Current policy for job %lu/%lu is %d", pmapp->app.job.id, pmapp->app.job.step_id,
+                            i);
                     update_current_settings(&my_node_conf->policies[i]);
                     if (new_max_freq != dyn_conf->max_freq) {
                         dyn_conf->max_freq               = new_max_freq;
@@ -757,6 +802,7 @@ void dyncon_set_risk(int fd, request_t *command)
                             node_max = new_max_freq;
                     }
                 }
+                powermon_context_unlock(i);
             }
         }
     }

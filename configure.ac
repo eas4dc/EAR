@@ -25,7 +25,7 @@ m4_include([m4/ac_microhttpd.m4])
 
 # INIT
 AC_PREREQ([2.69])
-AC_INIT([EAR], [7.4], [ear-support@bsc.es], [ear-7.4], [https://gitlab.bsc.es/ear_team/ear])
+AC_INIT([EAR], [7.4.1], [ear-support@bsc.es], [ear-7.4.1], [https://gitlab.bsc.es/ear_team/ear])
 
 # Notices in configure
 AC_COPYRIGHT([Copyright © 2017-present BSC])

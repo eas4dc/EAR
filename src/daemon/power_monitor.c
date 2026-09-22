@@ -52,6 +52,7 @@
 #include <daemon/log_eard.h>
 #include <daemon/node_metrics.h>
 #include <daemon/power_monitor.h>
+#include <daemon/power_monitor_lock.h>
 #include <daemon/powercap/powercap.h>
 #include <daemon/shared_configuration.h>
 #include <management/imcfreq/imcfreq.h>
@@ -154,6 +155,94 @@ static state_t store_current_task_governor(powermon_app_t *powermon_app, cpu_set
  * Only usable in SLURM systems. Deactivated for now. */
 static void check_status_of_jobs(job_id current);
 
+/**
+ * if, exists, returns the context for a given jobid, stepid
+ */
+static int find_context_for_job(job_id id, job_id sid);
+powermon_app_t *current_ear_app[MAX_NESTED_LEVELS];
+static pthread_mutex_t powermon_app_mutex[MAX_NESTED_LEVELS];
+
+/**** Shared data ****/
+
+/* This vector is a list with the IDs . It's 1 single vector */
+static uint eard_joblist[MAX_NESTED_LEVELS];
+static int fd_joblist;
+static uint *shared_eard_joblist;
+static char joblist_path[MAX_PATH_SIZE];
+
+/* This is 1 region per pmon , this string is re-used, only to create the paths */
+static char jobpmon_path[MAX_PATH_SIZE];
+/***** End shared data ****/
+
+int max_context_created = 0;
+int num_contexts        = 0;
+
+/* Helpers for Unit tests */
+static state_t powermon_detach_context(job_id jid, job_id sid, uint from_mpi, int *curr_ctx, powermon_app_t **pmapp)
+{
+    *curr_ctx = -1;
+    *pmapp    = NULL;
+
+    if (!from_mpi) {
+        if (state_fail(ear_trylock(&app_lock))) {
+            return EAR_ERROR;
+        }
+    }
+
+    *curr_ctx = find_context_for_job(jid, sid);
+
+    if (*curr_ctx < 0) {
+        if (!from_mpi)
+            ear_unlock(&app_lock);
+        return EAR_ERROR;
+    }
+
+    if (!from_mpi) {
+        if (state_fail(ear_trylock(&powermon_app_mutex[*curr_ctx]))) {
+            ear_unlock(&app_lock);
+            return EAR_ERROR;
+        }
+    }
+
+    *pmapp = current_ear_app[*curr_ctx];
+
+    if (*pmapp == NULL) {
+        if (!from_mpi) {
+            ear_unlock(&app_lock);
+            ear_unlock(&powermon_app_mutex[*curr_ctx]);
+        }
+        return EAR_ERROR;
+    }
+
+    current_ear_app[*curr_ctx] = NULL;
+    num_contexts--;
+
+    if (*curr_ctx == max_context_created) {
+        uint new_max = 0;
+
+        for (uint i = 0; i < MAX_NESTED_LEVELS; i++) {
+            if ((current_ear_app[i] != NULL) && (i > new_max))
+                new_max = i;
+        }
+
+        max_context_created = new_max;
+    }
+
+    if (!from_mpi)
+        ear_unlock(&app_lock);
+
+    return EAR_SUCCESS;
+}
+
+#ifdef UNIT_TEST
+
+state_t powermon_test_detach_context(job_id jid, job_id sid, uint from_mpi, int *curr_ctx, powermon_app_t **pmapp)
+{
+    return powermon_detach_context(jid, sid, from_mpi, curr_ctx, pmapp);
+}
+
+#endif
+
 /***************** JOBS in NODE ***************************/
 
 void init_jobs_in_node()
@@ -250,24 +339,6 @@ void verbose_jobs_in_node(uint vl)
 }
 
 /****************** CONTEXT MANAGEMENT ********************/
-
-powermon_app_t *current_ear_app[MAX_NESTED_LEVELS];
-static pthread_mutex_t powermon_app_mutex[MAX_NESTED_LEVELS];
-
-/**** Shared data ****/
-
-/* This vector is a list with the IDs . It's 1 single vector */
-static uint eard_joblist[MAX_NESTED_LEVELS];
-static int fd_joblist;
-static uint *shared_eard_joblist;
-static char joblist_path[MAX_PATH_SIZE];
-
-/* This is 1 region per pmon , this string is re-used, only to create the paths */
-static char jobpmon_path[MAX_PATH_SIZE];
-/***** End shared data ****/
-
-int max_context_created = 0;
-int num_contexts        = 0;
 
 void init_contexts()
 {
@@ -438,6 +509,18 @@ void finish_pending_contexts(ehandler_t *eh)
         ear_unlock(&app_lock);
         ear_unlock(&powermon_app_mutex[cc]);
     }
+}
+
+// To create unit tests
+//
+state_t powermon_context_trylock(uint cc, powermon_app_t **pmapp)
+{
+    return powermon_context_trylock_impl(&app_lock, powermon_app_mutex, current_ear_app, cc, MAX_NESTED_LEVELS, pmapp);
+}
+
+void powermon_context_unlock(uint cc)
+{
+    ear_unlock(&powermon_app_mutex[cc]);
 }
 
 int find_context_for_job(job_id id, job_id sid)
@@ -2027,6 +2110,15 @@ void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job, uint 
     }
 #endif
 
+    curr_ctx = -1;
+    pmapp    = NULL;
+
+    if (state_fail(powermon_detach_context(jid, sid, from_mpi, &curr_ctx, &pmapp))) {
+        error("At powermon_end_job: context %lu/%lu cannot be detached.", jid, sid);
+        return;
+    }
+#if 0
+
     // Global lock
     if (!from_mpi) {
         if (state_fail(ear_trylock(&app_lock))) {
@@ -2082,6 +2174,14 @@ void powermon_end_job(ehandler_t *eh, job_id jid, job_id sid, uint is_job, uint 
         ear_unlock(&app_lock);
         debug("%s", COL_CLR);
     }
+#endif
+
+    /*
+     * current_ear_app[curr_ctx] = NULL
+    app_lock                  = released
+    powermon_app_mutex[ctx]   = still held
+    pmapp                     = valid
+    */
 
     /* We set ccontex to the specific one */
     verbose(VJOBPMON_BASIC, "%spowermon end job (%lu, %lu)%s", COL_BLU, pmapp->app.job.id, pmapp->app.job.step_id,
@@ -2265,12 +2365,13 @@ void powermon_set_freq(ulong freq)
     powermon_app_t *pmapp;
 
     ps = frequency_closest_pstate(freq);
-    for (cc = 0; cc <= max_context_created; cc++) {
-        if (current_ear_app[cc] != NULL) {
-            pmapp = current_ear_app[cc];
+    for (cc = 0; cc < MAX_NESTED_LEVELS; cc++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(cc, &pmapp))) {
             if ((my_cluster_conf.eard.force_frequencies) && (pmapp->app.is_mpi == 0)) {
                 frequency_set_with_mask(&pmapp->app_info->node_mask, freq);
             }
+            powermon_context_unlock(cc);
         }
     }
 
@@ -2313,87 +2414,57 @@ void update_pmapps(power_data_t *last_pmon, nm_data_t *nm)
      * Oriol: Why we can't know the correct number of CPUs from the beginning? */
     clean_cpus_in_jobs();
 
-    for (uint cc = 1; cc <= max_context_created; cc++) {
+    for (uint cc = 1; cc < MAX_NESTED_LEVELS; cc++) {
+        pmapp = NULL;
 
-        if (state_fail(ear_trylock(&app_lock)))
+        if (state_fail(powermon_context_trylock(cc, &pmapp))) {
             continue;
-        debug("%sApp lock", COL_RED);
-        if (current_ear_app[cc] != NULL) {
+        }
+        /*
+         * At this point:
+         *   - app_lock is released
+         *   - powermon_app_mutex[cc] is held
+         *   - pmapp is valid
+         */
+        /* We must update the current signature */
+        pmapp->exclusive = (num_jobs == 1) && pmapp->exclusive;
 
-            if (state_fail(ear_trylock(&powermon_app_mutex[cc]))) {
-                error("Locking context %u for updating its mask: %s", cc, state_msg);
-                ear_unlock(&app_lock);
-                debug("%s", COL_CLR);
-                continue;
-            }
-            pmapp = current_ear_app[cc];
+        int job_in_node = is_job_in_node(pmapp->app.job.id, &alloc);
 
-            ear_unlock(&app_lock);
-            debug("%s", COL_CLR);
-            if (!pmapp) { // Double check
-                ear_unlock(&powermon_app_mutex[cc]);
-                continue;
-            }
+        if (pmapp->app.is_mpi) {
+            // * is_mpi: = step + EARL *
+            pmapp->earl_num_cpus = cpumask_count(&pmapp->plug_mask);
+        } else if (!pmapp->is_job || // * else, !is_job = step without EARL *
+                   (pmapp->is_job && // * else, is_job and 1 context = srun without sbatch *
+                    job_in_node && alloc->num_ctx == 1)) {
+            pmapp->earl_num_cpus = ear_min(cpumask_count(&pmapp->plug_mask), pmapp->plug_num_cpus);
+        }
 
-            /* We must update the current signature */
-            pmapp->exclusive = (num_jobs == 1) && pmapp->exclusive;
+        /* earl_num_cpus is > 0 when the app uses EARL */
+        if (pmapp->earl_num_cpus && job_in_node) {
+            verbose(VEARD_NMGR, "Job %lu found, aggregating %u CPUs... ", pmapp->app.job.id, pmapp->earl_num_cpus);
 
-            int job_in_node = is_job_in_node(pmapp->app.job.id, &alloc);
+            tcpus += pmapp->earl_num_cpus;
+            alloc->num_cpus += pmapp->earl_num_cpus;
+        }
 
-            if (pmapp->app.is_mpi) {
-                // * is_mpi: = step + EARL *
-                pmapp->earl_num_cpus = cpumask_count(&pmapp->plug_mask);
-            } else if (!pmapp->is_job || // * else, !is_job = step without EARL *
-                       (pmapp->is_job && // * else, is_job and 1 context = srun without sbatch *
-                        job_in_node && alloc->num_ctx == 1)) {
-                pmapp->earl_num_cpus = ear_min(cpumask_count(&pmapp->plug_mask), pmapp->plug_num_cpus);
-            }
-
-            /* earl_num_cpus is > 0 when the app uses EARL */
-            if (pmapp->earl_num_cpus && job_in_node) {
-
-                verbose(VEARD_NMGR, "Job %lu found, aggregating %u CPUs... ", pmapp->app.job.id, pmapp->earl_num_cpus);
-
-                tcpus += pmapp->earl_num_cpus;
-                alloc->num_cpus += pmapp->earl_num_cpus;
-            }
-
-            ear_unlock(&powermon_app_mutex[cc]);
-        } else
-            ear_unlock(&app_lock);
+        ear_unlock(&powermon_app_mutex[cc]);
     }
 
     verbose_jobs_in_node(VCONF);
 
-    for (uint cc = 1; cc <= max_context_created; cc++) {
+    for (uint cc = 1; cc < MAX_NESTED_LEVELS; cc++) {
+        pmapp = NULL;
 
-        verbose(VEARD_NMGR, "Testing context %d", cc);
-        if (state_fail(ear_trylock(&app_lock)))
-            continue;
-        debug("%sApp lock", COL_RED);
-        if (current_ear_app[cc] == NULL) {
-            ear_unlock(&app_lock);
+        if (state_fail(powermon_context_trylock(cc, &pmapp))) {
             continue;
         }
-
-        state_t lock_st;
-        if ((lock_st = ear_trylock(&powermon_app_mutex[cc])) != EAR_SUCCESS) {
-            error("Locking context %u for testing its power: %s", cc, state_msg);
-            ear_unlock(&app_lock);
-            debug("%s", COL_CLR);
-            return;
-        }
-        debug("%s", COL_CLR);
-        uint cont = 0;
-        if (!current_ear_app[cc]) {
-            ear_unlock(&powermon_app_mutex[cc]);
-            cont = 1;
-        }
-        pmapp = current_ear_app[cc];
-        ear_unlock(&app_lock);
-        debug("%s", COL_CLR);
-        if (cont)
-            continue;
+        /*
+         * At this point:
+         *   - app_lock is released
+         *   - powermon_app_mutex[cc] is held
+         *   - pmapp is valid
+         */
 
         /* We must update the current signature */
         lcpus = pmapp->earl_num_cpus;
@@ -2409,7 +2480,6 @@ void update_pmapps(power_data_t *last_pmon, nm_data_t *nm)
 
                 // cpu_ratio = (float) alloc->num_cpus / (float) tcpus;
                 cpu_ratio = ((tcpus && alloc->num_cpus) ? (float) alloc->num_cpus / (float) tcpus : 1);
-
                 verbose(VEARD_NMGR, "Job %lu/%lu without node mask, using ratio %f = %u/%lu", pmapp->app.job.id,
                         pmapp->app.job.step_id, cpu_ratio, alloc->num_cpus, tcpus);
             } else {
@@ -3009,8 +3079,13 @@ char powermon_get_node_state()
 void powermon_get_status(status_t *my_status)
 {
     /* Current app info */
-    my_status->app.job_id  = current_ear_app[max_context_created]->app.job.id;
-    my_status->app.step_id = current_ear_app[max_context_created]->app.job.step_id;
+    powermon_app_t *pmapp = NULL;
+    int cc                = max_context_created;
+    if (state_ok(powermon_context_trylock(cc, &pmapp))) {
+        my_status->app.job_id  = pmapp->app.job.id;
+        my_status->app.step_id = pmapp->app.job.step_id;
+        powermon_context_unlock(cc);
+    }
     /* Node info */
     my_status->node.avg_freq    = (ulong) (last_nm.avg_cpu_freq);
     my_status->node.temp        = (ulong) get_nm_temp(&my_nm_id, &last_nm);
@@ -3033,12 +3108,15 @@ int powermon_get_num_applications(int only_master)
 {
     int i;
     int total = 0, total_master = 0;
-    for (i = 0; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
+    powermon_app_t *pmapp;
+    for (i = 0; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
             total++;
-            if (is_app_master(current_ear_app[i]->app_info))
+            if (is_app_master(pmapp->app_info))
                 total_master++;
-            verbose(VJOBPMON, "App %d is master=%d", i, is_app_master(current_ear_app[i]->app_info));
+            verbose(VJOBPMON, "App %d is master=%d", i, is_app_master(pmapp->app_info));
+            powermon_context_unlock(i);
         }
     }
     total        = ear_max(1, total - 1);
@@ -3066,17 +3144,18 @@ void powermon_get_app_status(app_status_t *my_status, int num_apps, int only_mas
         my_status[cs].signature.avg_f    = (ulong) (last_nm.avg_cpu_freq);
         return;
     }
-    for (i = 1; (i <= max_context_created) && (cs < num_apps); i++) {
+    powermon_app_t *pmapp;
+    for (i = 1; (i < MAX_NESTED_LEVELS) && (cs < num_apps); i++) {
         verbose(DEBUG_APP_STATUS, "Looking for app %d", i);
-        if (current_ear_app[i] != NULL) {
-            if (!only_master || (only_master && is_app_master(current_ear_app[i]->app_info))) {
-                verbose(DEBUG_APP_STATUS, "Adding app %d to the app status %lu/%lu MR %d", i,
-                        current_ear_app[i]->app.job.id, current_ear_app[i]->app.job.step_id,
-                        current_ear_app[i]->app_info->master_rank);
-                my_status[cs].job_id  = current_ear_app[i]->app.job.id;
-                my_status[cs].step_id = current_ear_app[i]->app.job.step_id;
-                if (!(is_null(&current_ear_app[i]->last_loop) == 1)) {
-                    signature_copy(&my_status[cs].signature, &current_ear_app[i]->last_loop.signature);
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+            if (!only_master || (only_master && is_app_master(pmapp->app_info))) {
+                verbose(DEBUG_APP_STATUS, "Adding app %d to the app status %lu/%lu MR %d", i, pmapp->app.job.id,
+                        pmapp->app.job.step_id, pmapp->app_info->master_rank);
+                my_status[cs].job_id  = pmapp->app.job.id;
+                my_status[cs].step_id = pmapp->app.job.step_id;
+                if (!(is_null(&pmapp->last_loop) == 1)) {
+                    signature_copy(&my_status[cs].signature, &pmapp->last_loop.signature);
                     verbose(DEBUG_APP_STATUS, "App with signature");
                 } else {
                     verbose(DEBUG_APP_STATUS, "App without signature");
@@ -3085,11 +3164,12 @@ void powermon_get_app_status(app_status_t *my_status, int num_apps, int only_mas
                     my_status[cs].signature.avg_f    = (ulong) (last_nm.avg_cpu_freq);
                 }
                 time(&consumed_time);
-                my_status[cs].signature.time = difftime(consumed_time, current_ear_app[i]->app.job.start_time);
-                my_status[cs].nodes          = current_ear_app[i]->app_info->nodes;
-                my_status[cs].master_rank    = current_ear_app[i]->app_info->master_rank;
+                my_status[cs].signature.time = difftime(consumed_time, pmapp->app.job.start_time);
+                my_status[cs].nodes          = pmapp->app_info->nodes;
+                my_status[cs].master_rank    = pmapp->app_info->master_rank;
                 cs++;
             }
+            powermon_context_unlock(i);
         }
     }
     debug("app_status end ");
@@ -3104,11 +3184,15 @@ void print_powermon_app(powermon_app_t *app)
 void powermon_report_event(uint event_type, llong value)
 {
     int jid, sid;
-    int cc = max_context_created;
-    jid    = current_ear_app[cc]->app.job.id;
-    sid    = current_ear_app[cc]->app.job.step_id;
-    debug("powermon_report_event: sending event %u with value %lld", event_type, value);
-    log_report_eard_powercap_event(&rid, jid, sid, event_type, value);
+    int cc                = max_context_created;
+    powermon_app_t *pmapp = NULL;
+    if (state_ok(powermon_context_trylock(cc, &pmapp))) {
+        jid = pmapp->app.job.id;
+        sid = pmapp->app.job.step_id;
+        debug("powermon_report_event: sending event %u with value %lld", event_type, value);
+        log_report_eard_powercap_event(&rid, jid, sid, event_type, value);
+        powermon_context_unlock(cc);
+    }
 }
 
 uint powermon_is_idle(uint get_lock)
@@ -3123,7 +3207,7 @@ uint powermon_is_idle(uint get_lock)
     }
     powermon_app_t *pmapp;
 
-    for (int i = 0; i <= max_context_created; i++) {
+    for (int i = 0; i < MAX_NESTED_LEVELS; i++) {
         if (state_fail(ear_trylock(&powermon_app_mutex[i])))
             continue;
         pmapp = current_ear_app[i];
@@ -3393,7 +3477,7 @@ static void check_status_of_jobs(job_id current)
 {
     powermon_app_t *pmapp;
     return;
-    for (uint cc = 1; cc <= max_context_created; cc++) {
+    for (uint cc = 1; cc < MAX_NESTED_LEVELS; cc++) {
         if (current_ear_app[cc] != NULL) {
             pmapp = current_ear_app[cc];
             verbose(VJOBPMON_BASIC, "checking app %lu curr job: %lu", pmapp->app.job.id, current);
@@ -3408,3 +3492,42 @@ static void check_status_of_jobs(job_id current)
         }
     }
 }
+
+#ifdef UNIT_TEST
+
+pthread_mutex_t *powermon_test_app_lock(void)
+{
+    return &app_lock;
+}
+
+pthread_mutex_t *powermon_test_context_mutexes(void)
+{
+    return powermon_app_mutex;
+}
+
+powermon_app_t **powermon_test_contexts(void)
+{
+    return current_ear_app;
+}
+
+int powermon_test_num_contexts(void)
+{
+    return num_contexts;
+}
+
+int powermon_test_max_context_created(void)
+{
+    return max_context_created;
+}
+
+void powermon_test_set_num_contexts(int value)
+{
+    num_contexts = value;
+}
+
+void powermon_test_set_max_context_created(int value)
+{
+    max_context_created = value;
+}
+
+#endif

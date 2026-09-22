@@ -297,11 +297,14 @@ void powercap_monitor_set_time(int time_relax, int time_burst)
 void update_node_powercap_opt_shared_info()
 {
     int cc;
-    for (cc = 0; cc <= max_context_created; cc++) {
-        if (current_ear_app[cc] != NULL) {
+    powermon_app_t *pmapp;
+    for (cc = 0; cc < MAX_NESTED_LEVELS; cc++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(cc, &pmapp))) {
             /* Do we have to copy, "as is" ? PENDING */
-            memcpy(&current_ear_app[cc]->settings->pc_opt, &my_pc_opt, sizeof(node_powercap_opt_t));
-            current_ear_app[cc]->resched->force_rescheduling = 1;
+            memcpy(&pmapp->settings->pc_opt, &my_pc_opt, sizeof(node_powercap_opt_t));
+            pmapp->resched->force_rescheduling = 1;
+            powermon_context_unlock(cc);
         }
     }
 }
@@ -332,6 +335,7 @@ static int set_powercap_value(uint domain, uint32_t limit)
     char c_date[128];
     int i;
     uint32_t max_powercap;
+    powermon_app_t *pmapp;
     verbose(VCONF, "%spowercap_set_powercap_value domain %u limit %u (current pc %u)%s", COL_BLU, domain, limit,
             my_pc_opt.current_pc, COL_CLR);
     max_powercap = powermon_get_max_powercap_def();
@@ -356,9 +360,11 @@ static int set_powercap_value(uint domain, uint32_t limit)
     update_node_powercap_opt_shared_info();
     pmgt_set_app_req_freq(pcmgr);
     /* PENDING POWER allocation for jobs sharing the node */
-    for (i = 1; i <= max_context_created; i++) {
-        if (current_ear_app[i] != NULL) {
-            current_ear_app[i]->settings->pc_opt.current_pc = powercap_get_value();
+    for (i = 1; i < MAX_NESTED_LEVELS; i++) {
+        pmapp = NULL;
+        if (state_ok(powermon_context_trylock(i, &pmapp))) {
+            pmapp->settings->pc_opt.current_pc = powercap_get_value();
+            powermon_context_unlock(i);
         }
     }
     timestamp_get(&last_powercap_reallocation_time);

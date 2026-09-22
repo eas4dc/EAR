@@ -34,6 +34,7 @@ eard_OBJS = \
     eard_node_services.o\
     eard_checkpoint.o \
     power_monitor.o \
+    power_monitor_lock.o \
     app_mgt.o \
     shared_configuration.o \
     shared_pmon.o \
@@ -66,6 +67,9 @@ eard: eard.c $(eard_OBJS)
 power_monitor.o: power_monitor.c power_monitor.h 
 	$(CC) $(CFLAGS) -c $<  $(SLURM_CPPFLAGS)
 
+power_monitor_lock.o: power_monitor_lock.c power_monitor_lock.h
+	$(CC) $(CFLAGS) -c $<  $(SLURM_CPPFLAGS)
+
 node_metrics.o:node_metrics.c node_metrics.h
 	$(CC) $(CFLAGS) -c $<
 
@@ -91,6 +95,16 @@ install: install.components install.others eard.ginstall;
 %.install: %.install.components %.install.others;
 
 clean: clean.components clean.others rclean; #Do not add eard.gclean
+	@ $(MAKE) -C 'test' clean \
+		SRCDIR="$(SRCDIR)" \
+		DAEMON_DIR="$(CURDIR)"
+
+post:
+	@ $(MAKE) -C 'test' check \
+		SRCDIR="$(SRCDIR)" \
+		DAEMON_DIR="$(CURDIR)" || exit
+
+test: post
 
 ######## SUBFOLDERS
 

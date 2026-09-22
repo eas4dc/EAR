@@ -57,6 +57,7 @@ export DLB_LDFLAGS
 export CMOCKA_LIBS
 export CMOCKA_LDFLAGS
 export CMOCKA_CPPFLAGS
+export WITH_CMOCKA
 export CURL_CFLAGS
 export CURL_LDFLAGS
 export USE_CURL

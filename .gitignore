@@ -229,3 +229,11 @@ build-aux
 .dirstamp
 src/daemon/app_api/Makefile*
 !src/daemon/app_api/Makefile.am
+*.old
+*.old.old
+
+# Unit tests
+tests/propagation_resolver.so
+src/daemon/test/test_power_monitor_locks
+src/daemon/test/test_power_monitor_concurrency
+src/daemon/test/test_powercap_context_locks
