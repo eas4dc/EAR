@@ -1,0 +1,203 @@
+# These test jobs own the EARDBD instance they start. Keep daemon cleanup and
+# diagnostic artifacts local to each job, including each matrix instance.
+.eardbd-reporting-rules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/database_cache/**/*
+    - when: never
+
+.eardbd-mariadb:
+  variables:
+    MARIADB_ROOT_PASSWORD: my-secret-pw
+  services:
+    - name: mariadb:11-ubi9
+      alias: mariadb
+
+.eardbd-reporting-artifacts:
+  after_script:
+    - mkdir -p eardbd-test-logs
+    - test ! -f eardbd.out || cp eardbd.out eardbd-test-logs/
+    - test ! -f /tmp/ear/eardbd.server.log || cp /tmp/ear/eardbd.server.log eardbd-test-logs/
+    - cp /tmp/ear/*.tsv eardbd-test-logs/ 2>/dev/null || true
+    - test ! -f mysql-counts.txt || cp mysql-counts.txt eardbd-test-logs/
+  artifacts:
+    when: always
+    expire_in: 1 days
+    paths:
+      - eardbd-test-logs/
+
+build-eardbd-reporting-tools:
+  stage: build
+  extends: .eardbd-reporting-rules
+  variables:
+    GCC_TOOLSET: "14"
+  script:
+    - |
+      set -Eeuo pipefail
+      trap 'status=$?; echo "ERROR: reporting-tools build failed at line $LINENO (status $status): $BASH_COMMAND" >&2; exit "$status"' ERR
+
+      source /opt/rh/gcc-toolset-$GCC_TOOLSET/enable
+      $TESTDIR/build/compile_mpi_mysql.sh
+      make -C src/database_cache/tests check
+      if [ ! -x src/database_cache/tests/reporting_client ]; then
+        echo "ERROR: reporting_client was not built or is not executable" >&2
+        exit 1
+      fi
+      if [ ! -f src/database_cache/tests/.libs/record_a.so ]; then
+        echo "ERROR: synthetic report plugin record_a.so was not built" >&2
+        exit 1
+      fi
+      if [ ! -f src/database_cache/tests/.libs/record_b.so ]; then
+        echo "ERROR: synthetic report plugin record_b.so was not built" >&2
+        exit 1
+      fi
+  artifacts:
+    when: on_success
+    expire_in: 1 days
+    paths:
+      - ear-db/
+      - src/database_cache/tests/reporting_client
+      - src/database_cache/tests/.libs/record_a.so
+      - src/database_cache/tests/.libs/record_b.so
+
+test-eardbd-report-plugins:
+  stage: test
+  extends:
+    - .eardbd-reporting-rules
+    - .eardbd-reporting-artifacts
+  needs:
+    - job: build-eardbd-reporting-tools
+      artifacts: true
+  parallel:
+    matrix:
+      - REPORT_PLUGIN_CONFIG: "record_a.so"
+        REPORT_PLUGIN_IDS: "A"
+      - REPORT_PLUGIN_CONFIG: "record_b.so"
+        REPORT_PLUGIN_IDS: "B"
+      - REPORT_PLUGIN_CONFIG: "record_a.so:record_b.so"
+        REPORT_PLUGIN_IDS: "A B"
+  timeout: 5 minutes
+  script:
+    - |
+      set -Eeuo pipefail
+      trap 'status=$?; echo "ERROR: report-plugin job failed at line $LINENO (status $status): $BASH_COMMAND" >&2; if [ -f eardbd.out ]; then echo "---- eardbd.out ----" >&2; cat eardbd.out >&2; fi; exit "$status"' ERR
+
+      plugin_dir=ear-db/lib/plugins/reports
+      if [ ! -d "$plugin_dir" ]; then
+        echo "ERROR: EAR report-plugin directory is missing: $plugin_dir" >&2
+        exit 1
+      fi
+      install -m 755 src/database_cache/tests/.libs/record_a.so "$plugin_dir/record_a.so"
+      install -m 755 src/database_cache/tests/.libs/record_b.so "$plugin_dir/record_b.so"
+      cp ear-db/etc/ear/ear.conf.full.template ear-db/etc/ear/ear.conf
+      src/database_cache/tests/deploy_eardbd.sh \
+        ear-db ear-db/etc "$REPORT_PLUGIN_CONFIG"
+      if [ ! -s eardbd.pid ]; then
+        echo "ERROR: deployment helper did not write eardbd.pid" >&2
+        exit 1
+      fi
+      eardbd_pid=$(cat eardbd.pid)
+      trap 'kill "$eardbd_pid" 2>/dev/null || true; wait "$eardbd_pid" 2>/dev/null || true' EXIT
+
+      ready=0
+      for attempt in $(seq 1 60); do
+        if src/database_cache/tests/reporting_client status 127.0.0.1 50002 >/dev/null 2>&1; then
+          ready=1
+          break
+        fi
+        if ! kill -0 "$eardbd_pid" 2>/dev/null; then
+          echo "ERROR: EARDBD exited before its TCP status endpoint became ready (PID $eardbd_pid)" >&2
+          echo "---- eardbd.out ----" >&2
+          cat eardbd.out
+          exit 1
+        fi
+        sleep 1
+      done
+      if [ "$ready" -ne 1 ]; then
+        echo "ERROR: timed out waiting for EARDBD at 127.0.0.1:50002" >&2
+        echo "---- eardbd.out ----" >&2
+        cat eardbd.out
+        exit 1
+      fi
+
+      python3 src/database_cache/tests/reporting_tests.py \
+        --client src/database_cache/tests/reporting_client \
+        --host 127.0.0.1 --port 50002 --records-dir /tmp/ear \
+        --plugins $REPORT_PLUGIN_IDS --timeout 90 --settle 2
+
+test-eardbd-mysql-persistence:
+  stage: test
+  extends:
+    - .eardbd-reporting-rules
+    - .eardbd-reporting-artifacts
+    - .eardbd-mariadb
+  needs:
+    - job: build-eardbd-reporting-tools
+      artifacts: true
+  timeout: 5 minutes
+  script:
+    - |
+      set -Eeuo pipefail
+      trap 'status=$?; echo "ERROR: MySQL-persistence job failed at line $LINENO (status $status): $BASH_COMMAND" >&2; if [ -f eardbd.out ]; then echo "---- eardbd.out ----" >&2; cat eardbd.out >&2; fi; exit "$status"' ERR
+
+      dnf install -y mariadb
+      cp ear-db/etc/ear/ear.conf.full.template ear-db/etc/ear/ear.conf
+      $TESTDIR/scripts/create_db.sh ear-db ear-db/etc/ear/ear.conf
+      src/database_cache/tests/deploy_eardbd.sh ear-db ear-db/etc mysql.so
+      if [ ! -s eardbd.pid ]; then
+        echo "ERROR: deployment helper did not write eardbd.pid" >&2
+        exit 1
+      fi
+      eardbd_pid=$(cat eardbd.pid)
+      trap 'kill "$eardbd_pid" 2>/dev/null || true; wait "$eardbd_pid" 2>/dev/null || true' EXIT
+
+      ready=0
+      for attempt in $(seq 1 60); do
+        if src/database_cache/tests/reporting_client status 127.0.0.1 50002 >/dev/null 2>&1; then
+          ready=1
+          break
+        fi
+        if ! kill -0 "$eardbd_pid" 2>/dev/null; then
+          echo "ERROR: EARDBD exited before its TCP status endpoint became ready (PID $eardbd_pid)" >&2
+          echo "---- eardbd.out ----" >&2
+          cat eardbd.out
+          exit 1
+        fi
+        sleep 1
+      done
+      if [ "$ready" -ne 1 ]; then
+        echo "ERROR: timed out waiting for EARDBD at 127.0.0.1:50002" >&2
+        echo "---- eardbd.out ----" >&2
+        cat eardbd.out
+        exit 1
+      fi
+
+      job_id=$(python3 -c 'import secrets; print(secrets.randbelow(2147483647) + 1)')
+      src/database_cache/tests/reporting_client send 127.0.0.1 50002 "$job_id"
+      expected=2:1:2
+      for attempt in $(seq 1 90); do
+        counts=$(MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mysql \
+          --host=mariadb --user=root --database=EAR \
+          --batch --skip-column-names \
+          --execute="SELECT CONCAT((SELECT COUNT(*) FROM Applications WHERE job_id=$job_id AND node_name='report-test' AND step_id IN (1,2)), ':', (SELECT COUNT(*) FROM Learning_applications WHERE job_id=$job_id AND node_name='report-test' AND step_id=3), ':', (SELECT COUNT(*) FROM Periodic_metrics WHERE job_id=$job_id AND node_id='report-test' AND ((step_id=10 AND DC_energy=100) OR (step_id=11 AND DC_energy=101))) )")
+        printf '%s\n' "$counts" > mysql-counts.txt
+        if [ "$counts" = "$expected" ]; then
+          echo "PASS MySQL persisted 2 applications, 1 learning application and 2 periodic metrics for job $job_id"
+          exit 0
+        fi
+        if ! [[ "$counts" =~ ^[0-9]+:[0-9]+:[0-9]+$ ]]; then
+          echo "ERROR: unexpected SQL result for job $job_id: $counts" >&2
+          exit 1
+        fi
+        IFS=: read -r app_count learning_count metric_count <<< "$counts"
+        if [ "$app_count" -gt 2 ] || [ "$learning_count" -gt 1 ] || [ "$metric_count" -gt 2 ]; then
+          echo "ERROR: duplicate database rows for job $job_id: $counts" >&2
+          exit 1
+        fi
+        sleep 1
+      done
+      echo "ERROR: MySQL persistence timed out for job $job_id after 90 seconds; final counts: $counts" >&2
+      echo "---- eardbd.out ----" >&2
+      cat eardbd.out >&2
+      exit 1

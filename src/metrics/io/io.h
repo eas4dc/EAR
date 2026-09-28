@@ -47,7 +47,7 @@ typedef struct io_ops_s {
     void    (*pids_clean) ();
     void    (*get_info)   (apinfo_t *info);
     state_t (*read)       (io_t *io);
-    void    (*data_diff)  (io_t *io2, io_t *io1, ulong *io_diff, double *mbs);
+    void    (*data_diff)  (io_t *io2, io_t *io1, io_t *io_diff, double *mbs);
 } io_ops_t;
 
 #define IO_F_LOAD(name)       void io_##name##_load(topology_t *tp, io_ops_t *ops, int options)
@@ -55,7 +55,7 @@ typedef struct io_ops_s {
 #define IO_F_UPDATE(name)     state_t io_##name##_update(uint option, void *value)
 #define IO_F_GET_INFO(name)   void io_##name##_get_info(apinfo_t *info)
 #define IO_F_READ(name)       state_t io_##name##_read(io_t *io)
-#define IO_F_DATA_DIFF(name)  void io_##name##_data_diff(io_t *io2, io_t *io1, ulong *io_diff, double *mbs)
+#define IO_F_DATA_DIFF(name)  void io_##name##_data_diff(io_t *io2, io_t *io1, io_t *io_diff, double *mbs)
 
 #define IO_DEFINES(name)         \
     IO_F_LOAD(name);             \

@@ -1,11 +1,30 @@
+.powermon-stress-rules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/daemon/Makefile
+        - src/daemon/**/*
+        - src/report/Makefile
+        - src/report/**/*
+        - src/management/Makefile
+        - src/management/**/*
+        - src/metrics/Makefile
+        - src/metrics/**/*
+        - src/common/Makefile
+        - src/common/**/*
+        - src/slurm_plugin/Makefile
+        - src/slurm_plugin/**/*
+        - src/daemon/remote_api/**/*
+        - src/daemon/shared_configuration.*
+        - src/global_manager/Makefile
+        - src/global_manager/**/*
+        - src/Makefile.depend
+        - src/Makefile.extra
+    - when: never
+
 compile-delayed-energy-reading:
   stage: build
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_COMMIT_TAG
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
-      when: always
+  extends: .powermon-stress-rules
   script:
     - export CC_FLAGS="-Wall -O2 -g -DDELAYED_RANDOM=1"
     - export MPICC_FLAGS="\$(CC_FLAGS)"
@@ -19,12 +38,7 @@ compile-delayed-energy-reading:
       - "ear-delayed-random"
 
 compile-bt-s:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_COMMIT_TAG
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
-      when: always
+  extends: .powermon-stress-rules
   stage: build
   needs: []
   script:
@@ -36,12 +50,7 @@ compile-bt-s:
 
 powermon_stress:
   stage: test
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_COMMIT_TAG
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED == "true"
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
-      when: always
+  extends: .powermon-stress-rules
   needs: ["compile-delayed-energy-reading", "compile-bt-s"]
   variables:
     EAR_TMP: "/var/ear"

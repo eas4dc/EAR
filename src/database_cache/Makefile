@@ -46,6 +46,9 @@ install: eardbd.ginstall;
 
 clean: eardbd.gclean rclean;
 
+post:
+	@ $(MAKE) -C 'tests' check || exit
+
 ######## DEPENDENCIES
 
 include $(SRCDIR)/Makefile.depend

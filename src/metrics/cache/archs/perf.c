@@ -35,6 +35,8 @@ static perfs_t *perfs;
 static uint     perfs_count;
 static uint     scope;
 static uint     granularity;
+static double          line_size;
+static timestamp_t *time_creation;
 
 static int perf_add(perfs_t *p, pid_t pid, uint cpu, ullong event, uint type, ulong offset_result, const char *event_desc)
 {
@@ -142,6 +144,7 @@ CACHE_F_LOAD(perf)
     vendor = tp->vendor;
     model  = tp->model;
     family = tp->family;
+	line_size = (double) tp->cache_line_size;
     if (SCOPE_IS(options, SCOPE_NODE)) {
         perfs_count = tp->cpu_count;
         perfs       = calloc(perfs_count, sizeof(perfs_t));
@@ -166,6 +169,8 @@ CACHE_F_LOAD(perf)
         granularity = GRANULARITY_PROCESS;
         add_events(&perfs[0], 0, -1);
     }
+	time_creation = calloc(perfs_count, sizeof(timestamp_t));
+	for (uint j = 0; j < perfs_count; j++) timestamp_get(&time_creation[j]);
     if (scope != SCOPE_JOB && !perfs_count_opened_fds()) {
         return;
     }
@@ -173,6 +178,7 @@ CACHE_F_LOAD(perf)
     apis_put(ops->update  , cache_perf_update);
     apis_put(ops->get_info, cache_perf_get_info);
     apis_put(ops->read    , cache_perf_read);
+	apis_put(ops->data_diff      , cache_perf_data_diff);
     apis_put(ops->internals_tostr, cache_perf_internals_tostr);
 }
 
@@ -224,6 +230,7 @@ CACHE_F_UPDATE(perf)
         if (j >= perfs_count) {
             return_msg(EAR_ERROR, "max number of PIDs reached")
         }
+		timestamp_get(&time_creation[j]);
         return add_events(&perfs[j], pid, -1);
     } else if (scope == SCOPE_JOB && option == UPD_PID_REMOVE) {
         for (i = 0; i < perfs_count; ++i) {
@@ -296,4 +303,76 @@ void cache_perf_internals_tostr(char *buffer, int length)
             b += w, length -= w;
         }
     }
+}
+
+static void level_diff(cache_level_t *l2, cache_level_t *l1, cache_level_t *lD)
+{
+    if (l1){
+        lD->hits      = overflow_zeros_u64(l2->hits     , l1->hits     );
+        lD->misses    = overflow_zeros_u64(l2->misses   , l1->misses   );
+        lD->accesses  = overflow_zeros_u64(l2->accesses , l1->accesses );
+        lD->lines_in  = overflow_zeros_u64(l2->lines_in , l1->lines_in );
+        lD->lines_out = overflow_zeros_u64(l2->lines_out, l1->lines_out);
+    }else{
+        lD->hits      = l2->hits;
+        lD->misses    = l2->misses;
+        lD->accesses  = l2->accesses;
+        lD->lines_in  = l2->lines_in;
+        lD->lines_out = l2->lines_out;
+    }
+    lD->lines_in  = (lD->lines_in)? lD->lines_in: lD->misses;
+    lD->hit_rate  = (lD->accesses && lD->accesses > lD->hits  )?
+                    ((double) lD->hits  ) / ((double) lD->accesses): 0.0;
+    lD->miss_rate = (lD->accesses && lD->accesses > lD->misses)?
+                    ((double) lD->misses) / ((double) lD->accesses): 0.0;
+}
+
+
+static cache_level_t *get_offset(void *dst_addr, void *src_addr, void *src_lv_addr)
+{
+    return (src_lv_addr != NULL)? (cache_level_t *) (dst_addr + (src_lv_addr - src_addr)): NULL;
+}
+
+
+void cache_perf_data_diff(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs)
+{
+    double gbs_tot = 0.0;
+    double secs = 0.0;
+    int i;
+
+    memset(caD, 0, sizeof(cache_t)*perfs_count);
+    for (i = 0; i < perfs_count; ++i) {
+        // L2 by default
+        caD[i].ll  = (cache_level_t *) &caD[i].l2;
+        caD[i].lbw = (cache_level_t *) &caD[i].l2;
+        if (ca2[i].pid == 0 ) {
+            continue;
+        }
+        caD[i].pid = ca2[i].pid;
+        caD[i].ll  = get_offset(&caD[i], &ca2[i], ca2[i].ll);
+        caD[i].lbw = get_offset(&caD[i], &ca2[i], ca2[i].lbw);
+		if (ca2[i].pid == ca1[i].pid){
+		level_diff(&ca2[i].l1d, &ca1[i].l1d, &caD[i].l1d);
+		level_diff(&ca2[i].l2 , &ca1[i].l2 , &caD[i].l2 );
+		level_diff(&ca2[i].l3 , &ca1[i].l3 , &caD[i].l3 );
+		secs = timestamp_fdiff(&ca2[i].time, &ca1[i].time, TIME_SECS, TIME_MSECS);
+		}else{
+			level_diff(&ca2[i].l1d, NULL, &caD[i].l1d);
+			level_diff(&ca2[i].l2 , NULL , &caD[i].l2 );
+		level_diff(&ca2[i].l3 , NULL , &caD[i].l3 );
+		secs = timestamp_fdiff(&ca2[i].time, &time_creation[i], TIME_SECS, TIME_MSECS);
+		}
+        secs = (secs > 0.0)? secs: 1.0;
+        caD[i].bw_gbs = (double) (caD[i].lbw->lines_in + caD[i].lbw->lines_out);
+        caD[i].bw_gbs = (caD[i].bw_gbs / secs) * line_size;
+        caD[i].bw_gbs = (caD[i].bw_gbs / ((double) 1E9));
+        gbs_tot += caD[i].bw_gbs;
+    }
+    for (i = 0; i < perfs_count; ++i) {
+        caD[i].bw_ratio = (gbs_tot > 0.0)? caD[i].bw_gbs / gbs_tot: 0.0;
+    }
+    if (gbs != NULL) {
+        *gbs = gbs_tot;
+    }
+
 }

@@ -103,22 +103,33 @@ state_t proc_read_copy(proc_t *pr2, proc_t *pr1, proc_t *prD)
 
 void proc_data_diff(proc_t *pr2, proc_t *pr1, proc_t *prD)
 {
+
+	if (ops.data_diff){
+		ops.data_diff(pr2, pr1, prD);
+	}else{
     int i;
 
     memset(prD, 0, sizeof(proc_t)*info.devs_count);
     for (i = 0; i < info.devs_count; ++i) {
-        if (pr2[i].pid == 0 || pr1[i].pid == 0) {
+        if (pr2[i].pid == 0) {
             continue;
         }
         if ((prD[i].secs = timestamp_fdiff(&pr2[i].time, &pr1[i].time, TIME_SECS, TIME_MSECS)) == 0.0) {
             continue;
         }
-        prD[i].pid   = pr1[i].pid;
-        prD[i].utime = overflow_zeros_f64(pr2[i].utime, pr1[i].utime);
-        prD[i].stime = overflow_zeros_f64(pr2[i].stime, pr1[i].stime);
+        prD[i].pid   = pr2[i].pid;
+		if (pr2[i].pid == pr1[i].pid){
+		prD[i].utime = overflow_zeros_f64(pr2[i].utime, pr1[i].utime);
+		prD[i].stime = overflow_zeros_f64(pr2[i].stime, pr1[i].stime);
+		}else{
+			prD[i].secs = 1.0;
+			prD[i].utime = pr2[i].utime;
+			prD[i].stime = pr2[i].stime;
+		}
         prD[i].cpu_util = (uint) (100.0 * ((prD[i].utime + prD[i].stime) / prD[i].secs));
         // prD[i].cpu_util = (prD[i].cpu_util > 100) ? 100 : prD[i].cpu_util;
     }
+	}
     #if SHOW_DEBUGS
     proc_data_print(prD, fderr);
     #endif

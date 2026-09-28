@@ -99,24 +99,38 @@ state_t io_read_copy(io_t *io2, io_t *io1, io_t *io_diff, double *mbs)
 
 void io_data_diff(io_t *io2, io_t *io1, io_t *io_diff, double *mbs)
 {
+
+	if (ops.data_diff) return ops.data_diff(io2, io1, io_diff, mbs);
+
     double mbs_own = 0.0;
     double secs = 0.0;
     int i;
 
     secs = timestamp_fdiff(&io2[0].time, &io1[0].time, TIME_SECS, TIME_MSECS);
     for (i = 0; i < info.devs_count; ++i) {
-        if (io2[i].pid == 0 || io1[i].pid == 0) {
+        if (io2[i].pid == 0) {
             continue;
         }
-        io_diff[i].secs  = secs;
         io_diff[i].pid   = io2[i].pid;
-        io_diff[i].rchar = overflow_zeros_u64(io2[i].rchar, io1[i].rchar);
-        io_diff[i].wchar = overflow_zeros_u64(io2[i].wchar, io1[i].wchar);
-        io_diff[i].syscr = overflow_zeros_u64(io2[i].syscr, io1[i].syscr);
-        io_diff[i].syscw = overflow_zeros_u64(io2[i].syscw, io1[i].syscw);
-        io_diff[i].rstor = overflow_zeros_u64(io2[i].rstor, io1[i].rstor);
-        io_diff[i].wstor = overflow_zeros_u64(io2[i].wstor, io1[i].wstor);
-        io_diff[i].cancelled = overflow_zeros_u64(io2[i].cancelled, io1[i].cancelled);
+		if (io2[i].pid == io1[i].pid){
+		io_diff[i].secs  = secs;
+		io_diff[i].rchar = overflow_zeros_u64(io2[i].rchar, io1[i].rchar);
+		io_diff[i].wchar = overflow_zeros_u64(io2[i].wchar, io1[i].wchar);
+		io_diff[i].syscr = overflow_zeros_u64(io2[i].syscr, io1[i].syscr);
+		io_diff[i].syscw = overflow_zeros_u64(io2[i].syscw, io1[i].syscw);
+		io_diff[i].rstor = overflow_zeros_u64(io2[i].rstor, io1[i].rstor);
+		io_diff[i].wstor = overflow_zeros_u64(io2[i].wstor, io1[i].wstor);
+		io_diff[i].cancelled = overflow_zeros_u64(io2[i].cancelled, io1[i].cancelled);
+		}else{
+		io_diff[i].secs  = 1.0;
+		io_diff[i].rchar = io2[i].rchar;
+		io_diff[i].wchar = io2[i].wchar;
+		io_diff[i].syscr = io2[i].syscr;
+		io_diff[i].syscw = io2[i].syscw;
+		io_diff[i].rstor = io2[i].rstor;
+		io_diff[i].wstor = io2[i].wstor;
+		io_diff[i].cancelled = io2[i].cancelled;;
+		}
         mbs_own += (double) (io_diff[i].rstor + io_diff[i].wstor);
     }
     if (mbs != NULL) {

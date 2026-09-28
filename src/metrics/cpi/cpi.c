@@ -110,15 +110,26 @@ void cpi_data_diff(cpi_t *ci2, cpi_t *ci1, cpi_t *ciD, double *cpis_avg)
 
     memset(ciD, 0, sizeof(cpi_t)*info.devs_count);
     for (i = 0; i < info.devs_count; ++i) {
-        if (ci2[i].pid == 0 || ci1[i].pid == 0) {
+        // No metrics
+        if (ci2[i].pid == 0 ) {
             continue;
         }
-        ciD[i].pid                 = ci1[i].pid;
-        ciD[i].instructions        = overflow_zeros_u64(ci2[i].instructions       , ci1[i].instructions       );
-        ciD[i].cycles              = overflow_zeros_u64(ci2[i].cycles             , ci1[i].cycles             );
-        ciD[i].stalls.fetch_decode = overflow_zeros_u64(ci2[i].stalls.fetch_decode, ci1[i].stalls.fetch_decode);
-        ciD[i].stalls.resources    = overflow_zeros_u64(ci2[i].stalls.resources   , ci1[i].stalls.resources   );
-        ciD[i].stalls.memory       = overflow_zeros_u64(ci2[i].stalls.memory      , ci1[i].stalls.memory      );
+        ciD[i].pid                 = ci2[i].pid;
+		// If pid1 == pid2 compute the difference
+		if (ci1[i].pid == ci2[i].pid){
+		ciD[i].instructions        = overflow_zeros_u64(ci2[i].instructions       , ci1[i].instructions       );
+		ciD[i].cycles              = overflow_zeros_u64(ci2[i].cycles             , ci1[i].cycles             );
+		ciD[i].stalls.fetch_decode = overflow_zeros_u64(ci2[i].stalls.fetch_decode, ci1[i].stalls.fetch_decode);
+		ciD[i].stalls.resources    = overflow_zeros_u64(ci2[i].stalls.resources   , ci1[i].stalls.resources   );
+		ciD[i].stalls.memory       = overflow_zeros_u64(ci2[i].stalls.memory      , ci1[i].stalls.memory      );
+		}else{
+		// Diff = pid2 metrics
+			ciD[i].instructions 		= ci2[i].instructions;
+			ciD[i].cycles 				= ci2[i].cycles;
+			ciD[i].stalls.fetch_decode 	= ci2[i].stalls.fetch_decode;
+			ciD[i].stalls.resources 	= ci2[i].stalls.resources;
+			ciD[i].stalls.memory 		= ci2[i].stalls.memory;
+		}
         if (ciD[i].instructions != 0 && ciD[i].cycles != 0) {
             ciD[i].cpi = ((double) ciD[i].cycles) / ((double) ciD[i].instructions);
         }

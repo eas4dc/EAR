@@ -36,6 +36,7 @@ static perfs_t *perfs;
 static uint     perfs_count;
 static uint     scope;
 static uint     granularity;
+static timestamp_t *time_creation;
 
 static int add_perf(perfs_t *p, pid_t pid, uint cpu, ullong event, uint type, int offset, double weight, const char *event_desc)
 {
@@ -156,9 +157,11 @@ FLOPS_F_LOAD(perf)
         granularity = GRANULARITY_PROCESS;
         add_events(&perfs[0], 0, -1);
     }
+	time_creation = calloc(perfs_count, sizeof(timestamp_t));
     if (scope != SCOPE_JOB && !perfs_count_opened_fds()) {
         return;
     }
+	for (uint j = 0; j < perfs_count; j++) timestamp_get(&time_creation[j]);
     apis_put(ops->unload         , flops_perf_unload);
     apis_put(ops->update         , flops_perf_update);
     apis_put(ops->get_info       , flops_perf_get_info);
@@ -215,6 +218,7 @@ FLOPS_F_UPDATE(perf)
         if (j >= perfs_count) {
             return_msg(EAR_ERROR, "max number of PIDs reached")
         }
+		timestamp_get(&time_creation[j]);
         return add_events(&perfs[j], pid, -1);
     } else if (scope == SCOPE_JOB && option == UPD_PID_REMOVE) {
         for (i = 0; i < perfs_count; ++i) {
@@ -300,29 +304,45 @@ FLOPS_F_DATA_DIFF(perf)
         memset(flA, 0, sizeof(flops_t) * perfs_count);
     }
     // Reading milliseconds and converting to seconds for decimals
-    if ((secs = timestamp_fdiff(&fl2[0].time, &fl1[0].time, TIME_SECS, TIME_MSECS)) == 0LLU) {
-        // If no time passed, then flops difference an Gigaflops are zero.
-        return;
-    }
     // Instruction differences (PERF registers are 64 bits long)
     for (i = 0; i < perfs_count; ++i) {
-        if (fl2[i].pid == 0 || fl1[i].pid == 0) {
+        if (fl2[i].pid == 0) {
             continue;
         }
-        p1 = (ullong *) &fl1[i].f64;
+		if (fl2[i].pid != fl1[i].pid){
+			// Using creation time
+			secs = timestamp_fdiff(&fl2[0].time, &time_creation[i], TIME_SECS, TIME_MSECS);
+		}else{
+			secs = timestamp_fdiff(&fl2[0].time, &fl1[0].time, TIME_SECS, TIME_MSECS);
+		}
+		if (secs == 0LLU) continue;
+		// Same PID
         p2 = (ullong *) &fl2[i].f64;
         pD = (flD != NULL)? (ullong *) &flD[i].f64: (ullong *) &flA[i].f64;
-        // Is overflow_zero because sometimes values at time X are under
-        // values al time Y, being X greater than Y. This is because of
-        // perf's multiplexing process.
-        pD[perfs[i].offsets[0]] = (ullong) (((double) overflow_zeros_u64(p2[0], p1[0])) * perfs[i].weights[0]);
-        pD[perfs[i].offsets[1]] = (ullong) (((double) overflow_zeros_u64(p2[1], p1[1])) * perfs[i].weights[1]);
-        pD[perfs[i].offsets[2]] = (ullong) (((double) overflow_zeros_u64(p2[2], p1[2])) * perfs[i].weights[2]);
-        pD[perfs[i].offsets[3]] = (ullong) (((double) overflow_zeros_u64(p2[3], p1[3])) * perfs[i].weights[3]);
-        pD[perfs[i].offsets[4]] = (ullong) (((double) overflow_zeros_u64(p2[4], p1[4])) * perfs[i].weights[4]);
-        pD[perfs[i].offsets[5]] = (ullong) (((double) overflow_zeros_u64(p2[5], p1[5])) * perfs[i].weights[5]);
-        pD[perfs[i].offsets[6]] = (ullong) (((double) overflow_zeros_u64(p2[6], p1[6])) * perfs[i].weights[6]);
-        pD[perfs[i].offsets[7]] = (ullong) (((double) overflow_zeros_u64(p2[7], p1[7])) * perfs[i].weights[7]);
+		if (fl2[i].pid == fl1[i].pid ){
+		p1 = (ullong *) &fl1[i].f64;
+		// Is overflow_zero because sometimes values at time X are under
+		// values al time Y, being X greater than Y. This is because of
+		// perf's multiplexing process.
+		pD[perfs[i].offsets[0]] = (ullong) (((double) overflow_zeros_u64(p2[0], p1[0])) * perfs[i].weights[0]);
+		pD[perfs[i].offsets[1]] = (ullong) (((double) overflow_zeros_u64(p2[1], p1[1])) * perfs[i].weights[1]);
+		pD[perfs[i].offsets[2]] = (ullong) (((double) overflow_zeros_u64(p2[2], p1[2])) * perfs[i].weights[2]);
+		pD[perfs[i].offsets[3]] = (ullong) (((double) overflow_zeros_u64(p2[3], p1[3])) * perfs[i].weights[3]);
+		pD[perfs[i].offsets[4]] = (ullong) (((double) overflow_zeros_u64(p2[4], p1[4])) * perfs[i].weights[4]);
+		pD[perfs[i].offsets[5]] = (ullong) (((double) overflow_zeros_u64(p2[5], p1[5])) * perfs[i].weights[5]);
+		pD[perfs[i].offsets[6]] = (ullong) (((double) overflow_zeros_u64(p2[6], p1[6])) * perfs[i].weights[6]);
+		pD[perfs[i].offsets[7]] = (ullong) (((double) overflow_zeros_u64(p2[7], p1[7])) * perfs[i].weights[7]);
+		}else{
+			// PID1 was not available at fl1
+			pD[perfs[i].offsets[0]] = (ullong) ((double) p2[0] * perfs[i].weights[0]);
+			pD[perfs[i].offsets[1]] = (ullong) ((double) p2[1] * perfs[i].weights[1]);
+			pD[perfs[i].offsets[2]] = (ullong) ((double) p2[2] * perfs[i].weights[2]);
+			pD[perfs[i].offsets[3]] = (ullong) ((double) p2[3] * perfs[i].weights[3]);
+			pD[perfs[i].offsets[4]] = (ullong) ((double) p2[4] * perfs[i].weights[4]);
+			pD[perfs[i].offsets[5]] = (ullong) ((double) p2[5] * perfs[i].weights[5]);
+			pD[perfs[i].offsets[6]] = (ullong) ((double) p2[6] * perfs[i].weights[6]);
+			pD[perfs[i].offsets[7]] = (ullong) ((double) p2[7] * perfs[i].weights[7]);
+		}
         gflops_i = ((double) pD[0]) + ((double) pD[1]) + ((double) pD[2]) + ((double) pD[3]) + ((double) pD[4]) +
                    ((double) pD[5]) + ((double) pD[6]) + ((double) pD[7]);
         gflops_i = (gflops_i / secs) / ((double) 1E9);

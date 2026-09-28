@@ -107,11 +107,19 @@ state_t cache_read_copy(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs)
 
 static void level_diff(cache_level_t *l2, cache_level_t *l1, cache_level_t *lD)
 {
-    lD->hits      = overflow_zeros_u64(l2->hits     , l1->hits     );
-    lD->misses    = overflow_zeros_u64(l2->misses   , l1->misses   );
-    lD->accesses  = overflow_zeros_u64(l2->accesses , l1->accesses );
-    lD->lines_in  = overflow_zeros_u64(l2->lines_in , l1->lines_in );
-    lD->lines_out = overflow_zeros_u64(l2->lines_out, l1->lines_out);
+	if (l1){
+	lD->hits      = overflow_zeros_u64(l2->hits     , l1->hits     );
+	lD->misses    = overflow_zeros_u64(l2->misses   , l1->misses   );
+	lD->accesses  = overflow_zeros_u64(l2->accesses , l1->accesses );
+	lD->lines_in  = overflow_zeros_u64(l2->lines_in , l1->lines_in );
+	lD->lines_out = overflow_zeros_u64(l2->lines_out, l1->lines_out);
+	}else{
+	lD->hits      = l2->hits;
+	lD->misses    = l2->misses;
+	lD->accesses  = l2->accesses;
+	lD->lines_in  = l2->lines_in;
+	lD->lines_out = l2->lines_out;
+	}
     lD->lines_in  = (lD->lines_in)? lD->lines_in: lD->misses;
     lD->hit_rate  = (lD->accesses && lD->accesses > lD->hits  )?
                     ((double) lD->hits  ) / ((double) lD->accesses): 0.0;
@@ -126,28 +134,37 @@ static cache_level_t *get_offset(void *dst_addr, void *src_addr, void *src_lv_ad
 
 void cache_data_diff(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs)
 {
+
+	if (ops.data_diff){
+		ops.data_diff(ca2, ca1, caD, gbs);
+	}else{
+
     double gbs_tot = 0.0;
     double secs = 0.0;
     int i;
 
     memset(caD, 0, sizeof(cache_t)*info.devs_count);
-    if (ops.data_diff != NULL) {
-        return ops.data_diff(ca2, ca1, caD, gbs);
-    }
     for (i = 0; i < info.devs_count; ++i) {
         // L2 by default
         caD[i].ll  = (cache_level_t *) &caD[i].l2;
         caD[i].lbw = (cache_level_t *) &caD[i].l2;
-        if (ca2[i].pid == 0 || ca1[i].pid == 0) {
+        if (ca2[i].pid == 0 ) {
             continue;
         }
-        caD[i].pid = ca1[i].pid;
+        caD[i].pid = ca2[i].pid;
         caD[i].ll  = get_offset(&caD[i], &ca2[i], ca2[i].ll);
         caD[i].lbw = get_offset(&caD[i], &ca2[i], ca2[i].lbw);
-        level_diff(&ca2[i].l1d, &ca1[i].l1d, &caD[i].l1d);
-        level_diff(&ca2[i].l2 , &ca1[i].l2 , &caD[i].l2 );
-        level_diff(&ca2[i].l3 , &ca1[i].l3 , &caD[i].l3 );
-        secs = timestamp_fdiff(&ca2[i].time, &ca1[i].time, TIME_SECS, TIME_MSECS);
+		if (ca2[i].pid == ca1[i].pid){
+		level_diff(&ca2[i].l1d, &ca1[i].l1d, &caD[i].l1d);
+		level_diff(&ca2[i].l2 , &ca1[i].l2 , &caD[i].l2 );
+		level_diff(&ca2[i].l3 , &ca1[i].l3 , &caD[i].l3 );
+		secs = timestamp_fdiff(&ca2[i].time, &ca1[i].time, TIME_SECS, TIME_MSECS);
+		}else{
+			level_diff(&ca2[i].l1d, NULL, &caD[i].l1d);
+			level_diff(&ca2[i].l2 , NULL , &caD[i].l2 );
+		level_diff(&ca2[i].l3 , NULL , &caD[i].l3 );
+			secs = 1.0; // Review
+		}
         secs = (secs > 0.0)? secs: 1.0;
         caD[i].bw_gbs = (double) (caD[i].lbw->lines_in + caD[i].lbw->lines_out);
         caD[i].bw_gbs = (caD[i].bw_gbs / secs) * line_size;
@@ -160,6 +177,7 @@ void cache_data_diff(cache_t *ca2, cache_t *ca1, cache_t *caD, double *gbs)
     if (gbs != NULL) {
         *gbs = gbs_tot;
     }
+	}
     #if SHOW_DEBUGS
     cache_data_print(caD, *gbs, fderr);
     #endif

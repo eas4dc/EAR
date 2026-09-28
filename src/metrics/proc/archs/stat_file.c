@@ -21,6 +21,7 @@
 #include <sys/utsname.h>
 #include <common/system/time.h>
 #include <metrics/proc/archs/stat_file.h>
+#include <common/math_operations.h>
 
 static uint      devs_count;
 static pid_t    *pids_job;
@@ -30,6 +31,9 @@ static uint      scope;
 static uint      granularity;
 static long      clk_sec;
 static uint      kernel;
+static timestamp_t *time_creation;
+
+static void proc_stat_data_diff(proc_t *pr2, proc_t *pr1, proc_t *prD);
 
 static state_t pid_add(pid_t pid)
 {
@@ -59,6 +63,7 @@ static state_t pid_add(pid_t pid)
     pids_job[i] = pid;
     // This forces the fscanf re-reads the special proc-file 'stat'.
     setvbuf(fds_job[i], NULL, _IONBF, 0);
+	timestamp_get(&time_creation[i]);
     return EAR_SUCCESS;
 }
 
@@ -125,17 +130,20 @@ PROC_F_LOAD(stat_file)
         granularity = GRANULARITY_PROCESS;
         fds_job     = (FILE **) calloc(devs_count, sizeof(FILE *));
         pids_job    = (pid_t *) calloc(devs_count, sizeof(pid_t));
+		time_creation = (timestamp_t *)calloc(devs_count, sizeof(timestamp_t));
     } else {
         devs_count  = 1;
         scope       = SCOPE_PROCESS;
         granularity = GRANULARITY_PROCESS;
         fds_job     = (FILE **) calloc(devs_count, sizeof(FILE *));
         pids_job    = (pid_t *) calloc(devs_count, sizeof(pid_t));
+		time_creation = (timestamp_t *)calloc(devs_count, sizeof(timestamp_t));
         pid_add(getpid());
     }
     apis_put(ops->unload    , proc_stat_file_unload  );
     apis_put(ops->update    , proc_stat_file_update  );
     apis_put(ops->get_info  , proc_stat_file_get_info);
+    apis_put(ops->data_diff , proc_stat_data_diff    );
     apis_put(ops->read      , proc_stat_file_read    );
 }
 
@@ -282,4 +290,32 @@ PROC_F_READ(stat_file)
             pid, pr[i].utime, pr[i].stime, clk_sec);
     }
     return EAR_SUCCESS;
+}
+
+void proc_stat_data_diff(proc_t *pr2, proc_t *pr1, proc_t *prD)
+{
+	if (!pr2 || !pr1 || !prD) return;
+
+    memset(prD, 0, sizeof(proc_t)*devs_count);
+    for (int i = 0; i < devs_count; ++i) {
+        if (pr2[i].pid == 0) {
+            continue;
+        }
+        if ((prD[i].secs = timestamp_fdiff(&pr2[i].time, &pr1[i].time, TIME_SECS, TIME_MSECS)) == 0.0) {
+            continue;
+        }
+        prD[i].pid   = pr2[i].pid;
+        if (pr2[i].pid == pr1[i].pid){
+            prD[i].utime = overflow_zeros_f64(pr2[i].utime, pr1[i].utime);
+            prD[i].stime = overflow_zeros_f64(pr2[i].stime, pr1[i].stime);
+        }else{
+            prD[i].secs = timestamp_fdiff(&pr2[i].time, &time_creation[i], TIME_SECS, TIME_MSECS);
+			if (prD[i].secs == 0.0) continue;
+            prD[i].utime = pr2[i].utime;
+            prD[i].stime = pr2[i].stime;
+        }
+        prD[i].cpu_util = (uint) (100.0 * ((prD[i].utime + prD[i].stime) / prD[i].secs));
+        // prD[i].cpu_util = (prD[i].cpu_util > 100) ? 100 : prD[i].cpu_util;
+    }
+
 }

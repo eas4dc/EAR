@@ -31,6 +31,7 @@ typedef struct proc_ops_s {
     state_t (*update)     (uint option, void *value);
     void    (*get_info)   (apinfo_t *info);
     state_t (*read)       (proc_t *proc);
+	void    (*data_diff)  (proc_t *pr2, proc_t *pr1, proc_t *prD);
 } proc_ops_t;
 
 // API building scheme

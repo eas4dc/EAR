@@ -33,6 +33,7 @@ post:
 	@ $(MAKE) -C 'management' $@ || exit
 	@ $(MAKE) -C 'common' $@ || exit
 	@ $(MAKE) -C 'daemon' $@ || exit
+	@ $(MAKE) -C 'database_cache' $@ || exit
 #	@ $(MAKE) -C 'library' $@ || exit
 
 install: install.components

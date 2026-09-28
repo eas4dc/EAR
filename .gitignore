@@ -53,6 +53,11 @@ src/daemon/app_api/Makefile*
 tests/daemon/Makefile*
 !tests/daemon/Makefile.am
 .dirstamp
+m4/libtool.m4
+m4/ltoptions.m4
+m4/ltsugar.m4
+m4/ltversion.m4
+m4/lt~obsolete.m4
 
 # IDE
 cmake*
@@ -231,6 +236,8 @@ src/daemon/app_api/Makefile*
 !src/daemon/app_api/Makefile.am
 *.old
 *.old.old
+src/database_cache/tests/Makefile*
+!src/database_cache/tests/Makefile.am
 
 # Unit tests
 tests/propagation_resolver.so

@@ -14,9 +14,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <common/output/debug.h>
+#include <common/system/time.h>
 #include <metrics/io/io.h>
 #include <metrics/io/archs/dummy.h>
 #include <metrics/io/archs/proc_file.h>
+#include <common/math_operations.h>
 
 static uint      devs_count;
 static pid_t    *pids_job;
@@ -24,6 +26,7 @@ static FILE    **fds_job;
 static FILE     *fd_node;
 static uint      scope;
 static uint      granularity;
+static timestamp_t *time_creation;
 
 static state_t pid_add(pid_t pid)
 {
@@ -52,6 +55,7 @@ static state_t pid_add(pid_t pid)
     }
     fds_job[i]  = fd;
     pids_job[i] = pid;
+	timestamp_get(&time_creation[i]);
     return EAR_SUCCESS;
 }
 
@@ -70,18 +74,22 @@ IO_F_LOAD(proc_file)
         granularity = GRANULARITY_PROCESS;
         fds_job     = (FILE **) calloc(devs_count, sizeof(FILE *));
         pids_job    = (pid_t *) calloc(devs_count, sizeof(pid_t));
+		time_creation = calloc(devs_count, sizeof(timestamp_t));
     } else {
         devs_count  = 1;
         scope       = SCOPE_PROCESS;
         granularity = GRANULARITY_PROCESS;
         fds_job     = (FILE **) calloc(devs_count, sizeof(FILE *));
         pids_job    = (pid_t *) calloc(devs_count, sizeof(pid_t));
+		time_creation = calloc(devs_count, sizeof(timestamp_t));
         pid_add(getpid());
     }
+	for (uint j = 0; j < devs_count; j++) timestamp_get(&time_creation[j]);
     // Filling each gap
     apis_put(ops->unload    , io_proc_file_unload);
     apis_put(ops->update   ,  io_proc_file_update);
     apis_put(ops->get_info  , io_proc_file_get_info);
+	apis_put(ops->data_diff , io_proc_file_data_diff);
     apis_put(ops->read      , io_proc_file_read);
 }
 
@@ -180,6 +188,56 @@ static void read_diskstats(char *line, io_t *io)
     io->rstor = sectors_read    * 512; // SECTOR_SIZE
     io->wstor = sectors_written * 512;
 }
+
+
+void io_proc_file_data_diff(io_t *io2, io_t *io1, io_t *io_diff, double *mbs)
+{
+    double mbs_own = 0.0;
+    double secs = 0.0;
+    int i;
+
+	if (!io2 || !io1 || !io_diff) return;
+
+	memset(io_diff, 0, devs_count * sizeof(io_t));
+
+    for (i = 0; i < devs_count; ++i) {
+        if (io2[i].pid == 0) {
+            continue;
+        }
+		if (io2[i].pid != io1[i].pid) {
+		secs = timestamp_fdiff(&io2[i].time, &time_creation[i], TIME_SECS, TIME_MSECS);
+		}else{
+		secs = timestamp_fdiff(&io2[i].time, &io1[i].time, TIME_SECS, TIME_MSECS);
+		}
+        io_diff[i].pid   = io2[i].pid;
+        io_diff[i].secs  = secs;
+		if (io2[i].pid == io1[i].pid){
+		io_diff[i].rchar = overflow_zeros_u64(io2[i].rchar, io1[i].rchar);
+		io_diff[i].wchar = overflow_zeros_u64(io2[i].wchar, io1[i].wchar);
+		io_diff[i].syscr = overflow_zeros_u64(io2[i].syscr, io1[i].syscr);
+		io_diff[i].syscw = overflow_zeros_u64(io2[i].syscw, io1[i].syscw);
+		io_diff[i].rstor = overflow_zeros_u64(io2[i].rstor, io1[i].rstor);
+		io_diff[i].wstor = overflow_zeros_u64(io2[i].wstor, io1[i].wstor);
+		io_diff[i].cancelled = overflow_zeros_u64(io2[i].cancelled, io1[i].cancelled);
+		}else{
+		io_diff[i].rchar = io2[i].rchar;
+		io_diff[i].wchar = io2[i].wchar;
+		io_diff[i].syscr = io2[i].syscr;
+		io_diff[i].syscw = io2[i].syscw;
+		io_diff[i].rstor = io2[i].rstor;
+		io_diff[i].wstor = io2[i].wstor;
+		io_diff[i].cancelled = io2[i].cancelled;;
+		}
+        mbs_own += (double) (io_diff[i].rstor + io_diff[i].wstor);
+    }
+    if (mbs != NULL) {
+        if (secs == 0.0) {
+            secs = 1.0;
+        }
+        *mbs = mbs_own / secs;
+    }
+}
+
 
 IO_F_READ(proc_file)
 {

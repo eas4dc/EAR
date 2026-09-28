@@ -15,9 +15,10 @@ stages:          # List of stages for jobs, and their order of execution
   - deploy
   - release
 
-include: tests/daemon/.powermon-stress.yml
-include: .gitlab/.changelog-ci.yml
-include: gitlab_cicd/automatic-synch.yml
+include:
+  - local: tests/daemon/.powermon-stress.yml
+  - local: gitlab_cicd/automatic-synch.yml
+  - local: src/database_cache/tests/.gitlab-ci.yml
 
 image: registry.gitlab.bsc.es/ear_team/ear-ci:v7
 
@@ -84,28 +85,6 @@ compile-mpi-mysql:
   parallel:
     matrix:
       - GCC_TOOLSET: [11, 12, 13, 14]
-
-deploy-eardbd:
-  stage: test
-  needs: [compile-mpi-mysql]
-  rules:
-    - if: $CI_COMMIT_TAG
-      when: never
-    - when: always
-  variables:
-    MARIADB_ROOT_PASSWORD: my-secret-pw
-  services:
-    - name: mariadb:11-ubi9
-      alias: mariadb
-  script:
-    - cp ear-db/etc/ear/ear.conf.full.template ear-db/etc/ear/ear.conf
-    - $TESTDIR/scripts/create_db.sh ear-db ear-db/etc/ear/ear.conf
-    - $TESTDIR/scripts/deploy_eardbd.sh ear-db ear-db/etc
-  artifacts:
-    when: always
-    paths:
-      - "ear-db"
-      - eardbd.out
 
 deploy-eard:
   stage: test

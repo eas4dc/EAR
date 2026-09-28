@@ -1,0 +1,12 @@
+/.reporting-build/
+/reporting-results/
+/__pycache__/
+/reporting-build.log
+/.reporting-plugins/
+/reporting_client
+/test_status
+/test_types
+/.libs/
+/record_a.la
+/record_b.la
+/*.lo
