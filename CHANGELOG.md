@@ -4,7 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [6.4.1] - 2026-10-07
+
+### Changed
+
+- CI: Prevent .post stage job to fetch any artifact.
+
+### Fixed
+
+- `eacct`: Prevent SIGSEGV when executed with bad arguments.
+- EARD: Serialize power monitor initialization. and share DCMI context.
+- Recover shared DCMI IPMI descriptor after read failures.
 
 ## [6.4.0] - 2026-09-04
 
