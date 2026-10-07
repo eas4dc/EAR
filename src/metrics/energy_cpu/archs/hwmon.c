@@ -38,8 +38,8 @@ static void chips_open(chips_t *chips, char *label)
     if (state_fail(hwmon_open("power_meter", "power", label, &chips->chips, &chips->chips_count))) {
         return;
     }
-    chips->energy_uj     = calloc(chips_pkg.chips_count, sizeof(ullong));
-    chips->power_uw_last = calloc(chips_pkg.chips_count, sizeof(double));
+    chips->energy_uj     = calloc(chips->chips_count, sizeof(ullong));
+    chips->power_uw_last = calloc(chips->chips_count, sizeof(double));
     debug("%s #chips: %u", label, chips->chips_count);
 }
 
