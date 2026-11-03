@@ -64,12 +64,17 @@ void plugin_get_settings(domain_settings_t *s)
     memcpy(s, &settings, sizeof(domain_settings_t));
 }
 
-state_t set_powercap_value(uint pid, uint domain, uint limit, uint *gpu_util)
+state_t set_powercap_value(uint pid, uint domain, uint32_t *limits, uint32_t *gpu_util)
 {
     int i;
-    /* Set data */
-    debug("%sGPU_dummy: set_powercap_value %u%s", COL_BLU, limit, COL_CLR);
-    current_gpu_pc = limit;
+    /* Set data: a per-device request is summed into the domain limit */
+    current_gpu_pc = limits[0];
+    if (domain == LEVEL_DEVICE) {
+        current_gpu_pc = 0;
+        for (i = 0; i < gpu_dummy_num_gpus; i++)
+            current_gpu_pc += limits[i];
+    }
+    debug("%sGPU_dummy: set_powercap_value %u%s", COL_BLU, current_gpu_pc, COL_CLR);
     for (i = 0; i < gpu_dummy_num_gpus; i++) {
         debug("GPU_dummy: util_gpu[%d]=%u", i, gpu_util[i]);
     }
@@ -124,7 +129,7 @@ void set_verb_channel(int fd)
     DEBUG_SET_FD(fd);
 }
 
-void set_new_utilization(uint *util)
+void set_new_utilization(uint32_t *util)
 {
     int i;
     for (i = 0; i < gpu_dummy_num_gpus; i++) {

@@ -26,7 +26,7 @@ state_t inm_enable();
 state_t inm_disable();
 
 void inm_set_status(uint status);
-uint inm_get_powercap_stragetgy();
+uint inm_get_powercap_strategy();
 void inm_set_pc_mode(uint mode);
 
 #endif

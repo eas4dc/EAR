@@ -166,28 +166,7 @@ typedef struct metrics_gpus_s {
 /* Verbose "if not loaded" */
 #define api_already_loaded(ops) (ops->read != NULL)
 
-/* Adds a new function to an array. */
-#define apis_add(ops, func) apis_append((void **) ops, func);
-
-/* Provisional multicall function */
-#define apis_multi(ops, ...)                                                                                           \
-    state_t s;                                                                                                         \
-    int i = 0;                                                                                                         \
-    while (ops[i] != NULL) {                                                                                           \
-        if (state_fail(s = ops[i](__VA_ARGS__))) {                                                                     \
-            debug("failed " #ops "[%d]: %s", i, state_msg);                                                            \
-            return s;                                                                                                  \
-        }                                                                                                              \
-        ++i;                                                                                                           \
-    }
-
-#define apis_multiret(ops, ...)                                                                                        \
-    apis_multi(ops, __VA_ARGS__);                                                                                      \
-    return s;
-
 // Rename apis to api.
-void apis_append(void *op[], void *func);
-
 void apis_print(uint api, char *prefix);
 
 void apis_tostr(uint api, char *buffer, size_t size);

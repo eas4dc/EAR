@@ -95,6 +95,11 @@ state_t mgt_cpupow_tdp_get(int domain, uint32_t *watts)
     return ops.tdp_get(domain, watts);
 }
 
+state_t mgt_cpupow_limits_get(int domain, uint32_t *wmin, uint32_t *wmax)
+{
+    return ops.limits_get(domain, wmin, wmax);
+}
+
 void mgt_cpupow_tdp_tostr(int domain, uint32_t *watts, char *buffer, int length)
 {
     int acc, i;

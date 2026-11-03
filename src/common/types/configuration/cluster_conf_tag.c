@@ -38,7 +38,8 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
     state_t found = EAR_ERROR;
 
     int i;
-    int idx = -1;
+    int idx          = -1;
+    int baseline_set = 0; // BASELINE_POWERCAP wins over the deprecated POWERCAP on the same line
 
     // initial value assignement
     tag_t *tags  = *tags_i;
@@ -102,10 +103,18 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
             tags[idx].cpu_temp_cap = atol(value);
         } else if (!strcmp(key, "GPU_TEMP_CAP")) {
             tags[idx].gpu_temp_cap = atol(value);
-        } else if (!strcmp(key, "POWERCAP")) {
+        } else if (!strcmp(key, "BASELINE_POWERCAP")) {
+            /* the power a node can always reclaim: 0 disabled, 1 unlimited, N watts, -1 auto */
             tags[idx].powercap = atol(value);
+            baseline_set       = 1;
+        } else if (!strcmp(key, "POWERCAP")) {
+            verbose(VCCONF, "tag %s: POWERCAP= is deprecated, use BASELINE_POWERCAP=", tags[idx].id);
+            if (!baseline_set)
+                tags[idx].powercap = atol(value);
         } else if (!strcmp(key, "MAX_POWERCAP")) {
             tags[idx].max_powercap = atol(value);
+        } else if (!strcmp(key, "MIN_WORKING_POWER")) {
+            tags[idx].min_working_power = atol(value);
         } else if (!strcmp(key, "GPU_DEF_FREQ")) {
             tags[idx].gpu_def_freq = atol(value);
         } else if (!strcmp(key, "CPU_MAX_PSTATE")) {
@@ -203,6 +212,7 @@ void print_tags_conf(tag_t *tag, int i)
     verbosen(VCCONF, "\t\t powercap %s\n", buffer);
     power2str(tag->max_powercap, buffer);
     verbosen(VCCONF, "\t\t max_powercap %s\n", buffer);
+    verbosen(VCCONF, "\t\t min_working_power %ld\n", tag->min_working_power);
     if ((tag->cpu_temp_cap == TEMP_CAP_UNLIMITED) && (tag->gpu_temp_cap == TEMP_CAP_UNLIMITED)) {
         verbosen(VCCONF, "\t\tTemperature cap disabled\n");
     } else {

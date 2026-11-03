@@ -1104,6 +1104,34 @@ state_t ear_cluster_release_idle_power(cluster_conf_t *my_cluster_conf, pc_relea
     return EAR_SUCCESS;
 }
 
+/** Asks the nodes in the list to release the power they hold while idle */
+state_t ear_nodelist_release_idle_power(cluster_conf_t *my_cluster_conf, pc_release_data_t *released, char **nodes,
+                                        int num_nodes)
+{
+    request_t command                = {0};
+    request_header_t head            = {0};
+    pc_release_data_t *temp_released = NULL;
+    int *ips;
+
+    memset(released, 0, sizeof(pc_release_data_t));
+    get_ip_nodelist(my_cluster_conf, nodes, num_nodes, &ips);
+    command.req       = EAR_RC_RELEASE_IDLE;
+    command.nodes     = ips;
+    command.num_nodes = num_nodes;
+    command.time_code = time(NULL);
+
+    head = data_nodelist(&command, my_cluster_conf, (void **) &temp_released);
+    free(ips);
+    if (head.type != EAR_TYPE_RELEASED || head.size < sizeof(pc_release_data_t)) {
+        if (head.size > 0)
+            free(temp_released);
+        return EAR_ERROR;
+    }
+    memcpy(released, temp_released, sizeof(pc_release_data_t));
+    free(temp_released);
+    return EAR_SUCCESS;
+}
+
 /** Send powercap_options to all nodes */
 state_t ear_cluster_set_powercap_opt(cluster_conf_t *my_cluster_conf, powercap_opt_t *pc_opt)
 {

@@ -13,12 +13,9 @@
 #include <daemon/remote_api/eard_rapi.h>
 #include <stdint.h>
 
-#define POWER_TYPE    0
-#define ENERGY_TYPE   1
-
-#define MONITOR       0
-#define HARD_POWERCAP 1
-#define SOFT_POWERCAP 2
+#include <global_manager/synthetic_powercap.h>
+#define POWER_TYPE  0
+#define ENERGY_TYPE 1
 
 typedef struct shared_powercap_data {
     uint64_t status;

@@ -112,7 +112,9 @@ BWIDTH_F_GET_INFO(intel63)
 
 BWIDTH_F_READ(intel63)
 {
+#if SHOW_DEBUGS
     ullong cas = 0LLU;
+#endif
     int p, t, i;
 
     timestamp_get(&b[devs_count].time);
@@ -122,7 +124,9 @@ BWIDTH_F_READ(intel63)
             pci_read(&pcis[p], &b[i].cas, sizeof(ullong), ctrs_addr[t]);
             b[i].cas = b[i].cas & 0x0000ffffffffffff;
             debug("IMC%d/%u: %llu (read)", i, devs_count - 1, b[i].cas);
+#if SHOW_DEBUGS
             cas += b[i].cas;
+#endif
         }
     }
     debug("CAS %llu", cas);

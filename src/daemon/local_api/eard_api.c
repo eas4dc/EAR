@@ -599,6 +599,10 @@ void eards_new_process_disconnect()
 void eards_disconnect()
 {
     struct daemon_req req;
+
+    /* Zero first: only two fields are set below, and the whole struct goes on
+     * the wire, so the remainder would be uninitialised stack. */
+    memset(&req, 0, sizeof(req));
     req.req_service = DISCONNECT_EARD_NODE_SERVICES;
     req.sec         = create_sec_tag();
 

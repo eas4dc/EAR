@@ -52,6 +52,8 @@ src/daemon/app_api/Makefile*
 !src/daemon/app_api/Makefile.am
 tests/daemon/Makefile*
 !tests/daemon/Makefile.am
+src/library/metrics/dcgmi_lib/Makefile*
+!src/library/metrics/dcgmi_lib/Makefile.am
 .dirstamp
 m4/libtool.m4
 m4/ltoptions.m4
@@ -169,6 +171,7 @@ src/database_cache/tmpi
 src/library/policies/p_plugin_test
 src/library/metrics/dcgmi_lib_test
 src/management/test
+/src/management/cpufreq/archs/test
 src/metrics/test
 src/metrics/common/nvml_test
 src/metrics/gpu/test/gpuprof_test
@@ -215,6 +218,7 @@ src/tools/loops_average
 src/commands/ear-info
 src/tools/node_manager_info
 deployment.sh
+hopper_tests
 
 
 #Other

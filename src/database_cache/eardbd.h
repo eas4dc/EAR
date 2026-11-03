@@ -70,7 +70,7 @@
 #ifndef SEC_KEY
 #define SEC_KEY 69
 #endif
-#define key_add(value) ((value & 0xFFFFFFFFFFFF0000) | SEC_KEY) // 16 bits
+#define key_add(value) ((value & 0xFFFFFFFFFFFF0000) | (SEC_KEY & 0x00FFFF)) // 16 bits
 #define key_get(value) ((value & 0x000000000000FFFF))
 
 typedef struct sync_question_s {

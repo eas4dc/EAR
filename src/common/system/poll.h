@@ -17,7 +17,7 @@
 #include <common/states.h>
 #include <common/system/time.h>
 
-#define AFD_MAX      4096
+#define AFD_MAX      8192
 #define AFD_TAG      64
 #define AFD_INFINITE -1 // Infinite timeout
 #define AFD_DEBUG    0

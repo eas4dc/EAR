@@ -127,7 +127,7 @@ static state_t recv_static_data(mgt_gpu_ops_t *ops)
         root_freqs_available[i] = (ulong *) serial_copy_elem(&b, NULL, NULL);
     }
     // Power
-    if (state_fail(s = eard_rpc(RPC_MGT_GPU_GET_POWER_CAP_DEFAULT, NULL, 0, (char *) root_power_default, cn * sizeof(ulong)))) {
+    if (state_fail(s = eard_rpc(RPC_MGT_GPU_GET_POWER_CAP_DEFAULT, NULL, 0, (char *) root_power_default, cn * sizeof(uint32_t)))) {
         return s;
     }
     // Max min processing

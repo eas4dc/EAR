@@ -13,6 +13,7 @@
 #define _GNU_SOURCE
 #include <common/output/debug.h>
 #include <common/sizes.h>
+#include <common/system/lock.h>
 #include <common/utils/keeper.h>
 #include <management/cpufreq/cpufreq_base.h>
 #include <management/cpufreq/drivers/acpi_cpufreq.h>
@@ -44,6 +45,9 @@ static uint governor_last;
 static uint governor0;
 static ullong freq_max0;
 static ullong freq_min0;
+
+/* Serialize sysfs accesses: request threads share descriptors and their offsets. */
+static pthread_mutex_t acpi_fd_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int have1000(ullong khz)
 {
@@ -258,6 +262,7 @@ state_t mgt_acpi_cpufreq_get_current_list(const ullong **p)
     char data[64];
     int cpu;
 
+    ear_lock(&acpi_fd_lock);
     for (cpu = 0; cpu < cpu_count; ++cpu) {
         if (!filemagic_word_read(fds_sss[cpu], data, 1)) {
             current_list[cpu] = 0LLU;
@@ -268,6 +273,7 @@ state_t mgt_acpi_cpufreq_get_current_list(const ullong **p)
         debug("current_list%d: %llu", cpu, current_list[cpu]);
     }
     *p = current_list;
+    ear_unlock(&acpi_fd_lock);
     return s;
 }
 
@@ -284,6 +290,7 @@ state_t mgt_acpi_cpufreq_set_current_list(uint *freqs_index)
     state_t s = EAR_SUCCESS;
     int cpu;
 
+    ear_lock(&acpi_fd_lock);
     for (cpu = 0; cpu < cpu_count; ++cpu) {
         if (freqs_index[cpu] == ps_nothing) {
             continue;
@@ -298,6 +305,7 @@ state_t mgt_acpi_cpufreq_set_current_list(uint *freqs_index)
             s = EAR_ERROR;
         }
     }
+    ear_unlock(&acpi_fd_lock);
     return s;
 }
 
@@ -308,19 +316,25 @@ state_t mgt_acpi_cpufreq_set_current(uint freq_index, int cpu)
     if (freq_index >= avail_list_count) {
         freq_index = avail_list_count - 1;
     }
+    ear_lock(&acpi_fd_lock);
     // If is one P_STATE for all CPUs
     if (cpu == all_cpus) {
         // Converting frequency to text
         sprintf(data, "%llu", avail_list_real[freq_index]);
-        return (filemagic_word_mwrite(fds_sss, cpu_count, data, 1) ? EAR_SUCCESS : EAR_ERROR);
+        state_t s = filemagic_word_mwrite(fds_sss, cpu_count, data, 1) ? EAR_SUCCESS : EAR_ERROR;
+        ear_unlock(&acpi_fd_lock);
+        return s;
     }
     // If it is for a specified CPU
     if (cpu >= 0 && cpu < cpu_count) {
         sprintf(data, "%llu", avail_list_real[freq_index]);
         debug("writing a word '%s'", data);
         strcat(data, "\n");
-        return (filemagic_word_write(fds_sss[cpu], data, strlen(data), 0) ? EAR_SUCCESS : EAR_ERROR);
+        state_t s = filemagic_word_write(fds_sss[cpu], data, strlen(data), 0) ? EAR_SUCCESS : EAR_ERROR;
+        ear_unlock(&acpi_fd_lock);
+        return s;
     }
+    ear_unlock(&acpi_fd_lock);
     return_msg(EAR_ERROR, Generr.cpu_invalid);
 }
 
@@ -335,18 +349,24 @@ static state_t static_get_governor(int cpu, uint *governor)
 
 state_t mgt_acpi_cpufreq_governor_get(uint *governor)
 {
-    return static_get_governor(0, governor);
+    ear_lock(&acpi_fd_lock);
+    state_t s = static_get_governor(0, governor);
+    ear_unlock(&acpi_fd_lock);
+    return s;
 }
 
 state_t mgt_acpi_cpufreq_governor_get_list(uint *governors)
 {
     state_t s;
     int i;
+    ear_lock(&acpi_fd_lock);
     for (i = 0; i < cpu_count; ++i) {
         if (state_fail(s = static_get_governor(i, &governors[i]))) {
+            ear_unlock(&acpi_fd_lock);
             return s;
         }
     }
+    ear_unlock(&acpi_fd_lock);
     return EAR_SUCCESS;
 }
 
@@ -356,9 +376,11 @@ state_t mgt_acpi_cpufreq_governor_set(uint governor)
     uint current;
     state_t s;
 
+    ear_lock(&acpi_fd_lock);
     // If governor is the same
-    if (state_ok(mgt_acpi_cpufreq_governor_get(&current))) {
+    if (state_ok(static_get_governor(0, &current))) {
         if (governor == current) {
+            ear_unlock(&acpi_fd_lock);
             return EAR_SUCCESS;
         }
     }
@@ -368,9 +390,12 @@ state_t mgt_acpi_cpufreq_governor_set(uint governor)
     // Saving last governor
     governor_last = current;
     if (state_fail(s = mgt_governor_tostr(governor, buffer))) {
+        ear_unlock(&acpi_fd_lock);
         return s;
     }
-    return (filemagic_word_mwrite(fds_sgv, cpu_count, buffer, 1) ? EAR_SUCCESS : EAR_ERROR);
+    s = filemagic_word_mwrite(fds_sgv, cpu_count, buffer, 1) ? EAR_SUCCESS : EAR_ERROR;
+    ear_unlock(&acpi_fd_lock);
+    return s;
 }
 
 state_t mgt_acpi_cpufreq_governor_set_mask(uint governor, cpu_set_t mask)
@@ -382,6 +407,7 @@ state_t mgt_acpi_cpufreq_governor_set_mask(uint governor, cpu_set_t mask)
     if (state_fail(s = mgt_governor_tostr(governor, buffer))) {
         return s;
     }
+    ear_lock(&acpi_fd_lock);
     strcat(buffer, "\n");
     for (cpu = 0; cpu < cpu_count; ++cpu) {
         if (CPU_ISSET(cpu, &mask)) {
@@ -391,6 +417,7 @@ state_t mgt_acpi_cpufreq_governor_set_mask(uint governor, cpu_set_t mask)
             }
         }
     }
+    ear_unlock(&acpi_fd_lock);
     return s;
 }
 
@@ -400,15 +427,19 @@ state_t mgt_acpi_cpufreq_governor_set_list(uint *governors)
     state_t s;
     int cpu;
 
+    ear_lock(&acpi_fd_lock);
     for (cpu = 0; cpu < cpu_count; ++cpu) {
         if (state_fail(s = mgt_governor_tostr(governors[cpu], buffer))) {
+            ear_unlock(&acpi_fd_lock);
             return s;
         }
         strcat(buffer, "\n");
         if (!filemagic_word_write(fds_sgv[cpu], buffer, strlen(buffer), 0)) {
+            ear_unlock(&acpi_fd_lock);
             return EAR_ERROR;
         }
     }
+    ear_unlock(&acpi_fd_lock);
     return EAR_SUCCESS;
 }
 

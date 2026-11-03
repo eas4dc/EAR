@@ -84,7 +84,7 @@
 /** When set to 1, verbose,debug, and error output is sent to eargmd.log file stored at EAR_TMP. */
 #define EARGMD_FILE_LOG 1
 
-/** Cluster soft powercap with homogeneous powercap. */
+/** Default EARGMSoft_PC_Strategy: 1 is HOMOGENEOUS, 0 is MAX_POWER. */
 #define EARGM_POWERCAP_SOFTPC_HOMOGENEOUS 0
 
 /**@}*/

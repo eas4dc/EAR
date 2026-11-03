@@ -8,15 +8,14 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+// clang-format off
 // #define SHOW_DEBUGS 1
-
 #include <common/output/debug.h>
 #include <common/system/symplug.h>
 #include <management/gpu/archs/nvml.h>
 #include <metrics/common/nvml.h>
 #include <stdlib.h>
 
-// clang-format off
 static nvml_t        nvml;
 static uint          handlers_count;
 static nvmlDevice_t *handlers;
@@ -28,7 +27,6 @@ static uint         *clock_lens;
 static uint32_t     *power_max_default; // W
 static uint32_t     *power_max;         // W
 static uint32_t     *power_min;         // W
-// clang-format on
 
 #define myErrorString(r) ((char *) nvml.ErrorString(r))
 
@@ -68,7 +66,6 @@ static state_t static_init()
     if ((v = calloc(l, s)) == NULL) {                                                                                  \
         return static_dispose(EAR_ERROR, strerror(errno));                                                             \
     }
-    // clang-format off
     static_alloc(clock_max_default, handlers_count, sizeof(ulong));
     static_alloc(clock_max        , handlers_count, sizeof(ulong));
     static_alloc(clock_max_mem    , handlers_count, sizeof(ulong));
@@ -77,7 +74,6 @@ static state_t static_init()
     static_alloc(power_min        , handlers_count, sizeof(uint32_t));
     static_alloc(clock_list       , handlers_count, sizeof(ulong *));
     static_alloc(clock_lens       , handlers_count, sizeof(uint));
-    // clang-format on
     // Power fill
     debug("power list:");
     for (d = 0; d < handlers_count; ++d) {
@@ -191,7 +187,6 @@ void mgt_gpu_nvml_load(mgt_gpu_ops_t *ops)
     if (state_fail(static_init())) {
         return;
     }
-    // clang-format off
     apis_set(ops->init                  , mgt_gpu_nvml_init                  );
     apis_set(ops->dispose               , mgt_gpu_nvml_dispose               );
     apis_set(ops->get_api               , mgt_gpu_nvml_get_api               );
@@ -213,7 +208,6 @@ void mgt_gpu_nvml_load(mgt_gpu_ops_t *ops)
     apis_set(ops->freq_limit_set  , mgt_gpu_nvml_freq_limit_set  );
     apis_set(ops->power_cap_reset , mgt_gpu_nvml_power_cap_reset );
     apis_set(ops->power_cap_set   , mgt_gpu_nvml_power_cap_set   );
-    // clang-format on
 done:
     debug("Loaded NVML");
 }

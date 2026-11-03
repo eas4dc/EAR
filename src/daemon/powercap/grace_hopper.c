@@ -47,12 +47,18 @@ int do_cmd(char *cmd)
 
 state_t disable()
 {
+    policy_enabled = 0;
     return EAR_SUCCESS;
 }
 
 state_t enable(suscription_t *sus)
 {
-    sus_inm = sus;
+    char cmd[128] = GH_ENABLE_PERSISTENT_MODE;
+    sus_inm       = sus;
+    /* nvidia-smi power limits need persistence mode; without enabling the policy no limit was ever applied */
+    if (execute(cmd) != EAR_SUCCESS)
+        warning("Grace Hopper: enabling persistence mode failed");
+    policy_enabled = 1;
     return EAR_SUCCESS;
 }
 
@@ -114,7 +120,7 @@ void set_status(uint32_t status)
     debug("GH. pending");
 }
 
-uint32_t get_powercap_stragetgy()
+uint32_t get_powercap_strategy()
 {
     return PC_POWER;
 }
@@ -125,8 +131,11 @@ void set_app_req_freq(ulong *f)
     c_req_f = *f;
 }
 
-uint32_t get_powercap_status(uint32_t *in_target, uint32_t *tbr)
+/* Status is not implemented for Grace Hopper: the domain reports OK and never offers power */
+uint32_t get_powercap_status(domain_status_t *status)
 {
-    warning("Grace Hopper powercap status not implemented");
+    memset(status, 0, sizeof(domain_status_t));
+    status->ok         = PC_STATUS_OK;
+    status->current_pc = c_limit;
     return 0;
 }

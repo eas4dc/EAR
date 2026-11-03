@@ -2950,7 +2950,7 @@ void *eard_power_monitoring(void *noinfo)
     create_powermon_out();
 
     /* Powercap */
-    if (powermon_get_powercap_def() > 0) {
+    if (powermon_get_baseline_powercap() > 0) {
         report_periods = ear_max(1, f_monitoring / 10);
         f_monitoring   = 10;
     }
@@ -3232,9 +3232,14 @@ uint32_t powermon_current_power()
     return (uint32_t) last_calculated_power;
 }
 
-uint32_t powermon_get_powercap_def()
+uint32_t powermon_get_baseline_powercap()
 {
     return my_node_conf->powercap;
+}
+
+uint32_t powermon_get_min_working_power()
+{
+    return my_node_conf->min_working_power;
 }
 
 uint32_t powermon_get_max_powercap_def()

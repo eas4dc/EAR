@@ -6,9 +6,10 @@ gpu_OBJS = \
     eard.o \
     dummy.o \
     nvml.o \
-		mgt_pvc_power_hwmon.o \
+    mgt_pvc_power_hwmon.o \
     oneapi.o \
-    rsmi.o
+    rsmi.o \
+    script.o
 
 ifdef CUDA_BASE
 gpu_DEFS  = -DCUDA_BASE=\"$(CUDA_BASE)\"

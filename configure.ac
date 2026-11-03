@@ -145,12 +145,14 @@ AC_CONFIG_FILES([Makefile
                  etc/conf/ear.conf.full.template
                  etc/conf/ear.conf.template
                  etc/rpms/specs/ear.spec
-				 etc/rpms/specs/ear_ln.spec
-				 etc/rpms/specs/ear_cn.spec
-				 etc/rpms/specs/ear_sn.spec
+                 etc/rpms/specs/ear_ln.spec
+                 etc/rpms/specs/ear_cn.spec
+                 etc/rpms/specs/ear_sn.spec
                  src/daemon/app_api/Makefile
-				 tests/daemon/Makefile
-				 src/database_cache/tests/Makefile])
+                 tests/daemon/Makefile
+                 src/database_cache/tests/Makefile
+                 src/library/metrics/dcgmi_lib/Makefile
+				        ])
 AC_CONFIG_FILES([etc/rpms/rpmbuild.sh], [chmod +x etc/rpms/rpmbuild.sh])
 AC_OUTPUT
 AX_AFTER_OUTPUT

@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.5.1] - 2026-11-03
+
+### Added
+
+- EARGMD tests.
+- Added SCRIPT API in management/gpu.
+
+### Changed
+
+- Port EARGM soft powercap strategy.
+- Increase the polling file descriptor limit from 4096 to 8192.
+- Include the username in failed user lookup messages and report deprecated POWERCAP settings at configuration verbosity.
+
+### Fixed
+
+- Serialize ACPI CPU frequency and governor sysfs accesses to prevent races on shared file descriptors.
+- Prevent a null pointer dereference in `strtoa_free()`.
+- Fixed an error in econtrol where `--status` would show nodes both as OK and in ERROR.
+- Bound RPC answers against the caller's buffer before copying.
+- EARD powercap fixes for (baseline\_powercap, watts requests, hardware limits, estimator).
+- Fix using uninitialized chips\_pkg.chips\_count. Thanks to [@zalbanob](https://github.com/zalbanob) for pointing it out.
+- CI: Wait for the delayed last job report in powermon\_stress.
+- Fix missmatch size between RPC `RPC_MGT_GPU_GET_POWER_CAP_DEFAULT`'s client and eard.
+
 ## [7.5.0] - 2026-10-07
 
 ### Changed

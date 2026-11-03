@@ -61,7 +61,10 @@ static state_t eard_send(int fd, uint call, state_t state, char *data, size_t si
         }
     }
     // Preparing the header
-    head_szof        = sizeof(eard_head_t);
+    head_szof = sizeof(eard_head_t);
+    /* Zero first: con_id and the struct padding are not assigned below, and
+     * without this the tail of every RPC header is uninitialised stack. */
+    memset(&head, 0, head_szof);
     head.req_service = call;
     head.size        = send_size;
     head.sec         = create_sec_tag();
@@ -83,14 +86,29 @@ static state_t eard_send(int fd, uint call, state_t state, char *data, size_t si
     return EAR_SUCCESS;
 }
 
+/* Grows the scratch buffer to at least `size` and zeroes it. On allocation
+ * failure it leaves rpc_size describing what rpc_buffer actually holds, which
+ * may be less than `size` - callers must compare rpc_size against the length
+ * they are about to read rather than assume the growth happened. */
 static void rpc_buffer_test(size_t size)
 {
+    char *aux;
+
     if (rpc_buffer == NULL) {
-        rpc_buffer = calloc(1, 8192);
-        rpc_size   = 8192;
+        if ((rpc_buffer = calloc(1, 8192)) == NULL) {
+            rpc_size = 0;
+            return;
+        }
+        rpc_size = 8192;
     }
     if (size > rpc_size) {
-        rpc_buffer = realloc(rpc_buffer, size);
+        /* Through a temporary: realloc() returning NULL keeps the old block
+         * live, so assigning straight into rpc_buffer would leak it and leave
+         * rpc_size advertising a capacity nothing backs. */
+        if ((aux = realloc(rpc_buffer, size)) == NULL) {
+            return;
+        }
+        rpc_buffer = aux;
         rpc_size   = size;
     }
     memset(rpc_buffer, 0, rpc_size);
@@ -113,12 +131,51 @@ static state_t eard_recv(int fd, uint call, char *data, size_t *size, size_t exp
         return_print(EAR_ERROR, "Expected header of service %u, received %lu", call, head.req_service);
     }
     if (head.size > 0) {
-        if (data == rpc_buffer) {
+        /* data != NULL matters: a caller that wants no answer passes NULL, and
+         * so does rpc_buffer before its first allocation. Without it the two are
+         * indistinguishable, and a void RPC that unexpectedly carried a body
+         * would be drained-and-rejected or silently accepted depending only on
+         * whether this thread had run a buffered RPC earlier. */
+        int use_rpc_buffer = (data != NULL && data == rpc_buffer);
+        size_t capacity;
+
+        if (use_rpc_buffer) {
             rpc_buffer_test(head.size);
+            data = rpc_buffer; // rpc_buffer_test() may have reallocated it
         }
         if (state_fail(head.state)) {
-            data = state_buffer;
+            data     = state_buffer;
+            capacity = sizeof(state_buffer);
+        } else if (use_rpc_buffer) {
+            capacity = rpc_size; // what the grow above actually achieved
+        } else {
+            // A caller-provided buffer: expc_size is all we know about its size.
+            capacity = expc_size;
         }
+
+        /* Bound the read against the destination before performing it. The size
+         * check used to happen only after the copy, so any service whose answer
+         * came back longer than the caller's buffer overflowed it first and was
+         * diagnosed second. Nothing in-tree is known to disagree on a size today;
+         * this is the layer that copies daemon-supplied lengths into caller
+         * buffers, so it is where the invariant belongs rather than in each
+         * caller. tests/local_api/rpc_answer_size_test.c pins it. */
+        if (data == NULL || head.size > capacity) {
+            /* Drain anyway: bytes left in the pipe desynchronise every later RPC
+             * on this connection. Into the scratch buffer, which the normal path
+             * already grows on head.size. */
+            rpc_buffer_test(head.size);
+            if (rpc_size < head.size) {
+                /* Cannot drain what cannot be held, and leaving the body in the
+                 * pipe would misalign every later RPC here. Drop the connection. */
+                return and_disconnect(EAR_ERROR, "Cannot allocate to drain EARD pipe (%s)");
+            }
+            if (eards_read(fd, rpc_buffer, head.size, WAIT_DATA) != head.size) {
+                return and_disconnect(EAR_ERROR, "Problem when reading EARD pipe (%s)");
+            }
+            return_print(EAR_ERROR, "Service %u answered %lu bytes, destination holds %lu", call, head.size, capacity);
+        }
+
         debug("Waiting RPC data of size %lu", head.size);
         if ((ret = eards_read(fd, data, head.size, WAIT_DATA)) != head.size) {
             debug("RPC body failed with ret %d", ret);
@@ -204,15 +261,25 @@ state_t eard_rpc(uint call, char *data, size_t size, char *recv_data, size_t exp
 
 state_t eard_rpc_buffered(uint call, char *data, size_t size, char **buffer, size_t *recv_size)
 {
+    state_t s;
+
     if (buffer == NULL) {
         return_msg(EAR_ERROR, "passed buffer can't be NULL");
     }
     //
     rpc_buffer_test(size);
-    *buffer = rpc_buffer;
+    if (rpc_buffer == NULL) {
+        *buffer = NULL;
+        return_msg(EAR_ERROR, "Could not allocate the RPC buffer");
+    }
     //
     /* UINT_MAX in size_t means size will come on the header, unknown size */
-    return static_rpc(call, data, size, rpc_buffer, recv_size, UINT_MAX);
+    s = static_rpc(call, data, size, rpc_buffer, recv_size, UINT_MAX);
+    /* Published after the call, not before: an answer bigger than the current
+     * buffer makes eard_recv() grow it, which moves the pointer. */
+    *buffer = rpc_buffer;
+
+    return s;
 }
 
 #if 0

@@ -26,7 +26,7 @@ state_t cpu_pc_enable();
 state_t cpu_pc_disable();
 
 void cpu_pc_set_status(uint status);
-uint cpu_pc_get_powercap_stragetgy();
+uint cpu_pc_get_powercap_strategy();
 void cpu_pc_set_pc_mode(uint mode);
 
 #endif
