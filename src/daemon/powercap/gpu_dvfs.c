@@ -58,7 +58,7 @@ static uint32_t *gpu_pc_util;
 static uint32_t *gpu_pc_util_wait;
 static ulong *gpu_pc_prev_freq;
 
-static long *gpu_pc_excess;
+static int32_t *gpu_pc_excess; /* cap - consumption: negative when over the cap */
 static float *pdist;
 static ulong *c_freq, *t_freq, *n_freq;
 /* Damped proportional controller on the GPU's power vs clock estimate */
@@ -87,11 +87,11 @@ ulong select_lower_gpu_freq(uint i, ulong f, uint pstate_steps);
 ulong select_higher_gpu_freq(uint i, ulong f, int extra_steps);
 
 /* Watts GPU i needs over its budget to run at its target clock, from the power it draws now */
-static uint gpu_needed_power(uint i)
+static uint32_t gpu_needed_power(uint i)
 {
     double at_target =
         power_estimator_at(&gpu_est[i], values_gpu_diff[i].power_w, c_freq[i], ear_max(t_freq[i], c_freq[i]));
-    return (at_target > gpu_pc_curr_power[i]) ? (uint) (at_target - gpu_pc_curr_power[i]) : 0;
+    return (at_target > gpu_pc_curr_power[i]) ? (uint32_t) (at_target - gpu_pc_curr_power[i]) : 0;
 }
 
 /* Highest supported clock <= khz (the list is sorted from the highest) */
@@ -241,7 +241,7 @@ state_t gpu_dvfs_pc_thread_main(void *p)
     for (i = 0; i < gpu_pc_num_gpus; i++) {
         gpu_dvfs_local_util += values_gpu_diff[i].util_gpu;
         gpu_pc_util[i]   = values_gpu_diff[i].util_gpu;
-        gpu_pc_excess[i] = (long) gpu_pc_curr_power[i] - (long) values_gpu_diff[i].power_w;
+        gpu_pc_excess[i] = (int32_t) gpu_pc_curr_power[i] - (int32_t) values_gpu_diff[i].power_w;
     }
     uint busy_changed = 0;
     for (i = 0; i < gpu_pc_num_gpus && i < MAX_GPUS_SUPPORTED; i++)
@@ -266,7 +266,7 @@ state_t gpu_dvfs_pc_thread_main(void *p)
                 continue; // we don't want to remove power from idle nodes
             /* We leave a minimum of 5 Watts of excess power in case of power fluctuations. */
             if (gpu_pc_excess[j] > 5) {
-                debug("moving %ld watts from %d to %d (current pc from %lu to %lu)", gpu_pc_excess[j] - 5, j, i,
+                debug("moving %d watts from %d to %d (current pc from %u to %u)", gpu_pc_excess[j] - 5, j, i,
                       gpu_pc_curr_power[j], gpu_pc_curr_power[i]);
                 gpu_pc_curr_power[i] +=
                     gpu_pc_excess[j] - 5; // we leave a bit of excess power to prevent fluctuation errors
@@ -364,43 +364,43 @@ state_t enable(suscription_t *sus)
         gpu_pc_enabled = 1;
         mgt_gpu_count_devices(no_ctx, &gpu_pc_num_gpus);
         debug("%d GPUS detectd in gpu_powercap", gpu_pc_num_gpus);
-        gpu_pc_min_power = calloc(gpu_pc_num_gpus, sizeof(ulong));
+        gpu_pc_min_power = calloc(gpu_pc_num_gpus, sizeof(*gpu_pc_min_power));
         if (gpu_pc_min_power == NULL) {
             gpu_pc_enabled = 0;
             ret            = EAR_ERROR;
             debug("Error allocating memory in GPU enable");
         }
-        gpu_pc_max_power = calloc(gpu_pc_num_gpus, sizeof(ulong));
+        gpu_pc_max_power = calloc(gpu_pc_num_gpus, sizeof(*gpu_pc_max_power));
         if (gpu_pc_max_power == NULL) {
             gpu_pc_enabled = 0;
             ret            = EAR_ERROR;
             debug("Error allocating memory in GPU enable");
         }
-        gpu_pc_curr_power = calloc(gpu_pc_num_gpus, sizeof(ulong));
+        gpu_pc_curr_power = calloc(gpu_pc_num_gpus, sizeof(*gpu_pc_curr_power));
         if (gpu_pc_curr_power == NULL) {
             gpu_pc_enabled = 0;
             ret            = EAR_ERROR;
             debug("Error allocating memory in GPU enable");
         }
-        gpu_pc_excess = calloc(gpu_pc_num_gpus, sizeof(long));
+        gpu_pc_excess = calloc(gpu_pc_num_gpus, sizeof(*gpu_pc_excess));
         if (gpu_pc_excess == NULL) {
             gpu_pc_enabled = 0;
             ret            = EAR_ERROR;
             debug("Error allocating memory in GPU enable");
         }
-        gpu_pc_util = calloc(gpu_pc_num_gpus, sizeof(ulong));
+        gpu_pc_util = calloc(gpu_pc_num_gpus, sizeof(*gpu_pc_util));
         if (gpu_pc_util == NULL) {
             gpu_pc_enabled = 0;
             ret            = EAR_ERROR;
             debug("Error allocating memory in GPU enable");
         }
-        gpu_pc_util_wait = calloc(gpu_pc_num_gpus, sizeof(ulong));
+        gpu_pc_util_wait = calloc(gpu_pc_num_gpus, sizeof(*gpu_pc_util_wait));
         if (gpu_pc_util_wait == NULL) {
             gpu_pc_enabled = 0;
             ret            = EAR_ERROR;
             debug("Error allocating memory in GPU enable");
         }
-        gpu_pc_prev_freq = calloc(gpu_pc_num_gpus, sizeof(ulong));
+        gpu_pc_prev_freq = calloc(gpu_pc_num_gpus, sizeof(*gpu_pc_prev_freq));
         if (gpu_pc_prev_freq == NULL) {
             gpu_pc_enabled = 0;
             ret            = EAR_ERROR;
@@ -412,10 +412,10 @@ state_t enable(suscription_t *sus)
             ret            = EAR_ERROR;
             debug("Error allocating memory in GPU enable");
         }
-        c_freq  = calloc(gpu_pc_num_gpus, sizeof(ulong));
+        c_freq  = calloc(gpu_pc_num_gpus, sizeof(*c_freq));
         gpu_est = calloc(gpu_pc_num_gpus, sizeof(power_estimator_t));
-        t_freq  = calloc(gpu_pc_num_gpus, sizeof(ulong));
-        n_freq  = calloc(gpu_pc_num_gpus, sizeof(ulong));
+        t_freq  = calloc(gpu_pc_num_gpus, sizeof(*t_freq));
+        n_freq  = calloc(gpu_pc_num_gpus, sizeof(*n_freq));
         mgt_gpu_power_cap_get_rank(no_ctx, gpu_pc_min_power, gpu_pc_max_power);
         gpu_data_alloc(&values_gpu_idle);
     }
@@ -630,11 +630,9 @@ void set_app_req_freq(ulong *f)
 uint get_powercap_status(domain_status_t *status)
 {
     int i;
-    uint32_t used   = 0;
-    uint g_tbr      = 0;
-    uint tmp_stress = 0;
-    uint requested  = 0;
-    uint greedy     = 0;
+    uint32_t used       = 0;
+    uint32_t g_tbr      = 0;
+    uint32_t tmp_stress = 0;
 
     status->ok         = PC_STATUS_OK;
     status->exceed     = 0;
@@ -690,18 +688,20 @@ uint get_powercap_status(domain_status_t *status)
     for (i = 0; i < gpu_pc_num_gpus; i++) {
         if ((c_freq[i] < t_freq[i]) && (gpu_pc_util[i] > 0) && gpu_dvfs_greedy) {
             debug("We cannot release power from GPU %d", i);
-            greedy = 1;
-            requested += powercap_device_request(gpu_pc_max_power[i], gpu_pc_curr_power[i], gpu_needed_power(i));
+            status->ok = PC_STATUS_GREEDY;
+            status->requested +=
+                powercap_device_request(gpu_pc_max_power[i], gpu_pc_curr_power[i], gpu_needed_power(i));
         } else if ((c_freq[i] >= t_freq[i]) && (gpu_pc_util[i] > 0)) {
             if (values_gpu_diff[i].power_w >
                 gpu_pc_curr_power[i]) // if we are at req_f but we are using more power than we should
             {
-                greedy = 1;
-                requested += powercap_device_request(gpu_pc_max_power[i], gpu_pc_curr_power[i], gpu_needed_power(i));
+                status->ok = PC_STATUS_GREEDY;
+                status->requested +=
+                    powercap_device_request(gpu_pc_max_power[i], gpu_pc_curr_power[i], gpu_needed_power(i));
                 debug("GPU_DVFS GPU %d greedy because we need more power to maintain current speed", i);
                 continue;
             }
-            g_tbr          = (uint) (((double) gpu_pc_curr_power[i] - values_gpu_diff[i].power_w) * 0.5);
+            g_tbr          = (uint32_t) (((double) gpu_pc_curr_power[i] - values_gpu_diff[i].power_w) * 0.5);
             status->exceed = status->exceed + g_tbr;
             debug("gpu_pc_curr_power %u and current_power %lf, exceed: %u", gpu_pc_curr_power[i],
                   values_gpu_diff[i].power_w, status->exceed);
@@ -710,10 +710,10 @@ uint get_powercap_status(domain_status_t *status)
         }
     }
     /* Throttled GPUs already at their max power can't use more: not greedy */
-    if (greedy && requested) {
-        status->ok        = PC_STATUS_GREEDY;
-        status->requested = ear_min(requested, UINT16_MAX);
-        status->exceed    = 0;
+    if (status->ok == PC_STATUS_GREEDY && !status->requested)
+        status->ok = PC_STATUS_RELEASE;
+    if (status->ok == PC_STATUS_GREEDY) {
+        status->exceed = 0;
         debug("GPU_DVFS status GREEDY, requesting %u W", status->requested);
         return 0;
     }

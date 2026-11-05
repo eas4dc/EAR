@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * test_gpu_dvfs_plugin.c -- unit tests for src/daemon/powercap/gpu_dvfs.c
  *
@@ -253,7 +263,7 @@ TEST(test_utilization_from_pmgt_layout)
     set_new_utilization((uint32_t *) pmgt_util);
     domain_status_t st;
     get_powercap_status(&st);
-    /* The same ulong/uint32_t mismatch as gpu.c (#773): GPUs 1 and 3 get an
+    /* The same ulong/uint32_t mismatch as gpu.c: GPUs 1 and 3 get an
      * idle budget. gpu_dvfs re-reads utilization on its next monitor tick and
      * re-splits, so here the damage lasts one period. */
     ticks(1);
@@ -283,7 +293,7 @@ TEST(test_target_frequency_buffer)
 int main(void)
 {
 #if defined(__SANITIZE_ADDRESS__)
-    /* every tick overflows t_freq (#768), so the ASan build runs only this */
+    /* every tick overflows t_freq, so the ASan build runs only this */
     RUN_ISOLATED(test_target_frequency_buffer);
     return pc_summary("test_gpu_dvfs_plugin_asan");
 #endif

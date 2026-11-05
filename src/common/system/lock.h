@@ -14,6 +14,7 @@
 #include <common/states.h>
 #include <common/types/generic.h>
 #include <pthread.h>
+#include <stdint.h>
 
 #define MAX_LOCK_INTENTS 1000
 
@@ -22,6 +23,12 @@
 #define ear_unlock(lock) pthread_mutex_unlock(lock);
 
 state_t ear_trylock(pthread_mutex_t *lock);
+
+/** Waits for the lock at most timeout_ms milliseconds. Returns EAR_SUCCESS with the lock
+ * held, EAR_TIMEOUT if it was not released in time, EAR_ERROR on any other failure. For
+ * locks held during slow operations (e.g. hardware writes), where ear_trylock gives up
+ * too soon and pthread_mutex_lock could block forever. */
+state_t ear_timedlock(pthread_mutex_t *lock, uint32_t timeout_ms);
 
 #define return_unlock(state, lock)                                                                                     \
     {                                                                                                                  \

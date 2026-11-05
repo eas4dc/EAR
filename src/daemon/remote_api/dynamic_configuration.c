@@ -686,7 +686,7 @@ void process_pmgt_status(powercap_status_t *my_status, pmgt_status_t *p_status)
             my_status->num_greedy++;
             if (my_status->num_greedy < 1)
                 break;
-            my_status->greedy_nodes = realloc(my_status->greedy_nodes, sizeof(int) * my_status->num_greedy);
+            my_status->greedy_nodes = realloc(my_status->greedy_nodes, sizeof(int32_t) * my_status->num_greedy);
             my_status->greedy_data  = realloc(my_status->greedy_data, sizeof(greedy_bytes_t) * my_status->num_greedy);
             /* Data management */
             my_status->greedy_nodes[my_status->num_greedy - 1]            = my_ip;
@@ -723,9 +723,10 @@ void dyncon_get_powerstatus(int fd, request_t *command)
     process_pmgt_status(&status[return_status - 1], &p_status);
 
     status_data = mem_alloc_char_powercap_status(status);
-    send_data(
-        fd, sizeof(powercap_status_t) * return_status + ((sizeof(greedy_bytes_t) + sizeof(int)) * (status->num_greedy)),
-        status_data, EAR_TYPE_POWER_STATUS);
+    send_data(fd,
+              sizeof(powercap_status_t) * return_status +
+                  ((sizeof(greedy_bytes_t) + sizeof(int32_t)) * (status->num_greedy)),
+              status_data, EAR_TYPE_POWER_STATUS);
 
     free(status_data);
     debug("Returning from dyncon_get_powerstatus");

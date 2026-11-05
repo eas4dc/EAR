@@ -61,9 +61,6 @@ state_t ear_send_message(cluster_conf_t *conf, char *message, char **nodes, int 
 /* Restores configuration for nodes to ear.conf values */
 state_t ear_restore_conf(cluster_conf_t *conf, char **nodes, int32_t num_nodes);
 
-/* Sets powercap options */
-state_t ear_set_powercap_opt(cluster_conf_t *my_cluster_conf, powercap_opt_t *pc_opt, char **nodes, int num_nodes);
-
 /* Sets risks and target to policies that have a set_risk function implemented. */
 state_t ear_set_risk(cluster_conf_t *conf, risk_t risk, uint32_t target, char **nodes, int32_t num_nodes);
 

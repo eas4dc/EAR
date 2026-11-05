@@ -68,7 +68,7 @@ static suscription_t *sus_dvfs;
 static uint dvfs_pc_secs = 0, num_packs;
 static unsigned long long *values_rapl_init, *values_rapl_end, *values_diff;
 static float power_rapl, my_limit;
-/* CPU domain: power vs average frequency, and the most it can be capped at (#814) */
+/* CPU domain: power vs average frequency, and the most it can be capped at */
 static power_estimator_t dvfs_est;
 static uint32_t dvfs_domain_max_w = UINT32_MAX;
 /* per-socket share of the limit, as pmgt reads and verifies it */
@@ -187,7 +187,6 @@ void num_cpus_to_reduce_pstates(uint *tmp, uint *target, uint *changes, uint *ch
     }
 }
 
-// moved here from powercap_status.c as it is only used in dvfs cases
 /* PKG/DRAM range from RAPL POWER_INFO, the TDP as maximum when it reports none; with
  * neither the domain has no known maximum */
 static void init_power_estimator()
@@ -704,7 +703,7 @@ uint get_powercap_status(domain_status_t *status)
             ulong eff = avg_khz(c_freq), tgt = avg_khz(c_req_f);
             double at_target  = power_estimator_at(&dvfs_est, power_rapl, eff, ear_max(tgt, eff));
             uint need         = (at_target > current_dvfs_pc) ? (uint) (at_target - current_dvfs_pc) : 0;
-            status->requested = ear_min(powercap_device_request(dvfs_domain_max_w, current_dvfs_pc, need), UINT16_MAX);
+            status->requested = powercap_device_request(dvfs_domain_max_w, current_dvfs_pc, need);
             debug("DVFS: Requested power %u", status->requested);
             status->ok = status->requested ? PC_STATUS_GREEDY : PC_STATUS_OK;
         }

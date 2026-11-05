@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * test_gpu_plugin.c -- unit tests for src/daemon/powercap/gpu.c (gpu.so)
  *

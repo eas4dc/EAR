@@ -12,6 +12,7 @@
 #define _PWR_MGT_H
 #include <common/states.h>
 #include <daemon/powercap/powercap_status_conf.h>
+#include <stdbool.h>
 
 typedef void *pwr_mgt_t;
 
@@ -46,7 +47,7 @@ state_t pmgt_process_message(char *domain, int32_t num_values, int32_t values[nu
 /* Sets in powercap the powercap per domain : 3 domains in CPU only systems and 4 in CPU+GPU */
 state_t pmgt_get_powercap_value(pwr_mgt_t *phandler, uint pid, uint32_t *powercap);
 state_t pmgt_get_powercap_value_per_device(uint domain, uint32_t *powercaps);
-uint pmgt_domain_readable(uint domain);
+bool pmgt_domain_readable(uint domain);
 void pmgt_get_node_hw_limits(uint32_t *node_min, uint32_t *node_max);
 uint32_t pmgt_get_device_tdp(uint domain, uint device);
 uint pmgt_is_powercap_enabled(pwr_mgt_t *phandler, uint pid);

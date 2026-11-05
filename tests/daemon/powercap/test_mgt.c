@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * test_mgt.c -- unit tests for src/daemon/powercap/powercap_mgt.c
  *
@@ -52,7 +62,7 @@ static void mgt_setup(int gpus)
 /* Sets a node limit the way powercap.c does, including my_pc_opt */
 static void node_limit(uint32_t limit)
 {
-    my_pc_opt.baseline_powercap      = limit;
+    my_pc_opt.base_powercap     = limit;
     my_pc_opt.last_t1_allocated = limit;
     my_pc_opt.current_pc        = limit;
     pmgt_set_powercap_value(h, 0, DOMAIN_NODE, limit);
@@ -578,7 +588,8 @@ TEST(test_manual_messages)
     CHECK(fake_plug[DOMAIN_GPU].last_limits[0] == 310 && fake_plug[DOMAIN_GPU].last_limits[3] == 340,
           "device: values 5..8 are the GPUs (3..4 are DRAM)");
     CHECK(fake_hw.dram_cap[0] == 30 && fake_hw.dram_cap[1] == 35,
-          "device: DRAM values 3..4 programmed for a RAPL CPU plugin (%u %u)", fake_hw.dram_cap[0], fake_hw.dram_cap[1]);
+          "device: DRAM values 3..4 programmed by the CPU plugin that caps DRAM (%u %u)", fake_hw.dram_cap[0],
+          fake_hw.dram_cap[1]);
     CHECK(fake_hw.stored_dram[0] == 30 && fake_hw.stored_dram[1] == 35, "... and stored for verification");
 
     /* AMD: no DRAM power limit, the DRAM values are ignored and not stored */
@@ -643,11 +654,17 @@ TEST(test_per_device_readback)
     fake_hw.dram_cap[0] = 30;
     fake_hw.dram_cap[1] = 35;
     CHECK_EQ(pmgt_get_powercap_value_per_device(DOMAIN_DRAM, v), EAR_SUCCESS,
-             "no DRAM plugin, RAPL CPU plugin: DRAM read back from RAPL");
+             "no DRAM plugin: DRAM read back through the CPU plugin");
     CHECK(v[0] == 30 && v[1] == 35, "... per socket (%u %u)", v[0], v[1]);
-    fake_plug[DOMAIN_CPU].strategy = PC_DVFS;
-    CHECK_EQ(pmgt_get_powercap_value_per_device(DOMAIN_DRAM, v), EAR_ERROR, "no DRAM plugin, DVFS CPU plugin -> error");
-    fake_plug[DOMAIN_CPU].strategy = PC_POWER;
+    CHECK(pmgt_domain_readable(DOMAIN_DRAM), "DRAM readable through the CPU plugin");
+
+    /* a CPU plugin that does not cap DRAM (dvfs, inm, grace_hopper) */
+    fake_hw_default(4);
+    fake_plug[DOMAIN_CPU].owns_dram = 0;
+    mgt_init();
+    CHECK(pmgt_get_powercap_value_per_device(DOMAIN_DRAM, v) != EAR_SUCCESS,
+          "no DRAM plugin, CPU plugin without DRAM -> error");
+    CHECK(!pmgt_domain_readable(DOMAIN_DRAM), "... and DRAM is not readable");
     CHECK_EQ(pmgt_get_powercap_value_per_device(9, v), EAR_ERROR, "invalid domain -> error");
     CHECK_EQ(pmgt_get_cpu_devices(), 2, "2 CPU devices");
     CHECK_EQ(pmgt_get_gpu_devices(), 4, "4 GPU devices");

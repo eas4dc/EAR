@@ -455,12 +455,12 @@ int read_command(int s, request_t *command)
             memcpy(&command->my_req, &tmp_command[aux_size],
                    sizeof(powercap_opt_t)); // first we copy the base powercap_opt_t
             // auxiliar variables
-            size_t offset = command->my_req.pc_opt.num_greedy * sizeof(int);
+            size_t offset = command->my_req.pc_opt.num_greedy * sizeof(int32_t);
             aux_size += sizeof(powercap_opt_t);
 
             // allocation
-            command->my_req.pc_opt.greedy_nodes = calloc(command->my_req.pc_opt.num_greedy, sizeof(int));
-            command->my_req.pc_opt.extra_power  = calloc(command->my_req.pc_opt.num_greedy, sizeof(int));
+            command->my_req.pc_opt.greedy_nodes = calloc(command->my_req.pc_opt.num_greedy, sizeof(int32_t));
+            command->my_req.pc_opt.extra_power  = calloc(command->my_req.pc_opt.num_greedy, sizeof(int32_t));
 
             // copy
             memcpy(command->my_req.pc_opt.greedy_nodes, &tmp_command[aux_size], offset);
@@ -500,8 +500,8 @@ size_t get_command_size(request_t *command, char **data_to_send)
     switch (command->req) {
         case EAR_RC_SET_POWERCAP_OPT:
             size += sizeof(powercap_opt_t);
-            size += command->my_req.pc_opt.num_greedy * sizeof(int) * 2;
-            offset = command->my_req.pc_opt.num_greedy * sizeof(int);
+            size += command->my_req.pc_opt.num_greedy * sizeof(int32_t) * 2;
+            offset = command->my_req.pc_opt.num_greedy * sizeof(int32_t);
             break;
 
             // NOTE: individual values are not being passed to keep the code simple. Instead, we measure the actual data
@@ -1644,11 +1644,11 @@ powercap_status_t *mem_alloc_powercap_status(char *final_data)
     final_size = sizeof(powercap_status_t);
     memcpy(status, final_data, final_size);
 
-    status->greedy_nodes = calloc(status->num_greedy, sizeof(int));
+    status->greedy_nodes = calloc(status->num_greedy, sizeof(int32_t));
     status->greedy_data  = calloc(status->num_greedy, sizeof(greedy_bytes_t));
 
-    memcpy(status->greedy_nodes, &final_data[final_size], sizeof(int) * status->num_greedy);
-    final_size += status->num_greedy * sizeof(int);
+    memcpy(status->greedy_nodes, &final_data[final_size], sizeof(int32_t) * status->num_greedy);
+    final_size += status->num_greedy * sizeof(int32_t);
 
     memcpy(status->greedy_data, &final_data[final_size], sizeof(greedy_bytes_t) * status->num_greedy);
     final_size += status->num_greedy * sizeof(greedy_bytes_t);
@@ -1658,14 +1658,14 @@ powercap_status_t *mem_alloc_powercap_status(char *final_data)
 
 char *mem_alloc_char_powercap_status(powercap_status_t *status)
 {
-    int size   = sizeof(powercap_status_t) + ((status->num_greedy) * (sizeof(int) + sizeof(greedy_bytes_t)));
+    int size   = sizeof(powercap_status_t) + ((status->num_greedy) * (sizeof(int32_t) + sizeof(greedy_bytes_t)));
     char *data = calloc(size, sizeof(char));
 
     memcpy(data, status, sizeof(powercap_status_t));
     size = sizeof(powercap_status_t);
 
-    memcpy(&data[size], status->greedy_nodes, sizeof(int) * status->num_greedy);
-    size += sizeof(int) * status->num_greedy;
+    memcpy(&data[size], status->greedy_nodes, sizeof(int32_t) * status->num_greedy);
+    size += sizeof(int32_t) * status->num_greedy;
 
     memcpy(&data[size], status->greedy_data, sizeof(greedy_bytes_t) * status->num_greedy);
     size += sizeof(greedy_bytes_t) * status->num_greedy;
@@ -1679,8 +1679,8 @@ powercap_status_t *memmap_powercap_status(char *final_data, int *size)
     powercap_status_t *status = (powercap_status_t *) final_data;
 
     final_size           = sizeof(powercap_status_t);
-    status->greedy_nodes = (int *) &final_data[final_size];
-    final_size += status->num_greedy * sizeof(int);
+    status->greedy_nodes = (int32_t *) &final_data[final_size];
+    final_size += status->num_greedy * sizeof(int32_t);
 
     status->greedy_data = (greedy_bytes_t *) &final_data[final_size];
     final_size += status->num_greedy * sizeof(greedy_bytes_t);
@@ -1744,10 +1744,10 @@ request_header_t process_data(request_header_t data_head, char **temp_data_ptr, 
 
                 final_size = sizeof(powercap_status_t);
                 memcpy(&final_status[final_size], original_status->greedy_nodes,
-                       sizeof(int) * original_status->num_greedy);
-                final_size += sizeof(int) * original_status->num_greedy;
-                memcpy(&final_status[final_size], new_status->greedy_nodes, sizeof(int) * new_status->num_greedy);
-                final_size += sizeof(int) * new_status->num_greedy;
+                       sizeof(int32_t) * original_status->num_greedy);
+                final_size += sizeof(int32_t) * original_status->num_greedy;
+                memcpy(&final_status[final_size], new_status->greedy_nodes, sizeof(int32_t) * new_status->num_greedy);
+                final_size += sizeof(int32_t) * new_status->num_greedy;
 
                 memcpy(&final_status[final_size], original_status->greedy_data,
                        sizeof(greedy_bytes_t) * original_status->num_greedy);

@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * fake_hw_mgt.c -- see fake_hw_mgt.h
  */
@@ -10,6 +20,7 @@
 #include <common/hardware/topology.h>
 #include <common/states.h>
 #include <common/types/configuration/cluster_conf.h>
+#include <daemon/powercap/powercap.h>
 #include <daemon/powercap/powercap_status_conf.h>
 #include <management/cpupow/cpupow.h>
 #include <metrics/common/apis.h>
@@ -51,6 +62,7 @@ void fake_hw_default(int num_gpus)
     }
     /* Same domain settings the real cpu_generic.c and gpu.c export */
     fake_plug[DOMAIN_CPU].loaded                  = 1;
+    fake_plug[DOMAIN_CPU].owns_dram               = 1;
     fake_plug[DOMAIN_CPU].settings.node_ratio     = 0.1;
     fake_plug[DOMAIN_CPU].settings.security_range = 0.01;
     fake_plug[DOMAIN_GPU].loaded                  = num_gpus > 0;
@@ -93,11 +105,11 @@ ulong fake_pstate_freq(uint p)
         fake_plug[d].disable_calls++;                                                                                  \
         return EAR_SUCCESS;                                                                                            \
     }                                                                                                                  \
-    static state_t fp##d##_set_powercap_value(uint pid, uint level, uint32_t *limit, uint32_t *util)                    \
+    static state_t fp##d##_set_powercap_value(uint pid, uint level, uint32_t *limit, uint32_t *util)                   \
     {                                                                                                                  \
         fake_plug[d].set_calls++;                                                                                      \
         fake_plug[d].last_level = level;                                                                               \
-        int n = (d == DOMAIN_GPU) ? fake_hw.gpus : (d == DOMAIN_NODE ? 1 : fake_hw.sockets);                           \
+        int n                   = (d == DOMAIN_GPU) ? fake_hw.gpus : (d == DOMAIN_NODE ? 1 : fake_hw.sockets);         \
         if (level != LEVEL_DEVICE)                                                                                     \
             n = 1;                                                                                                     \
         for (int i = 0; i < n && i < FAKE_MAX_DEV; i++)                                                                \
@@ -148,7 +160,7 @@ ulong fake_pstate_freq(uint p)
     static void fp##d##_set_verb_channel(int fd)                                                                       \
     {                                                                                                                  \
     }                                                                                                                  \
-    static void fp##d##_set_new_utilization(uint32_t *util)                                                             \
+    static void fp##d##_set_new_utilization(uint32_t *util)                                                            \
     {                                                                                                                  \
         fake_plug[d].new_util_calls++;                                                                                 \
         int nu = (d == DOMAIN_GPU) ? fake_hw.gpus : (d == DOMAIN_CPU ? fake_hw.cpus : 1);                              \
@@ -181,12 +193,42 @@ ulong fake_pstate_freq(uint p)
     {                                                                                                                  \
         *s = fake_plug[d].settings;                                                                                    \
     }                                                                                                                  \
+    /* what cpu_generic does with the DRAM slice */                                                                    \
+    static state_t fp##d##_set_dram_powercap_value(uint32_t *limit)                                                    \
+    {                                                                                                                  \
+        if (state_fail(mgt_cpupow_powercap_set(CPUPOW_DRAM, limit)))                                                   \
+            return EAR_ERROR;                                                                                          \
+        for (int i = 0; i < fake_hw.sockets; i++)                                                                      \
+            powercap_set_stored_device_value(DOMAIN_DRAM, i, limit[i]);                                                \
+        return EAR_SUCCESS;                                                                                            \
+    }                                                                                                                  \
+    static state_t fp##d##_get_dram_powercap_value(uint32_t *pc)                                                       \
+    {                                                                                                                  \
+        return mgt_cpupow_powercap_get(CPUPOW_DRAM, pc);                                                               \
+    }                                                                                                                  \
     static void *fp##d##_table[] = {                                                                                   \
-        fp##d##_enable,          fp##d##_disable,     fp##d##_set_powercap_value, fp##d##_get_powercap_value,          \
-        fp##d##_is_enabled,      fp##d##_set_status,  fp##d##_set_pc_mode,        fp##d##_get_strategy,                \
-        fp##d##_to_str,          fp##d##_print,       fp##d##_set_app_req_freq,   fp##d##_set_verb_channel,            \
-        fp##d##_set_new_utilization, fp##d##_get_powercap_status, fp##d##_reset_powercap_value, NULL, NULL,            \
-        fp##d##_burst,           fp##d##_relax,       fp##d##_get_settings,                                            \
+        fp##d##_enable,                                                                                                \
+        fp##d##_disable,                                                                                               \
+        fp##d##_set_powercap_value,                                                                                    \
+        fp##d##_get_powercap_value,                                                                                    \
+        fp##d##_is_enabled,                                                                                            \
+        fp##d##_set_status,                                                                                            \
+        fp##d##_set_pc_mode,                                                                                           \
+        fp##d##_get_strategy,                                                                                          \
+        fp##d##_to_str,                                                                                                \
+        fp##d##_print,                                                                                                 \
+        fp##d##_set_app_req_freq,                                                                                      \
+        fp##d##_set_verb_channel,                                                                                      \
+        fp##d##_set_new_utilization,                                                                                   \
+        fp##d##_get_powercap_status,                                                                                   \
+        fp##d##_reset_powercap_value,                                                                                  \
+        NULL,                                                                                                          \
+        NULL,                                                                                                          \
+        fp##d##_burst,                                                                                                 \
+        fp##d##_relax,                                                                                                 \
+        fp##d##_get_settings,                                                                                          \
+        fp##d##_set_dram_powercap_value,                                                                               \
+        fp##d##_get_dram_powercap_value,                                                                               \
     };
 
 FP_DEFINE(0)
@@ -198,11 +240,28 @@ static void **fp_tables[NUM_DOMAINS] = {fp0_table, fp1_table, fp2_table, fp3_tab
 
 /* Order of the names powercap_mgt.c asks for; fp tables above follow it */
 static const char *expected_names[] = {
-    "enable",       "disable",          "set_powercap_value", "get_powercap_value",  "is_powercap_policy_enabled",
-    "set_status",   "set_pc_mode",      "get_powercap_strategy", "powercap_to_str",  "print_powercap_value",
-    "set_app_req_freq", "set_verb_channel", "set_new_utilization", "get_powercap_status", "reset_powercap_value",
-    "release_powercap_allocation", "increase_powercap_allocation", "plugin_set_burst", "plugin_set_relax",
+    "enable",
+    "disable",
+    "set_powercap_value",
+    "get_powercap_value",
+    "is_powercap_policy_enabled",
+    "set_status",
+    "set_pc_mode",
+    "get_powercap_strategy",
+    "powercap_to_str",
+    "print_powercap_value",
+    "set_app_req_freq",
+    "set_verb_channel",
+    "set_new_utilization",
+    "get_powercap_status",
+    "reset_powercap_value",
+    "release_powercap_allocation",
+    "increase_powercap_allocation",
+    "plugin_set_burst",
+    "plugin_set_relax",
     "plugin_get_settings",
+    "set_dram_powercap_value",
+    "get_dram_powercap_value",
 };
 
 state_t symplug_open(char *path, void *calls[], const char *names[], uint n)
@@ -219,6 +278,8 @@ state_t symplug_open(char *path, void *calls[], const char *names[], uint n)
             if (!strcmp(names[i], expected_names[j]))
                 calls[i] = fp_tables[d][j];
         if (fake_plug[d].no_strategy && !strcmp(names[i], "get_powercap_strategy"))
+            calls[i] = NULL;
+        if (!fake_plug[d].owns_dram && strstr(names[i], "_dram_powercap_value"))
             calls[i] = NULL;
     }
     return EAR_SUCCESS;

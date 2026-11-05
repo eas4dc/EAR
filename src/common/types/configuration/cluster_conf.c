@@ -493,7 +493,7 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
         n->max_temp          = my_conf->tags[tag_id].max_temp;
         n->powercap          = my_conf->tags[tag_id].powercap;
         n->max_powercap      = my_conf->tags[tag_id].max_powercap;
-        n->min_working_power = (uint32_t) ear_max(my_conf->tags[tag_id].min_working_power, 0);
+        n->min_working_power = my_conf->tags[tag_id].min_working_power;
         n->max_avx512_freq   = my_conf->tags[tag_id].max_avx512_freq;
         n->max_avx2_freq     = my_conf->tags[tag_id].max_avx2_freq;
 
@@ -586,24 +586,23 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
         case POWER_CAP_DISABLED:
             verbose(VCCONF + 2, "my_node_conf powercap is DISABLED");
             break;
-        case POWER_CAP_UNLIMITED:
+        case POWER_CAP_UNLIMITED: {
             verbose(VCCONF + 2, "my_node_conf powercap is UNLIMITED");
-            if (my_conf->eargm.num_eargms > my_conf->islands[island_idx].ranges[range_id].eargm_id) {
-                if (my_conf->eargm.eargms[my_conf->islands[island_idx].ranges[range_id].eargm_id].power ==
-                    POWER_CAP_AUTO_CONFIG) {
-                    verbose(
-                        VCCONF + 2,
+            // EARGMId is the id from ear.conf, not a position in eargms[]
+            int eargm_idx = get_eargm_idx(my_conf, my_conf->islands[island_idx].ranges[range_id].eargm_id);
+            if ((eargm_idx >= 0) && (my_conf->eargm.eargms[eargm_idx].power == POWER_CAP_AUTO_CONFIG)) {
+                verbose(VCCONF + 2,
                         "warning: EARGM is set to autoconfigure and node powercap is unlimited, this is unsupported");
-                }
             }
             break;
+        }
         case POWER_CAP_AUTO_CONFIG: {
             // When autoconfiguring, if the configuration is not valid we are currently setting the powercap to
             // UNLIMITED. Another option would be setting it to the DEFAULT value (but it could be -1 which would cause
             // issues) or set it to DISABLED.
             verbose(VCCONF, "my_node_conf powercap is being AUTOCONFIGURED");
             int eargm_idx = get_eargm_idx(my_conf, my_conf->islands[island_idx].ranges[range_id].eargm_id);
-            if (eargm_idx >= 0) { // the first EARGM in ear.conf has index 0
+            if (eargm_idx >= 0) { // position in eargms[] (0 for the first EARGM), -1 if EARGMId is not defined
                 int num_nodes = get_num_nodes_in_eargm(my_conf, my_conf->islands[island_idx].ranges[range_id].eargm_id);
                 if (num_nodes < 1) {
                     verbose(VCCONF, "\nno nodes found when configuring powercap, setting it to unlimited");

@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * fake_powermon.c -- see fake_powermon.h
  */
@@ -95,23 +105,24 @@ void powermon_context_unlock(uint cc)
 {
 }
 
-uint powermon_current_power()
+uint32_t powermon_current_power()
 {
     return fake_node_power;
 }
 
-uint powermon_get_baseline_powercap()
+uint32_t powermon_get_base_powercap()
 {
     return fake_pc_def;
 }
 
 uint fake_min_working = 0;
-uint powermon_get_min_working_power()
+
+uint32_t powermon_get_min_working_power()
 {
     return fake_min_working;
 }
 
-uint powermon_get_max_powercap_def()
+uint32_t powermon_get_max_powercap_def()
 {
     return fake_pc_max;
 }

@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * pc_test.h -- minimal test harness shared by the EARD powercap tests.
  *
@@ -11,8 +21,8 @@
  *                         bug was fixed and the XFAIL should become a CHECK.
  *                         XPASS fails the run so that nobody forgets.
  *
- * Every XFAIL names a bug id (e.g. "PC-07") listed in BUGS.md next to this
- * file, so the output can be traced back to the analysis.
+ * Every XFAIL names the issue that tracks the bug (e.g. "#788"), so the output
+ * can be traced back to it.
  */
 #ifndef PC_TEST_H
 #define PC_TEST_H

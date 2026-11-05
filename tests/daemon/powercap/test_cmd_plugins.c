@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * test_cmd_plugins.c -- the command-driven powercap plugins:
  *   inm.c           node limit through ipmitool (Intel Node Manager)
@@ -58,9 +68,18 @@ int execute(char *cmd)
         snprintf(cmds[ncmds++], sizeof(cmds[0]), "%s", cmd);
     return EAR_SUCCESS;
 }
+
+static ulong fake_freq = 2400000;
 ulong frequency_get_cpu_freq(uint cpu)
 {
-    return 2400000;
+    return fake_freq;
+}
+
+static uint fake_power = 0;
+
+uint32_t powermon_current_power()
+{
+    return fake_power;
 }
 
 static int ran(const char *needle)
@@ -125,11 +144,46 @@ TEST(test_disable)
           "disable removes the policy and NM policy control");
 }
 
+void set_app_req_freq(ulong *f);
+
 TEST(test_status_abi)
 {
     enable(suscription());
     apply(800);
+    fake_power = 790; /* at the limit, at the requested frequency */
     check_status_ok(800);
+}
+
+TEST(test_status_greedy)
+{
+    enable(suscription());
+    apply(800);
+    ulong req = 3000000;
+    set_app_req_freq(&req);
+    fake_freq  = 2400000;
+    fake_power = 790; /* at the limit, below the requested frequency */
+    domain_status_t st;
+    CHECK_EQ(mgr_status(&st), 0, "greedy: nothing to share");
+    CHECK_EQ(st.ok, PC_STATUS_GREEDY, "below the requested frequency at the limit: GREEDY");
+    /* 790 W * 3.0 / 2.4 = 987 W at the requested frequency */
+    CHECK(st.requested >= 186 && st.requested <= 188, "requests what the frequency costs (%u)", st.requested);
+    fake_power = 600; /* below the requested frequency but not because of the cap */
+    mgr_status(&st);
+    CHECK(st.ok != PC_STATUS_GREEDY, "power below the limit: not GREEDY (%u)", st.ok);
+}
+
+TEST(test_status_release)
+{
+    enable(suscription());
+    apply(800);
+    fake_power = 600;
+    domain_status_t st;
+    CHECK_EQ(mgr_status(&st), 1, "release: power can be shared");
+    CHECK_EQ(st.ok, PC_STATUS_RELEASE, "600 W under an 800 W limit: RELEASE");
+    CHECK_EQ(st.exceed, 100, "half the difference is offered");
+    fake_power = 795;
+    CHECK_EQ(mgr_status(&st), 0, "5 W under the limit: too little to share");
+    CHECK_EQ(st.ok, PC_STATUS_OK, "... status OK");
 }
 
 int main(void)
@@ -139,6 +193,8 @@ int main(void)
     RUN_ISOLATED(test_unlimited_removes_policy);
     RUN_ISOLATED(test_disable);
     RUN_ISOLATED(test_status_abi);
+    RUN_ISOLATED(test_status_greedy);
+    RUN_ISOLATED(test_status_release);
     return pc_summary("test_inm_plugin");
 }
 

@@ -37,6 +37,9 @@
 #include <daemon/powercap/powercap_status.h>
 #include <daemon/powercap/powercap_status_conf.h>
 
+/* CPU domain plugin for CPUs with a socket power limit, through management/cpupow:
+ * RAPL on Intel (sockets and DRAM), HSMP on AMD (sockets only, no DRAM limit). */
+
 static topology_t node_desc;
 static uint32_t current_limit = POWER_CAP_UNLIMITED;
 static uint pc_on             = 0;
@@ -46,14 +49,17 @@ static float cpu_weight       = 0;
 static float dram_weight      = 0;
 static int32_t num_cpus       = 0;
 static int32_t num_dram       = 0;
-static int32_t node_size      = 0;
-static uint32_t energy_packs  = 0;
-static uint32_t *cpu_power    = NULL;
-static uint32_t *dram_power   = NULL;
-/* RAPL POWER_INFO range per device (0 = unknown) */
+/* DRAM has its own power limit (Intel RAPL). Without one (AMD: HSMP caps the socket only,
+ * the DIMMs are outside it) DRAM is neither capped nor given a share of the limit. */
+static bool dram_capable     = false;
+static int32_t node_size     = 0;
+static uint32_t energy_packs = 0;
+static uint32_t *cpu_power   = NULL;
+static uint32_t *dram_power  = NULL;
+/* Power limit range per device, as cpupow reports it (0 = unknown) */
 static uint32_t *cpu_min = NULL, *cpu_max = NULL, *dram_min = NULL, *dram_max = NULL;
 /* CPU domain: power vs average effective frequency, and the most it can be capped at */
-static power_estimator_t cpu_est;
+static power_estimator_t cpu_est = {0};
 static uint32_t cpu_domain_max_w = 0;
 static uint64_t *c_req_f         = NULL;
 static uint64_t *energy_ct1      = NULL;
@@ -83,7 +89,8 @@ static domain_settings_t settings = {.node_ratio = 0.1, .security_range = 0.01};
 
 state_t disable()
 {
-    mgt_cpupow_powercap_reset(CPUPOW_DRAM, RESET_DEFAULT);
+    if (dram_capable)
+        mgt_cpupow_powercap_reset(CPUPOW_DRAM, RESET_DEFAULT);
     return mgt_cpupow_powercap_reset(CPUPOW_SOCKET, RESET_DEFAULT);
 }
 
@@ -132,8 +139,9 @@ state_t enable(suscription_t *sus)
     uint32_t total_cpu_power  = 0;
     uint32_t total_dram_power = 0;
 
-    num_cpus = mgt_cpupow_count_devices(CPUPOW_SOCKET);
-    num_dram = mgt_cpupow_count_devices(CPUPOW_DRAM);
+    num_cpus     = mgt_cpupow_count_devices(CPUPOW_SOCKET);
+    num_dram     = mgt_cpupow_count_devices(CPUPOW_DRAM);
+    dram_capable = mgt_cpupow_powercap_is_capable(CPUPOW_DRAM);
 
     debug("num cpus: %u num_dram: %u", num_cpus, num_dram);
 
@@ -148,8 +156,8 @@ state_t enable(suscription_t *sus)
     dram_max = calloc(num_dram, sizeof(uint32_t));
     mgt_cpupow_limits_get(CPUPOW_SOCKET, cpu_min, cpu_max);
     mgt_cpupow_limits_get(CPUPOW_DRAM, dram_min, dram_max);
-    /* range from RAPL POWER_INFO, the TDP as maximum when it reports none; with neither the
-     * domain has no known maximum */
+    /* range from the hardware (RAPL POWER_INFO, HSMP), the TDP as maximum when it reports none;
+     * with neither the domain has no known maximum */
     powercap_max_or_tdp(cpu_max, cpu_power, num_cpus);
     powercap_max_or_tdp(dram_max, dram_power, num_dram);
     uint32_t pkg_min_w = 0, pkg_max_w = 0, dram_max_w = 0;
@@ -159,7 +167,7 @@ state_t enable(suscription_t *sus)
         pkg_max_w += cpu_max[i];
         max_known &= (cpu_max[i] > 0);
     }
-    for (int32_t i = 0; i < num_dram; i++) {
+    for (int32_t i = 0; dram_capable && i < num_dram; i++) {
         dram_max_w += dram_max[i];
         max_known &= (dram_max[i] > 0);
     }
@@ -169,7 +177,8 @@ state_t enable(suscription_t *sus)
     for (int32_t i = 0; i < num_cpus; i++) {
         total_cpu_power += cpu_power[i];
     }
-    for (int32_t i = 0; i < num_dram; i++) {
+    /* without a DRAM limit the whole CPU domain share goes to the sockets */
+    for (int32_t i = 0; dram_capable && i < num_dram; i++) {
         total_dram_power += dram_power[i];
     }
 
@@ -201,7 +210,7 @@ void plugin_get_settings(domain_settings_t *s)
     memcpy(s, &settings, sizeof(domain_settings_t));
 }
 
-/* Clamps a device cap to its RAPL range when known (the firmware would hold it there anyway) */
+/* Clamps a device cap to its hardware range when known (the firmware would hold it there anyway) */
 static uint32_t _clamp_device(uint32_t w, uint32_t wmin, uint32_t wmax)
 {
     if (wmax && w > wmax)
@@ -214,7 +223,7 @@ static uint32_t _clamp_device(uint32_t w, uint32_t wmin, uint32_t wmax)
 static state_t _set_per_device_powercap_value(uint pid, uint32_t *limit, uint32_t *cpu_util)
 {
     for (int32_t i = 0; i < num_cpus; i++) {
-        /* RAPL gets POWERCAP_DISABLE, the storage keeps POWER_CAP_UNLIMITED as verify reads it;
+        /* cpupow gets POWERCAP_DISABLE, the storage keeps POWER_CAP_UNLIMITED as verify reads it;
          * the caller's array is left alone */
         cpu_power[i] =
             (limit[i] == POWER_CAP_UNLIMITED) ? POWERCAP_DISABLE : _clamp_device(limit[i], cpu_min[i], cpu_max[i]);
@@ -238,8 +247,10 @@ static state_t _set_single_powercap_value(uint pid, uint32_t limit, uint32_t *cp
 
     if (limit == POWER_CAP_UNLIMITED) {
         powercap_update_all_device_storage(DOMAIN_CPU, POWER_CAP_UNLIMITED);
-        powercap_update_all_device_storage(DOMAIN_DRAM, POWER_CAP_UNLIMITED);
-        mgt_cpupow_powercap_reset(CPUPOW_DRAM, RESET_DEFAULT);
+        if (dram_capable) {
+            powercap_update_all_device_storage(DOMAIN_DRAM, POWER_CAP_UNLIMITED);
+            mgt_cpupow_powercap_reset(CPUPOW_DRAM, RESET_DEFAULT);
+        }
         state_t ret = mgt_cpupow_powercap_reset(CPUPOW_SOCKET, RESET_DEFAULT);
         if (state_ok(ret))
             current_limit = POWER_CAP_UNLIMITED; // the next real limit must be applied again
@@ -252,7 +263,7 @@ static state_t _set_single_powercap_value(uint pid, uint32_t limit, uint32_t *cp
         powercap_set_stored_device_value(DOMAIN_CPU, i, cpu_power[i]);
         debug("power assigned to cpu%d: %u", i, cpu_power[i]);
     }
-    for (int32_t i = 0; i < num_dram; i++) {
+    for (int32_t i = 0; dram_capable && i < num_dram; i++) {
         dram_power[i] =
             _clamp_device(ear_max((uint32_t) ((limit * dram_weight) / num_dram), 2), dram_min[i], dram_max[i]);
         powercap_set_stored_device_value(DOMAIN_DRAM, i, dram_power[i]);
@@ -264,14 +275,47 @@ static state_t _set_single_powercap_value(uint pid, uint32_t limit, uint32_t *cp
         debug("error setting CPU powercap");
         return ret;
     }
-    ret = mgt_cpupow_powercap_set(CPUPOW_DRAM, dram_power);
-    if (ret == EAR_ERROR) {
-        debug("error setting DRAM powercap");
-        return ret; // current_limit unchanged: the same limit is retried
+    if (dram_capable) {
+        ret = mgt_cpupow_powercap_set(CPUPOW_DRAM, dram_power);
+        if (ret == EAR_ERROR) {
+            debug("error setting DRAM powercap");
+            return ret; // current_limit unchanged: the same limit is retried
+        }
     }
     current_limit = limit;
 
     return ret;
+}
+
+/* Per-device DRAM caps (one per socket), called by pmgt when no DRAM plugin is loaded:
+ * this plugin caps DRAM along with the sockets. */
+state_t set_dram_powercap_value(uint32_t *limit)
+{
+    if (!dram_capable) {
+        warning("DRAM powercap not supported on this CPU, DRAM values ignored");
+        return EAR_ERROR;
+    }
+    for (int32_t i = 0; i < num_dram; i++) {
+        dram_power[i] =
+            (limit[i] == POWER_CAP_UNLIMITED) ? POWERCAP_DISABLE : _clamp_device(limit[i], dram_min[i], dram_max[i]);
+        debug("power assigned to dram%d: %u", i, dram_power[i]);
+    }
+    state_t ret = mgt_cpupow_powercap_set(CPUPOW_DRAM, dram_power);
+    if (state_fail(ret)) {
+        debug("error setting DRAM powercap");
+        return ret;
+    }
+    /* the storage keeps only what the hardware accepted */
+    for (int32_t i = 0; i < num_dram; i++)
+        powercap_set_stored_device_value(DOMAIN_DRAM, i, (limit[i] == POWER_CAP_UNLIMITED) ? limit[i] : dram_power[i]);
+    return ret;
+}
+
+state_t get_dram_powercap_value(uint32_t *powercap)
+{
+    if (!dram_capable)
+        return EAR_ERROR;
+    return mgt_cpupow_powercap_get(CPUPOW_DRAM, powercap);
 }
 
 state_t set_powercap_value(uint pid, uint32_t domain, uint32_t *limit, uint32_t *cpu_util)
@@ -311,25 +355,26 @@ void set_app_req_freq(ulong *f)
     memcpy(c_req_f, f, sizeof(ulong) * MAX_CPUS_SUPPORTED);
 }
 
-/* P-state index (0 = fastest) each CPU runs at and the one its target frequency maps to */
-static void _pstate_indices(pstate_t *curr, uint64_t *target_khz, uint *cur, uint *tgt)
+/* Converts, per CPU, the P-state it runs at and its target frequency (kHz) to P-state
+ * indices (0 = fastest) */
+static void _freqs_to_pstate_indices(pstate_t *run_pstates, uint64_t *target_khz, uint *curr_idx, uint *target_idx)
 {
     for (int32_t i = 0; i < node_size && i < MAX_CPUS_SUPPORTED; i++) {
         uint32_t t_pstate = 0;
         mgt_cpufreq_get_index(NULL, target_khz[i], &t_pstate, true);
-        cur[i] = curr[i].idx;
-        tgt[i] = t_pstate;
+        curr_idx[i]   = run_pstates[i].idx;
+        target_idx[i] = t_pstate;
     }
 }
 
 /* Returns true if some CPU runs slower (higher P-state index) than its target */
-static int _below_target(uint *cur, uint *tgt)
+static bool _below_target(uint *curr_idx, uint *target_idx)
 {
     for (int32_t i = 0; i < node_size && i < MAX_CPUS_SUPPORTED; i++) {
-        if (cur[i] > tgt[i])
-            return 1;
+        if (curr_idx[i] > target_idx[i])
+            return true;
     }
-    return 0;
+    return false;
 }
 
 /* Average effective and average target frequency of the node's CPUs (kHz) */
@@ -341,8 +386,12 @@ static void _avg_khz(pstate_t *run, uint64_t *target_khz, ulong *eff, ulong *tgt
         e += run[i].khz;
         t += target_khz[i];
     }
-    *eff = n ? e / n : 0;
-    *tgt = n ? t / n : 0;
+    *eff = 0;
+    *tgt = 0;
+    if (n > 0) {
+        *eff = e / n;
+        *tgt = t / n;
+    }
 }
 
 #define MIN_CPU_POWER_MARGIN 10
@@ -382,7 +431,7 @@ uint get_powercap_status(domain_status_t *status)
     timestamp_getfast(&curr_time);
     double time_diff_ms = timestamp_diff(&curr_time, &last_time, TIME_MSECS);
     if (time_diff_ms >= POWER_WINDOW_MS || last_power < 0) {
-        /* RAPL throttling only shows in the effective frequency: judge it from APERF/MPERF */
+        /* power limit throttling only shows in the effective frequency: judge it from APERF/MPERF */
         ulong eff_avg = 0;
         eff_valid     = eff_khz != NULL && state_ok(cpufreq_read_copy(eff_curr, eff_last, eff_khz, &eff_avg));
         if (eff_valid) {
@@ -418,7 +467,7 @@ uint get_powercap_status(domain_status_t *status)
 
     /* Running below target settings because of the cap (power at the limit): requesting more power */
     uint cur_idx[MAX_CPUS_SUPPORTED], tgt_idx[MAX_CPUS_SUPPORTED];
-    _pstate_indices(run_pstates, c_req_f, cur_idx, tgt_idx);
+    _freqs_to_pstate_indices(run_pstates, c_req_f, cur_idx, tgt_idx);
     if (_below_target(cur_idx, tgt_idx) && power >= current_limit * POWER_AT_LIMIT) {
         /* the watts the target frequency costs, from the power drawn now */
         ulong eff_khz_avg, tgt_khz_avg;
@@ -429,7 +478,7 @@ uint get_powercap_status(domain_status_t *status)
         /* at the domain maximum more watts can't help: not greedy */
         if (requested) {
             status->ok        = PC_STATUS_GREEDY;
-            status->requested = ear_min(requested, UINT16_MAX);
+            status->requested = requested;
             return 0;
         }
     }

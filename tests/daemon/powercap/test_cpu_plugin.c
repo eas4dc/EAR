@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * test_cpu_plugin.c -- unit tests for src/daemon/powercap/cpu_generic.c
  *
@@ -31,6 +41,8 @@ state_t set_powercap_value(uint pid, uint32_t domain, uint32_t *limit, uint32_t 
 state_t get_powercap_value(uint pid, uint *powercap);
 uint get_powercap_status(domain_status_t *status);
 void plugin_get_settings(domain_settings_t *s);
+state_t set_dram_powercap_value(uint32_t *limit);
+state_t get_dram_powercap_value(uint32_t *powercap);
 
 /* One monitor period: always longer than cpu_generic's POWER_WINDOW_MS */
 #define POWER_WINDOW_TEST_NS ((long long) CHECK_STATUS_PERIOD * 1000000LL)
@@ -164,6 +176,54 @@ TEST(test_per_device)
     CHECK(lim[1] == POWER_CAP_UNLIMITED, "the caller's array is not rewritten (now %u)", lim[1]);
 }
 
+TEST(test_per_device_dram)
+{
+    cpu_setup();
+    uint32_t lim[2] = {200, POWER_CAP_UNLIMITED};
+    CHECK_EQ(set_dram_powercap_value(lim), EAR_SUCCESS, "per-device DRAM applied");
+    CHECK_EQ(fcpu.hw_dram[0], 40, "DRAM 0 clamped to its maximum (the 40 W TDP, POWER_INFO reports none)");
+    CHECK_EQ(fcpu.hw_dram[1], POWERCAP_DISABLE, "DRAM 1 unlimited -> cap disabled");
+    CHECK_EQ(fake_stored[DOMAIN_DRAM][0], 40, "stored DRAM value matches the hardware");
+    CHECK_EQ(fake_stored[DOMAIN_DRAM][1], POWER_CAP_UNLIMITED, "DRAM unlimited stored as POWER_CAP_UNLIMITED");
+    CHECK_EQ(fcpu.pkg_set_calls, 0, "per-device DRAM request leaves PKG alone");
+    uint32_t v[2];
+    CHECK_EQ(get_dram_powercap_value(v), EAR_SUCCESS, "DRAM read back");
+    CHECK_EQ(v[0], 40, "... from the hardware");
+
+    /* the hardware refuses: the storage keeps the previous values */
+    uint32_t lim2[2]  = {30, 30};
+    fcpu.dram_set_ret = EAR_ERROR;
+    CHECK(set_dram_powercap_value(lim2) != EAR_SUCCESS, "DRAM write failure reported");
+    CHECK_EQ(fake_stored[DOMAIN_DRAM][0], 40, "... and not stored");
+}
+
+TEST(test_dram_not_capable)
+{
+    /* AMD: no DRAM power limit. The sockets get the whole CPU domain limit, DRAM is never
+     * programmed nor stored, and a limit is applied once (no error, no retry) */
+    fake_cpus_default();
+    fcpu.dram_not_capable = 1;
+    fake_clock_ns         = 1000000000LL;
+    enable(suscription());
+    uint32_t limit = 400;
+    CHECK_EQ(set_powercap_value(0, LEVEL_NODE, &limit, NULL), EAR_SUCCESS, "limit applied without a DRAM limit");
+    CHECK_EQ(fcpu.hw_pkg[0] + fcpu.hw_pkg[1], 400, "the sockets get the whole limit (%u + %u)", fcpu.hw_pkg[0],
+             fcpu.hw_pkg[1]);
+    CHECK_EQ(fcpu.dram_set_calls, 0, "DRAM is not programmed");
+    CHECK_EQ(fake_stored[DOMAIN_DRAM][0], 0, "no DRAM value stored for verification");
+    int pkg_calls = fcpu.pkg_set_calls;
+    CHECK_EQ(set_powercap_value(0, LEVEL_NODE, &limit, NULL), EAR_SUCCESS, "same limit again");
+    CHECK_EQ(fcpu.pkg_set_calls, pkg_calls, "... is not written again");
+    limit = POWER_CAP_UNLIMITED;
+    set_powercap_value(0, LEVEL_NODE, &limit, NULL);
+    CHECK_EQ(fcpu.dram_reset_calls, 0, "unlimited: DRAM is not reset");
+    uint32_t v[2];
+    CHECK(get_dram_powercap_value(v) != EAR_SUCCESS, "DRAM caps can't be read back");
+    uint32_t per_dev[2] = {30, 30};
+    CHECK(set_dram_powercap_value(per_dev) != EAR_SUCCESS, "per-device DRAM caps refused");
+    CHECK_EQ(fcpu.dram_set_calls, 0, "... nothing programmed");
+}
+
 /* ============================================================= status */
 
 TEST(test_status_before_any_limit)
@@ -281,7 +341,7 @@ TEST(test_greedy_path_memory_safety)
           sig ? strsignal(sig) : "none");
 #else
     greedy_status();
-    CHECK(1, "GREEDY path ran (build test_cpu_plugin_asan to check PC-28)");
+    CHECK(1, "GREEDY path ran (build test_cpu_plugin_asan to check the P-state list reads)");
 #endif
 }
 
@@ -291,8 +351,10 @@ TEST(test_exported_symbols)
 {
     CHECK(dlsym(RTLD_DEFAULT, "set_powercap_value") != NULL, "exports set_powercap_value");
     CHECK(dlsym(RTLD_DEFAULT, "get_powercap_status") != NULL, "exports get_powercap_status");
-    CHECK(dlsym(RTLD_DEFAULT, "get_powercap_strategy") != NULL,
-          "exports get_powercap_strategy");
+    CHECK(dlsym(RTLD_DEFAULT, "get_powercap_strategy") != NULL, "exports get_powercap_strategy");
+    CHECK(dlsym(RTLD_DEFAULT, "set_dram_powercap_value") != NULL &&
+              dlsym(RTLD_DEFAULT, "get_dram_powercap_value") != NULL,
+          "exports the per-device DRAM calls (it caps DRAM)");
     domain_settings_t s;
     plugin_get_settings(&s);
     CHECK(s.node_ratio > 0.09 && s.node_ratio < 0.11, "node_ratio 0.1");
@@ -320,6 +382,8 @@ int main(void)
     RUN_ISOLATED(test_dram_failure);
     RUN_ISOLATED(test_pkg_failure);
     RUN_ISOLATED(test_per_device);
+    RUN_ISOLATED(test_per_device_dram);
+    RUN_ISOLATED(test_dram_not_capable);
     RUN_ISOLATED(test_status_before_any_limit);
     RUN_ISOLATED(test_status_release);
     RUN_ISOLATED(test_status_greedy_direction);

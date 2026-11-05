@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * fake_pmgt.c -- see fake_pmgt.h
  */
@@ -172,7 +182,7 @@ void pmgt_get_node_hw_limits(uint32_t *node_min, uint32_t *node_max)
     *node_max = fake_hw_max;
 }
 
-uint pmgt_domain_readable(uint domain)
+bool pmgt_domain_readable(uint domain)
 {
     return domain < NUM_DOMAINS;
 }

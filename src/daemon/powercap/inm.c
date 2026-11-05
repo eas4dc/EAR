@@ -22,6 +22,7 @@
 #include <common/states.h>
 #include <common/system/execute.h>
 #include <common/system/monitor.h>
+#include <daemon/power_monitor.h>
 #include <daemon/powercap/powercap_status_conf.h>
 #include <management/cpufreq/frequency.h>
 
@@ -228,14 +229,44 @@ void set_app_req_freq(ulong *f)
     c_req_f = *f;
 }
 
-#define MIN_CPU_POWER_MARGIN 10
+#define MIN_NODE_POWER_MARGIN 10
+/* Power above this fraction of the limit means the cap is what holds the CPUs back */
+#define POWER_AT_LIMIT 0.97
 
-/* The node manager enforces the limit and reports no throttling: the domain is
- * always OK and never offers power (the power reading is pending). */
+/* Same statuses as cpu_generic.c, from the node power EARD measures:
+ *   GREEDY  the CPUs run below the requested frequency with the power at the limit;
+ *           requested = what the requested frequency costs, power taken as linear in frequency;
+ *   RELEASE the node draws less than the limit: half the difference can be lent (tbr in exceed);
+ *   OK      otherwise, or when there is no limit or no requested frequency.
+ * Returns 1 when power can be shared, 0 otherwise. */
 uint get_powercap_status(domain_status_t *status)
 {
     memset(status, 0, sizeof(domain_status_t));
     status->ok         = PC_STATUS_OK;
     status->current_pc = c_limit;
-    return 0;
+    if (!pc_on || c_limit == POWER_CAP_UNLIMITED)
+        return 0;
+
+    uint power   = powermon_current_power();
+    ulong c_freq = frequency_get_cpu_freq(0);
+    debug("INM status: power %u limit %u freq %lu requested freq %lu", power, c_limit, c_freq, c_req_f);
+
+    if (c_req_f > 0 && c_freq > 0 && c_freq < c_req_f && power >= c_limit * POWER_AT_LIMIT) {
+        double at_target = (double) power * c_req_f / c_freq;
+        uint need        = (at_target > c_limit) ? (uint) (at_target - c_limit) : 0;
+        if (need > 0) {
+            status->ok        = PC_STATUS_GREEDY;
+            status->requested = need;
+            return 0;
+        }
+    }
+
+    if (power >= c_limit)
+        return 0;
+    uint32_t tbr = (c_limit - power) * 0.5;
+    if (tbr < MIN_NODE_POWER_MARGIN)
+        return 0;
+    status->ok     = PC_STATUS_RELEASE;
+    status->exceed = tbr;
+    return 1;
 }

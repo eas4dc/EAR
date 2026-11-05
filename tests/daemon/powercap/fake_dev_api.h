@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * fake_dev_api.h -- stubbed device APIs for the plugin unit tests.
  *
@@ -63,6 +73,7 @@ typedef struct fake_cpus {
     int freq_set_calls;
     int governor_calls;
     uint32_t pkg_min, pkg_max, dram_min, dram_max; /* RAPL POWER_INFO range (0 = unknown) */
+    int dram_not_capable;                          /* no DRAM power limit (AMD) */
 } fake_cpus_t;
 extern fake_cpus_t fcpu;
 void fake_cpus_default(void);

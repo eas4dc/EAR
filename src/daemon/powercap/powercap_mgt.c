@@ -77,6 +77,9 @@ typedef struct powercap_symbols {
     state_t (*plugin_set_burst)();
     state_t (*plugin_set_relax)();
     void (*plugin_get_settings)(domain_settings_t *settings);
+    /* optional: a CPU plugin that also caps DRAM (one value per socket) */
+    state_t (*set_dram_powercap_value)(uint32_t *limits);
+    state_t (*get_dram_powercap_value)(uint32_t *powercap);
 } powercapsym_t;
 
 static uint pmgt_limit;
@@ -117,7 +120,7 @@ static powercapsym_t pcsyms_fun[NUM_DOMAINS];
 
 static float security_range = 1.0;
 // static void *pcsyms_obj[NUM_DOMAINS] ={ NULL,NULL,NULL,NULL};
-const int pcsyms_n = 20;
+const int pcsyms_n = 22;
 
 static suscription_t *sus[NUM_DOMAINS];
 
@@ -142,6 +145,8 @@ const char *pcsyms_names[] = {
     "plugin_set_burst",
     "plugin_set_relax",
     "plugin_get_settings",
+    "set_dram_powercap_value",
+    "get_dram_powercap_value",
 };
 
 static uint pmgt_powercap_status_per_domain(uint action);
@@ -262,8 +267,8 @@ state_t pmgt_process_message(char *level, int32_t num_values, int32_t values[num
         // it needs to be total GPUs + total CPUs + total DRAMs (= total CPUs)
         // layout: [CPU socket 0..S-1][DRAM socket 0..S-1][GPU 0..G-1]
         if (num_values < gpu_pc_num_gpus + pc_topology_info.socket_count * 2) {
-            error("powercap for device must include all DRAMs + CPUs + GPUs (received %d, required %d)", num_values,
-                  gpu_pc_num_gpus + pc_topology_info.socket_count * 2);
+            warning("powercap for device must include all DRAMs + CPUs + GPUs (received %d, required %d)", num_values,
+                    gpu_pc_num_gpus + pc_topology_info.socket_count * 2);
             return EAR_ERROR;
         } else {
             for (int32_t i = 0; i < pc_topology_info.socket_count; i++)
@@ -280,25 +285,15 @@ state_t pmgt_process_message(char *level, int32_t num_values, int32_t values[num
             if (domains_loaded[DOMAIN_DRAM]) {
                 freturn(pcsyms_fun[DOMAIN_DRAM].set_powercap_value, 0, LEVEL_DEVICE,
                         (uint32_t *) &values[pc_topology_info.socket_count], current_util[DOMAIN_DRAM]);
-            } else if (domains_loaded[DOMAIN_CPU] && pmgt_get_powercap_cpu_strategy(NULL) == PC_POWER) {
-                /* No DRAM plugin: a RAPL (PC_POWER) CPU plugin owns DRAM too, but its per-device
-                 * API carries socket values only, so the DRAM slice would be dropped. Program it
-                 * through mgt_cpupow directly. A DVFS CPU plugin cannot cap watts: skipped.
-                 * Values are not clamped to the RAPL DRAM range, and leaving manual mode does not
-                 * restore them (DRAM is not a managed domain without its plugin). */
-                uint32_t *dram = (uint32_t *) &values[pc_topology_info.socket_count];
-                /* A DRAM failure is logged only: the CPU and GPU slices are still applied.
-                 * AMD has no DRAM power limit (HSMP caps the socket only, DIMMs are outside it). */
-                if (!mgt_cpupow_powercap_is_capable(CPUPOW_DRAM)) {
-                    warning("DRAM powercap not supported on this CPU, DRAM values ignored");
-                } else if (state_fail(mgt_cpupow_powercap_set(CPUPOW_DRAM, dram))) {
-                    error("setting per-device DRAM powercap");
-                } else {
-                    /* keep EARD's per-device cache (status, get_value_per_device) in sync with HW:
-                     * only values the hardware accepted */
-                    for (int32_t i = 0; i < pc_topology_info.socket_count; i++)
-                        powercap_set_stored_device_value(DOMAIN_DRAM, i, dram[i]);
-                }
+            } else if (domains_loaded[DOMAIN_CPU] && pcsyms_fun[DOMAIN_CPU].set_dram_powercap_value != NULL) {
+                /* No DRAM plugin: the CPU plugin caps DRAM too (cpu_generic). A DRAM failure is
+                 * logged only: the CPU and GPU slices are still applied. */
+                if (state_fail(pcsyms_fun[DOMAIN_CPU].set_dram_powercap_value(
+                        (uint32_t *) &values[pc_topology_info.socket_count])))
+                    warning("per-device DRAM powercap not applied");
+            } else {
+                /* dvfs can't cap watts, inm/grace_hopper cap the whole node */
+                warning("no plugin caps DRAM per device, DRAM values ignored");
             }
             if (domains_loaded[DOMAIN_GPU])
                 freturn(pcsyms_fun[DOMAIN_GPU].set_powercap_value, 0, LEVEL_DEVICE,
@@ -898,18 +893,18 @@ state_t pmgt_get_powercap_value(pwr_mgt_t *phandler, uint pid, uint32_t *powerca
         return EAR_ERROR;
     for (i = 0; i < NUM_DOMAINS; i++) {
         powercap[i] = 0;
+        if (!domains_loaded[i])
+            continue;
         memset(parc, 0, sizeof(parc));
         ret = freturn(pcsyms_fun[i].get_powercap_value, pid, parc);
-        if (domains_loaded[i]) {
-            /* domain value = sum of its devices, unlimited/disabled devices excluded */
-            uint64_t sum = 0;
-            for (d = 0; d < MAX_CPUS_SUPPORTED; d++)
-                if (parc[d] > POWER_CAP_UNLIMITED && parc[d] != UINT32_MAX)
-                    sum += parc[d];
-            powercap[i] = (uint32_t) ear_min(sum, (uint64_t) UINT32_MAX);
-        }
-        if ((ret != EAR_SUCCESS) && (domains_loaded[i]))
+        if (ret != EAR_SUCCESS)
             gret = ret;
+        /* domain value = sum of its devices, unlimited/disabled devices excluded */
+        uint64_t sum = 0;
+        for (d = 0; d < MAX_CPUS_SUPPORTED; d++)
+            if (parc[d] > POWER_CAP_UNLIMITED && parc[d] != UINT32_MAX)
+                sum += parc[d];
+        powercap[i] = (uint32_t) ear_min(sum, (uint64_t) UINT32_MAX);
     }
     return gret;
 }
@@ -921,10 +916,9 @@ state_t pmgt_get_powercap_value_per_device(uint domain, uint32_t *powercaps)
     if (domain >= NUM_DOMAINS || powercaps == NULL) {
         return EAR_ERROR;
     }
-    if (domain == DOMAIN_DRAM && !domains_loaded[DOMAIN_DRAM] && domains_loaded[DOMAIN_CPU] &&
-        pmgt_get_powercap_cpu_strategy(NULL) == PC_POWER) {
-        /* DRAM is capped by the RAPL CPU plugin: read it back from RAPL */
-        ret = mgt_cpupow_powercap_get(CPUPOW_DRAM, powercaps);
+    if (domain == DOMAIN_DRAM && !domains_loaded[DOMAIN_DRAM] && domains_loaded[DOMAIN_CPU]) {
+        /* no DRAM plugin: the CPU plugin reports DRAM when it caps it (EAR_UNDEFINED otherwise) */
+        ret = freturn(pcsyms_fun[DOMAIN_CPU].get_dram_powercap_value, powercaps);
     } else if (!domains_loaded[domain]) {
         return EAR_ERROR;
     } else {
@@ -977,25 +971,30 @@ void pmgt_get_node_hw_limits(uint32_t *node_min, uint32_t *node_max)
 }
 
 /* Returns 1 if the domain's device caps can be read back (a plugin, or RAPL for DRAM) */
-uint pmgt_domain_readable(uint domain)
+bool pmgt_domain_readable(uint domain)
 {
     if (domain >= NUM_DOMAINS)
-        return 0;
+        return false;
     if (domain == DOMAIN_DRAM && !domains_loaded[DOMAIN_DRAM])
-        return domains_loaded[DOMAIN_CPU] && pmgt_get_powercap_cpu_strategy(NULL) == PC_POWER;
+        return domains_loaded[DOMAIN_CPU] && pcsyms_fun[DOMAIN_CPU].get_dram_powercap_value != NULL;
     return domains_loaded[domain];
 }
 
 /* A device cap at or above this value reads back as POWER_CAP_UNLIMITED */
 uint32_t pmgt_get_device_tdp(uint domain, uint device)
 {
-    if ((domain == DOMAIN_CPU || domain == DOMAIN_DRAM) && device < MAX_PACKAGES)
-        return (domain == DOMAIN_CPU) ? pck_tdps[device] : dram_tdps[device];
+    switch (domain) {
+        case DOMAIN_CPU:
+            return (device < MAX_PACKAGES) ? pck_tdps[device] : UINT32_MAX;
+        case DOMAIN_DRAM:
+            return (device < MAX_PACKAGES) ? dram_tdps[device] : UINT32_MAX;
 #if USE_GPUS
-    if (domain == DOMAIN_GPU && device < MAX_GPUS_SUPPORTED)
-        return gpu_tdps[device];
+        case DOMAIN_GPU:
+            return (device < MAX_GPUS_SUPPORTED) ? gpu_tdps[device] : UINT32_MAX;
 #endif
-    return UINT32_MAX;
+        default:
+            return UINT32_MAX;
+    }
 }
 
 uint pmgt_is_powercap_enabled(pwr_mgt_t *phandler, uint pid)
@@ -1320,9 +1319,10 @@ void pmgt_get_status(pmgt_status_t *status)
             status->status = PC_STATUS_OK;
             debug("pmgt_get_status: GREEDY + RELEASE");
         } else { // GREEDY + GREEDY or GREEDY + OK
-            status->status    = PC_STATUS_GREEDY;
-            uint requested    = (uint) cdomain_status[DOMAIN_CPU].requested + cdomain_status[DOMAIN_GPU].requested;
-            status->requested = ear_min(requested, UINT16_MAX); // the widest value we can pass up
+            status->status     = PC_STATUS_GREEDY;
+            uint64_t requested = (uint64_t) cdomain_status[DOMAIN_CPU].requested + cdomain_status[DOMAIN_GPU].requested;
+            /* pmgt_status_t carries 16 bits (greedy_bytes_t on the wire): the one narrowing */
+            status->requested = (uint16_t) ear_min(requested, (uint64_t) UINT16_MAX);
             status->stress    = ear_max(cdomain_status[DOMAIN_CPU].stress, cdomain_status[DOMAIN_GPU].stress);
             debug("pmgt_get_status: GREEDY + OK/GREEDY Node requested power %u", status->requested);
         }

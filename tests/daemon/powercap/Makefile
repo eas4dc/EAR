@@ -36,12 +36,12 @@ test_status: test_status.c $(PCDIR)/powercap_status.c $(SRCDIR)/common/types/pow
 # powercap.c (node state machine + EARGM entry points) against a recording
 # fake of the pmgt layer and a fake power monitor.
 test_node: test_node.c fake_pmgt.c fake_powermon.c common_stubs.c eargm_sim.c \
-           $(PCDIR)/powercap.c $(PCDIR)/powercap_status.c
+           $(PCDIR)/powercap.c $(PCDIR)/powercap_status.c $(SRCDIR)/common/system/lock.c
 	$(CC) $(CFLAGS) -o $@ $(filter %.c,$^) $(LDLIBS)
 
 # The same powercap.c built with the optional device-verification monitor.
 test_monitor: test_monitor.c fake_pmgt.c fake_powermon.c common_stubs.c \
-              $(PCDIR)/powercap.c $(PCDIR)/powercap_status.c
+              $(PCDIR)/powercap.c $(PCDIR)/powercap_status.c $(SRCDIR)/common/system/lock.c
 	$(CC) $(CFLAGS) -DPOWERCAP_MON=1 -o $@ $(filter %.c,$^) $(LDLIBS)
 
 # powercap_mgt.c (distribution between domains) against in-process fake
@@ -57,7 +57,7 @@ test_gpu_plugin: test_gpu_plugin.c fake_dev_api.c common_stubs.c \
 
 # The CPU plugin (cpu_generic.c) against stubbed cpupow/cpufreq/energy APIs.
 # -rdynamic so the test can dlsym() the plugin's exported symbol names;
-# ASan because cpu_generic.c reads past the P-state list (see BUGS.md PC-28).
+# ASan to catch reads past the P-state list.
 test_cpu_plugin: test_cpu_plugin.c fake_dev_api.c common_stubs.c \
                  $(PCDIR)/cpu_generic.c $(PCDIR)/powercap_status.c
 	$(CC) $(CFLAGS) -DFAKE_CPU_SIDE -rdynamic -o $@ $(filter %.c,$^) $(LDLIBS)
@@ -88,7 +88,7 @@ test_gpu_dummy_plugin: test_cmd_plugins.c common_stubs.c $(PCDIR)/gpu_dummy.c
 	$(CC) $(CFLAGS) -DPLUG_GPU_DUMMY -o $@ $(filter %.c,$^) $(LDLIBS)
 
 # The PVC (i915 hwmon) GPU management backend against a fake hwmon tree, under ASan:
-# its power-cap calls must write one uint32_t per GPU (#829).
+# its power-cap calls must write one uint32_t per GPU.
 test_pvc_hwmon: test_pvc_hwmon.c common_stubs.c $(SRCDIR)/management/gpu/archs/mgt_pvc_power_hwmon.c
 	$(CC) $(CFLAGS) -DPVC_HWMON_ROOT=pvc_test_root -include fake_pvc_root.h -fsanitize=address \
 	    -fno-omit-frame-pointer -o $@ $(filter %.c,$^) $(LDLIBS)

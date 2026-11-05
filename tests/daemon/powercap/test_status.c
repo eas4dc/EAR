@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * test_status.c -- unit tests for src/daemon/powercap/powercap_status.c
  *
@@ -21,7 +31,7 @@ static node_powercap_opt_t make_opt(uint32_t current_pc, uint32_t def, uint32_t 
     node_powercap_opt_t o;
     memset(&o, 0, sizeof(o));
     o.current_pc        = current_pc;
-    o.baseline_powercap      = def;
+    o.base_powercap     = def;
     o.last_t1_allocated = last_t1;
     o.th_inc            = 10; /* same defaults as set_default_node_powercap_opt() */
     o.th_red            = 50;
@@ -181,7 +191,7 @@ TEST(test_device_enum)
           get_device_enum("GPU3"));
 }
 
-/* ======================================================= power estimator (#814) */
+/* ======================================================= power estimator */
 
 TEST(test_power_estimator)
 {

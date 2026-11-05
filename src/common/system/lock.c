@@ -9,6 +9,8 @@
  **************************************************************************/
 
 #include <common/system/lock.h>
+#include <errno.h>
+#include <time.h>
 
 state_t ear_trylock(pthread_mutex_t *lock)
 {
@@ -21,6 +23,30 @@ state_t ear_trylock(pthread_mutex_t *lock)
         counter++;
     }
     if (result && counter == MAX_LOCK_INTENTS) {
+        return_msg(EAR_ERROR, Generr.lock);
+    }
+    return EAR_SUCCESS;
+}
+
+state_t ear_timedlock(pthread_mutex_t *lock, uint32_t timeout_ms)
+{
+    struct timespec deadline;
+    /* pthread_mutex_timedlock takes an absolute CLOCK_REALTIME deadline */
+    if (clock_gettime(CLOCK_REALTIME, &deadline)) {
+        return_msg(EAR_ERROR, Generr.lock);
+    }
+    deadline.tv_sec += timeout_ms / 1000;
+    deadline.tv_nsec += (long) (timeout_ms % 1000) * 1000000L;
+    if (deadline.tv_nsec >= 1000000000L) {
+        deadline.tv_sec++;
+        deadline.tv_nsec -= 1000000000L;
+    }
+
+    int result = pthread_mutex_timedlock(lock, &deadline);
+    if (result == ETIMEDOUT) {
+        return_msg(EAR_TIMEOUT, "timeout waiting for mutex_lock");
+    }
+    if (result) {
         return_msg(EAR_ERROR, Generr.lock);
     }
     return EAR_SUCCESS;

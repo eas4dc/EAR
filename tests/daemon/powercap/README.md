@@ -11,9 +11,9 @@ make check         # both
 PC_ONLY=greedy ./test_node   # run the tests whose name contains "greedy"
 ```
 
-Checks print `PASS`, `FAIL`, `XFAIL [PC-nn]` or `XPASS [PC-nn]`. An XFAIL is a
+Checks print `PASS`, `FAIL`, `XFAIL [#nnn]` or `XPASS [#nnn]`. An XFAIL is a
 known defect: the check states the correct behaviour and is expected to fail
-today. **[BUGS.md](BUGS.md)** lists each one. A binary exits non-zero on any
+today, tagged with the issue that tracks it. A binary exits non-zero on any
 FAIL or XPASS (XPASS means a bug was fixed: promote the XFAIL to a CHECK).
 Every test runs in a forked child, so the file-scope state of the code under
 test starts clean each time, and crashes are caught and reported.
@@ -43,7 +43,7 @@ test starts clean each time, and crashes are caught and reported.
 | `test_monitor` | `powercap.c` built with `POWERCAP_MON=1` | same |
 | `test_mgt` | `powercap_mgt.c` | `fake_hw_mgt.c`: four in-process plugins, topology, TDPs, GPU readings |
 | `test_gpu_plugin` | `gpu.c` | `fake_dev_api.c` (`FAKE_GPU_SIDE`) |
-| `test_cpu_plugin[_asan]` | `cpu_generic.c` | `fake_dev_api.c` (`FAKE_CPU_SIDE`); ASan build catches PC-28 |
+| `test_cpu_plugin[_asan]` | `cpu_generic.c` | `fake_dev_api.c` (`FAKE_CPU_SIDE`); ASan build catches reads past the P-state list |
 | `test_dvfs_plugin` | `dvfs.c`, the **default** CPU plugin, closed loop (power follows P-state) | `fake_dev_api.c` (`FAKE_CPU_SIDE`) |
 | `test_gpu_dvfs_plugin[_asan]` | `gpu_dvfs.c`, the **default** GPU plugin, closed loop (power follows clock) | `fake_dev_api.c` (`FAKE_GPU_SIDE`) |
 | `test_inm_plugin`, `test_grace_hopper_plugin`, `test_gpu_dummy_plugin` | `inm.c`, `grace_hopper.c`, `gpu_dummy.c`, called through the manager's function-pointer types | `execute()` stub records the commands |
@@ -70,7 +70,7 @@ own fake hardware: 2 sockets (PKG TDP 200 W, DRAM TDP 40 W) and
 | `gpu4-equal` | 4 | 80 % each |
 | `gpu2` | 2 | 90 / 30 % |
 | `cpu-only` | 0 | - |
-| `gpu4-busy-at-start` | 4 | 80 % already when EARD starts (PC-42) |
+| `gpu4-busy-at-start` | 4 | 80 % already when EARD starts |
 | `dvfs-gpu4` | 4 | 80 %, with the default plugins `dvfs.so` + `gpu_dvfs.so` |
 | `dvfs-cpu-only` | 0 | `dvfs.so` alone |
 | `enforce-cpu-only` | 0 | `cpu_generic.so`, RAPL enforcing its caps |

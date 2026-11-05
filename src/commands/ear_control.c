@@ -1083,8 +1083,8 @@ int main(int argc, char *argv[])
                     powercap_opt_t msg;
                     memset(&msg, 0, sizeof(powercap_opt_t));
                     msg.num_greedy      = 1;
-                    msg.greedy_nodes    = calloc(1, sizeof(int));
-                    msg.extra_power     = calloc(1, sizeof(int));
+                    msg.greedy_nodes    = calloc(1, sizeof(int32_t));
+                    msg.extra_power     = calloc(1, sizeof(int32_t));
                     msg.greedy_nodes[0] = get_ip(optarg, &my_cluster_conf);
                     msg.extra_power[0]  = 25;
                     request_t command;

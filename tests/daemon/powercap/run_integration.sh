@@ -81,7 +81,7 @@ EOF
 
 # GPUs start idle and reach their utilization after IDLE_S seconds, like a job
 # starting on a node where EARD is already running. busy-at-start rigs start
-# loaded instead (EARD restarted under a running job), see PC-42.
+# loaded instead (EARD restarted under a running job).
 IDLE_S=6
 
 rig() { # name gpus util-list [busy-at-start] [cpu-plugin gpu-plugin] [enforce] [limits]

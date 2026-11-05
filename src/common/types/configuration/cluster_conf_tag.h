@@ -14,6 +14,7 @@
 #include <common/states.h>
 #include <common/types/configuration/policy_conf.h>
 #include <common/types/generic.h>
+#include <stdint.h>
 
 typedef struct tags {
     char id[GENERIC_NAME];
@@ -44,7 +45,7 @@ typedef struct tags {
     char coeffs[GENERIC_NAME];
     char idle_governor[GENERIC_NAME];
     char default_policy[POLICY_NAME_SIZE];
-    long min_working_power; /* lowest power (W) of a node running a job; 0 = computed from the hardware */
+    uint32_t min_working_power; /* lowest power (W) of a node running a job; 0 = computed from the hardware */
 } tag_t;
 
 state_t TAG_token(char *token);

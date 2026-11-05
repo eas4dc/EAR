@@ -11,6 +11,9 @@
 #define _GNU_SOURCE
 
 #include <common/config.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,8 +41,8 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
     state_t found = EAR_ERROR;
 
     int i;
-    int idx          = -1;
-    int baseline_set = 0; // BASELINE_POWERCAP wins over the deprecated POWERCAP on the same line
+    int idx       = -1;
+    bool base_set = false; // BASE_POWERCAP wins over the deprecated POWERCAP on the same line
 
     // initial value assignement
     tag_t *tags  = *tags_i;
@@ -103,18 +106,28 @@ state_t TAG_parse_token(tag_t **tags_i, unsigned int *num_tags_i, char *line)
             tags[idx].cpu_temp_cap = atol(value);
         } else if (!strcmp(key, "GPU_TEMP_CAP")) {
             tags[idx].gpu_temp_cap = atol(value);
-        } else if (!strcmp(key, "BASELINE_POWERCAP")) {
-            /* the power a node can always reclaim: 0 disabled, 1 unlimited, N watts, -1 auto */
+        } else if (!strcmp(key, "BASE_POWERCAP")) {
+            /* the cap EARD starts from (0 disabled, 1 unlimited, N watts, -1 EARGM budget / nodes).
+             * Static powercap: the fixed node cap. Soft: must be 1. Hard: the minimum EARGM grants. */
             tags[idx].powercap = atol(value);
-            baseline_set       = 1;
+            base_set           = true;
         } else if (!strcmp(key, "POWERCAP")) {
-            verbose(VCCONF, "tag %s: POWERCAP= is deprecated, use BASELINE_POWERCAP=", tags[idx].id);
-            if (!baseline_set)
+            /* deprecated alias of BASE_POWERCAP; no warning, ear.conf is parsed by every EAR component */
+            if (!base_set)
                 tags[idx].powercap = atol(value);
         } else if (!strcmp(key, "MAX_POWERCAP")) {
             tags[idx].max_powercap = atol(value);
         } else if (!strcmp(key, "MIN_WORKING_POWER")) {
-            tags[idx].min_working_power = atol(value);
+            /* parsed wide and signed so negative or out of range values are caught before narrowing */
+            char *end = NULL;
+            errno     = 0;
+            int64_t w = strtoll(value, &end, 10);
+            if (errno || end == value || *end != '\0' || w < 0 || w > UINT32_MAX) {
+                warning("tag %s: MIN_WORKING_POWER=%s is not a valid power, using 0 (hardware minimum)", tags[idx].id,
+                        value);
+                w = 0;
+            }
+            tags[idx].min_working_power = (uint32_t) w;
         } else if (!strcmp(key, "GPU_DEF_FREQ")) {
             tags[idx].gpu_def_freq = atol(value);
         } else if (!strcmp(key, "CPU_MAX_PSTATE")) {
@@ -212,7 +225,7 @@ void print_tags_conf(tag_t *tag, int i)
     verbosen(VCCONF, "\t\t powercap %s\n", buffer);
     power2str(tag->max_powercap, buffer);
     verbosen(VCCONF, "\t\t max_powercap %s\n", buffer);
-    verbosen(VCCONF, "\t\t min_working_power %ld\n", tag->min_working_power);
+    verbosen(VCCONF, "\t\t min_working_power %u\n", tag->min_working_power);
     if ((tag->cpu_temp_cap == TEMP_CAP_UNLIMITED) && (tag->gpu_temp_cap == TEMP_CAP_UNLIMITED)) {
         verbosen(VCCONF, "\t\tTemperature cap disabled\n");
     } else {

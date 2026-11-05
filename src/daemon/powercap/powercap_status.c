@@ -142,7 +142,7 @@ uint powercap_get_stress(uint max_freq, uint min_freq, uint t_freq, uint c_freq)
     return ear_min((100 * (ullong) (t_freq - c_freq)) / (max_freq - min_freq), 100);
 }
 
-void power_estimator_init(power_estimator_t *e, uint min_w, uint max_w, ulong min_khz, ulong max_khz)
+void power_estimator_init(power_estimator_t *e, uint32_t min_w, uint32_t max_w, uint64_t min_khz, uint64_t max_khz)
 {
     memset(e, 0, sizeof(power_estimator_t));
     if (max_khz > min_khz && max_w > min_w)
@@ -150,7 +150,7 @@ void power_estimator_init(power_estimator_t *e, uint min_w, uint max_w, ulong mi
     e->w_per_khz = e->seed;
 }
 
-void power_estimator_sample(power_estimator_t *e, double w, ulong khz)
+void power_estimator_sample(power_estimator_t *e, double w, uint64_t khz)
 {
     /* a move of less than ~1% of the clock is noise, not a slope */
     double dkhz = (double) khz - (double) e->last_khz;
@@ -169,28 +169,28 @@ void power_estimator_sample(power_estimator_t *e, double w, ulong khz)
     e->last_khz = khz;
 }
 
-double power_estimator_at(const power_estimator_t *e, double w_now, ulong khz_now, ulong khz)
+double power_estimator_at(const power_estimator_t *e, double w_now, uint64_t khz_now, uint64_t khz)
 {
     return w_now + ((double) khz - (double) khz_now) * e->w_per_khz;
 }
 
-uint powercap_device_request(uint max_w, uint cap_w, uint need_w)
+uint32_t powercap_device_request(uint32_t max_w, uint32_t cap_w, uint32_t need_w)
 {
     if (cap_w >= max_w || need_w == 0)
         return 0;
     return ear_min(max_w - cap_w, need_w);
 }
 
-void powercap_max_or_tdp(uint32_t *wmax, const uint32_t *tdp, uint n)
+void powercap_max_or_tdp(uint32_t *wmax, const uint32_t *tdp, uint32_t n)
 {
-    for (uint i = 0; i < n; i++)
+    for (uint32_t i = 0; i < n; i++)
         if (wmax[i] == 0)
             wmax[i] = tdp[i];
 }
 
 uint compute_power_status(node_powercap_opt_t *pc, uint current_power)
 {
-    if (pc->last_t1_allocated < pc->baseline_powercap)
+    if (pc->last_t1_allocated < pc->base_powercap)
         return PC_STATUS_ASK_DEF;
     if (ok_power(pc, current_power))
         return PC_STATUS_OK;

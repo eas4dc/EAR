@@ -129,12 +129,12 @@ uint powercap_reallocation(cluster_powercap_status_t *cluster_status, powercap_o
     verbose(VGM_PC + 1, "There are %u nodes  %u idle nodes %u greedy nodes ", num_nodes, cluster_status->idle_nodes,
             cluster_status->num_greedy);
     if (cluster_options->greedy_nodes == NULL) {
-        cluster_options->greedy_nodes = calloc(cluster_status->num_greedy, sizeof(int));
-        cluster_options->extra_power  = calloc(cluster_status->num_greedy, sizeof(uint));
+        cluster_options->greedy_nodes = calloc(cluster_status->num_greedy, sizeof(int32_t));
+        cluster_options->extra_power  = calloc(cluster_status->num_greedy, sizeof(int32_t));
     }
     cluster_options->num_greedy         = cluster_status->num_greedy;
     cluster_options->cluster_perc_power = (cluster_status->total_powercap * 100) / ctx->current_cluster_powercap;
-    memcpy(cluster_options->greedy_nodes, cluster_status->greedy_nodes, cluster_status->num_greedy * sizeof(int));
+    memcpy(cluster_options->greedy_nodes, cluster_status->greedy_nodes, cluster_status->num_greedy * sizeof(int32_t));
 
     ctx->total_free                  = ctx->current_cluster_powercap - cluster_status->total_powercap;
     uint64_t non_computational_power = 0;

@@ -28,7 +28,6 @@ uint powercap_get_value();
 void print_powercap_opt(powercap_opt_t *opt);
 int powercap_idle_to_run();
 int powercap_run_to_idle();
-int powercap_init();
 int powercap_set_power_per_domain(dom_power_t *pdomain, uint use_earl, ulong eff_f);
 
 void set_powercapstatus_mode(uint mode);

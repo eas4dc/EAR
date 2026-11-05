@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * fake_hw_mgt.h -- everything powercap_mgt.c needs below it, faked:
  *
@@ -28,6 +38,7 @@ typedef struct fake_plugin {
     uint32_t dev_caps[FAKE_MAX_DEV]; /* returned by get_powercap_value */
     state_t set_ret;
     int no_strategy;             /* do not export get_powercap_strategy */
+    int owns_dram;               /* export set/get_dram_powercap_value (cpu_generic caps DRAM) */
     uint strategy;
     /* observations */
     uint32_t cur;                /* last node/domain level limit */

@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * test_node.c -- unit tests for src/daemon/powercap/powercap.c
  *
@@ -13,6 +23,8 @@
 #include <pthread.h>
 
 #include <common/config.h>
+#include <common/system/lock.h>
+#include <common/system/time.h>
 #include <common/types/event_type.h>
 #include <daemon/powercap/powercap.h>
 #include <daemon/powercap/powercap_status.h>
@@ -56,7 +68,7 @@ static int32_t ips_me_other[2] = {OTHER, ME};
 TEST(test_init_applies_idle_cap)
 {
     node_setup(DEF, MAX);
-    CHECK_EQ(my_pc_opt.baseline_powercap, DEF, "default powercap comes from ear.conf");
+    CHECK_EQ(my_pc_opt.base_powercap, DEF, "default powercap comes from ear.conf");
     CHECK_EQ(my_pc_opt.powercap_status, PC_STATUS_IDLE, "node starts IDLE");
     CHECK_EQ(my_pc_opt.current_pc, DEF, "idle cap = default * EARD_POWERCAP_IDLE_PERC (1)");
     CHECK_EQ(fake_pmgt_last_limit(), DEF, "idle cap pushed to the domain layer");
@@ -151,6 +163,52 @@ TEST(test_run_to_idle_and_release_idle_power)
     CHECK_EQ(eargm_release_idle(), 0, "a second release returns nothing");
 }
 
+/* The node reports GREEDY for w watts to EARGM, so the next options can grant them */
+static void greedy_for(uint32_t w)
+{
+    eargm_reply_t r;
+    fake_pmgt_status.status    = PC_STATUS_GREEDY;
+    fake_pmgt_status.requested = w;
+    eargm_get_status(&r, 1);
+    eargm_reply_free(&r);
+}
+
+TEST(test_release_idle_after_reclaim)
+{
+    /* the extra a node held when it went idle can be reclaimed by EARGM before release_idle
+     * collects it: release_idle must then give nothing back, not the stale amount */
+    node_running();
+    greedy_for(400);
+    int32_t extra[2] = {0, 400};
+    eargm_send_opt(2, ips_me_other, extra, 60);
+    CHECK_EQ(my_pc_opt.last_t1_allocated, DEF + 400, "running with 400 W extra");
+    powercap_end_job();
+    fake_ctx_stop(1);
+    powercap_run_to_idle();
+    CHECK_EQ(my_pc_opt.released, 400, "idle: 400 W releasable");
+    int32_t reclaim[2] = {0, -400};
+    eargm_send_opt(2, ips_me_other, reclaim, 99);
+    CHECK_EQ(my_pc_opt.last_t1_allocated, DEF, "EARGM reclaims the extra while idle");
+    eargm_reply_t r;
+    eargm_get_status(&r, 1);
+    CHECK_EQ(r.st.released, 0, "status: nothing left to release");
+    eargm_reply_free(&r);
+    CHECK_EQ(eargm_release_idle(), 0, "release_idle gives nothing back: no double count");
+    CHECK_EQ(my_pc_opt.last_t1_allocated, DEF, "... and the allocation is not lowered again");
+
+    /* reset to the base while idle: same */
+    node_running();
+    greedy_for(400);
+    eargm_send_opt(2, ips_me_other, extra, 60);
+    CHECK_EQ(my_pc_opt.last_t1_allocated, DEF + 400, "running with 400 W extra again");
+    powercap_end_job();
+    fake_ctx_stop(1);
+    powercap_run_to_idle();
+    eargm_reset_def();
+    CHECK_EQ(eargm_release_idle(), 0, "after a reset to the base nothing is released");
+    CHECK_EQ(my_pc_opt.last_t1_allocated, DEF, "... and the allocation stays at the base");
+}
+
 TEST(test_release_idle_ignored_while_running)
 {
     node_running();
@@ -220,8 +278,7 @@ TEST(test_greedy_node_is_granted_extra)
     CHECK(r.pmgt.extra == 50, "next status reports the 50 W as extra power (got %u)", r.pmgt.extra);
     CHECK(r.st.num_greedy == 1, "an OK node with extra stays visible to EARGM (num_greedy %u)",
           r.st.num_greedy);
-    CHECK(my_pc_opt.baseline_powercap == DEF, "node default stays at ear.conf value (got %u)",
-          my_pc_opt.baseline_powercap);
+    CHECK(my_pc_opt.base_powercap == DEF, "node default stays at ear.conf value (got %u)", my_pc_opt.base_powercap);
     eargm_reply_free(&r);
 }
 
@@ -327,7 +384,7 @@ TEST(test_ask_def_after_default_increase_while_running)
 {
     node_running();
     eargm_increase_def(200);
-    CHECK_EQ(my_pc_opt.baseline_powercap, DEF + 200, "EARGM raised the node default");
+    CHECK_EQ(my_pc_opt.base_powercap, DEF + 200, "EARGM raised the node default");
     fake_pmgt_status.status = PC_STATUS_OK;
     eargm_reply_t r;
     eargm_get_status(&r, 1);
@@ -416,7 +473,7 @@ TEST(test_running_node_releases_power)
     CHECK_EQ(my_pc_opt.last_t1_allocated, DEF - 150, "allocation lowered too");
     CHECK_EQ(fake_pmgt_last_limit(), DEF - 150, "lower cap pushed to the domains");
     CHECK_EQ(r.st.total_powercap, DEF - 150, "EARGM sees the lower allocation");
-    CHECK_EQ(my_pc_opt.baseline_powercap, DEF, "default untouched");
+    CHECK_EQ(my_pc_opt.base_powercap, DEF, "default untouched");
     eargm_reply_free(&r);
 
     /* Next T1 it asks the default back: release is a per-period loan */
@@ -438,7 +495,7 @@ TEST(test_release_only_when_eargm_asks)
     eargm_reply_t r;
     eargm_get_status(&r, 0); /* e.g. an econtrol status query */
     CHECK_EQ(my_pc_opt.current_pc, DEF, "release_power=0: nothing released");
-    CHECK_EQ(my_pc_opt.baseline_powercap, DEF, "default untouched");
+    CHECK_EQ(my_pc_opt.base_powercap, DEF, "default untouched");
     eargm_reply_free(&r);
 }
 
@@ -518,7 +575,7 @@ TEST(test_soft_powercap_keeps_accounting)
 {
     node_running();
     eargm_set_powerlimit(700);
-    CHECK_EQ(my_pc_opt.baseline_powercap, DEF, "soft limit does not change the default");
+    CHECK_EQ(my_pc_opt.base_powercap, DEF, "soft limit does not change the default");
     CHECK_EQ(my_pc_opt.last_t1_allocated, DEF, "... nor the allocation");
     fake_pmgt_status.status = PC_STATUS_OK;
     eargm_reply_t r;
@@ -605,11 +662,32 @@ TEST(test_floor_is_node_working_minimum)
     fake_min_working = 0;
 }
 
+TEST(test_idle_may_go_under_working_minimum)
+{
+    /* MIN_WORKING_POWER is what a job needs, the devices' minimum caps say nothing of idle
+     * power: an idle cap is not raised by either */
+    fake_min_working = 400;
+    fake_hw_min      = 100;
+    node_setup(DEF, MAX);
+    eargm_set_powerlimit(200);
+    CHECK_EQ(my_pc_opt.current_pc, 200, "idle: a soft limit under MIN_WORKING_POWER applies as is");
+    eargm_set_powerlimit(50);
+    CHECK_EQ(my_pc_opt.current_pc, 50, "idle: not raised to the devices' minimum caps either");
+    eargm_set_powerlimit(200);
+    fake_ctx_start(1, 2400000, 1410, 4);
+    powercap_idle_to_run();
+    CHECK_EQ(my_pc_opt.current_pc, 400, "a job starts: the cap is raised to MIN_WORKING_POWER");
+    powercap_run_to_idle();
+    CHECK_EQ(my_pc_opt.current_pc, 200, "idle again: back under it");
+    fake_min_working = 0;
+    fake_hw_min      = 0;
+}
+
 TEST(test_default_raised_to_hardware_minimum)
 {
     fake_hw_min = 1200; /* devices can't be capped under 1200 W */
     node_setup(DEF, MAX);
-    CHECK_EQ(my_pc_opt.baseline_powercap, 1200, "a 1000 W default under the 1200 W hardware minimum is raised");
+    CHECK_EQ(my_pc_opt.base_powercap, 1200, "a 1000 W default under the 1200 W hardware minimum is raised");
     CHECK_EQ(my_pc_opt.current_pc, 1200, "... and applied");
     fake_hw_min = 0;
 }
@@ -618,23 +696,27 @@ TEST(test_default_reduce_increase_reset)
 {
     node_running();
     eargm_reduce_def(200);
-    CHECK_EQ(my_pc_opt.baseline_powercap, DEF - 200, "reduce 200 W");
+    CHECK_EQ(my_pc_opt.base_powercap, DEF - 200, "reduce 200 W");
     eargm_reduce_def(5000);
-    CHECK_EQ(my_pc_opt.baseline_powercap, DEF - 200, "reduce more than the default is ignored");
+    /* no hardware minimum nor MIN_WORKING_POWER: the floor is 50% of the ear.conf default */
+    uint32_t floor = DEF / 2;
+    CHECK_EQ(my_pc_opt.base_powercap, floor, "reduce more than the default saturates at the floor");
+    eargm_reduce_def(10);
+    CHECK_EQ(my_pc_opt.base_powercap, floor, "... and never goes under it");
     eargm_increase_def(300);
-    CHECK_EQ(my_pc_opt.baseline_powercap, DEF + 100, "increase 300 W");
+    CHECK_EQ(my_pc_opt.base_powercap, floor + 300, "increase 300 W");
     eargm_reset_def();
-    CHECK_EQ(my_pc_opt.current_pc, DEF + 100, "reset applies the current default");
+    CHECK_EQ(my_pc_opt.current_pc, floor + 300, "reset applies the current default");
 
-    eargm_reduce_def(my_pc_opt.baseline_powercap); /* reduce to exactly 0 */
+    eargm_reduce_def(my_pc_opt.base_powercap); /* reduce to exactly 0 */
     eargm_reset_def();
     CHECK(is_powercap_on(&my_pc_opt), "reducing the default to 0 then resetting keeps the node capped (cap %u)",
           my_pc_opt.current_pc);
 
     node_running();
     eargm_increase_def(UINT32_MAX - 10);
-    CHECK(my_pc_opt.baseline_powercap >= DEF, "increasing the default saturates instead of wrapping (got %u)",
-          my_pc_opt.baseline_powercap);
+    CHECK(my_pc_opt.base_powercap >= DEF, "increasing the default saturates instead of wrapping (got %u)",
+          my_pc_opt.base_powercap);
 }
 
 TEST(test_reset_after_grant_returns_to_conf_default)
@@ -694,8 +776,7 @@ TEST(test_reduced_default_survives_idle_to_run)
     node_setup(DEF, MAX);
     eargm_reduce_def(100); /* EARGM shrinks this node's share while it is idle */
     powercap_idle_to_run();
-    CHECK_EQ(my_pc_opt.baseline_powercap, DEF - 100, "the reduced default is kept (def %u)",
-             my_pc_opt.baseline_powercap);
+    CHECK_EQ(my_pc_opt.base_powercap, DEF - 100, "the reduced default is kept (def %u)", my_pc_opt.base_powercap);
     CHECK_EQ(my_pc_opt.current_pc, DEF, "the node keeps the power it holds (cap %u)", my_pc_opt.current_pc);
     fake_pmgt_status.status = PC_STATUS_OK;
     eargm_reply_t r;
@@ -862,13 +943,46 @@ TEST(test_concurrent_eargm_and_monitor)
     CHECK(pthread_mutex_trylock(&my_pc_opt.lock) == 0, "node lock not left held");
 }
 
+/* ============================================================= locks */
+
+static pthread_mutex_t held_lock  = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t hold_ready = PTHREAD_MUTEX_INITIALIZER;
+
+/* holds held_lock for 300 ms */
+static void *hold_300ms(void *arg)
+{
+    pthread_mutex_lock(&held_lock);
+    pthread_mutex_unlock(&hold_ready);
+    usleep(300000);
+    pthread_mutex_unlock(&held_lock);
+    return NULL;
+}
+
+TEST(test_timedlock)
+{
+    pthread_t th;
+    CHECK_EQ(ear_timedlock(&held_lock, 100), EAR_SUCCESS, "free lock: taken at once");
+    pthread_mutex_unlock(&held_lock);
+
+    pthread_mutex_lock(&hold_ready);
+    pthread_create(&th, NULL, hold_300ms, NULL);
+    pthread_mutex_lock(&hold_ready); /* the thread holds held_lock now */
+    CHECK_EQ(ear_timedlock(&held_lock, 50), EAR_TIMEOUT, "held for 300 ms, waiting 50 ms: EAR_TIMEOUT");
+    CHECK_EQ(ear_timedlock(&held_lock, 2000), EAR_SUCCESS, "waiting 2 s: taken once released");
+    pthread_mutex_unlock(&held_lock);
+    pthread_mutex_unlock(&hold_ready);
+    pthread_join(th, NULL);
+}
+
 int main(void)
 {
+    RUN_ISOLATED(test_timedlock);
     RUN_ISOLATED(test_init_applies_idle_cap);
     RUN_ISOLATED(test_init_disabled_when_default_is_zero);
     RUN_ISOLATED(test_init_fails_when_no_domain_loads);
     RUN_ISOLATED(test_idle_to_run_with_default_power);
     RUN_ISOLATED(test_run_to_idle_and_release_idle_power);
+    RUN_ISOLATED(test_release_idle_after_reclaim);
     RUN_ISOLATED(test_release_idle_ignored_while_running);
     RUN_ISOLATED(test_power_per_domain_dispatch);
     RUN_ISOLATED(test_greedy_node_is_granted_extra);
@@ -892,6 +1006,7 @@ int main(void)
     RUN_ISOLATED(test_eargm_switches_soft_and_hard);
     RUN_ISOLATED(test_status_query_keeps_allocation_under_soft_limit);
     RUN_ISOLATED(test_floor_is_node_working_minimum);
+    RUN_ISOLATED(test_idle_may_go_under_working_minimum);
     RUN_ISOLATED(test_default_raised_to_hardware_minimum);
     RUN_ISOLATED(test_default_reduce_increase_reset);
     RUN_ISOLATED(test_reset_after_grant_returns_to_conf_default);

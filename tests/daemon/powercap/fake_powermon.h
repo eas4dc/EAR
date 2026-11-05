@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * fake_powermon.h -- a controllable stand-in for daemon/power_monitor.c.
  *
@@ -32,7 +42,7 @@ typedef struct fake_ctx {
 } fake_ctx_t;
 
 /* Knobs */
-extern uint fake_pc_def;       /* powermon_get_baseline_powercap()      (ear.conf node powercap) */
+extern uint fake_pc_def; /* powermon_get_base_powercap()      (ear.conf node powercap) */
 extern uint fake_min_working;
 extern uint fake_pc_max;       /* powermon_get_max_powercap_def()  (ear.conf max powercap)  */
 extern uint fake_node_power;   /* powermon_current_power()                                  */

@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * test_integration.c -- EARD powercap end to end, on fake hardware.
  *
@@ -650,7 +660,7 @@ TEST(it_generic_release_matches_headroom)
     double p = hw_cpu_power(1000);
     eargm_get_status(&r, 0);
     /* half the headroom under the CPU cap, which the hardware maximum bounds; a node limit
-     * above what the devices can take is released whole (#788) */
+     * above what the devices can take is released whole */
     double hw_cpu = SOCKETS * (pkg_ceil() + dram_ceil());
     double want   = ear_max((ear_min(lim, hw_cpu) - p) * 0.5, (double) node - hw_cpu);
     printf("        CPU limit %.0f W, measured %.0f W: expect RELEASE of ~%.0f W, got status %u tbr %u\n", lim, p, want,
@@ -724,7 +734,7 @@ TEST(it_node_stays_under_cap_through_eargm)
         double p     = hw_node_power();
         double floor = gpus * 100.0; /* GPUs cannot go under their minimum cap */
         /* A loaded GPU at its lowest clock can't draw less, whatever the cap: that
-         * overshoot is the node working minimum (#788), not EARD failing its cap */
+         * overshoot is the node working minimum, not EARD failing its cap */
         int clk_min = getenv("IT_GPU_CLK_MIN") ? atoi(getenv("IT_GPU_CLK_MIN")) : 0;
         double pinned = 0;
         for (int g = 0; g < gpus; g++)
@@ -770,7 +780,7 @@ TEST(it_node_stays_under_cap_through_eargm)
  * POWER_INFO; NVML reports 100..400 W per GPU. The firmware holds any limit
  * inside those ranges. EARD clamps every cap to them, never applies a node
  * cap under the node working minimum and offers back what the devices can
- * never use (#788).
+ * never use.
  */
 #define PKG_MIN  60
 #define PKG_MAX  250
@@ -834,7 +844,7 @@ TEST(it_cap_above_hardware_maximum)
     if (gpus)
         wait_gpu_load();
     eargm_set_powerlimit(MAX); /* 3000 W: more than every device can take */
-    usleep(300000); /* read the caps before PC-17 moves power between domains */
+    usleep(300000);            /* read the caps before pmgt moves power between domains */
     print_hw("cap above the maximum");
     int above = 0;
     for (int s = 0; s < SOCKETS; s++)
@@ -918,14 +928,14 @@ TEST(it_conf_auto_powercap_first_eargm)
           second ? second->powercap : 0);
 }
 
-/* BASELINE_POWERCAP is the tag key; POWERCAP a deprecated alias it wins over */
-TEST(it_conf_baseline_powercap_key)
+/* BASE_POWERCAP is the tag key; POWERCAP a deprecated alias it wins over */
+TEST(it_conf_base_powercap_key)
 {
     char path[] = "/tmp/pc_it_ear_conf_XXXXXX";
     int fd      = mkstemp(path);
-    dprintf(fd, "Tag=newkey default=yes baseline_powercap=700\n"
+    dprintf(fd, "Tag=newkey default=yes base_powercap=700\n"
                 "Tag=oldkey powercap=800\n"
-                "Tag=both powercap=900 baseline_powercap=600 min_working_power=450\n"
+                "Tag=both powercap=900 base_powercap=600 min_working_power=450\n"
                 "Island=0 Nodes=pcn1 tag=newkey\n"
                 "Island=0 Nodes=pcn2 tag=oldkey\n"
                 "Island=0 Nodes=pcn3 tag=both\n");
@@ -937,9 +947,9 @@ TEST(it_conf_baseline_powercap_key)
     my_node_conf_t *n1 = get_my_node_conf(&conf, "pcn1");
     my_node_conf_t *n2 = get_my_node_conf(&conf, "pcn2");
     my_node_conf_t *n3 = get_my_node_conf(&conf, "pcn3");
-    CHECK(n1 && n1->powercap == 700, "baseline_powercap=700 (got %u)", n1 ? n1->powercap : 0);
+    CHECK(n1 && n1->powercap == 700, "base_powercap=700 (got %u)", n1 ? n1->powercap : 0);
     CHECK(n2 && n2->powercap == 800, "deprecated powercap=800 still accepted (got %u)", n2 ? n2->powercap : 0);
-    CHECK(n3 && n3->powercap == 600, "baseline_powercap wins over powercap on the same line (got %u)",
+    CHECK(n3 && n3->powercap == 600, "base_powercap wins over powercap on the same line (got %u)",
           n3 ? n3->powercap : 0);
     CHECK(n3 && n3->min_working_power == 450, "min_working_power=450 parsed (got %u)",
           n3 ? n3->min_working_power : 0);
@@ -1078,7 +1088,7 @@ int main(void)
         RUN_ISOLATED(it_cap_above_hardware_maximum);
         RUN_ISOLATED(it_device_caps_outside_hardware_range);
         RUN_ISOLATED(it_conf_auto_powercap_first_eargm);
-        RUN_ISOLATED(it_conf_baseline_powercap_key);
+        RUN_ISOLATED(it_conf_base_powercap_key);
         RUN_ISOLATED(it_conf_max_below_default);
         RUN_ISOLATED(it_gpu_throttled_at_limit);
         return pc_summary("test_integration");

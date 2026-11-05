@@ -181,16 +181,27 @@ AdminUsers=root
 # go beyond that value, regardless of the free power available cluster-wide.
 # At least a default tag is mandatory to be included in this file for a cluster to work properly.
 
-# default powercap plugin can be specified for nodes using the tag. BASELINE_POWERCAP=0 --> disabled, =1 --> unlimited, =N (> 1) the node can always reclaim N watts
-# (it is capped there when power is short, and may lend what it does not use). POWERCAP= is a
-# deprecated alias of BASELINE_POWERCAP=.
-# min_working_power=N (W): lowest power a node running a job needs. EARD never caps the node below
-# max(N, the hardware minimum read from RAPL/NVML), and raises a powercap default below it. 0 or
-# unset: the hardware minimum only.
+# A different than the default powercap plugin can be specified for nodes using the tag.
+# Two power values bound the cap of each node, with min_working_power <= base_powercap (N):
+# base_powercap: the powercap EARD starts from. EARGMPowerCapMode decides what it means:
+#   - Static powercap (no EARGM, or EARGMPowerCapMode=0): N (W) is the fixed cap of the node.
+#     EARD applies it and EARGM does not change it.
+#   - Smart soft powercap (EARGMPowerCapMode=2): must be 1 (unlimited). Nodes run uncapped
+#     until the cluster reaches the EARGM limit, then EARGM caps them to max_powercap.
+#   - Smart hard powercap (EARGMPowerCapMode=1): N (W) is the minimum power EARGM grants the
+#     node, and the sum over the nodes of an EARGM must fit in its budget. A node that lent
+#     part of it asks for it back (and gets it) when it needs it; a node may hold more when
+#     EARGM grants extra power, up to max_powercap. -1 --> EARGM budget / nodes under that EARGM.
+#   0 disables powercap on the node in any mode. N can be changed at runtime but never below
+#   min_working_power. POWERCAP= is a deprecated alias.
+# min_working_power=N (W): the minimum power a job needs to run on this hardware, at the lowest
+#   P-state (it can be measured during the learning phase). A node running a job is never capped
+#   below it; an idle node may be (it gets its idle share of the base). 0 or unset: the
+#   lowest powercaps the node's devices accept.
 
-Tag=CPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default baseline_powercap=1 powercap_plugin=dvfs.so energy_plug
+Tag=CPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default base_powercap=1 powercap_plugin=dvfs.so energy_plug
 in=energy_nm.so
-Tag=GPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default baseline_powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000 policy=optimize
+Tag=GPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default base_powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000 policy=optimize
 
 
 #---------------------------------------------------------------------------------------------------

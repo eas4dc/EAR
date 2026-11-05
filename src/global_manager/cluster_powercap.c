@@ -275,12 +275,12 @@ uint powercap_reallocation(cluster_powercap_status_t *cluster_status, powercap_o
     verbose(VGM_PC + 1, "There are %u nodes  %u idle nodes %u greedy nodes ", num_nodes, cluster_status->idle_nodes,
             cluster_status->num_greedy);
     if (cluster_options->greedy_nodes == NULL) {
-        cluster_options->greedy_nodes = calloc(cluster_status->num_greedy, sizeof(int));
-        cluster_options->extra_power  = calloc(cluster_status->num_greedy, sizeof(uint));
+        cluster_options->greedy_nodes = calloc(cluster_status->num_greedy, sizeof(int32_t));
+        cluster_options->extra_power  = calloc(cluster_status->num_greedy, sizeof(int32_t));
     }
     cluster_options->num_greedy         = cluster_status->num_greedy;
     cluster_options->cluster_perc_power = (cluster_status->total_powercap * 100) / cpc_ctx.current_cluster_powercap;
-    memcpy(cluster_options->greedy_nodes, cluster_status->greedy_nodes, cluster_status->num_greedy * sizeof(int));
+    memcpy(cluster_options->greedy_nodes, cluster_status->greedy_nodes, cluster_status->num_greedy * sizeof(int32_t));
 
     total_free                       = cpc_ctx.current_cluster_powercap - cluster_status->total_powercap;
     uint64_t non_computational_power = 0;
@@ -614,35 +614,6 @@ uint cluster_get_min_power(cluster_conf_t *conf, char type)
     return total;
 }
 
-/* Each node can always reclaim its default powercap (ASK_DEF), and never goes under its
- * MIN_WORKING_POWER: both sums must fit in this EARGM's budget, or the guarantee breaks */
-static void check_node_defaults(cluster_conf_t *cc, uint budget)
-{
-    uint64_t sum_def = 0, sum_min = 0;
-    int counted = 0;
-    if (num_eargm_nodes <= 0 || nodes == NULL) {
-        verbose(VGM_PC, "no explicit node list: node defaults are not checked against the budget");
-        return;
-    }
-    for (int i = 0; i < num_eargm_nodes; i++) {
-        my_node_conf_t *n = get_my_node_conf(cc, nodes[i]);
-        if (n == NULL)
-            continue;
-        if (n->powercap > POWER_CAP_UNLIMITED)
-            sum_def += n->powercap;
-        sum_min += n->min_working_power;
-        counted++;
-    }
-    if (sum_def > budget)
-        warning("the default powercaps of %d nodes add up to %lu W, above the %u W budget: nodes asking for "
-                "their default may not get it",
-                counted, sum_def, budget);
-    if (sum_min > budget)
-        warning("MIN_WORKING_POWER of %d nodes adds up to %lu W, above the %u W budget: the budget can't be met "
-                "with every node working",
-                counted, sum_min, budget);
-}
-
 void cluster_powercap_init(cluster_conf_t *cc)
 {
     int ret;
@@ -660,8 +631,6 @@ void cluster_powercap_init(cluster_conf_t *cc)
 
     if (cpc_ctx.current_cluster_powercap == 0)
         return;
-    if (cpc_ctx.current_cluster_powercap > POWER_CAP_UNLIMITED)
-        check_node_defaults(cc, cpc_ctx.current_cluster_powercap);
 
     verbose(VGM_PC, "Loading plugins %s from path %s", e_def->plugins, cc->install.dir_plug);
     if (!state_ok(eargm_plugin_load(cc->install.dir_plug, e_def->plugins))) {

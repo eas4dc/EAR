@@ -1,3 +1,13 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * fake_dev_api.c -- see fake_dev_api.h
  *
@@ -377,6 +387,11 @@ state_t mgt_cpupow_tdp_get(int domain, uint32_t *w)
         w[i] = domain == CPUPOW_SOCKET ? fcpu.pkg_tdp[i] : fcpu.dram_tdp[i];
     return EAR_SUCCESS;
 }
+
+int mgt_cpupow_powercap_is_capable(int domain)
+{
+    return !(domain == CPUPOW_DRAM && fcpu.dram_not_capable);
+}
 state_t mgt_cpupow_powercap_set(int domain, uint32_t *w)
 {
     if (domain == CPUPOW_SOCKET) {
@@ -386,6 +401,8 @@ state_t mgt_cpupow_powercap_set(int domain, uint32_t *w)
         memcpy(fcpu.hw_pkg, w, sizeof(uint32_t) * fcpu.sockets);
     } else {
         fcpu.dram_set_calls++;
+        if (fcpu.dram_not_capable)
+            return EAR_ERROR;
         if (fcpu.dram_set_ret != EAR_SUCCESS)
             return fcpu.dram_set_ret;
         memcpy(fcpu.hw_dram, w, sizeof(uint32_t) * fcpu.sockets);

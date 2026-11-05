@@ -84,12 +84,12 @@ state_t gpu_pc_thread_init(void *p)
 }
 
 /* Watts GPU i needs over its cap to run at its target clock, from the power it draws now */
-static uint gpu_needed_power(int i)
+static uint32_t gpu_needed_power(int i)
 {
     if (gpu_est == NULL)
         return 0;
     double at_target = power_estimator_at(&gpu_est[i], gpu_cons_power[i], gpu_freq[i], ear_max(t_freq[i], gpu_freq[i]));
-    return (at_target > gpu_pc_curr_power[i]) ? (uint) (at_target - gpu_pc_curr_power[i]) : 0;
+    return (at_target > gpu_pc_curr_power[i]) ? (uint32_t) (at_target - gpu_pc_curr_power[i]) : 0;
 }
 
 /************************ This function is called by the monitor in iterative part ************************/
@@ -126,7 +126,7 @@ state_t gpu_pc_thread_main(void *p)
               gpu_pc_curr_power[i]);
     }
     // redistribute power between gpus
-    uint moved = 0;
+    bool moved = false;
     for (i = 0; i < gpu_pc_num_gpus; i++) {
         if (t_freq[i] == 0)
             t_freq[i] = gpu_freq_list[i][0]; // set the nominal if no GPU freq was specified
@@ -151,7 +151,7 @@ state_t gpu_pc_thread_main(void *p)
                 gpu_pc_curr_power[j] -= give; // remove the power from the original gpu
                 gpu_pc_excess[i] += give;
                 gpu_pc_excess[j] -= give;
-                moved = 1;
+                moved = true;
 
                 if (gpu_pc_excess[i] >= 0)
                     break; // if we have enough power in the gpu we can stop redistributing towards it
@@ -490,17 +490,14 @@ void set_app_req_freq(ulong *f)
 uint get_powercap_status(domain_status_t *status)
 {
     int i;
-    uint used          = 0;
-    uint g_tbr         = 0;
-    uint tmp_stress    = 0;
-    uint requested     = 0;
-    uint greedy        = 0;
-    uint ask_def       = 0;
-    status->ok         = PC_STATUS_OK;
-    status->exceed     = 0;
-    status->requested  = 0;
-    status->stress     = 0;
-    status->current_pc = current_gpu_pc;
+    uint32_t used       = 0;
+    uint32_t g_tbr      = 0;
+    uint32_t tmp_stress = 0;
+    status->ok          = PC_STATUS_OK;
+    status->exceed      = 0;
+    status->requested   = 0;
+    status->stress      = 0;
+    status->current_pc  = current_gpu_pc;
 
     if (current_gpu_pc == POWER_CAP_UNLIMITED) {
         return 0;
@@ -543,15 +540,19 @@ uint get_powercap_status(domain_status_t *status)
             // debug("We cannot release power from GPU %d",i);
             if (c_status == PC_STATUS_RELEASE) {
                 debug("GPU status ASK_DEF, current_pc %u and def_pc %u", current_gpu_pc, default_gpu_pc);
-                ask_def = 1;
+                status->ok = PC_STATUS_ASK_DEF; /* wins over GREEDY */
             } else {
-                greedy = 1;
-                requested += powercap_device_request(gpu_pc_max_power[i], gpu_pc_curr_power[i], gpu_needed_power(i));
+                if (status->ok != PC_STATUS_ASK_DEF)
+                    status->ok = PC_STATUS_GREEDY;
+                status->requested +=
+                    powercap_device_request(gpu_pc_max_power[i], gpu_pc_curr_power[i], gpu_needed_power(i));
             }
         } else if (gpu_cons_power[i] > gpu_pc_curr_power[i]) {
             /* at req_f but using more power than we should */
-            greedy = 1;
-            requested += powercap_device_request(gpu_pc_max_power[i], gpu_pc_curr_power[i], gpu_needed_power(i));
+            if (status->ok != PC_STATUS_ASK_DEF)
+                status->ok = PC_STATUS_GREEDY;
+            status->requested +=
+                powercap_device_request(gpu_pc_max_power[i], gpu_pc_curr_power[i], gpu_needed_power(i));
             debug("GPU %d is greedy because more power is needed to mantain current speed", i);
         } else {
             /* However we use instanteneous power to compute potential power releases */
@@ -560,12 +561,12 @@ uint get_powercap_status(domain_status_t *status)
         }
     }
     /* Throttled GPUs that can't use more power (at their hardware max, or not held by the cap): not greedy */
-    if (greedy && !requested)
-        greedy = 0;
-    if (ask_def || greedy) {
-        status->ok        = ask_def ? PC_STATUS_ASK_DEF : PC_STATUS_GREEDY;
-        status->requested = ask_def ? 0 : ear_min(requested, UINT16_MAX);
-        status->exceed    = 0;
+    if (status->ok == PC_STATUS_GREEDY && !status->requested)
+        status->ok = PC_STATUS_RELEASE;
+    if (status->ok == PC_STATUS_ASK_DEF || status->ok == PC_STATUS_GREEDY) {
+        if (status->ok == PC_STATUS_ASK_DEF)
+            status->requested = 0;
+        status->exceed = 0;
         return 0;
     }
     if (status->exceed < MIN_GPU_POWER_MARGIN) {

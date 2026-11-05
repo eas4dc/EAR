@@ -1,6 +1,16 @@
+/*********************************************************************
+ * Copyright (c) 2026 Energy Aware Solutions, S.L
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
+
 /*
  * The PVC (i915 hwmon) GPU management backend, mgt_pvc_power_hwmon.c, against a
- * fake hwmon tree in a temporary directory (#829). Built with ASan: every power
+ * fake hwmon tree in a temporary directory. Built with ASan: every power
  * cap call must write one uint32_t per GPU, as mgt_gpu_ops_t declares.
  */
 #include <stdint.h>

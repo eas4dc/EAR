@@ -417,7 +417,7 @@ state_t mgt_pvc_hwmon_power_cap_get_rank(ctx_t *c, uint32_t *watts_min, uint32_t
     return EAR_SUCCESS;
 }
 
-/* Not implemented: caps are not written to the device (#829) */
+/* Not implemented: caps are not written to the device */
 state_t mgt_pvc_hwmon_power_cap_reset(ctx_t *c)
 {
     return EAR_SUCCESS;
