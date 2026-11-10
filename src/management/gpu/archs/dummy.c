@@ -129,7 +129,7 @@ state_t mgt_gpu_dummy_get_devices(ctx_t *c, gpu_devs_t **devs_in, uint *devs_cou
         return EAR_SUCCESS;
     }
     *devs_in = calloc(devs_count, sizeof(gpu_devs_t));
-    for (i = 0; i < *devs_count_in; ++i) {
+    for (i = 0; i < devs_count; ++i) {
         (*devs_in)[i].index        =  i;
         (*devs_in)[i].index_device = -1;
         (*devs_in)[i].serial       =  i;
