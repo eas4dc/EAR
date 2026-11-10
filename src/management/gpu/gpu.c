@@ -88,10 +88,11 @@ __attribute__((used)) state_t mgt_gpu_dispose(ctx_t *c)
         free(freq_list);
         freq_list = NULL;
     }
-    loaded = 0;
     if (ops.dispose != NULL) {
         return ops.dispose(c);
     }
+    memset(&ops, 0, sizeof(ops));
+    loaded = 0;
     return EAR_SUCCESS;
 }
 
