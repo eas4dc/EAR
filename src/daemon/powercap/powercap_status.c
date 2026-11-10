@@ -9,6 +9,7 @@
  **************************************************************************/
 
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +24,7 @@
 #include <common/types/pc_app_info.h>
 #include <daemon/power_monitor.h>
 #include <daemon/powercap/powercap.h>
+#include <daemon/powercap/powercap_status.h>
 #include <management/cpufreq/frequency.h>
 
 /* This function decides if we have to changed the utilization or not */
@@ -134,16 +136,61 @@ uint powercap_get_stress(uint max_freq, uint min_freq, uint t_freq, uint c_freq)
 {
     debug("getting stress with %u(max_freq) %u(min_freq) %u(t_freq) and %u(c_freq)", max_freq, min_freq, t_freq,
           c_freq);
-    uint div = max_freq - min_freq;
-    if (div > 0)
-        return (100 * (t_freq - c_freq)) / div;
+    /* at or above target, or no range: no stress */
+    if (max_freq <= min_freq || c_freq >= t_freq)
+        return 0;
+    return ear_min((100 * (ullong) (t_freq - c_freq)) / (max_freq - min_freq), 100);
+}
 
-    return 0;
+void power_estimator_init(power_estimator_t *e, uint min_w, uint max_w, ulong min_khz, ulong max_khz)
+{
+    memset(e, 0, sizeof(power_estimator_t));
+    if (max_khz > min_khz && max_w > min_w)
+        e->seed = (double) (max_w - min_w) / (double) (max_khz - min_khz);
+    e->w_per_khz = e->seed;
+}
+
+void power_estimator_sample(power_estimator_t *e, double w, ulong khz)
+{
+    /* a move of less than ~1% of the clock is noise, not a slope */
+    double dkhz = (double) khz - (double) e->last_khz;
+    if (e->seed > 0 && e->last_khz && fabs(dkhz) * e->seed >= 1.0) {
+        /* for the same load power follows the clock: opposite moves (e.g. under a cap, where
+         * power stays put and the clock follows the load) say nothing about the slope */
+        double slope = (w - e->last_w) / dkhz;
+        if (slope > 0) {
+            /* the floor is low: frequency-insensitive (memory-bound) loads have slopes
+             * well under the range average */
+            slope        = ear_min(ear_max(slope, e->seed / 16), e->seed * 4);
+            e->w_per_khz = 0.5 * e->w_per_khz + 0.5 * slope;
+        }
+    }
+    e->last_w   = w;
+    e->last_khz = khz;
+}
+
+double power_estimator_at(const power_estimator_t *e, double w_now, ulong khz_now, ulong khz)
+{
+    return w_now + ((double) khz - (double) khz_now) * e->w_per_khz;
+}
+
+uint powercap_device_request(uint max_w, uint cap_w, uint need_w)
+{
+    if (cap_w >= max_w || need_w == 0)
+        return 0;
+    return ear_min(max_w - cap_w, need_w);
+}
+
+void powercap_max_or_tdp(uint32_t *wmax, const uint32_t *tdp, uint n)
+{
+    for (uint i = 0; i < n; i++)
+        if (wmax[i] == 0)
+            wmax[i] = tdp[i];
 }
 
 uint compute_power_status(node_powercap_opt_t *pc, uint current_power)
 {
-    if (pc->last_t1_allocated < pc->def_powercap)
+    if (pc->last_t1_allocated < pc->baseline_powercap)
         return PC_STATUS_ASK_DEF;
     if (ok_power(pc, current_power))
         return PC_STATUS_OK;

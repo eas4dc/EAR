@@ -43,7 +43,157 @@ static ulong default_powercap   = 0;
 static ulong current_free_power = 0;
 extern uint total_nodes;
 extern uint my_port;
-cluster_conf_t *conf = NULL;
+cluster_conf_t *conf          = NULL;
+static FILE *status_csv_fp    = NULL;
+static FILE *decisions_csv_fp = NULL;
+static ulong meta_iteration   = 0;
+
+static const char *meta_status_to_str(uint status)
+{
+    switch (status) {
+        case PC_STATUS_OK:
+            return "OK";
+        case PC_STATUS_GREEDY:
+            return "GREEDY";
+        case PC_STATUS_RELEASE:
+            return "RELEASE";
+        case PC_STATUS_ASK_DEF:
+            return "ASK_DEF";
+        case PC_STATUS_IDLE:
+            return "IDLE";
+        case PC_STATUS_STOP:
+            return "STOP";
+        case PC_STATUS_START:
+            return "START";
+        case PC_STATUS_RUN:
+            return "RUN";
+        default:
+            return "UNDEF";
+    }
+}
+
+static const char *meta_action_to_str(int action)
+{
+    switch (action) {
+        case NO_COMMAND:
+            return "NO_COMMAND";
+        case EARGM_INC_PC:
+            return "INC_PC";
+        case EARGM_RED_PC:
+            return "RED_PC";
+        case EARGM_RESET_PC:
+            return "RESET_PC";
+        case EARGM_SET_PC:
+            return "SET_PC";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+static const char *meta_decision_reason(const eargm_status_t *status, int action)
+{
+    if (action == NO_COMMAND)
+        return "no_action";
+    if (status == NULL)
+        return "no_status";
+
+    switch (action) {
+        case EARGM_INC_PC:
+            if (status->status == PC_STATUS_ASK_DEF)
+                return "ask_def";
+            if (status->status == PC_STATUS_GREEDY && status->extra_power == 0)
+                return "free_power";
+            if (status->status == PC_STATUS_GREEDY)
+                return "greedy_extra";
+            return "increase";
+        case EARGM_RED_PC:
+            if (status->freeable_power > 0)
+                return "freeable_rebalance";
+            if (status->extra_power > 0)
+                return "extra_rebalance";
+            return "reduce";
+        case EARGM_RESET_PC:
+            return "reset_default";
+        case EARGM_SET_PC:
+            return "set_limit";
+        default:
+            return "unknown";
+    }
+}
+
+static void meta_csv_build_path(cluster_conf_t *conf, const char *filename, char *path, size_t path_size)
+{
+    if (conf != NULL && conf->install.dir_temp[0] != '\0') {
+        xsnprintf(path, path_size, "%s/%s", conf->install.dir_temp, filename);
+    } else {
+        snprintf(path, path_size, "%s", filename);
+    }
+}
+
+static FILE *meta_csv_open(cluster_conf_t *conf, const char *filename, const char *header)
+{
+    char path[1024];
+    FILE *fp;
+
+    meta_csv_build_path(conf, filename, path, sizeof(path));
+    fp = fopen(path, "w");
+    if (fp == NULL) {
+        warning("Could not open %s for CSV reporting: %s", path, strerror(errno));
+        return NULL;
+    }
+    if (header != NULL) {
+        fprintf(fp, "%s\n", header);
+        fflush(fp);
+    }
+    verbose(VGM, "Writing CSV report to %s", path);
+    return fp;
+}
+
+static eargm_status_t *meta_find_status(eargm_status_t *status, uint num_status, int id)
+{
+    uint i;
+
+    if (status == NULL)
+        return NULL;
+    for (i = 0; i < num_status; i++) {
+        if (status[i].id == id)
+            return &status[i];
+    }
+    return NULL;
+}
+
+static void meta_csv_log_statuses(ulong iteration, time_t timestamp, int meta_id, eargm_status_t *status,
+                                  uint num_status)
+{
+    uint i;
+
+    if (status_csv_fp == NULL || status == NULL || num_status == 0)
+        return;
+
+    for (i = 0; i < num_status; i++) {
+        fprintf(status_csv_fp, "%lu,%ld,%d,%d,%s,%lu,%lu,%lu,%lu,%lu,%lu\n", iteration, (long) timestamp, meta_id,
+                status[i].id, meta_status_to_str(status[i].status), status[i].current_power, status[i].current_powercap,
+                status[i].def_power, status[i].requested, status[i].freeable_power, status[i].extra_power);
+    }
+    fflush(status_csv_fp);
+}
+
+static void meta_csv_log_decisions(ulong iteration, time_t timestamp, int meta_id, eargm_table_t *egm_table,
+                                   eargm_status_t *status, uint num_status)
+{
+    uint i;
+
+    if (decisions_csv_fp == NULL || egm_table == NULL)
+        return;
+
+    for (i = 0; i < egm_table->num_eargms; i++) {
+        eargm_status_t *egm_status = meta_find_status(status, num_status, egm_table->ids[i]);
+        fprintf(decisions_csv_fp, "%lu,%ld,%d,%d,%s,%u,%s\n", iteration, (long) timestamp, meta_id, egm_table->ids[i],
+                meta_action_to_str(egm_table->actions[i]), egm_table->action_values[i],
+                meta_decision_reason(egm_status, egm_table->actions[i]));
+    }
+    fflush(decisions_csv_fp);
+}
 
 int eargm_table_init(eargm_table_t *egm_table, cluster_conf_t *conf, int egm_idx)
 {
@@ -62,7 +212,7 @@ int eargm_table_init(eargm_table_t *egm_table, cluster_conf_t *conf, int egm_idx
                 egm_table->ids[i]         = conf->eargm.eargms[j].id;
                 egm_table->eargm_ports[i] = conf->eargm.eargms[j].port;
                 egm_table->eargm_ips[i]   = get_ip(conf->eargm.eargms[j].node, conf);
-                default_powercap += conf->eargm.eargms[i].power;
+                default_powercap += conf->eargm.eargms[j].power;
             }
         }
     }
@@ -330,15 +480,31 @@ void *meta_eargm(void *config)
         error("Error initializing meta_eargm node tables, closing meta_eargm");
         pthread_exit(0);
     }
+    status_csv_fp    = meta_csv_open(conf, "eargm_status.csv",
+                                     "iteration,timestamp,meta_id,eargm_id,status,current_power,current_powercap,"
+                                        "def_power,requested,freeable_power,extra_power");
+    decisions_csv_fp = meta_csv_open(conf, "meta_eargm_decisions.csv",
+                                     "iteration,timestamp,meta_id,eargm_id,action,action_value,reason");
 
     while (1) {
+        ulong iteration = ++meta_iteration;
+        time_t ts;
         debug("waiting period of time before asking nodes");
         sleep(conf->eargm.t1_power * 2);
 
         num_status = eargm_get_all_status(conf, &status, eargm_idx);
+        ts         = time(NULL);
         debug("Received %d status in meta thread", num_status);
         if (num_status > 0) {
+            eargm_status_t *status_snapshot = calloc((size_t) num_status, sizeof(*status_snapshot));
+
+            if (status_snapshot != NULL) {
+                memcpy(status_snapshot, status, sizeof(*status_snapshot) * (size_t) num_status);
+            } else {
+                warning("Could not allocate status snapshot for CSV decision reasons");
+            }
             print_eargm_status(status, num_status);
+            meta_csv_log_statuses(iteration, ts, e_def->id, status, (uint) num_status);
 
             // reset actions
             for (i = 0; i < egm_table.num_eargms; i++) {
@@ -348,9 +514,12 @@ void *meta_eargm(void *config)
 
             meta_reallocate_power(status, num_status, &egm_table);
             print_eargm_actions(&egm_table);
+            meta_csv_log_decisions(iteration, ts, e_def->id, &egm_table,
+                                   (status_snapshot != NULL) ? status_snapshot : status, (uint) num_status);
 
             eargm_send_table_commands(&egm_table);
 
+            free(status_snapshot);
             free(status);
         }
     }

@@ -35,6 +35,7 @@ root_OBJS = \
     $(SRCDIR)/management/gpu/archs/mgt_pvc_power_hwmon.o \
     $(SRCDIR)/management/gpu/archs/oneapi.o \
     $(SRCDIR)/management/gpu/archs/rsmi.o \
+    $(SRCDIR)/management/gpu/archs/script.o \
     $(SRCDIR)/management/management.o
 
 ######## RULES

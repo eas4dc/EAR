@@ -30,6 +30,7 @@ comm_OBJS = \
     pstate.o \
     redfish.o \
     rsmi.o \
+    script.o \
     cray_pm_counters.o
 
 ######## RULES

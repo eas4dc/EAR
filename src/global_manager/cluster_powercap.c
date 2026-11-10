@@ -68,6 +68,37 @@ static ulong current_extra_power;
 void check_powercap_actions(uint cluster_powercap);
 void write_shared_data(ulong current_power, ulong freeable_power, ulong requested);
 
+static uint synthetic_total_nodes(void)
+{
+    if (num_eargm_nodes > 0)
+        return (uint) num_eargm_nodes;
+    return max_num_nodes;
+}
+
+static ulong synthetic_default_powercap(void)
+{
+    if (default_cluster_powercap < 0)
+        return min_cluster_powercap;
+    return (ulong) default_cluster_powercap;
+}
+
+static state_t synthetic_powercap_read_sample(synthetic_powercap_sample_t *sample)
+{
+    return synthetic_powercap_sample(cpc_ctx.current_cluster_powercap, synthetic_default_powercap(),
+                                     synthetic_total_nodes(), sample);
+}
+
+static void synthetic_powercap_apply_status(const synthetic_powercap_sample_t *sample)
+{
+    my_cluster_power_status->total_nodes      = (uint32_t) sample->total_nodes;
+    my_cluster_power_status->idle_nodes       = (uint32_t) sample->idle_nodes;
+    my_cluster_power_status->released         = 0;
+    my_cluster_power_status->requested        = (uint32_t) sample->requested;
+    my_cluster_power_status->total_idle_power = (uint32_t) sample->freeable_power;
+    my_cluster_power_status->current_power    = (uint32_t) sample->current_power;
+    my_cluster_power_status->total_powercap   = cpc_ctx.current_cluster_powercap;
+}
+
 void eargm_report_event(uint event_type, ulong value)
 {
     ear_event_t event = {0};
@@ -315,7 +346,11 @@ uint powercap_reallocation(cluster_powercap_status_t *cluster_status, powercap_o
 
 void send_powercap_options_to_cluster(powercap_opt_t *cluster_options)
 {
-    ear_cluster_set_powercap_opt(&my_cluster_conf, cluster_options);
+    if (cluster_powercap_is_synthetic_mode())
+        return;
+    /* only this EARGM's nodes: a node that is not in the greedy list takes the options as
+     * "your default power is granted", which would serve another EARGM's ASK_DEF nodes */
+    ear_set_powercap_opt(&my_cluster_conf, cluster_options, nodes, num_eargm_nodes);
 }
 
 void print_cluster_power_status(powercap_status_t *my_cluster_power_status)
@@ -344,11 +379,29 @@ void cluster_soft_powercap()
 {
 
     power_check_t power;
+    synthetic_powercap_sample_t synthetic_sample = {0};
+    bool synthetic_mode                          = cluster_powercap_is_synthetic_mode();
 
     my_cluster_power_status = calloc(1, sizeof(cluster_powercap_status_t));
+    if (my_cluster_power_status == NULL) {
+        error("Allocating memory for power status");
+        write_shared_data(0, 0, 0);
+        return;
+    }
 
     memset(&power, 0, sizeof(power_check_t));
-    ear_get_power(&my_cluster_conf, &power, nodes, num_eargm_nodes);
+    if (synthetic_mode) {
+        if (state_fail(synthetic_powercap_read_sample(&synthetic_sample))) {
+            error("Could not read synthetic powercap sample");
+            free(my_cluster_power_status);
+            write_shared_data(0, 0, 0);
+            return;
+        }
+        power.power     = synthetic_sample.current_power;
+        power.num_nodes = (int64_t) (synthetic_sample.total_nodes - synthetic_sample.idle_nodes);
+    } else {
+        ear_get_power(&my_cluster_conf, &power, nodes, num_eargm_nodes);
+    }
 
     eargm_report_event(CLUSTER_POWER, (ulong) power.power);
 
@@ -356,10 +409,12 @@ void cluster_soft_powercap()
     float lower_limit = ((float) (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_lower) / 100.0);
     uint64_t used_power              = power.power;
     uint64_t non_computational_power = 0;
-    if (!state_ok(_read_non_computational_power(&non_computational_power))) {
-        warning("Non-computational power could not be read");
-    } else {
-        used_power += non_computational_power;
+    if (!synthetic_mode) {
+        if (!state_ok(_read_non_computational_power(&non_computational_power))) {
+            warning("Non-computational power could not be read");
+        } else {
+            used_power += non_computational_power;
+        }
     }
 
     verbose(VGM_PC, "cluster_soft_powercap, total power %ld, computational power %ld and nodes %ld", used_power,
@@ -376,6 +431,13 @@ void cluster_soft_powercap()
     uint64_t new_limit         = 0;
     uint32_t num_soft_pc_nodes = max_num_nodes;
 
+    if (synthetic_mode) {
+        synthetic_powercap_apply_status(&synthetic_sample);
+        used_power     = synthetic_sample.current_power;
+        freeable_power = synthetic_sample.freeable_power;
+        requested      = synthetic_sample.requested;
+    }
+
     if (used_power > upper_limit) {
         /* If we have a nodelist we only want to divide by that list*/
         if (num_eargm_nodes != 0) {
@@ -385,35 +447,46 @@ void cluster_soft_powercap()
          * ear.conf For homogeneous clusters we can simply divide the current power between the number of active nodes.
          */
         if (num_soft_pc_nodes > 0) {
-#if EARGM_POWERCAP_SOFTPC_HOMOGENEOUS
-            new_limit = cpc_ctx.current_cluster_powercap / num_soft_pc_nodes;
-#else
-            new_limit = UINT_MAX;
-#endif
-            ear_set_powerlimit(&my_cluster_conf, new_limit, nodes, num_eargm_nodes);
+            if (my_cluster_conf.eargm.soft_pc_strategy == HOMOGENEOUS) {
+                // Available power is homegeneously distributed
+                new_limit = cpc_ctx.current_cluster_powercap / num_soft_pc_nodes;
+            } else {
+                // UINT_MAX means each node will select the max powercap set in ear.conf
+                new_limit = UINT_MAX;
+            }
+            if (!synthetic_mode)
+                ear_set_powerlimit(&my_cluster_conf, new_limit, nodes, num_eargm_nodes);
+
             verbose(VGM_PC, "cluster_only_powercap: sending new limit %lu", (ulong) new_limit);
             eargm_report_event(NODE_POWERCAP, (ulong) new_limit);
         } else {
             warning("No nodes detected for this EARGM");
         }
-        requested = used_power - upper_limit;
-        risk      = 1;
+        if (!synthetic_mode) {
+            requested = used_power - upper_limit;
+        }
+        risk = 1;
     } else {
         if (risk == 1 && used_power <= lower_limit) {
             verbose(VGM_PC, "cluster_only_powercap: sending POWER_CAP_UNLIMTED to nodes");
-            ear_set_powerlimit(&my_cluster_conf, 1, nodes, num_eargm_nodes); // set powercap unlimited
+            if (!synthetic_mode)
+                ear_set_powerlimit(&my_cluster_conf, 1, nodes, num_eargm_nodes); // set powercap unlimited
             risk = 0;
             eargm_report_event(POWER_UNLIMITED, 1);
         }
-        freeable_power =
-            (uint64_t) (upper_limit - used_power) / 2; // for now, we will free half of whatever extra power
+        if (!synthetic_mode) {
+            freeable_power =
+                (uint64_t) (upper_limit - used_power) / 2; // for now, we will free half of whatever extra power
+        }
     }
     write_shared_data(used_power, freeable_power, requested);
 
     /* These values in my_cluster_power_status are used automatically by the actions */
-    my_cluster_power_status->current_power    = used_power;
-    my_cluster_power_status->idle_nodes       = 0;
-    my_cluster_power_status->total_idle_power = 0;
+    if (!synthetic_mode) {
+        my_cluster_power_status->current_power    = used_power;
+        my_cluster_power_status->idle_nodes       = 0;
+        my_cluster_power_status->total_idle_power = 0;
+    }
 
     check_powercap_actions(used_power);
 
@@ -425,7 +498,7 @@ void *eargm_powercap_th(void *noarg)
     if (pthread_setname_np(pthread_self(), "cluster_powercap") != 0)
         error("Setting name forcluster_powercap thread %s", strerror(errno));
 
-    if (my_cluster_conf.eargm.powercap_mode == SOFT_POWERCAP)
+    if (!cluster_powercap_is_synthetic_mode() && my_cluster_conf.eargm.powercap_mode == EARGM_SOFT_POWERCAP)
         ear_set_powerlimit(&my_cluster_conf, 1, nodes, num_eargm_nodes); // set powercap to unlimited at the start
     while (1) {
         sleep(cluster_powercap_period);
@@ -436,13 +509,13 @@ void *eargm_powercap_th(void *noarg)
         }
         if (cluster_power_limited()) {
             switch (my_cluster_conf.eargm.powercap_mode) {
-                case SOFT_POWERCAP:
+                case EARGM_SOFT_POWERCAP:
                     cluster_soft_powercap();
                     break;
-                case HARD_POWERCAP:
+                case EARGM_HARD_POWERCAP:
                     cluster_hard_powercap();
                     break;
-                case MONITOR:
+                case EARGM_MONITOR:
                 default:
                     cluster_power_monitor();
                     break;
@@ -453,19 +526,23 @@ void *eargm_powercap_th(void *noarg)
 
 void cluster_powercap_reset_pc()
 {
-    verbose(VGM_PC, "Resetting cluster powercap to %ld", default_cluster_powercap);
-    cpc_ctx.current_cluster_powercap = default_cluster_powercap;
+    ulong effective_default_powercap = synthetic_default_powercap();
+
+    verbose(VGM_PC, "Resetting cluster powercap to %lu", effective_default_powercap);
+    cpc_ctx.current_cluster_powercap = effective_default_powercap;
     current_extra_power              = 0;
 }
 
 void cluster_powercap_set_pc(uint limit)
 {
+    ulong effective_default_powercap = synthetic_default_powercap();
+
     verbose(VGM_PC, "Setting cluster powercap to %u", limit);
 
     cpc_ctx.current_cluster_powercap = limit;
 
-    if (default_cluster_powercap < cpc_ctx.current_cluster_powercap)
-        current_extra_power = cpc_ctx.current_cluster_powercap - default_cluster_powercap;
+    if (effective_default_powercap < cpc_ctx.current_cluster_powercap)
+        current_extra_power = cpc_ctx.current_cluster_powercap - effective_default_powercap;
     else
         current_extra_power = 0;
 #if 0
@@ -477,6 +554,8 @@ void cluster_powercap_set_pc(uint limit)
 
 void cluster_powercap_red_pc(uint red)
 {
+    ulong effective_default_powercap = synthetic_default_powercap();
+
     verbose(VGM_PC, "Reducing cluster powercap by %u (from %u to %u)", red, cpc_ctx.current_cluster_powercap,
             cpc_ctx.current_cluster_powercap - red);
     if (red > cpc_ctx.current_cluster_powercap) {
@@ -485,19 +564,21 @@ void cluster_powercap_red_pc(uint red)
         cpc_ctx.current_cluster_powercap -= red;
     }
 
-    if (default_cluster_powercap < cpc_ctx.current_cluster_powercap)
-        current_extra_power = cpc_ctx.current_cluster_powercap - default_cluster_powercap;
+    if (effective_default_powercap < cpc_ctx.current_cluster_powercap)
+        current_extra_power = cpc_ctx.current_cluster_powercap - effective_default_powercap;
     else
         current_extra_power = 0;
 }
 
 void cluster_powercap_inc_pc(uint inc)
 {
+    ulong effective_default_powercap = synthetic_default_powercap();
+
     verbose(VGM_PC, "Increasing cluster powercap by %u (from %u to %u)", inc, cpc_ctx.current_cluster_powercap,
             cpc_ctx.current_cluster_powercap + inc);
     cpc_ctx.current_cluster_powercap += inc;
-    if (default_cluster_powercap < cpc_ctx.current_cluster_powercap)
-        current_extra_power = cpc_ctx.current_cluster_powercap - default_cluster_powercap;
+    if (effective_default_powercap < cpc_ctx.current_cluster_powercap)
+        current_extra_power = cpc_ctx.current_cluster_powercap - effective_default_powercap;
     else
         current_extra_power = 0;
 }
@@ -533,6 +614,35 @@ uint cluster_get_min_power(cluster_conf_t *conf, char type)
     return total;
 }
 
+/* Each node can always reclaim its default powercap (ASK_DEF), and never goes under its
+ * MIN_WORKING_POWER: both sums must fit in this EARGM's budget, or the guarantee breaks */
+static void check_node_defaults(cluster_conf_t *cc, uint budget)
+{
+    uint64_t sum_def = 0, sum_min = 0;
+    int counted = 0;
+    if (num_eargm_nodes <= 0 || nodes == NULL) {
+        verbose(VGM_PC, "no explicit node list: node defaults are not checked against the budget");
+        return;
+    }
+    for (int i = 0; i < num_eargm_nodes; i++) {
+        my_node_conf_t *n = get_my_node_conf(cc, nodes[i]);
+        if (n == NULL)
+            continue;
+        if (n->powercap > POWER_CAP_UNLIMITED)
+            sum_def += n->powercap;
+        sum_min += n->min_working_power;
+        counted++;
+    }
+    if (sum_def > budget)
+        warning("the default powercaps of %d nodes add up to %lu W, above the %u W budget: nodes asking for "
+                "their default may not get it",
+                counted, sum_def, budget);
+    if (sum_min > budget)
+        warning("MIN_WORKING_POWER of %d nodes adds up to %lu W, above the %u W budget: the budget can't be met "
+                "with every node working",
+                counted, sum_min, budget);
+}
+
 void cluster_powercap_init(cluster_conf_t *cc)
 {
     int ret;
@@ -550,7 +660,10 @@ void cluster_powercap_init(cluster_conf_t *cc)
 
     if (cpc_ctx.current_cluster_powercap == 0)
         return;
+    if (cpc_ctx.current_cluster_powercap > POWER_CAP_UNLIMITED)
+        check_node_defaults(cc, cpc_ctx.current_cluster_powercap);
 
+    verbose(VGM_PC, "Loading plugins %s from path %s", e_def->plugins, cc->install.dir_plug);
     if (!state_ok(eargm_plugin_load(cc->install.dir_plug, e_def->plugins))) {
         error("Could not load EARGM plugins");
     } else {
@@ -632,12 +745,14 @@ void check_powercap_actions(uint cluster_powercap)
 
 void write_shared_data(ulong current_power, ulong freeable_power, ulong requested)
 {
+    ulong effective_default_powercap = synthetic_default_powercap();
+
     pthread_mutex_lock(&ext_mutex);
     memset(&ext_powercap_data, 0, sizeof(shared_powercap_data_t));
     ext_powercap_data.status = PC_STATUS_OK;
-    if (requested > 0 && default_cluster_powercap > cpc_ctx.current_cluster_powercap) {
-        if (default_cluster_powercap < (cpc_ctx.current_cluster_powercap + requested)) {
-            requested = default_cluster_powercap - cpc_ctx.current_cluster_powercap;
+    if (requested > 0 && effective_default_powercap > cpc_ctx.current_cluster_powercap) {
+        if (effective_default_powercap < (cpc_ctx.current_cluster_powercap + requested)) {
+            requested = effective_default_powercap - cpc_ctx.current_cluster_powercap;
         }
         freeable_power           = 0; // if pc_status_ask_def and requesting we cannot free
         ext_powercap_data.status = PC_STATUS_ASK_DEF;
@@ -651,15 +766,60 @@ void write_shared_data(ulong current_power, ulong freeable_power, ulong requeste
     ext_powercap_data.extra_power      = current_extra_power;
     ext_powercap_data.available_power  = freeable_power;
     ext_powercap_data.current_powercap = cpc_ctx.current_cluster_powercap;
-    ext_powercap_data.def_power        = default_cluster_powercap;
+    ext_powercap_data.def_power        = effective_default_powercap;
     debug("Written shared data with current power %lu and default power %lu", cpc_ctx.current_cluster_powercap,
-          default_cluster_powercap);
+          effective_default_powercap);
     pthread_mutex_unlock(&ext_mutex);
 }
 
 void cluster_power_monitor()
 {
     debug("%sGlobal POWER monitoring INIT----%s", COL_BLU, COL_CLR);
+    if (cluster_powercap_is_synthetic_mode()) {
+        synthetic_powercap_sample_t synthetic_sample = {0};
+        ulong used_power                             = 0;
+
+        my_cluster_power_status = calloc(1, sizeof(cluster_powercap_status_t));
+        if (my_cluster_power_status == NULL) {
+            error("Allocating memory for synthetic power status");
+            write_shared_data(0, 0, 0);
+            return;
+        }
+        if (state_fail(synthetic_powercap_read_sample(&synthetic_sample))) {
+            error("Could not read synthetic powercap sample");
+            free(my_cluster_power_status);
+            write_shared_data(0, 0, 0);
+            return;
+        }
+        synthetic_powercap_apply_status(&synthetic_sample);
+        used_power = synthetic_sample.current_power;
+        verbose(VGM_PC,
+                "ITER %lu:Synthetic data: used power %lu freeable power %lu requested %lu total_nodes %u "
+                "active nodes %u "
+                "req_power_per_node "
+                "%lu total_demand %lu",
+                synthetic_sample.iteration, used_power, synthetic_sample.freeable_power, synthetic_sample.requested,
+                synthetic_sample.total_nodes, synthetic_sample.total_nodes - synthetic_sample.idle_nodes,
+                synthetic_sample.requested_power_per_node, synthetic_sample.demand_total);
+        write_shared_data(used_power, synthetic_sample.freeable_power, synthetic_sample.requested);
+        eargm_report_event(CLUSTER_POWER, (ulong) used_power);
+        if (used_power >=
+                ((float) (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_limit) / 100.0) &&
+            !actions_executed) {
+            execute_powercap_limit_action();
+        } else if (used_power <=
+                       ((float) (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_lower) /
+                        100.0) &&
+                   actions_executed) {
+            execute_powercap_lower_action();
+        } else {
+            verbose(VGM_PC + 1, "Total power %u limit for action %lu", (uint) used_power,
+                    (cpc_ctx.current_cluster_powercap * my_cluster_conf.eargm.defcon_power_limit) / 100);
+        }
+        free(my_cluster_power_status);
+        debug("%sGlobal POWER monitoring END-----%s", COL_BLU, COL_CLR);
+        return;
+    }
     /* We use this function for now, we must use a new light one */
     if (state_fail(ear_get_powercap_status(&my_cluster_conf, &my_cluster_power_status, 1, nodes, num_eargm_nodes))) {
         verbose(VGM_PC + 1, "ear_get_powercap_status in cluster_power_monitor returns EAR_ERROR");
@@ -689,6 +849,39 @@ void cluster_power_monitor()
 void cluster_hard_powercap()
 {
     debug("%sSTART cluster_check_powercap---------%s", COL_BLU, COL_CLR);
+    if (cluster_powercap_is_synthetic_mode()) {
+        synthetic_powercap_sample_t synthetic_sample = {0};
+        ulong used_power                             = 0;
+
+        my_cluster_power_status = calloc(1, sizeof(cluster_powercap_status_t));
+        if (my_cluster_power_status == NULL) {
+            error("Allocating memory for synthetic power status");
+            write_shared_data(0, 0, 0);
+            return;
+        }
+        if (state_fail(synthetic_powercap_read_sample(&synthetic_sample))) {
+            error("Could not read synthetic powercap sample");
+            free(my_cluster_power_status);
+            write_shared_data(0, 0, 0);
+            return;
+        }
+        synthetic_powercap_apply_status(&synthetic_sample);
+        used_power = synthetic_sample.current_power;
+        eargm_report_event(CLUSTER_POWER, (ulong) used_power);
+        verbose(VGM_PC,
+                "ITER %lu: Synthetic data: used power %lu freeable power %lu requested %lu total_nodes %u "
+                "active nodes %u "
+                "req_power_per_node "
+                "%lu total_demand %lu",
+                synthetic_sample.iteration, used_power, synthetic_sample.freeable_power, synthetic_sample.requested,
+                synthetic_sample.total_nodes, synthetic_sample.total_nodes - synthetic_sample.idle_nodes,
+                synthetic_sample.requested_power_per_node, synthetic_sample.demand_total);
+        write_shared_data(used_power, synthetic_sample.freeable_power, synthetic_sample.requested);
+        check_powercap_actions((uint) used_power);
+        free(my_cluster_power_status);
+        debug("%sEND cluster_check_powercap----------%s", COL_BLU, COL_CLR);
+        return;
+    }
     if (state_fail(ear_get_powercap_status(&my_cluster_conf, &my_cluster_power_status, 1, nodes, num_eargm_nodes))) {
         verbose(VGM_PC + 1, "ear_get_powercap_status in cluster_hard_powercap returns EAR_ERROR");
         write_shared_data(0, 0, 0);
@@ -704,19 +897,24 @@ void cluster_hard_powercap()
     // EAR_WARNING indicates that it needs more power, and that wants power freed
     if (eargm_plugin_hard_powercap_decision(my_cluster_power_status, &cluster_options, &must_send_pc_options,
                                             &cpc_ctx) == EAR_WARNING) {
-        pc_release_data_t rel_power;
-        if (state_fail(ear_cluster_release_idle_power(&my_cluster_conf, &rel_power))) {
+        /* only this EARGM's nodes: with several EARGMs a cluster-wide call takes other EARGMs' power */
+        pc_release_data_t rel_power = {0};
+        if (state_fail(ear_release_idle_power(&my_cluster_conf, &rel_power, nodes, num_eargm_nodes))) {
             error("Error in cluster_release_idle_power");
+            rel_power.released = 0;
         } else {
             verbose(VGM_PC, "%s%u Watts from idle nodes released%s", COL_GRE, rel_power.released, COL_CLR);
         }
-        my_cluster_power_status->released       = 0;
-        my_cluster_power_status->total_powercap = my_cluster_power_status->total_powercap - rel_power.released;
+        my_cluster_power_status->released = 0;
+        my_cluster_power_status->total_powercap -= ear_min(rel_power.released, my_cluster_power_status->total_powercap);
         eargm_plugin_hard_powercap_decision(my_cluster_power_status, &cluster_options, &must_send_pc_options, &cpc_ctx);
     }
 
-    uint power_to_free    = ear_min(cpc_ctx.current_cluster_powercap - min_cluster_powercap,
-                                    cpc_ctx.total_free + my_cluster_power_status->released * CLUSTER_PC_TO_SHARE);
+    uint cap_margin = (cpc_ctx.current_cluster_powercap > min_cluster_powercap)
+                          ? cpc_ctx.current_cluster_powercap - min_cluster_powercap
+                          : 0;
+    uint power_to_free =
+        ear_min(cap_margin, cpc_ctx.total_free + my_cluster_power_status->released * CLUSTER_PC_TO_SHARE);
     uint power_to_request = 0;
     if (cpc_ctx.total_req_greedy > cpc_ctx.greedy_allocated) // to prevent overflow
         power_to_request = cpc_ctx.total_req_greedy - cpc_ctx.greedy_allocated;
@@ -757,17 +955,22 @@ void old_cluster_hard_powercap()
     print_cluster_power_status(my_cluster_power_status);
     aggregate_data(my_cluster_power_status);
     if (powercap_reallocation(my_cluster_power_status, &cluster_options) == 0) {
-        pc_release_data_t rel_power;
-        if (state_fail(ear_cluster_release_idle_power(&my_cluster_conf, &rel_power))) {
+        /* only this EARGM's nodes: with several EARGMs a cluster-wide call takes other EARGMs' power */
+        pc_release_data_t rel_power = {0};
+        if (state_fail(ear_release_idle_power(&my_cluster_conf, &rel_power, nodes, num_eargm_nodes))) {
             error("Error in cluster_release_idle_power");
+            rel_power.released = 0;
         } else {
             verbose(VGM_PC, "%s%u Watts from idle nodes released%s", COL_GRE, rel_power.released, COL_CLR);
         }
-        my_cluster_power_status->released       = 0;
-        my_cluster_power_status->total_powercap = my_cluster_power_status->total_powercap - rel_power.released;
+        my_cluster_power_status->released = 0;
+        my_cluster_power_status->total_powercap -=
+            ear_min(rel_power.released, my_cluster_power_status->total_powercap);
         powercap_reallocation(my_cluster_power_status, &cluster_options);
     }
-    uint power_to_free    = ear_min(cpc_ctx.current_cluster_powercap - min_cluster_powercap,
+    uint cap_margin =
+        (cpc_ctx.current_cluster_powercap > min_cluster_powercap) ? cpc_ctx.current_cluster_powercap - min_cluster_powercap : 0;
+    uint power_to_free    = ear_min(cap_margin,
                                     total_free + my_cluster_power_status->released * CLUSTER_PC_TO_SHARE);
     uint power_to_request = 0;
     if (total_req_greedy > greedy_allocated) // to prevent overflow
@@ -799,17 +1002,22 @@ void old_cluster_hard_powercap()
     print_cluster_power_status(my_cluster_power_status);
     aggregate_data(my_cluster_power_status);
     if (powercap_reallocation(my_cluster_power_status, &cluster_options) == 0) {
-        pc_release_data_t rel_power;
-        if (state_fail(ear_cluster_release_idle_power(&my_cluster_conf, &rel_power))) {
+        /* only this EARGM's nodes: with several EARGMs a cluster-wide call takes other EARGMs' power */
+        pc_release_data_t rel_power = {0};
+        if (state_fail(ear_release_idle_power(&my_cluster_conf, &rel_power, nodes, num_eargm_nodes))) {
             error("Error in cluster_release_idle_power");
+            rel_power.released = 0;
         } else {
             verbose(VGM_PC, "%s%u Watts from idle nodes released%s", COL_GRE, rel_power.released, COL_CLR);
         }
-        my_cluster_power_status->released       = 0;
-        my_cluster_power_status->total_powercap = my_cluster_power_status->total_powercap - rel_power.released;
+        my_cluster_power_status->released = 0;
+        my_cluster_power_status->total_powercap -=
+            ear_min(rel_power.released, my_cluster_power_status->total_powercap);
         powercap_reallocation(my_cluster_power_status, &cluster_options);
     }
-    uint power_to_free    = ear_min(cpc_ctx.current_cluster_powercap - min_cluster_powercap,
+    uint cap_margin =
+        (cpc_ctx.current_cluster_powercap > min_cluster_powercap) ? cpc_ctx.current_cluster_powercap - min_cluster_powercap : 0;
+    uint power_to_free    = ear_min(cap_margin,
                                     total_free + my_cluster_power_status->released * CLUSTER_PC_TO_SHARE);
     uint power_to_request = 0;
     if (total_req_greedy > greedy_allocated) // to prevent overflow

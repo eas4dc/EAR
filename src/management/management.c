@@ -191,7 +191,9 @@ static state_t monitor_apis_init(void *whatever)
 
 static state_t monitor_apis_update(void *whatever)
 {
+    ulong khz[4] = { 1000, 1200, 1400, 1600 };
     unused(whatever);
+    mgt_gpu_freq_limit_set(NULL, khz);
     return EAR_SUCCESS;
 }
 

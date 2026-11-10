@@ -34,10 +34,10 @@ state_t mgt_pvc_hwmon_freq_limit_get_max(ctx_t *c, ulong *khz);
 state_t mgt_pvc_hwmon_freq_limit_reset(ctx_t *c);
 state_t mgt_pvc_hwmon_freq_limit_set(ctx_t *c, ulong *khz);
 state_t mgt_pvc_hwmon_freq_get_available(ctx_t *c, const ulong ***list_khz, const uint **list_len);
-state_t mgt_pvc_hwmon_power_cap_get_current(ctx_t *c, ulong *watts);
-state_t mgt_pvc_hwmon_power_cap_get_default(ctx_t *c, ulong *watts);
-state_t mgt_pvc_hwmon_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts_max);
+state_t mgt_pvc_hwmon_power_cap_get_current(ctx_t *c, uint32_t *watts);
+state_t mgt_pvc_hwmon_power_cap_get_default(ctx_t *c, uint32_t *watts);
+state_t mgt_pvc_hwmon_power_cap_get_rank(ctx_t *c, uint32_t *watts_min, uint32_t *watts_max);
 state_t mgt_pvc_hwmon_power_cap_reset(ctx_t *c);
-state_t mgt_pvc_hwmon_power_cap_set(ctx_t *c, ulong *watts);
+state_t mgt_pvc_hwmon_power_cap_set(ctx_t *c, uint32_t *watts);
 
 #endif

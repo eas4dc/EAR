@@ -306,6 +306,7 @@ CPUPOW_F_LOAD(mgt_cpupow_amd17_load)
     apis_put(ops->powercap_set       , mgt_cpupow_amd17_powercap_set);
     apis_put(ops->powercap_reset     , mgt_cpupow_amd17_powercap_reset);
     apis_put(ops->tdp_get            , mgt_cpupow_amd17_tdp_get);
+    apis_put(ops->limits_get         , mgt_cpupow_amd17_limits_get);
 }
 
 CPUPOW_F_GET_INFO(mgt_cpupow_amd17_get_info)
@@ -418,6 +419,19 @@ CPUPOW_F_POWERCAP_RESET(mgt_cpupow_amd17_powercap_reset)
         if (state_fail(hsmp_send(d->tp->cpus[i].socket_id, d->pl_address_write, args, reps))) {
             debug("Failed while sending HSMP_%s_POWER_LIMIT: %s", d->name, state_msg);
         }
+    }
+    return EAR_SUCCESS;
+}
+
+/* HSMP gives the highest settable socket limit (stored as tdp) and no minimum: min is 0 (unknown).
+ * DRAM has no power limit on AMD: 0/0. */
+CPUPOW_F_LIMITS_GET(mgt_cpupow_amd17_limits_get)
+{
+    struct domain_s *d = &domains[domain];
+    int i;
+    for (i = 0; i < d->tp->cpu_count; ++i) {
+        wmin[i] = 0;
+        wmax[i] = (d->pi != NULL) ? d->pi[i].tdp : 0;
     }
     return EAR_SUCCESS;
 }

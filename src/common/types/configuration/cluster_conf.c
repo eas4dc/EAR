@@ -487,14 +487,15 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
     if (tag_id >= 0) {
         debug("Found my_node_conf with tag: %s\n", my_conf->tags[tag_id].id);
 
-        n->max_sig_power   = (double) my_conf->tags[tag_id].max_power;
-        n->min_sig_power   = (double) my_conf->tags[tag_id].min_power;
-        n->max_error_power = (double) my_conf->tags[tag_id].error_power;
-        n->max_temp        = my_conf->tags[tag_id].max_temp;
-        n->powercap        = my_conf->tags[tag_id].powercap;
-        n->max_powercap    = my_conf->tags[tag_id].max_powercap;
-        n->max_avx512_freq = my_conf->tags[tag_id].max_avx512_freq;
-        n->max_avx2_freq   = my_conf->tags[tag_id].max_avx2_freq;
+        n->max_sig_power     = (double) my_conf->tags[tag_id].max_power;
+        n->min_sig_power     = (double) my_conf->tags[tag_id].min_power;
+        n->max_error_power   = (double) my_conf->tags[tag_id].error_power;
+        n->max_temp          = my_conf->tags[tag_id].max_temp;
+        n->powercap          = my_conf->tags[tag_id].powercap;
+        n->max_powercap      = my_conf->tags[tag_id].max_powercap;
+        n->min_working_power = (uint32_t) ear_max(my_conf->tags[tag_id].min_working_power, 0);
+        n->max_avx512_freq   = my_conf->tags[tag_id].max_avx512_freq;
+        n->max_avx2_freq     = my_conf->tags[tag_id].max_avx2_freq;
 
         n->powercap_type  = my_conf->tags[tag_id].powercap_type;
         n->gpu_def_freq   = my_conf->tags[tag_id].gpu_def_freq;
@@ -602,7 +603,7 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
             // issues) or set it to DISABLED.
             verbose(VCCONF, "my_node_conf powercap is being AUTOCONFIGURED");
             int eargm_idx = get_eargm_idx(my_conf, my_conf->islands[island_idx].ranges[range_id].eargm_id);
-            if (eargm_idx > 0) {
+            if (eargm_idx >= 0) { // the first EARGM in ear.conf has index 0
                 int num_nodes = get_num_nodes_in_eargm(my_conf, my_conf->islands[island_idx].ranges[range_id].eargm_id);
                 if (num_nodes < 1) {
                     verbose(VCCONF, "\nno nodes found when configuring powercap, setting it to unlimited");
@@ -643,7 +644,7 @@ my_node_conf_t *get_my_node_conf(cluster_conf_t *my_conf, char *nodename)
             break;
     }
 
-    if (n->max_powercap <= 1 && my_conf->eargm.powercap_mode == SOFT_POWERCAP) {
+    if (n->max_powercap <= 1 && my_conf->eargm.powercap_mode == EARGM_SOFT_POWERCAP) {
         verbose(VCCONF,
                 "WARNING: max powercap is set to a non-valid value (%u) while the EARGM mode is set to soft powercap. "
                 "This configuration is not supported and the cluster powercap will not work.",
@@ -723,7 +724,7 @@ int is_authorized_usr_grp_acc(cluster_conf_t *my_conf, char *user, char *group, 
         s = getpwnam_r(user, &pwd, buf, bufsize, &result);
         if (result == NULL) {
             if (s == 0) {
-                verbose(0, "User not found\n");
+                verbose(0, "User %s not found\n", user);
             } else {
                 verbose(0, "getpwdnam_r failed with exit code %d\n", s);
                 free(buf);

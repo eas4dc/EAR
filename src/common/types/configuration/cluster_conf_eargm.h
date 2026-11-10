@@ -23,6 +23,17 @@
 
 #define DECON_LIMITS 3
 
+typedef enum {
+    HOMOGENEOUS,
+    MAX_POWER
+} soft_pc_policy_t;
+
+typedef enum {
+    EARGM_MONITOR       = 0,
+    EARGM_HARD_POWERCAP = 1,
+    EARGM_SOFT_POWERCAP = 2
+} pc_policy_t;
+
 typedef struct eargm_def {
     int id;
     uint port;
@@ -60,6 +71,7 @@ typedef struct eargm_conf {
     char energycap_action[GENERIC_NAME]; /* This action is execute in any WARNING level */
     char plugins[SZ_PATH_INCOMPLETE];
     uint use_log;
+    soft_pc_policy_t soft_pc_strategy;
 
     /* Specific EARGM definitions */
     int num_eargms;
@@ -73,5 +85,6 @@ void copy_eargmd_conf(eargm_conf_t *dest, eargm_conf_t *src);
 void set_default_eargm_conf(eargm_conf_t *eargmc);
 void print_eargm_def(eargm_def_t *conf, char tabulate);
 void print_eargm_conf(eargm_conf_t *conf);
+void powercap_type_to_str(uint unit, char *buff);
 
 #endif

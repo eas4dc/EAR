@@ -197,10 +197,13 @@ uint powermon_is_idle(uint get_lock);
 uint powermon_current_power();
 
 /** \todo Add a description. */
-uint powermon_get_powercap_def();
+uint powermon_get_baseline_powercap();
 
 /** \todo Add a description. */
 uint powermon_get_max_powercap_def();
+
+/** MIN_WORKING_POWER of the node's tag (0 = computed from the hardware) */
+uint powermon_get_min_working_power();
 
 /** \todo Add a description. */
 void powermon_report_event(uint event_type, llong value);

@@ -41,6 +41,7 @@
 #define CPUPOW_F_POWERCAP_SET(name)        state_t name (int domain, uint32_t *watts)
 #define CPUPOW_F_POWERCAP_RESET(name)      state_t name (int domain)
 #define CPUPOW_F_TDP_GET(name)             state_t name (int domain, uint32_t *watts)
+#define CPUPOW_F_LIMITS_GET(name)          state_t name (int domain, uint32_t *wmin, uint32_t *wmax)
 
 #define CPUPOW_DEFINES(name) \
 CPUPOW_F_LOAD                (mgt_cpupow_ ##name ##_load); \
@@ -51,7 +52,8 @@ CPUPOW_F_POWERCAP_IS_ENABLED (mgt_cpupow_ ##name ##_powercap_is_enabled); \
 CPUPOW_F_POWERCAP_GET        (mgt_cpupow_ ##name ##_powercap_get); \
 CPUPOW_F_POWERCAP_SET        (mgt_cpupow_ ##name ##_powercap_set); \
 CPUPOW_F_POWERCAP_RESET      (mgt_cpupow_ ##name ##_powercap_reset); \
-CPUPOW_F_TDP_GET             (mgt_cpupow_ ##name ##_tdp_get);
+CPUPOW_F_TDP_GET             (mgt_cpupow_ ##name ##_tdp_get); \
+CPUPOW_F_LIMITS_GET          (mgt_cpupow_ ##name ##_limits_get);
 
 typedef struct mgt_cpupow_ops_s {
     CPUPOW_F_GET_INFO            ((*get_info));
@@ -62,6 +64,7 @@ typedef struct mgt_cpupow_ops_s {
     CPUPOW_F_POWERCAP_SET        ((*powercap_set));
     CPUPOW_F_POWERCAP_RESET      ((*powercap_reset));
     CPUPOW_F_TDP_GET             ((*tdp_get));
+    CPUPOW_F_LIMITS_GET          ((*limits_get));
 } mgt_cpupow_ops_t;
 
 void mgt_cpupow_load(topology_t *tp, int eard);
@@ -86,6 +89,9 @@ state_t mgt_cpupow_powercap_reset(int domain, int reset_mode);
 state_t mgt_cpupow_tdp_get(int domain, uint32_t *watts);
 
 void mgt_cpupow_tdp_print(int domain, uint32_t *watts, char *buffer, int length);
+
+/** Lowest and highest power limit each device accepts (RAPL POWER_INFO). 0 means unknown. */
+state_t mgt_cpupow_limits_get(int domain, uint32_t *wmin, uint32_t *wmax);
 
 void mgt_cpupow_tdp_tostr(int domain, uint32_t *watts, char *buffer, int length);
 

@@ -28,9 +28,8 @@ state_t dcgmi_lib_hopper_init(uint api, uint all_events, dcgmi_lib_t *dcgmi_data
         }
         debug("dcgmi_lib_data_alloc");
         if (state_fail(dcgmi_lib_data_alloc(dcgmi_data, 1))) {
-            char err_msg[64];
-            snprintf(err_msg, sizeof(err_msg), "Allocating dcgmi lib data (%s)", state_msg);
-            return_msg(EAR_ERROR, err_msg);
+            snprintf(state_buffer, sizeof(state_buffer), "Allocating dcgmi lib data (%s)", state_msg);
+            return_msg(EAR_ERROR, state_buffer);
         }
 
         if (all_events) {
@@ -152,3 +151,35 @@ state_t dcgmi_lib_hopper_fp_coeffs(int **coeffs, size_t coeffs_length)
 
     return EAR_SUCCESS;
 }
+
+#if TEST
+#include <cmocka.h>
+
+state_t dcgmi_lib_data_alloc(dcgmi_lib_t *dcgmi_lib_data, int set_count)
+{
+    state_msg           = mock_ptr_type(char *); //
+    state_t return_code = mock_int();
+    return return_code;
+}
+
+static void test_alloc_error_fills_state_buff(void **state)
+{
+    will_return_ptr_type(dcgmi_lib_data_alloc, Generr.alloc_error, const char *);
+    will_return_int(dcgmi_lib_data_alloc, EAR_ERROR);
+
+    dcgmi_lib_t dcgmi_data;
+    int event_info[DCGMI_LIB_SUPPORTED_EVENTS][2];
+
+    assert_int_equal(dcgmi_lib_hopper_init(API_DCGMI, 0, &dcgmi_data, &event_info), EAR_ERROR);
+    assert_string_equal(state_msg, "Allocating dcgmi lib data (Error ocurred during allocation)");
+}
+
+int main(int argc, char **argv)
+{
+    const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_alloc_error_fills_state_buff),
+    };
+
+    return cmocka_run_group_tests(tests, NULL, NULL);
+}
+#endif

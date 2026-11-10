@@ -221,8 +221,7 @@ static void manage_sockets()
                         }
                     }
                 } while (state_ok(s));
-                // Handle data transfers
-            } else {
+            } else { // sync_fd_is_new()
                 if (state_ok(s = sockets_recv_header(i, &type, &input_size, &extra, 0))) {
                     if (state_ok(s = sockets_recv(i, input_buffer, input_size, 0))) {
                         s = storage_sample_receive(i, type, input_buffer, extra);

@@ -164,6 +164,8 @@ state_t ear_node_reset_default_powercap();
 state_t ear_cluster_reset_default_powercap(cluster_conf_t *my_cluster_conf);
 
 state_t ear_cluster_release_idle_power(cluster_conf_t *my_cluster_conf, pc_release_data_t *released);
+state_t ear_nodelist_release_idle_power(cluster_conf_t *my_cluster_conf, pc_release_data_t *released, char **nodes,
+                                        int num_nodes);
 
 /** Gets instant eards power */
 state_t ear_node_get_power(power_check_t *power);

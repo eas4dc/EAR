@@ -723,8 +723,9 @@ void dyncon_get_powerstatus(int fd, request_t *command)
     process_pmgt_status(&status[return_status - 1], &p_status);
 
     status_data = mem_alloc_char_powercap_status(status);
-    send_data(fd, sizeof(powercap_status_t) * return_status + ((sizeof(uint) * 2 + sizeof(int)) * (status->num_greedy)),
-              status_data, EAR_TYPE_POWER_STATUS);
+    send_data(
+        fd, sizeof(powercap_status_t) * return_status + ((sizeof(greedy_bytes_t) + sizeof(int)) * (status->num_greedy)),
+        status_data, EAR_TYPE_POWER_STATUS);
 
     free(status_data);
     debug("Returning from dyncon_get_powerstatus");

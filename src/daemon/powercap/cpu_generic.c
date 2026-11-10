@@ -26,6 +26,7 @@
 #include <common/system/monitor.h>
 #include <common/system/time.h>
 
+#include <metrics/cpufreq/cpufreq.h>
 #include <metrics/energy_cpu/energy_cpu.h>
 
 #include <management/cpufreq/cpufreq.h>
@@ -49,14 +50,32 @@ static int32_t node_size      = 0;
 static uint32_t energy_packs  = 0;
 static uint32_t *cpu_power    = NULL;
 static uint32_t *dram_power   = NULL;
-static uint64_t *c_req_f      = NULL;
-static uint64_t *energy_ct1   = NULL;
-static uint64_t *energy_ct2   = NULL;
-static uint64_t *energy_diff  = NULL;
-static pstate_t *av_pstates   = NULL;
-static pstate_t *curr_pstates = NULL;
-static timestamp last_time    = {0};
-static timestamp curr_time    = {0};
+/* RAPL POWER_INFO range per device (0 = unknown) */
+static uint32_t *cpu_min = NULL, *cpu_max = NULL, *dram_min = NULL, *dram_max = NULL;
+/* CPU domain: power vs average effective frequency, and the most it can be capped at */
+static power_estimator_t cpu_est;
+static uint32_t cpu_domain_max_w = 0;
+static uint64_t *c_req_f         = NULL;
+static uint64_t *energy_ct1      = NULL;
+static uint64_t *energy_ct2      = NULL;
+static uint64_t *energy_diff     = NULL;
+static pstate_t *av_pstates      = NULL;
+static pstate_t *curr_pstates    = NULL;
+/* Effective frequency (APERF/MPERF): the cpufreq driver only reports the requested one */
+static cpufreq_t *eff_last   = NULL;
+static cpufreq_t *eff_curr   = NULL;
+static ulong *eff_khz        = NULL;
+static pstate_t *eff_pstates = NULL;
+static bool eff_valid        = false; /* eff_pstates hold the last window's reading */
+static timestamp last_time   = {0};
+static timestamp curr_time   = {0};
+static float last_power      = -1;
+/* Shortest window power is measured over. Half the monitor period, so clock and
+ * scheduling jitter can't make a tick (~500 ms apart) skip its refresh: every tick
+ * measures, calls in between (the same tick's second pass, EARGM every 10-30 s) reuse
+ * a value at most one period old. Without the monitor (no GPUs) EARGM is the only
+ * caller and every call measures over its whole period */
+#define POWER_WINDOW_MS (CHECK_STATUS_PERIOD / 2)
 
 static suscription_t *sus_cpu_pc;
 
@@ -89,6 +108,11 @@ state_t enable(suscription_t *sus)
     mgt_cpufreq_data_alloc(&av_pstates, NULL);
     mgt_cpufreq_data_alloc(&curr_pstates, NULL);
     mgt_cpufreq_get_available_list(NULL, (const pstate_t **) &av_pstates, &num_pstates);
+    cpufreq_load(&node_desc, NO_EARD);
+    cpufreq_data_alloc(&eff_last, &eff_khz);
+    cpufreq_data_alloc(&eff_curr, NULL);
+    mgt_cpufreq_data_alloc(&eff_pstates, NULL);
+    cpufreq_read(eff_last);
     c_req_f   = calloc(MAX_CPUS_SUPPORTED, sizeof(uint64_t));
     node_size = node_desc.cpu_count;
 
@@ -97,6 +121,7 @@ state_t enable(suscription_t *sus)
     energy_cpu_data_alloc(NULL, (ullong **) &energy_ct2, NULL);
     energy_cpu_data_alloc(NULL, (ullong **) &energy_diff, NULL);
     energy_cpu_read(NULL, (ullong *) energy_ct1);
+    timestamp_getfast(&last_time);
 
     debug("Energy monitoring initialized: %u packs", energy_packs);
     for (int i = 0; i < energy_packs; i++) {
@@ -117,6 +142,29 @@ state_t enable(suscription_t *sus)
 
     mgt_cpupow_tdp_get(CPUPOW_SOCKET, cpu_power);
     mgt_cpupow_tdp_get(CPUPOW_DRAM, dram_power);
+    cpu_min  = calloc(num_cpus, sizeof(uint32_t));
+    cpu_max  = calloc(num_cpus, sizeof(uint32_t));
+    dram_min = calloc(num_dram, sizeof(uint32_t));
+    dram_max = calloc(num_dram, sizeof(uint32_t));
+    mgt_cpupow_limits_get(CPUPOW_SOCKET, cpu_min, cpu_max);
+    mgt_cpupow_limits_get(CPUPOW_DRAM, dram_min, dram_max);
+    /* range from RAPL POWER_INFO, the TDP as maximum when it reports none; with neither the
+     * domain has no known maximum */
+    powercap_max_or_tdp(cpu_max, cpu_power, num_cpus);
+    powercap_max_or_tdp(dram_max, dram_power, num_dram);
+    uint32_t pkg_min_w = 0, pkg_max_w = 0, dram_max_w = 0;
+    int max_known = 1;
+    for (int32_t i = 0; i < num_cpus; i++) {
+        pkg_min_w += cpu_min[i];
+        pkg_max_w += cpu_max[i];
+        max_known &= (cpu_max[i] > 0);
+    }
+    for (int32_t i = 0; i < num_dram; i++) {
+        dram_max_w += dram_max[i];
+        max_known &= (dram_max[i] > 0);
+    }
+    cpu_domain_max_w = max_known ? pkg_max_w + dram_max_w : UINT32_MAX;
+    power_estimator_init(&cpu_est, pkg_min_w, pkg_max_w, av_pstates[num_pstates - 1].khz, av_pstates[0].khz);
 
     for (int32_t i = 0; i < num_cpus; i++) {
         total_cpu_power += cpu_power[i];
@@ -153,14 +201,24 @@ void plugin_get_settings(domain_settings_t *s)
     memcpy(s, &settings, sizeof(domain_settings_t));
 }
 
+/* Clamps a device cap to its RAPL range when known (the firmware would hold it there anyway) */
+static uint32_t _clamp_device(uint32_t w, uint32_t wmin, uint32_t wmax)
+{
+    if (wmax && w > wmax)
+        w = wmax;
+    if (wmin && w < wmin)
+        w = wmin;
+    return w;
+}
+
 static state_t _set_per_device_powercap_value(uint pid, uint32_t *limit, uint32_t *cpu_util)
 {
     for (int32_t i = 0; i < num_cpus; i++) {
-        if (limit[i] == POWER_CAP_UNLIMITED) {
-            limit[i] = POWERCAP_DISABLE;
-        }
-        cpu_power[i] = limit[i];
-        powercap_set_stored_device_value(DOMAIN_CPU, i, cpu_power[i]);
+        /* RAPL gets POWERCAP_DISABLE, the storage keeps POWER_CAP_UNLIMITED as verify reads it;
+         * the caller's array is left alone */
+        cpu_power[i] =
+            (limit[i] == POWER_CAP_UNLIMITED) ? POWERCAP_DISABLE : _clamp_device(limit[i], cpu_min[i], cpu_max[i]);
+        powercap_set_stored_device_value(DOMAIN_CPU, i, (limit[i] == POWER_CAP_UNLIMITED) ? limit[i] : cpu_power[i]);
         debug("power assigned to cpu%d: %u", i, cpu_power[i]);
     }
     state_t ret = EAR_ERROR;
@@ -182,16 +240,21 @@ static state_t _set_single_powercap_value(uint pid, uint32_t limit, uint32_t *cp
         powercap_update_all_device_storage(DOMAIN_CPU, POWER_CAP_UNLIMITED);
         powercap_update_all_device_storage(DOMAIN_DRAM, POWER_CAP_UNLIMITED);
         mgt_cpupow_powercap_reset(CPUPOW_DRAM, RESET_DEFAULT);
-        return mgt_cpupow_powercap_reset(CPUPOW_SOCKET, RESET_DEFAULT);
+        state_t ret = mgt_cpupow_powercap_reset(CPUPOW_SOCKET, RESET_DEFAULT);
+        if (state_ok(ret))
+            current_limit = POWER_CAP_UNLIMITED; // the next real limit must be applied again
+        return ret;
     }
 
+    /* a device cap of 0 W, or 1 W (the UNLIMITED sentinel), is never programmed */
     for (int32_t i = 0; i < num_cpus; i++) {
-        cpu_power[i] = (limit * cpu_weight) / num_cpus;
+        cpu_power[i] = _clamp_device(ear_max((uint32_t) ((limit * cpu_weight) / num_cpus), 2), cpu_min[i], cpu_max[i]);
         powercap_set_stored_device_value(DOMAIN_CPU, i, cpu_power[i]);
         debug("power assigned to cpu%d: %u", i, cpu_power[i]);
     }
     for (int32_t i = 0; i < num_dram; i++) {
-        dram_power[i] = (limit * dram_weight) / num_dram;
+        dram_power[i] =
+            _clamp_device(ear_max((uint32_t) ((limit * dram_weight) / num_dram), 2), dram_min[i], dram_max[i]);
         powercap_set_stored_device_value(DOMAIN_DRAM, i, dram_power[i]);
         debug("power assigned to dram%d: %u", i, dram_power[i]);
     }
@@ -201,11 +264,12 @@ static state_t _set_single_powercap_value(uint pid, uint32_t limit, uint32_t *cp
         debug("error setting CPU powercap");
         return ret;
     }
-    current_limit = limit; // TODO: not exact, we don't know if dram will succeed.
-    ret           = mgt_cpupow_powercap_set(CPUPOW_DRAM, dram_power);
+    ret = mgt_cpupow_powercap_set(CPUPOW_DRAM, dram_power);
     if (ret == EAR_ERROR) {
         debug("error setting DRAM powercap");
+        return ret; // current_limit unchanged: the same limit is retried
     }
+    current_limit = limit;
 
     return ret;
 }
@@ -231,7 +295,7 @@ void set_status(uint status)
     current_status = status;
 }
 
-uint get_powercap_stragetgy()
+uint get_powercap_strategy()
 {
     return PC_POWER;
 }
@@ -247,97 +311,43 @@ void set_app_req_freq(ulong *f)
     memcpy(c_req_f, f, sizeof(ulong) * MAX_CPUS_SUPPORTED);
 }
 
-/* Returns true if some pstate in p1 is higher than p2 */
-static int _cmp_curr_pstate_with_target_freq(pstate_t *curr_pstate, uint64_t *target)
+/* P-state index (0 = fastest) each CPU runs at and the one its target frequency maps to */
+static void _pstate_indices(pstate_t *curr, uint64_t *target_khz, uint *cur, uint *tgt)
 {
-    for (int32_t i = 0; i < MAX_CPUS_SUPPORTED && i < num_cpus; i++) {
+    for (int32_t i = 0; i < node_size && i < MAX_CPUS_SUPPORTED; i++) {
         uint32_t t_pstate = 0;
-        mgt_cpufreq_get_index(NULL, target[i], &t_pstate, true);
-        if (t_pstate > curr_pstate[i].idx)
+        mgt_cpufreq_get_index(NULL, target_khz[i], &t_pstate, true);
+        cur[i] = curr[i].idx;
+        tgt[i] = t_pstate;
+    }
+}
+
+/* Returns true if some CPU runs slower (higher P-state index) than its target */
+static int _below_target(uint *cur, uint *tgt)
+{
+    for (int32_t i = 0; i < node_size && i < MAX_CPUS_SUPPORTED; i++) {
+        if (cur[i] > tgt[i])
             return 1;
     }
     return 0;
 }
 
-bool _pstates_are_equal(pstate_t *p1, uint64_t *p2)
+/* Average effective and average target frequency of the node's CPUs (kHz) */
+static void _avg_khz(pstate_t *run, uint64_t *target_khz, ulong *eff, ulong *tgt)
 {
-    for (int32_t i = 0; i < MAX_CPUS_SUPPORTED; i++) {
-        if (p1[i].idx != p2[i])
-            return false;
+    uint64_t e = 0, t = 0;
+    int32_t n = ear_min(node_size, MAX_CPUS_SUPPORTED);
+    for (int32_t i = 0; i < n; i++) {
+        e += run[i].khz;
+        t += target_khz[i];
     }
-
-    return true;
-}
-
-/* Computes how many cpus can reduce one pstate with the given limit */
-void num_cpus_to_reduce_pstates(uint *tmp, uint64_t *target, uint *changes, uint *changes_max)
-{
-    int i, logical_pstates;
-    *changes     = 0;
-    *changes_max = 0;
-    ulong tmp_freq, next_freq;
-
-    /* A logical pstate is a diff of 100000 MHz and is an average increase of 6 Watts
-     * (except the first pstate). In some cases there is a jump in available frequencies
-     * for a CPU of 2 logical p_states (and only 1 "real") so we use the logical steps
-     * to compute the necessary power. */
-    for (i = 0; i < node_size; i++) {
-        if (tmp[i] == 0)
-            continue; // cannot reduce further
-        tmp_freq        = frequency_pstate_to_freq(tmp[i]);
-        next_freq       = frequency_pstate_to_freq(tmp[i] - 1);
-        logical_pstates = (next_freq - tmp_freq) / 100000;
-
-        if (tmp[i] > target[i]) {
-            /* *changes is from pstate 3 --> 2 or lower, *changes_max is from 2 --> 1 or 1 --> 0 */
-            if (tmp[i] <= 2)
-                *changes_max += 1;
-            else
-                *changes += logical_pstates;
-        }
-    }
-}
-
-/* Reduce 1 pstate in f, whith a limit */
-static void reduce_one_pstate(uint *f, uint64_t *limit)
-{
-    int i;
-    for (i = 0; i < MAX_CPUS_SUPPORTED; i++) {
-        if (f[i] > limit[i])
-            f[i]--;
-    }
-}
-
-#define PSTATE_STEP  8
-#define PSTATE0_STEP 30
-
-// moved here from powercap_status.c as it is only used in dvfs cases
-static uint32_t _compute_extra_power(uint current_power, uint max_steps, pstate_t *current, uint64_t *target)
-{
-    uint total = 0, changes, changes_max;
-    uint tmp[MAX_CPUS_SUPPORTED];
-    // no pstate_change
-    if (_pstates_are_equal(current, target))
-        return 0;
-    // vector_print_pstates(current, node_size);
-    // vector_print_pstates(target, node_size);
-
-    memcpy(tmp, current, sizeof(uint) * MAX_CPUS_SUPPORTED);
-    do {
-        num_cpus_to_reduce_pstates(tmp, target, &changes, &changes_max);
-        if (changes || changes_max) {
-            total += (PSTATE_STEP * (float) changes / (float) node_size) +
-                     (PSTATE0_STEP * (float) changes_max / (float) node_size);
-            reduce_one_pstate(tmp, target);
-        }
-        max_steps--;
-
-    } while ((changes || changes_max) &&
-             (max_steps > 0)); // if no more changes can be done or we pass the max number of steps
-    return total;
+    *eff = n ? e / n : 0;
+    *tgt = n ? t / n : 0;
 }
 
 #define MIN_CPU_POWER_MARGIN 10
+/* Power above this fraction of the limit means the cap is what holds the CPUs back */
+#define POWER_AT_LIMIT 0.97
 
 /* Returns 0 when 1) No info, 2) No limit 3) We cannot share power.
  *
@@ -349,56 +359,79 @@ static uint32_t _compute_extra_power(uint current_power, uint max_steps, pstate_
  * X_ask_def means we must ask for our power  */
 uint get_powercap_status(domain_status_t *status)
 {
+    status->ok         = PC_STATUS_OK;
+    status->exceed     = 0;
+    status->stress     = 0;
+    status->requested  = 0;
+    status->current_pc = current_limit;
     if (!pc_on)
         return 0;
     /* Return 0 means we cannot release power */
     if (current_limit == POWER_CAP_UNLIMITED)
         return 0;
 
-    status->ok         = PC_STATUS_OK;
-    status->exceed     = 0;
-    status->stress     = 0;
-    status->requested  = 0;
-    status->current_pc = current_limit;
-
     memset(c_req_f, 0, sizeof(ulong) * MAX_CPUS_SUPPORTED);
     pmgt_get_app_req_freq(DOMAIN_CPU, c_req_f, node_size);
     mgt_cpufreq_get_current_list(NULL, curr_pstates);
 
-    status->stress =
-        powercap_get_stress(av_pstates[0].khz, av_pstates[num_pstates - 1].khz, c_req_f[0], curr_pstates[0].khz);
-
-    /* Compute current power */
-    if (energy_cpu_read_copy(NULL, (ullong *) energy_ct2, (ullong *) energy_ct1, (ullong *) energy_diff) == EAR_ERROR) {
-        debug("Error reading energy data");
-        return 0;
-    }
+    /* Compute current power and effective frequency over the same window. The monitor
+     * asks twice in the same tick (CHECK_ASK_DEFAULT then CHECK_POWER_RED) and EARGM
+     * asks at any time: timestamp_getfast() is CLOCK_MONOTONIC_COARSE, so a back-to-back
+     * call sees no elapsed time and reads 0 W. Both are reused until POWER_WINDOW_MS has
+     * elapsed, so "below target" and "power at the limit" judge the same interval */
     timestamp_getfast(&curr_time);
-
-    // DEBUG: Print all the energy values
-    debug("=== Energy Debug Info ===");
-    debug("energy_packs: %u", energy_packs);
     double time_diff_ms = timestamp_diff(&curr_time, &last_time, TIME_MSECS);
-    double time_diff_s  = time_diff_ms / 1000.0;
-    debug("Time difference: %.3f ms (%.6f s)", time_diff_ms, time_diff_s);
-
-    double energy = 0;
-    for (int i = 0; i < energy_packs; i++) {
-        debug("Pack[%d]: ct1=%lu, ct2=%lu, diff=%lu", i, energy_ct1[i], energy_ct2[i], energy_diff[i]);
-        energy += energy_diff[i];
+    if (time_diff_ms >= POWER_WINDOW_MS || last_power < 0) {
+        /* RAPL throttling only shows in the effective frequency: judge it from APERF/MPERF */
+        ulong eff_avg = 0;
+        eff_valid     = eff_khz != NULL && state_ok(cpufreq_read_copy(eff_curr, eff_last, eff_khz, &eff_avg));
+        if (eff_valid) {
+            for (int32_t i = 0; i < node_size && i < MAX_CPUS_SUPPORTED; i++) {
+                uint idx = 0;
+                mgt_cpufreq_get_index(NULL, eff_khz[i], &idx, true);
+                eff_pstates[i].idx = idx;
+                eff_pstates[i].khz = eff_khz[i];
+            }
+        }
+        if (energy_cpu_read_copy(NULL, (ullong *) energy_ct2, (ullong *) energy_ct1, (ullong *) energy_diff) ==
+            EAR_ERROR) {
+            debug("Error reading energy data");
+            return 0;
+        }
+        double energy = 0;
+        for (int i = 0; i < energy_packs; i++)
+            energy += energy_diff[i];
+        last_power = energy_cpu_compute_power(energy, time_diff_ms / 1000.0);
+        last_time  = curr_time;
+        ulong eff_khz_avg, tgt_khz_avg;
+        _avg_khz(eff_valid ? eff_pstates : curr_pstates, c_req_f, &eff_khz_avg, &tgt_khz_avg);
+        power_estimator_sample(&cpu_est, last_power, eff_khz_avg);
     }
-    float power = energy_cpu_compute_power(energy, time_diff_s);
-    debug("Computed power: %.2f W", power);
+    pstate_t *run_pstates = eff_valid ? eff_pstates : curr_pstates;
 
-    last_time = curr_time;
+    status->stress =
+        powercap_get_stress(av_pstates[0].khz, av_pstates[num_pstates - 1].khz, c_req_f[0], run_pstates[0].khz);
+
+    float power = last_power;
 
     debug("Current power: %.2f, current_limit: %u", power, current_limit);
 
-    /* Running below target settings, requesting more power */
-    if (_cmp_curr_pstate_with_target_freq(curr_pstates, c_req_f)) {
-        status->ok        = PC_STATUS_GREEDY;
-        status->requested = _compute_extra_power(power, num_pstates, av_pstates, c_req_f);
-        return 0;
+    /* Running below target settings because of the cap (power at the limit): requesting more power */
+    uint cur_idx[MAX_CPUS_SUPPORTED], tgt_idx[MAX_CPUS_SUPPORTED];
+    _pstate_indices(run_pstates, c_req_f, cur_idx, tgt_idx);
+    if (_below_target(cur_idx, tgt_idx) && power >= current_limit * POWER_AT_LIMIT) {
+        /* the watts the target frequency costs, from the power drawn now */
+        ulong eff_khz_avg, tgt_khz_avg;
+        _avg_khz(run_pstates, c_req_f, &eff_khz_avg, &tgt_khz_avg);
+        double at_target = power_estimator_at(&cpu_est, power, eff_khz_avg, ear_max(tgt_khz_avg, eff_khz_avg));
+        uint need        = (at_target > current_limit) ? (uint) (at_target - current_limit) : 0;
+        uint requested   = powercap_device_request(cpu_domain_max_w, current_limit, need);
+        /* at the domain maximum more watts can't help: not greedy */
+        if (requested) {
+            status->ok        = PC_STATUS_GREEDY;
+            status->requested = ear_min(requested, UINT16_MAX);
+            return 0;
+        }
     }
 
     /* Calculate releasable power */

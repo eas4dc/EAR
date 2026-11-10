@@ -29,10 +29,12 @@
 #include <common/system/monitor.h>
 
 #include <management/cpufreq/frequency.h>
+#include <management/cpupow/cpupow.h>
 
 #include <metrics/energy/cpu.h>
 #include <metrics/energy_cpu/energy_cpu.h>
 
+#include <daemon/powercap/powercap.h>
 #include <daemon/powercap/powercap_mgt.h>
 #include <daemon/powercap/powercap_status.h>
 #include <daemon/powercap/powercap_status_conf.h>
@@ -66,6 +68,11 @@ static suscription_t *sus_dvfs;
 static uint dvfs_pc_secs = 0, num_packs;
 static unsigned long long *values_rapl_init, *values_rapl_end, *values_diff;
 static float power_rapl, my_limit;
+/* CPU domain: power vs average frequency, and the most it can be capped at (#814) */
+static power_estimator_t dvfs_est;
+static uint32_t dvfs_domain_max_w = UINT32_MAX;
+/* per-socket share of the limit, as pmgt reads and verifies it */
+static uint32_t dvfs_dev_pc[MAX_PACKAGES];
 static uint *prev_pstate;
 static int32_t prev_counter;
 static ulong *c_freq;
@@ -181,6 +188,43 @@ void num_cpus_to_reduce_pstates(uint *tmp, uint *target, uint *changes, uint *ch
 }
 
 // moved here from powercap_status.c as it is only used in dvfs cases
+/* PKG/DRAM range from RAPL POWER_INFO, the TDP as maximum when it reports none; with
+ * neither the domain has no known maximum */
+static void init_power_estimator()
+{
+    uint32_t tdp[MAX_PACKAGES] = {0}, wmin[MAX_PACKAGES] = {0}, wmax[MAX_PACKAGES] = {0};
+    uint32_t dtdp[MAX_PACKAGES] = {0}, dmin[MAX_PACKAGES] = {0}, dmax[MAX_PACKAGES] = {0};
+    uint n             = ear_min(node_desc.socket_count, MAX_PACKAGES);
+    uint32_t pkg_min_w = 0, pkg_max_w = 0, dram_max_w = 0;
+    int max_known = 1;
+
+    mgt_cpupow_load(&node_desc, NO_EARD);
+    mgt_cpupow_tdp_get(CPUPOW_SOCKET, tdp);
+    mgt_cpupow_tdp_get(CPUPOW_DRAM, dtdp);
+    mgt_cpupow_limits_get(CPUPOW_SOCKET, wmin, wmax);
+    mgt_cpupow_limits_get(CPUPOW_DRAM, dmin, dmax);
+    powercap_max_or_tdp(wmax, tdp, n);
+    powercap_max_or_tdp(dmax, dtdp, n);
+    for (uint s = 0; s < n; s++) {
+        pkg_min_w += wmin[s];
+        pkg_max_w += wmax[s];
+        dram_max_w += dmax[s];
+        max_known &= (wmax[s] > 0 && dmax[s] > 0);
+    }
+    dvfs_domain_max_w = max_known ? pkg_max_w + dram_max_w : UINT32_MAX;
+    power_estimator_init(&dvfs_est, pkg_min_w, pkg_max_w, frequency_pstate_to_freq(num_pstates - 1),
+                         frequency_pstate_to_freq(0));
+}
+
+/* Average of a per-CPU frequency list (kHz) */
+static ulong avg_khz(ulong *f)
+{
+    uint64_t sum = 0;
+    for (int32_t i = 0; i < node_size; i++)
+        sum += f[i];
+    return node_size ? sum / node_size : 0;
+}
+
 uint compute_extra_power(uint current_power, uint max_steps, uint *current, uint *target)
 {
     uint total = 0, changes, changes_max;
@@ -252,6 +296,7 @@ state_t dvfs_pc_thread_init(void *p)
 
     // read initial values
     energy_cpu_read(NULL, values_rapl_init);
+    timestamp_get(&last_dvfs_time); /* the power window starts with the energy baseline */
     dvfs_monitor_initialized = 1;
     return EAR_SUCCESS;
 }
@@ -279,6 +324,8 @@ state_t dvfs_pc_thread_main(void *p)
 
     if (current_dvfs_pc == POWER_CAP_UNLIMITED || current_dvfs_pc == 0) {
         debug("powercap unlimited or disabled");
+        /* keep the energy baseline fresh: the first capped period must not average the uncapped ones */
+        energy_cpu_read(NULL, values_rapl_init);
         return EAR_SUCCESS;
     }
 
@@ -304,6 +351,8 @@ state_t dvfs_pc_thread_main(void *p)
 
     if (power_rapl < 0.5)
         return EAR_SUCCESS;
+    frequency_get_cpufreq_list(node_size, c_freq);
+    power_estimator_sample(&dvfs_est, power_rapl, avg_khz(c_freq));
 
     /* Apply limits */
     frequency_get_cpufreq_list(node_size, c_freq);
@@ -420,6 +469,7 @@ state_t enable(suscription_t *sus)
     num_pstates = frequency_get_num_pstates();
 
     debug("DVFS: found %lu pstates", num_pstates);
+    init_power_estimator();
 
     /* node_size or MAX_CPUS_SUPPORTED */
     c_freq       = calloc(MAX_CPUS_SUPPORTED, sizeof(ulong));
@@ -478,16 +528,23 @@ state_t set_powercap_value(uint pid, uint domain, uint *limit, uint *cpu_util)
     int i;
     /* Set data */
     debug("%sDVFS:set_powercap_value %u%s", COL_BLU, *limit, COL_CLR);
+    int32_t sockets = ear_min(node_desc.socket_count, MAX_PACKAGES);
     if (domain == LEVEL_DEVICE) {
         uint32_t new_limit = 0;
-        for (int32_t i = 0; i < node_size; i++) {
+        /* one value per socket (pmgt's per-device layout), not per CPU */
+        for (int32_t i = 0; i < sockets; i++) {
             new_limit += limit[i];
+            dvfs_dev_pc[i] = limit[i];
         }
         warning("Per device powercap not implemented for DVFS, adding up the values (new limit %u)", new_limit);
         default_dvfs_pc = new_limit;
     } else {
         default_dvfs_pc = *limit;
+        for (int32_t i = 0; i < sockets; i++)
+            dvfs_dev_pc[i] = (*limit <= POWER_CAP_UNLIMITED) ? *limit : *limit / sockets;
     }
+    for (int32_t i = 0; i < sockets; i++)
+        powercap_set_stored_device_value(DOMAIN_CPU, i, dvfs_dev_pc[i]);
     current_dvfs_pc = default_dvfs_pc;
     dvfs_status     = PC_STATUS_OK;
     dvfs_ask_def    = 0;
@@ -545,7 +602,8 @@ state_t get_powercap_value(uint pid, uint32_t *powercap)
 {
     /* copy data */
     // debug("DVFS:get_powercap_value");
-    *powercap = current_dvfs_pc;
+    for (int32_t i = 0; i < ear_min(node_desc.socket_count, MAX_PACKAGES); i++)
+        powercap[i] = dvfs_dev_pc[i];
     return EAR_SUCCESS;
 }
 
@@ -642,14 +700,24 @@ uint get_powercap_status(domain_status_t *status)
         if (dvfs_ask_def && current_dvfs_pc < default_dvfs_pc)
             status->ok = PC_STATUS_ASK_DEF;
         else {
-            status->requested = compute_extra_power(power_rapl, num_pstates, c_pstate_pc, t_pstate_pc);
+            /* the watts the target frequency costs, from the power drawn now */
+            ulong eff = avg_khz(c_freq), tgt = avg_khz(c_req_f);
+            double at_target  = power_estimator_at(&dvfs_est, power_rapl, eff, ear_max(tgt, eff));
+            uint need         = (at_target > current_dvfs_pc) ? (uint) (at_target - current_dvfs_pc) : 0;
+            status->requested = ear_min(powercap_device_request(dvfs_domain_max_w, current_dvfs_pc, need), UINT16_MAX);
             debug("DVFS: Requested power %u", status->requested);
-            status->ok = PC_STATUS_GREEDY;
+            status->ok = status->requested ? PC_STATUS_GREEDY : PC_STATUS_OK;
         }
         debug("DVFS status %u", status->ok);
         return 0; /* Pending for NJObs */
     }
-    ctbr           = (my_limit - power_rapl) * 0.5;
+    /* at or over the limit there is nothing to release (the limit may have changed since the last tick) */
+    float limit = (float) current_dvfs_pc;
+    if (power_rapl >= limit) {
+        debug("DVFS status OK (power %.1f >= limit %.1f)", power_rapl, limit);
+        return 0;
+    }
+    ctbr           = (limit - power_rapl) * 0.5;
     status->ok     = PC_STATUS_RELEASE;
     status->exceed = ctbr;
     if (ctbr < MIN_CPU_POWER_MARGIN) {

@@ -26,6 +26,7 @@ eargmd_DEPS = \
 eargmd_OBJS += \
     cluster_powercap.o \
     cluster_energycap.o \
+    synthetic_powercap.o \
     meta_eargm.o \
     eargm_ext_rm.o
 

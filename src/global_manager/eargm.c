@@ -610,6 +610,9 @@ void usage(char *app)
     verbose(0, "--powercap [limit]\t\t Sets the total power budget for the EARGM to distribute");
     verbose(0, "--powercap-policy [pol]\t\t Selects the distribution policy [hard, soft, monitor]");
     verbose(0, "--powercap-period [seconds]\t\t Time between checks of power status");
+    verbose(0, "--synthetic-avg-power [watts]\t\t Run non-meta EARGM without EARD using X watts per node");
+    verbose(0, "--synthetic-csv [path]\t\t Run non-meta EARGM from a CSV trace: "
+               "iteration,num_active_nodes,requested_power_per_node");
     verbose(0, "--suspend-perc [90]\t\t Percentage of power that triggers the suspend_action");
     verbose(0, "--suspend-action [/path/to/action]\t\t Program to be executed when suspend_perc is reached (once)");
     verbose(0, "--resume-perc [60]\t\t Percentage of power that triggers the suspend_action");
@@ -633,6 +636,9 @@ typedef struct eargm_preconf {
     char *suspend_action;
     int32_t resume_perc;
     char *resume_action;
+    bool synthetic_mode;
+    ulong synthetic_avg_power;
+    char *synthetic_csv_path;
 } eargm_preconf_t;
 
 void update_eargm_with_preconf(cluster_conf_t *conf, eargm_preconf_t *preconf)
@@ -687,6 +693,8 @@ bool parse_args(int32_t argc, char *argv[], eargm_preconf_t *preconf)
         {"conf-path", required_argument, 0, 'c'},
         {"powercap", required_argument, 0, 'p'},
         {"powercap-period", required_argument, 0, 'D'},
+        {"synthetic-avg-power", required_argument, 0, 'A'},
+        {"synthetic-csv", required_argument, 0, 'C'},
         {"powercap-policy", required_argument, 0, 'P'},
         {"suspend-perc", required_argument, 0, 's'},
         {"suspend-action", required_argument, 0, 'S'},
@@ -695,7 +703,7 @@ bool parse_args(int32_t argc, char *argv[], eargm_preconf_t *preconf)
     };
 
     while (1) {
-        c = getopt_long(argc, argv, "hn:v:c:p:P:D:s:S:r:R:", long_options, NULL);
+        c = getopt_long(argc, argv, "hn:v:c:p:P:D:A:C:s:S:r:R:", long_options, NULL);
         if (c == -1)
             break;
         switch (c) {
@@ -719,16 +727,25 @@ bool parse_args(int32_t argc, char *argv[], eargm_preconf_t *preconf)
                 break;
             case 'P':
                 if (!strcasecmp(optarg, "MONITORING")) {
-                    preconf->powercap_policy = MONITOR;
+                    preconf->powercap_policy = EARGM_MONITOR;
                 } else if (!strcasecmp(optarg, "HARD")) {
-                    preconf->powercap_policy = HARD_POWERCAP;
+                    preconf->powercap_policy = EARGM_HARD_POWERCAP;
                 } else if (!strcasecmp(optarg, "SOFT")) {
-                    preconf->powercap_policy = SOFT_POWERCAP;
+                    preconf->powercap_policy = EARGM_SOFT_POWERCAP;
                 }
                 read = true;
                 break;
             case 'D':
                 preconf->powercap_period = atoi(optarg);
+                break;
+            case 'A':
+                preconf->synthetic_mode      = true;
+                preconf->synthetic_avg_power = strtoul(optarg, NULL, 10);
+                read                         = true;
+                break;
+            case 'C':
+                preconf->synthetic_csv_path = optarg;
+                read                        = true;
                 break;
             case 's':
                 preconf->suspend_perc = atof(optarg);
@@ -816,6 +833,17 @@ int main(int argc, char *argv[])
 
     if (preconf_read) {
         update_eargm_with_preconf(&my_cluster_conf, &preconf);
+        if (preconf.synthetic_csv_path != NULL) {
+            if (preconf.synthetic_mode) {
+                warning("Ignoring --synthetic-avg-power because --synthetic-csv was provided");
+            }
+            if (state_fail(cluster_powercap_enable_synthetic_trace(preconf.synthetic_csv_path))) {
+                error("Error loading synthetic CSV trace");
+                exit(1);
+            }
+        } else if (preconf.synthetic_mode) {
+            cluster_powercap_enable_synthetic_mode(preconf.synthetic_avg_power);
+        }
         verbose(VGM, "Read optional arguments, reprinting the EARGM configuration");
         print_eargm_conf(&my_cluster_conf.eargm);
     }

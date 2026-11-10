@@ -22,6 +22,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <errno.h>
+#include <fcntl.h>
+
 #include <common/config.h>
 #include <common/output/debug.h>
 #include <common/sizes.h>
@@ -49,7 +52,38 @@ static hwfds_t local_context;
 static bool pvc_gpus_found = false;
 
 #define DUMMY_FREQ 1600000
-#define DUMMY_TDP  600
+/* Max only when the driver doesn't report power1_rated_max */
+#define DUMMY_TDP 600
+
+#ifndef PVC_HWMON_ROOT
+#define PVC_HWMON_ROOT "/sys/class/hwmon"
+#endif
+
+/* Per device: hwmon index, rated (default) power limit and PL1 at init, W (0 = unknown) */
+static uint *pvc_hwmon_ids;
+static uint32_t *pvc_rated_w;
+
+/* Reads a microwatt hwmon file of device dv: W, or 0 if it can't be read */
+static uint32_t pvc_read_uw_file(uint dv, const char *file)
+{
+    char path[256], buffer[32];
+    ssize_t n;
+    int fd;
+    snprintf(path, sizeof(path), "%s/hwmon%u/%s", PVC_HWMON_ROOT, pvc_hwmon_ids[dv], file);
+    if ((fd = open(path, O_RDONLY)) < 0)
+        return 0;
+    n = read(fd, buffer, sizeof(buffer) - 1);
+    close(fd);
+    if (n <= 0)
+        return 0;
+    buffer[n] = '\0';
+    return (uint32_t) (strtoull(buffer, NULL, 10) / 1000000ULL);
+}
+
+static uint32_t pvc_max_w(uint dv)
+{
+    return pvc_rated_w[dv] ? pvc_rated_w[dv] : DUMMY_TDP;
+}
 
 static void init_pv_freqs()
 {
@@ -78,6 +112,10 @@ static void init_pv_freqs()
 
 static void release_static_data()
 {
+    free(pvc_rated_w);
+    free(pvc_hwmon_ids);
+    pvc_rated_w   = NULL;
+    pvc_hwmon_ids = NULL;
     free(gpu_clock_lens);
     for (uint dv = 0; dv < pvc_gpus_num_devices; dv++)
         free(gpu_clock_list[dv]);
@@ -183,8 +221,16 @@ static state_t mgt_pvc_hwmon_static_init(ctx_t *c)
             return s;
         }
     }
-    // Freeing ids space
-    free(ids);
+    /* ids are kept: the power files are read per device */
+    pvc_hwmon_ids = ids;
+    if ((pvc_rated_w = calloc(id_count, sizeof(uint32_t))) == NULL) {
+        pthread_mutex_unlock(&lock);
+        return_msg(s, strerror(errno));
+    }
+    for (i = 0; i < h->id_count; ++i) {
+        pvc_rated_w[i] = pvc_read_uw_file(i, "power1_rated_max");
+        debug("PVC%d: rated power %u W", i, pvc_rated_w[i]);
+    }
     debug("init succeded");
     gpu_apis_loaded++;
 
@@ -335,43 +381,49 @@ state_t mgt_pvc_hwmon_freq_get_available(ctx_t *c, const ulong ***list_khz, cons
     return EAR_SUCCESS;
 }
 
-state_t mgt_pvc_hwmon_power_cap_get_current(ctx_t *c, ulong *watts)
+/* Power caps: one uint32_t per device, as mgt_gpu_ops_t declares. The range comes from
+ * the i915 hwmon files: power1_rated_max (default limit) is the max, power1_max the PL1
+ * in force; the driver has no minimum (0, unknown). */
+state_t mgt_pvc_hwmon_power_cap_get_current(ctx_t *c, uint32_t *watts)
 {
     if (watts != NULL) {
-        for (uint dv = 0; dv < pvc_gpus_num_devices; dv++)
-            watts[dv] = DUMMY_TDP;
+        for (uint dv = 0; dv < pvc_gpus_num_devices; dv++) {
+            uint32_t pl1 = pvc_read_uw_file(dv, "power1_max");
+            watts[dv]    = pl1 ? pl1 : pvc_max_w(dv);
+        }
     }
     return EAR_SUCCESS;
 }
 
-state_t mgt_pvc_hwmon_power_cap_get_default(ctx_t *c, ulong *watts)
+state_t mgt_pvc_hwmon_power_cap_get_default(ctx_t *c, uint32_t *watts)
 {
     if (watts != NULL) {
         for (uint dv = 0; dv < pvc_gpus_num_devices; dv++)
-            watts[dv] = DUMMY_TDP;
+            watts[dv] = pvc_max_w(dv);
     }
     return EAR_SUCCESS;
 }
 
-state_t mgt_pvc_hwmon_power_cap_get_rank(ctx_t *c, ulong *watts_min, ulong *watts_max)
+state_t mgt_pvc_hwmon_power_cap_get_rank(ctx_t *c, uint32_t *watts_min, uint32_t *watts_max)
 {
     if (watts_max != NULL) {
         for (uint dv = 0; dv < pvc_gpus_num_devices; dv++)
-            watts_max[dv] = DUMMY_TDP;
+            watts_max[dv] = pvc_max_w(dv);
     }
     if (watts_min != NULL) {
         for (uint dv = 0; dv < pvc_gpus_num_devices; dv++)
-            watts_min[dv] = DUMMY_TDP;
+            watts_min[dv] = 0;
     }
     return EAR_SUCCESS;
 }
 
+/* Not implemented: caps are not written to the device (#829) */
 state_t mgt_pvc_hwmon_power_cap_reset(ctx_t *c)
 {
     return EAR_SUCCESS;
 }
 
-state_t mgt_pvc_hwmon_power_cap_set(ctx_t *c, ulong *watts)
+state_t mgt_pvc_hwmon_power_cap_set(ctx_t *c, uint32_t *watts)
 {
     debug("mgt_pvc_hwmon_power_cap_set");
     return EAR_SUCCESS;

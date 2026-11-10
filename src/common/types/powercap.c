@@ -24,7 +24,7 @@ powercap_device_types get_device_enum(const char *device_name)
     for (int i = 0; i < device_map_size; i++) {
         int len = strlen(device_map[i].name);
         if (strncmp(device_name, device_map[i].name, len) == 0) {
-            if (i == GPUSTART) {
+            if (device_map[i].type == GPUSTART) {
                 // GPU case, add an offset to the index
                 if (device_name[len] >= '0' && device_name[len] <= '9') {
                     int tmp = device_map[i].type;

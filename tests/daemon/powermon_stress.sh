@@ -50,6 +50,12 @@ fi
 echo "eard [$eard_pid] is running!"
 
 echo "Checking whether the number of apps reported matches ${4}..."
+# The delayed energy plugin sleeps 30 s every 10 reads, so the last job end may still be
+# in progress when erun returns: give the eard time to report it.
+for (( t=0 ; t<60 ; t++ )); do
+	[[ $(cat $EAR_TMP/eard.*.apps.txt | wc -l) -ge ${4} ]] && break
+	sleep 1
+done
 if [[ $(cat $EAR_TMP/eard.*.apps.txt | wc -l) -eq ${4} ]]; then
 	echo "Match!"
 	exit 0

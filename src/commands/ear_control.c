@@ -261,8 +261,12 @@ void print_ips(ip_table_t *ips, int num_ips, char mode)
         printf("|%15s|%15s|%5s|%60s|\n", "Hostname", "IP", "ST", "Reason");
         char first_node = 1;
         for (i = 0; i < num_ips; i++) {
-            char reason[60];
-            char *ST = COL_RED " ERR " COL_CLR;
+            /* Do NOT show an error when status is OK (ips[i].counter != 0) AND power is below max_power when max_power
+            is defined */
+            if (ips[i].counter && ((ips[i].max_power > 0) && ips[i].power < ips[i].max_power))
+                continue;
+            char reason[60] = {0};
+            char *ST        = COL_RED " ERR " COL_CLR;
             if (mode == ERR_ONLY) {
                 if (!ips[i].counter || !ips[i].power || ips[i].power > ips[i].max_power) {
                     if (!first_node)

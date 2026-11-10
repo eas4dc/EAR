@@ -8,19 +8,20 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+// clang-format off
 // #define SHOW_DEBUGS 1
-
-#include <common/output/debug.h>
-#include <management/gpu/archs/dummy.h>
-#include <management/gpu/archs/eard.h>
-#include <management/gpu/archs/mgt_pvc_power_hwmon.h>
-#include <management/gpu/archs/nvml.h>
-#include <management/gpu/archs/oneapi.h>
-#include <management/gpu/archs/rsmi.h>
-#include <management/gpu/gpu.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <common/output/debug.h>
+#include <management/gpu/gpu.h>
+#include <management/gpu/archs/eard.h>
+#include <management/gpu/archs/nvml.h>
+#include <management/gpu/archs/rsmi.h>
+#include <management/gpu/archs/dummy.h>
+#include <management/gpu/archs/oneapi.h>
+#include <management/gpu/archs/script.h>
+#include <management/gpu/archs/mgt_pvc_power_hwmon.h>
 
 #ifndef USE_PVC_HWMON
 #warning "USE_PVC_HWMON not defined! Defining it to 0..."
@@ -28,16 +29,15 @@
 #endif
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static mgt_gpu_ops_t ops;
-static uint loaded;
-static uint32_t *power_list;
-static ulong *freq_list;
-static uint devs_count;
+static mgt_gpu_ops_t   ops;
+static uint            loaded;
+static uint32_t       *power_list;
+static ulong          *freq_list;
+static uint            devs_count;
 
 __attribute__((used)) void mgt_gpu_load(int force_api)
 {
-    while (pthread_mutex_trylock(&lock))
-        ;
+    while (pthread_mutex_trylock(&lock));
     if (loaded) {
         goto unlock_load;
     }
@@ -55,6 +55,7 @@ __attribute__((used)) void mgt_gpu_load(int force_api)
     }
     mgt_gpu_eard_load(&ops, API_IS(force_api, API_EARD));
 dummy:
+    mgt_gpu_script_load(&ops);
     mgt_gpu_dummy_load(&ops);
     loaded = 1;
 unlock_load:
@@ -71,7 +72,9 @@ void mgt_gpu_get_api(uint *api)
 
 __attribute__((used)) state_t mgt_gpu_init(ctx_t *c)
 {
-    apis_multi(ops.init, c);
+    if (ops.init != NULL) {
+        ops.init(c);
+    }
     return mgt_gpu_count_devices(c, &devs_count);
 }
 
@@ -86,7 +89,10 @@ __attribute__((used)) state_t mgt_gpu_dispose(ctx_t *c)
         freq_list = NULL;
     }
     loaded = 0;
-    apis_multiret(ops.dispose, c);
+    if (ops.dispose != NULL) {
+        return ops.dispose(c);
+    }
+    return EAR_SUCCESS;
 }
 
 state_t mgt_gpu_get_devices(ctx_t *c, gpu_devs_t **devs, uint *devs_count)

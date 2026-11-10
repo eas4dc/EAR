@@ -1889,8 +1889,12 @@ static state_t policy_gpu_freq_selection(polctx_t *c, signature_t *my_sig, node_
     pc_app_info_data->num_gpus_used = my_sig->gpu_sig.num_gpus;
     memcpy(pc_app_info_data->req_gpu_f, gpu_f, c->num_gpus * sizeof(ulong));
 
+    /* With a DVFS GPU powercap plugin and a node cap, EARD steers the GPU clocks from
+     * req_gpu_f: setting them here too would make two writers fight over the limit */
+    uint eard_owns_gpu_freq = (pc_app_info_data != NULL) && (pc_app_info_data->gpu_mode == PC_DVFS) &&
+                              (system_conf != NULL) && (system_conf->pc_opt.current_pc > POWER_CAP_UNLIMITED);
     // TODO We must filter the GPUs I'm using.
-    if (state_fail(mgt_gpu_freq_limit_set(no_ctx, gpu_f))) {
+    if (!eard_owns_gpu_freq && state_fail(mgt_gpu_freq_limit_set(no_ctx, gpu_f))) {
         verbose_error_master("Setting GPU frequency (%d: %s)", intern_error_num, intern_error_str);
     }
     if (avg_freq != NULL) {

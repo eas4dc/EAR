@@ -8,18 +8,18 @@
  * SPDX-License-Identifier: EPL-2.0
  **************************************************************************/
 
+// clang-format off
 // #define SHOW_DEBUGS 1
 // #define FAKE_GPUS   1
 
-// clang-format off
 #include <stdlib.h>
 #include <common/output/debug.h>
 #include <management/gpu/archs/dummy.h>
 
 #if FAKE_GPUS
 #define FAKE_N 4
-static ulong *clock_list[FAKE_N]; // MHz
-static uint clock_lens[FAKE_N];
+static ulong   *clock_list[FAKE_N]; // MHz
+static uint     clock_lens[FAKE_N];
 static uint32_t power_list_max[FAKE_N];
 static uint32_t power_list_min[FAKE_N];
 #else
@@ -31,8 +31,8 @@ static uint    clock_lens[1];
 void mgt_gpu_dummy_load(mgt_gpu_ops_t *ops)
 {
     // Additional
-    apis_add(ops->init                  , mgt_gpu_dummy_init);
-    apis_add(ops->dispose               , mgt_gpu_dummy_dispose);
+    apis_put(ops->init                  , mgt_gpu_dummy_init);
+    apis_put(ops->dispose               , mgt_gpu_dummy_dispose);
     // Queries (put if empty)
     apis_put(ops->get_api               , mgt_gpu_dummy_get_api);
     apis_put(ops->get_devices           , mgt_gpu_dummy_get_devices);
@@ -213,11 +213,13 @@ state_t mgt_gpu_dummy_freq_limit_set(ctx_t *c, ulong *khz)
     #if FAKE_GPUS
     int i, j;
 
-    debug("Received frequencies: ");
-    for (i = 0; i < FAKE_N; ++i)
+    //debug("Received frequencies: ");
+    for (i = 0; i < FAKE_N; ++i) {
+        debug("D%d: %lu MHz", i, khz[i]);
         for (j = 0; j < clock_lens[i]; ++j) {
-            debug("D%d: %lu MHz", i, clock_list[i][j]);
+            //debug("D%d: %lu MHz", i, clock_list[i][j]);
         }
+		}
     #endif
     if (khz != NULL) {
         khz[0] = 0;
@@ -302,5 +304,3 @@ state_t mgt_gpu_dummy_power_cap_set(ctx_t *c, uint32_t *watts)
     }
     return EAR_SUCCESS;
 }
-
-// clang-format on

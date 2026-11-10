@@ -79,7 +79,7 @@ state_t eargm_plugin_init(cluster_conf_t conf[static 1])
 {
     state_t ret = EAR_SUCCESS;
     for (int32_t i = 0; i < num_plugins_loaded; i++) {
-        ret = egm_syms->plugin_init(conf);
+        ret = egm_syms[i].plugin_init(conf);
     }
     return ret;
 }
@@ -87,9 +87,12 @@ state_t eargm_plugin_init(cluster_conf_t conf[static 1])
 state_t eargm_plugin_hard_powercap_decision(powercap_status_t status[static 1], powercap_opt_t opt[static 1],
                                             bool send_options[static 1], cluster_powercap_ctx_t ctx[static 1])
 {
+    /* every plugin decides in turn; a warning (needs idle power released) from any of them is kept */
     state_t ret = EAR_SUCCESS;
     for (int32_t i = 0; i < num_plugins_loaded; i++) {
-        ret = egm_syms->plugin_hard_powercap_decision(status, opt, send_options, ctx);
+        state_t r = egm_syms[i].plugin_hard_powercap_decision(status, opt, send_options, ctx);
+        if (r != EAR_SUCCESS)
+            ret = r;
     }
     return ret;
 }
@@ -97,7 +100,7 @@ state_t eargm_plugin_hard_powercap_decision(powercap_status_t status[static 1], 
 state_t eargm_plugin_soft_powercap_decision(power_check_t power[static 1])
 {
     for (int32_t i = 0; i < num_plugins_loaded; i++) {
-        egm_syms->plugin_soft_powercap_decision(power);
+        egm_syms[i].plugin_soft_powercap_decision(power);
     }
     return EAR_SUCCESS;
 }

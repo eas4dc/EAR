@@ -160,6 +160,9 @@ EARGMEnergyAction=no_action
 EARGMPowerPeriod=120
 # Powercap mode: 0 is monitoring, 1 is hard powercap, 2 is soft powercap.
 EARGMPowerCapMode=1
+# Soft powercap strategy: HOMOGENEOUS divides the powercap between the EARGM nodes, MAX_POWER sets each node to the
+# max powercap of its tag.
+#EARGMSoft_PC_Strategy=MAX_POWER
 # Admins can specify to automatically execute a command in EARGMPowerCapSuspendAction when total_power >= EARGMPowerLimit*EARGMPowerCapResumeLimit/100
 EARGMPowerCapSuspendLimit=90
 # Format for action is: command_name current_power current_limit total_idle_nodes total_idle_power 
@@ -224,15 +227,20 @@ AdminUsers=root
 # Tags are used for architectural descriptions. Max. AVX frequencies are used in predictor models
 # and are SKU-specific. Max. and min. power are used for warning and error tracking. 
 # Powercap specifies the maximum power a node is allowed to use by default. If an EARGM is
-# controlling the cluster with mode UNLIMITED (powercap=1) max_powercap is the set power that
+# controlling the cluster with mode UNLIMITED (baseline_powercap=1) max_powercap is the set power that
 # a node will receive if the cluster needs to be power capped (otherwise it runs
 # with unlimited power). A different than the default powercap plugin can be specified for nodes 
-# using the tag. POWERCAP=0 --> disabled, POWERCAP=1 -->unlimited, POWERCAP=N (> 1) limits node to N watts
+# using the tag. BASELINE_POWERCAP=0 --> disabled, =1 --> unlimited, =N (> 1) the node can always reclaim N watts
+# (it is capped there when power is short, and may lend what it does not use). POWERCAP= is a
+# deprecated alias of BASELINE_POWERCAP=.
+# min_working_power=N (W): lowest power a node running a job needs. EARD never caps the node below
+# max(N, the hardware minimum read from RAPL/NVML), and raises a powercap default below it. 0 or
+# unset: the hardware minimum only.
 # At least a default tag is mandatory to be included in this file for a cluster to work properly.
 #
 #
 # List of accepted options is: max_avx512(GHz), max_avx2(GHz), max_power(W), min_power(W), error_power(W), coeffs(filename), 
-# powercap(W), powercap_plugin(filename), energy_plugin(filename), gpu_powercap_plugin(filename), max_powercap(W), gpu_def_freq(KHz), 
+# baseline_powercap(W), min_working_power(W), powercap_plugin(filename), energy_plugin(filename), gpu_powercap_plugin(filename), max_powercap(W), gpu_def_freq(KHz),
 # cpu_max_pstate(0..max_pstate), imc_max_pstate(0..max_imc_pstate), energy_model(filename)
 # imc_max_freq, imc_min_freq, idle_governor(def default), idle_pstate, policy, cpu_temp_cap, gpu_temp_cap
 # If gpu_def_freq is 0, GPU frequency is not set at job init/end.
@@ -241,8 +249,8 @@ AdminUsers=root
 # minimum between the maximum permitted GPU frequency and gpu_def_freq.
 #
 #
-Tag=CPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default powercap=0 powercap_plugin=dvfs.so energy_plugin=energy_nm.so 
-Tag=GPU max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default powercap=0 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000 policy=optimize
+Tag=CPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default baseline_powercap=0 powercap_plugin=dvfs.so energy_plugin=energy_nm.so
+Tag=GPU max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default baseline_powercap=0 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000 policy=optimize
 
 #---------------------------------------------------------------------------------------------------
 ## Power policies

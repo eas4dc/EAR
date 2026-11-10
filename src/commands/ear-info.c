@@ -129,13 +129,13 @@ int main(int argc, char *argv[])
             printf("\n\nEARGM found in node %s.................\n", nodename);
             print_eargm_def(e_def, 0);
             switch (my_cluster.eargm.powercap_mode) {
-                case SOFT_POWERCAP:
+                case EARGM_SOFT_POWERCAP:
                     printf("Powercap policy: soft powercap\n");
                     break;
-                case HARD_POWERCAP:
+                case EARGM_HARD_POWERCAP:
                     printf("Powercap policy: hard powercap\n");
                     break;
-                case MONITOR:
+                case EARGM_MONITOR:
                     printf("Powercap policy: monitor only\n");
                     break;
             }

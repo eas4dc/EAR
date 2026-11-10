@@ -27,6 +27,7 @@ mets_OBJS = \
     $(SRCDIR)/metrics/common/perf.o \
     $(SRCDIR)/metrics/common/pstate.o \
     $(SRCDIR)/metrics/common/rsmi.o \
+    $(SRCDIR)/metrics/common/script.o \
     $(SRCDIR)/metrics/common/redfish.o \
     $(SRCDIR)/metrics/common/cray_pm_counters.o \
     $(SRCDIR)/metrics/accumulators/power_metrics.o \

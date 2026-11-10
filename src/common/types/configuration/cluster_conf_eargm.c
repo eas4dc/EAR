@@ -253,6 +253,20 @@ state_t EARGM_parse_token(eargm_conf_t *conf, char *token)
         } else {
             found = EAR_WARNING;
         }
+    } else if (!strcmp(token, "EARGMSOFT_PC_STRATEGY")) {
+        token = strtok(NULL, "=");
+        strclean(token, '\n');
+        remove_chars(token, ' ');
+        strtoup(token);
+        if (!strcmp(token, "HOMOGENEOUS")) {
+            conf->soft_pc_strategy = HOMOGENEOUS;
+        } else if (!strcmp(token, "MAX_POWER")) {
+            conf->soft_pc_strategy = MAX_POWER;
+        } else {
+            verbose(VCCONF, "Unknown EARGMSoft_PC_Strategy %s, using MAX_POWER", token);
+            conf->soft_pc_strategy = MAX_POWER;
+        }
+        found = EAR_SUCCESS;
     }
     return found;
 }
@@ -295,9 +309,10 @@ void set_default_eargm_conf(eargm_conf_t *eargmc)
     strcpy(eargmc->mail, "nomail");
     eargmc->use_log = EARGMD_FILE_LOG;
     /* Values for POWERCAP */
-    eargmc->power         = EARGM_DEF_POWERCAP_LIMIT;
-    eargmc->t1_power      = EARGM_DEF_T1_POWER;
-    eargmc->powercap_mode = EARGM_POWERCAP_DEF_MODE; /* 1=auto by default, 0=monitoring_only */
+    eargmc->power            = EARGM_DEF_POWERCAP_LIMIT;
+    eargmc->t1_power         = EARGM_DEF_T1_POWER;
+    eargmc->powercap_mode    = EARGM_POWERCAP_DEF_MODE; /* 1=auto by default, 0=monitoring_only */
+    eargmc->soft_pc_strategy = EARGM_POWERCAP_SOFTPC_HOMOGENEOUS ? HOMOGENEOUS : MAX_POWER;
     sprintf(eargmc->powercap_limit_action, EARGM_POWERCAP_DEF_ACTION);
     sprintf(eargmc->powercap_lower_action, EARGM_POWERCAP_DEF_ACTION);
     sprintf(eargmc->energycap_action, EARGM_ENERGYCAP_DEF_ACTION);
@@ -332,7 +347,7 @@ void print_eargm_def(eargm_def_t *conf, char tabulate)
     if (tabulate) {
         verbosen(VCCONF, "\t\t->");
     }
-    verbosen(VCCONF, "EARGM %d node %s (port %u) ", conf->id, conf->node, conf->port);
+    verbosen(VCCONF, "EARGM %d node %s (port %u) PC plugins %s", conf->id, conf->node, conf->port, conf->plugins);
     verbosen(VCCONF, "energy limit %ld power limit %ld %s", conf->energy, conf->power, buff);
     if (conf->num_subs > 0) {
         verbosen(VCCONF, "meta-eargm: yes, controlled eargms: ");
@@ -361,10 +376,10 @@ void energy_units_to_str(uint unit, char *buff)
 void powercap_type_to_str(uint unit, char *buff)
 {
     switch (unit) {
-        case 2:
+        case EARGM_SOFT_POWERCAP:
             strcpy(buff, "soft powercap");
             break;
-        case 1:
+        case EARGM_HARD_POWERCAP:
             strcpy(buff, "hard powercap");
             break;
         default:
@@ -387,6 +402,10 @@ void print_eargm_conf(eargm_conf_t *conf)
     verbosen(VCCONF, "\t use_log %u report plugins %s\n", conf->use_log, conf->plugins);
     powercap_type_to_str(conf->powercap_mode, buff);
     verbosen(VCCONF, "\t powercap_check_period %lu \tpowercap_mode %s\n", conf->t1_power, buff);
+    if (conf->powercap_mode == EARGM_SOFT_POWERCAP) {
+        verbosen(VCCONF, "\t Power limit strategy in soft powercap %s\n",
+                 (conf->soft_pc_strategy == HOMOGENEOUS) ? "Homogeneous" : "Max powercap per tag");
+    }
     verbosen(VCCONF, "\t power limit for action %lu and for lower %lu\n", conf->defcon_power_limit,
              conf->defcon_power_lower);
     verbosen(VCCONF, "\t powercap_limit_action %s and powercap_lower_action %s\n", conf->powercap_limit_action,

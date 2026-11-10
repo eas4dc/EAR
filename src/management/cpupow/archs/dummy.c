@@ -29,6 +29,7 @@ CPUPOW_F_LOAD(mgt_cpupow_dummy_load)
     apis_put(ops->powercap_set, mgt_cpupow_dummy_powercap_set);
     apis_put(ops->powercap_reset, mgt_cpupow_dummy_powercap_reset);
     apis_put(ops->tdp_get, mgt_cpupow_dummy_tdp_get);
+    apis_put(ops->limits_get, mgt_cpupow_dummy_limits_get);
 }
 
 CPUPOW_F_GET_INFO(mgt_cpupow_dummy_get_info)
@@ -73,6 +74,17 @@ CPUPOW_F_POWERCAP_SET(mgt_cpupow_dummy_powercap_set)
 
 CPUPOW_F_POWERCAP_RESET(mgt_cpupow_dummy_powercap_reset)
 {
+    return EAR_SUCCESS;
+}
+
+/* Unknown limits */
+CPUPOW_F_LIMITS_GET(mgt_cpupow_dummy_limits_get)
+{
+    int i;
+    for (i = 0; i < tp.cpu_count; ++i) {
+        wmin[i] = 0;
+        wmax[i] = 0;
+    }
     return EAR_SUCCESS;
 }
 

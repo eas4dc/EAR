@@ -157,11 +157,17 @@ void plugin_get_settings(domain_settings_t *s)
     memcpy(s, &settings, sizeof(domain_settings_t));
 }
 
-state_t set_powercap_value(uint pid, uint domain, uint limit, uint *cpu_util)
+state_t set_powercap_value(uint pid, uint domain, uint32_t *limits, uint32_t *cpu_util)
 {
     char cmd[1024];
+    uint32_t limit;
     if (!policy_enabled)
         return EAR_SUCCESS;
+    if (domain == LEVEL_DEVICE) {
+        warning("Per device powercap not implemented for INM, returning before applying it.");
+        return EAR_ERROR;
+    }
+    limit = *limits;
     debug("INM:inm_set_powercap_value policy %u limit %u", pid, limit);
     c_limit = limit;
     pc_on   = 1;
@@ -199,7 +205,7 @@ void set_status(uint status)
     debug("INM. pending");
 }
 
-uint get_powercap_stragetgy()
+uint get_powercap_strategy()
 {
     return PC_POWER;
 }
@@ -224,21 +230,12 @@ void set_app_req_freq(ulong *f)
 
 #define MIN_CPU_POWER_MARGIN 10
 
-uint get_powercap_status(uint *in_target, uint *tbr)
+/* The node manager enforces the limit and reports no throttling: the domain is
+ * always OK and never offers power (the power reading is pending). */
+uint get_powercap_status(domain_status_t *status)
 {
-    ulong c_freq;
-    *in_target = 0;
-    *tbr       = 0;
-    if (c_limit == POWER_CAP_UNLIMITED)
-        return 0;
-    /* If we don't know the req_f we cannot release power */
-    if (c_req_f == 0)
-        return 0;
-    c_freq = frequency_get_cpu_freq(0);
-    if (c_freq != c_req_f)
-        return 0;
-    /* Power reading is pending */
-    *in_target = 1;
-    *tbr       = 0;
-    return 1;
+    memset(status, 0, sizeof(domain_status_t));
+    status->ok         = PC_STATUS_OK;
+    status->current_pc = c_limit;
+    return 0;
 }

@@ -386,6 +386,7 @@ CPUPOW_F_LOAD(mgt_cpupow_intel63_load)
     apis_put(ops->powercap_set, mgt_cpupow_intel63_powercap_set);
     apis_put(ops->powercap_reset, mgt_cpupow_intel63_powercap_reset);
     apis_put(ops->tdp_get, mgt_cpupow_intel63_tdp_get);
+    apis_put(ops->limits_get, mgt_cpupow_intel63_limits_get);
 }
 
 CPUPOW_F_GET_INFO(mgt_cpupow_intel63_get_info)
@@ -502,7 +503,19 @@ CPUPOW_F_POWERCAP_RESET(mgt_cpupow_intel63_powercap_reset)
         return EAR_ERROR;
     }
     for (i = 0; i < p->tp->cpu_count; ++i) {
-        msr_write(p->tp->cpus[i].id, &p->pl->reg, sizeof(ullong), p->pl_address);
+        /* each socket gets its own saved limit back, not socket 0's */
+        msr_write(p->tp->cpus[i].id, &p->pl[i].reg, sizeof(ullong), p->pl_address);
+    }
+    return EAR_SUCCESS;
+}
+
+CPUPOW_F_LIMITS_GET(mgt_cpupow_intel63_limits_get)
+{
+    struct domain_s *p = &domains[domain];
+    int i;
+    for (i = 0; i < p->tp->cpu_count; ++i) {
+        wmin[i] = p->pi[i].min_power;
+        wmax[i] = p->pi[i].max_power; /* optional: 0 on some models */
     }
     return EAR_SUCCESS;
 }

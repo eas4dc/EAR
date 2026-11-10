@@ -57,6 +57,9 @@ unsigned long powercapmon_freq = 1;
 extern int eard_must_exit;
 static uint pc_cpu_strategy;
 static uint8_t last_cluster_perc = 0;
+/* EARGM soft powercap (EAR_RC_SET_POWER): 0 none, POWER_CAP_UNLIMITED, or a limit.
+ * It overrides the cap the node would apply, and never changes def or the allocation. */
+static uint32_t eargm_soft_limit = 0;
 
 extern powermon_app_t *current_ear_app[MAX_NESTED_LEVELS];
 extern int max_context_created;
@@ -294,16 +297,47 @@ void powercap_monitor_set_time(int time_relax, int time_burst)
 #endif
 }
 
+/* A rescheduling makes EARL drop its signature and policy decision: it is forced only when
+ * the node cap moves by this much (%) from the cap of the last one, or switches between
+ * limited and unlimited. Smaller changes are copied and read at the next evaluation. */
+#define RESCHED_CAP_CHANGE_PCT 5
+
+static uint cap_change_is_significant(uint32_t cap)
+{
+    static uint32_t resched_cap = 0;
+    static uint resched_done    = 0;
+    uint limited                = (cap > POWER_CAP_UNLIMITED);
+    uint significant;
+    if (!resched_done || limited != (resched_cap > POWER_CAP_UNLIMITED)) {
+        significant = 1;
+    } else if (!limited) {
+        significant = 0;
+    } else {
+        uint32_t diff = (cap > resched_cap) ? cap - resched_cap : resched_cap - cap;
+        significant   = ((uint64_t) diff * 100 >= (uint64_t) RESCHED_CAP_CHANGE_PCT * resched_cap);
+    }
+    if (significant) {
+        resched_cap  = cap;
+        resched_done = 1;
+    }
+    return significant;
+}
+
 void update_node_powercap_opt_shared_info()
 {
     int cc;
     powermon_app_t *pmapp;
+    uint resched = cap_change_is_significant(my_pc_opt.current_pc);
     for (cc = 0; cc < MAX_NESTED_LEVELS; cc++) {
         pmapp = NULL;
         if (state_ok(powermon_context_trylock(cc, &pmapp))) {
-            /* Do we have to copy, "as is" ? PENDING */
+            /* pper_domain is per job, kept up to date by pmgt: not overwritten with the node's */
+            uint32_t shares[NUM_DOMAINS];
+            memcpy(shares, pmapp->settings->pc_opt.pper_domain, sizeof(shares));
             memcpy(&pmapp->settings->pc_opt, &my_pc_opt, sizeof(node_powercap_opt_t));
-            pmapp->resched->force_rescheduling = 1;
+            memcpy(pmapp->settings->pc_opt.pper_domain, shares, sizeof(shares));
+            if (resched)
+                pmapp->resched->force_rescheduling = 1;
             powermon_context_unlock(cc);
         }
     }
@@ -314,7 +348,7 @@ void print_node_powercap_opt(node_powercap_opt_t *my_powercap_opt)
     fprintf(stderr,
             "cuurent %u pc_def %u pc_idle %u th_inc %u th_red %u th_release %u cluster_perc_power %u requested %u "
             "released %u\n",
-            my_powercap_opt->current_pc, my_powercap_opt->def_powercap, my_powercap_opt->powercap_idle,
+            my_powercap_opt->current_pc, my_powercap_opt->baseline_powercap, my_powercap_opt->powercap_idle,
             my_powercap_opt->th_inc, my_powercap_opt->th_red, my_powercap_opt->th_release,
             my_powercap_opt->cluster_perc_power, my_powercap_opt->requested, my_powercap_opt->released);
 }
@@ -329,58 +363,102 @@ ulong powercap_elapsed_last_powercap()
     return timestamp_diffnow(&last_powercap_reallocation_time, TIME_SECS);
 }
 
-// this function changes the default powercap, last t1 and current powercap
-static int set_powercap_value(uint domain, uint32_t limit)
+/* Lowest node cap EARD programs: the node working minimum, max(hardware minimum of its
+ * devices, MIN_WORKING_POWER). Releases, grants and limits stop here, so the cap never
+ * wraps, never reaches the 0 (off) / 1 (unlimited) sentinels and is never one the
+ * devices can't hold. Without either value, a tenth of the default. */
+static uint32_t powercap_floor()
+{
+    uint32_t hw_min = 0, hw_max = 0;
+    if (pcmgr != NULL)
+        pmgt_get_node_hw_limits(&hw_min, &hw_max);
+    uint32_t floor = ear_max(hw_min, powermon_get_min_working_power());
+    if (floor == 0)
+        floor = my_pc_opt.baseline_powercap / 10;
+    return ear_max(floor, 2);
+}
+
+static uint32_t powercap_ceiling()
+{
+    uint32_t max_powercap = powermon_get_max_powercap_def();
+    return (max_powercap > 1) ? max_powercap : UINT32_MAX;
+}
+
+/* Bounds an allocation to [floor, max_powercap]. */
+static uint32_t clamp_allocation(int64_t alloc)
+{
+    if (alloc < (int64_t) powercap_floor())
+        return powercap_floor();
+    if (alloc > (int64_t) powercap_ceiling())
+        return powercap_ceiling();
+    return (uint32_t) alloc;
+}
+
+/* The node cap follows from the node's state, in this order:
+ *   1. EARGM soft limit, when EARGM runs in soft mode (POWER_CAP_UNLIMITED included);
+ *   2. otherwise the allocation the node holds, or its idle cap while idle;
+ *   3. a real cap is then raised to the node working minimum and bounded by max_powercap. */
+static uint32_t node_cap()
+{
+    uint32_t cap;
+    if (eargm_soft_limit)
+        cap = eargm_soft_limit;
+    else if (my_pc_opt.powercap_status == PC_STATUS_IDLE)
+        cap = ear_min(my_pc_opt.powercap_idle, my_pc_opt.last_t1_allocated);
+    else
+        cap = my_pc_opt.last_t1_allocated;
+
+    if (cap <= POWER_CAP_UNLIMITED)
+        return cap;
+    return ear_min(ear_max(cap, powercap_floor()), powercap_ceiling());
+}
+
+/* Applies node_cap() when it changed: the only place the node cap reaches the domains.
+ * Callers change the state (allocation, status, soft limit) and call this. */
+static int apply_node_cap()
 {
     char c_date[128];
-    int i;
-    uint32_t max_powercap;
     powermon_app_t *pmapp;
-    verbose(VCONF, "%spowercap_set_powercap_value domain %u limit %u (current pc %u)%s", COL_BLU, domain, limit,
-            my_pc_opt.current_pc, COL_CLR);
-    max_powercap = powermon_get_max_powercap_def();
-    // filter through the max powercap first
-    if (max_powercap > 1)
-        limit = ear_min(limit, max_powercap);
+    uint32_t cap = node_cap();
 
-    // set the default and last t1 to the limit
-    my_pc_opt.def_powercap      = limit;
-    my_pc_opt.last_t1_allocated = limit;
-    // if the filtered is already the current, no need to apply any change
-    if (limit == my_pc_opt.current_pc)
+    if (cap == my_pc_opt.current_pc)
         return EAR_SUCCESS;
-
+    verbose(VCONF, "%snode cap %u -> %u W (allocated %u, soft limit %u)%s", COL_BLU, my_pc_opt.current_pc, cap,
+            my_pc_opt.last_t1_allocated, eargm_soft_limit, COL_CLR);
     get_date_str(c_date, sizeof(c_date));
-    if (fd_powercap_values >= 0) {
-        dprintf(fd_powercap_values, "%s domain %u limit %u \n", c_date, domain, limit);
-    }
+    if (fd_powercap_values >= 0)
+        dprintf(fd_powercap_values, "%s domain %u limit %u \n", c_date, DOMAIN_NODE, cap);
 
-    // update the current limit
-    my_pc_opt.current_pc = limit;
+    my_pc_opt.current_pc = cap;
     update_node_powercap_opt_shared_info();
     pmgt_set_app_req_freq(pcmgr);
     /* PENDING POWER allocation for jobs sharing the node */
-    for (i = 1; i < MAX_NESTED_LEVELS; i++) {
+    for (int i = 1; i < MAX_NESTED_LEVELS; i++) {
         pmapp = NULL;
         if (state_ok(powermon_context_trylock(i, &pmapp))) {
-            pmapp->settings->pc_opt.current_pc = powercap_get_value();
+            pmapp->settings->pc_opt.current_pc = cap;
             powermon_context_unlock(i);
         }
     }
     timestamp_get(&last_powercap_reallocation_time);
-    // apply the current limit
-    if (current_mode == PC_MODE_AUTO)
-        return pmgt_set_powercap_value(pcmgr, pc_pid, domain, (ulong) limit);
-    else
+    if (current_mode != PC_MODE_AUTO)
         return EAR_SUCCESS;
+    return pmgt_set_powercap_value(pcmgr, pc_pid, DOMAIN_NODE, cap);
 }
 
 void set_default_node_powercap_opt(node_powercap_opt_t *my_powercap_opt)
 {
-    my_powercap_opt->def_powercap       = powermon_get_powercap_def();
-    my_powercap_opt->powercap_idle      = ear_max(powermon_get_powercap_def() * EARD_POWERCAP_IDLE_PERC, 1);
+    uint32_t def = powermon_get_baseline_powercap();
+    uint32_t max = powermon_get_max_powercap_def();
+    /* A default above the max powercap can never be applied: the node would ask for it forever */
+    if (def > 1 && max > 1 && def > max) {
+        warning("default powercap %u W above max powercap %u W, using %u W", def, max, max);
+        def = max;
+    }
+    my_powercap_opt->baseline_powercap  = def;
+    my_powercap_opt->powercap_idle      = ear_max(def * EARD_POWERCAP_IDLE_PERC, 1);
     my_powercap_opt->current_pc         = 0;
-    my_powercap_opt->last_t1_allocated  = powermon_get_powercap_def();
+    my_powercap_opt->last_t1_allocated  = def;
     my_powercap_opt->max_node_power     = powermon_get_max_powercap_def();
     my_powercap_opt->released           = my_powercap_opt->last_t1_allocated - my_powercap_opt->powercap_idle;
     my_powercap_opt->th_inc             = 10;
@@ -389,7 +467,7 @@ void set_default_node_powercap_opt(node_powercap_opt_t *my_powercap_opt)
     my_powercap_opt->powercap_status    = PC_STATUS_ERROR;
     my_powercap_opt->cluster_perc_power = 0;
     my_powercap_opt->requested          = 0;
-    debug("default powercap: %u", my_powercap_opt->def_powercap);
+    debug("default powercap: %u", my_powercap_opt->baseline_powercap);
     pthread_mutex_init(&my_powercap_opt->lock, NULL);
 }
 
@@ -401,6 +479,15 @@ void powercap_end()
     powercap_cleanup_device_storage();
 }
 
+/* Back to automatic mode: the domain caps left by manual mode are replaced by the node split */
+static void leave_manual_mode()
+{
+    uint32_t prev = current_mode;
+    current_mode  = PC_MODE_AUTO;
+    if (prev == PC_MODE_MANUAL && is_powercap_on(&my_pc_opt))
+        pmgt_set_powercap_value(pcmgr, pc_pid, DOMAIN_NODE, my_pc_opt.current_pc);
+}
+
 void powercap_process_message(char *action, char *mode, char *level, int32_t num_values, int32_t values[num_values])
 {
     if (mode != NULL) {
@@ -409,7 +496,7 @@ void powercap_process_message(char *action, char *mode, char *level, int32_t num
             current_mode = PC_MODE_MANUAL;
             if (action != NULL && !strcasecmp(action, "deactivate")) {
                 debug("deactivate action received: deactivating manual mode");
-                current_mode = PC_MODE_AUTO;
+                leave_manual_mode();
                 return; // deactivate should ignore all other arguments
             }
         } else if (!strcasecmp(mode, "monitor")) {
@@ -440,7 +527,7 @@ void powercap_process_message(char *action, char *mode, char *level, int32_t num
     if (level != NULL) {
         debug("level specified: %s", level);
         if (!strcasecmp(level, "node")) {
-            current_mode = PC_MODE_AUTO;
+            leave_manual_mode();
             debug("setting mode to auto");
         } else if (!strcasecmp(level, "cpu") || !strcasecmp(level, "domain") || !strcasecmp(level, "gpu") ||
                    !strcasecmp(level, "device")) {
@@ -459,7 +546,7 @@ int powercap_init()
     set_default_node_powercap_opt(&my_pc_opt);
     print_node_powercap_opt(&my_pc_opt);
     /* powercap set to 0 means unlimited */
-    if (powermon_get_powercap_def() == 0) {
+    if (powermon_get_baseline_powercap() == 0) {
         debug("POWERCAP limit disabled");
         update_node_powercap_opt_shared_info();
         return EAR_SUCCESS;
@@ -487,64 +574,54 @@ int powercap_init()
     }
 
     /* End Low level power cap managemen initialization */
+    /* the hardware range is known now: a default under the node working minimum is raised */
+    if (my_pc_opt.baseline_powercap > POWER_CAP_UNLIMITED && my_pc_opt.baseline_powercap < powercap_floor()) {
+        warning("default powercap %u W below the node working minimum %u W, using %u W", my_pc_opt.baseline_powercap,
+                powercap_floor(), powercap_floor());
+        my_pc_opt.baseline_powercap = powercap_floor();
+        my_pc_opt.powercap_idle     = ear_max(my_pc_opt.baseline_powercap * EARD_POWERCAP_IDLE_PERC, 1);
+        my_pc_opt.last_t1_allocated = my_pc_opt.baseline_powercap;
+    }
     my_pc_opt.powercap_status = PC_STATUS_IDLE;
     last_status               = PC_STATUS_IDLE;
     pc_cpu_strategy           = pmgt_get_powercap_cpu_strategy(pcmgr);
     pmgt_set_pc_mode(pcmgr, PC_MODE_TARGET);
-    set_powercap_value(DOMAIN_NODE, my_pc_opt.powercap_idle);
+    /* the plugins record every device cap they apply: the storage must exist before the first one */
+    powercap_init_device_storage();
+    apply_node_cap();
     debug("powercap initialization finished");
     powercap_monitor_init();
     update_node_powercap_opt_shared_info();
-    powercap_init_device_storage();
     return EAR_SUCCESS;
 }
 
 int powercap_idle_to_run()
 {
-    uint extra;
     if (!is_powercap_on(&my_pc_opt))
         return EAR_SUCCESS;
     if (is_powercap_unlimited())
         return EAR_SUCCESS;
     debug("powercap_idle_to_run");
-    while (pthread_mutex_trylock(&my_pc_opt.lock))
-        ; /* can we create some deadlock because of status ? */
+    pthread_mutex_lock(&my_pc_opt.lock);
     pmgt_set_status(pcmgr, PC_STATUS_RUN);
-    // debug("pc status modified");
     last_status = PC_STATUS_IDLE;
-    extra       = 0;
-    switch (my_pc_opt.powercap_status) {
-        case PC_STATUS_IDLE:
-            debug("%sGoin from idle to run:allocated %u %s ", COL_GRE, my_pc_opt.last_t1_allocated, COL_CLR);
-            /* There is enough power for me */
-            if ((my_pc_opt.last_t1_allocated + extra) >= my_pc_opt.def_powercap) {
-                /* if we already had de power, we just set the status as OK */
-                if (my_pc_opt.last_t1_allocated >= my_pc_opt.def_powercap) {
-                    my_pc_opt.powercap_status = PC_STATUS_OK;
-                    my_pc_opt.released        = 0;
-                    set_powercap_value(DOMAIN_NODE, my_pc_opt.last_t1_allocated);
-                } else {
-                    /* We must use extra power */
-                    my_pc_opt.last_t1_allocated = ear_min(my_pc_opt.def_powercap, my_pc_opt.last_t1_allocated + extra);
-                    my_pc_opt.powercap_status   = PC_STATUS_OK;
-                    my_pc_opt.released          = 0;
-                    set_powercap_value(DOMAIN_NODE, my_pc_opt.last_t1_allocated);
-                }
-            } else { /* we must ask more power */
-                uint pending;
-                my_pc_opt.last_t1_allocated += extra;
-                my_pc_opt.powercap_status = PC_STATUS_ASK_DEF;
-                pending                   = my_pc_opt.def_powercap - my_pc_opt.last_t1_allocated;
-                my_pc_opt.requested       = pending;
-                set_powercap_value(DOMAIN_NODE, my_pc_opt.last_t1_allocated);
-            }
-            break;
-        case PC_STATUS_OK:
-        case PC_STATUS_GREEDY:
-        case PC_STATUS_RELEASE:
-        case PC_STATUS_ASK_DEF:
-            error("We go to run and we were not in idle ");
-            break;
+    if (my_pc_opt.powercap_status != PC_STATUS_IDLE) {
+        error("We go to run and we were not in idle ");
+    } else if (my_pc_opt.last_t1_allocated >= my_pc_opt.baseline_powercap) {
+        /* the node keeps what it holds: power above the baseline (left by the previous job,
+         * or a baseline lowered while idle) is reported as extra, EARGM reclaims it if needed */
+        debug("%sidle to run: %u W allocated (baseline %u W)%s", COL_GRE, my_pc_opt.last_t1_allocated,
+              my_pc_opt.baseline_powercap, COL_CLR);
+        my_pc_opt.powercap_status = PC_STATUS_OK;
+        my_pc_opt.released        = 0;
+        apply_node_cap();
+    } else {
+        /* below the baseline (lent while idle): run with what we hold and ask for the rest */
+        debug("%sidle to run: %u W of %u W, asking for the baseline%s", COL_GRE, my_pc_opt.last_t1_allocated,
+              my_pc_opt.baseline_powercap, COL_CLR);
+        my_pc_opt.powercap_status = PC_STATUS_ASK_DEF;
+        my_pc_opt.requested       = my_pc_opt.baseline_powercap - my_pc_opt.last_t1_allocated;
+        apply_node_cap();
     }
     pmgt_idle_to_run(pcmgr);
     pthread_mutex_unlock(&my_pc_opt.lock);
@@ -558,8 +635,7 @@ int powercap_run_to_idle()
     if (is_powercap_unlimited())
         return EAR_SUCCESS;
     debug("powercap_run_to_idle");
-    while (pthread_mutex_trylock(&my_pc_opt.lock))
-        ;
+    pthread_mutex_lock(&my_pc_opt.lock);
     switch (my_pc_opt.powercap_status) {
         case PC_STATUS_IDLE:
             error("going from run to idle and we were in idle");
@@ -569,10 +645,12 @@ int powercap_run_to_idle()
         case PC_STATUS_ASK_DEF:
         case PC_STATUS_RELEASE:
             debug("%sGoing from run to idle%s", COL_GRE, COL_CLR);
-            my_pc_opt.released        = my_pc_opt.last_t1_allocated - my_pc_opt.powercap_idle;
-            my_pc_opt.requested       = 0;
+            /* The allocation is kept until EARGM collects the released power (release_idle) */
             my_pc_opt.powercap_status = PC_STATUS_IDLE;
-            set_powercap_value(DOMAIN_NODE, my_pc_opt.powercap_idle);
+            my_pc_opt.requested       = 0;
+            my_pc_opt.released =
+                my_pc_opt.last_t1_allocated - ear_min(my_pc_opt.powercap_idle, my_pc_opt.last_t1_allocated);
+            apply_node_cap();
             break;
     }
     pmgt_set_status(pcmgr, PC_STATUS_IDLE);
@@ -596,8 +674,7 @@ int powercap_set_power_per_domain(dom_power_t *cp, uint use_earl, ulong avg_f)
     if (!is_powercap_on(&my_pc_opt))
         return EAR_SUCCESS;
     debug("periodic_metric_info");
-    while (pthread_mutex_trylock(&my_pc_opt.lock))
-        ;
+    pthread_mutex_lock(&my_pc_opt.lock);
 
     if (current_mode == PC_MODE_AUTO) {
         if (my_pc_opt.powercap_status == PC_STATUS_IDLE && !is_powercap_unlimited())
@@ -638,22 +715,25 @@ void print_power_status(powercap_status_t *my_status)
 /**********  This function is executed under EARGM request    **************************/
 /***************************************************************************************/
 
-void powercap_release_power()
+/* EARGM in hard powercap mode (options, idle releases, a status that may release power)
+ * after soft mode, e.g. restarted with the other mode: the soft limit no longer applies and
+ * the cap goes back to what the node holds. Called with my_pc_opt.lock held. */
+static void follow_hard_powercap()
 {
-    my_pc_opt.powercap_status   = PC_STATUS_OK;
-    my_pc_opt.released          = 0;
-    my_pc_opt.last_t1_allocated = my_pc_opt.current_pc;
-    if (current_mode == PC_MODE_AUTO) {
-        pmgt_set_powercap_value(pcmgr, pc_pid, DOMAIN_NODE, (ulong) my_pc_opt.current_pc);
-    }
+    if (!eargm_soft_limit)
+        return;
+    verbose(VEARD_PC, "EARGM is in hard powercap mode: soft limit %u W dropped", eargm_soft_limit);
+    eargm_soft_limit = 0;
+    apply_node_cap();
 }
 
 void powercap_get_status(powercap_status_t *my_status, pmgt_status_t *status, int release_power)
 {
     verbose(VEARD_PC, "%spowercap_get_status: get_powercap_status_last_t1 %u def_pc %u release_power %d %s", COL_GRE,
-            my_pc_opt.last_t1_allocated, my_pc_opt.def_powercap, release_power, COL_CLR);
-    while (pthread_mutex_trylock(&my_pc_opt.lock))
-        ;
+            my_pc_opt.last_t1_allocated, my_pc_opt.baseline_powercap, release_power, COL_CLR);
+    pthread_mutex_lock(&my_pc_opt.lock);
+    if (release_power) // only hard-mode EARGM asks nodes to release power
+        follow_hard_powercap();
     my_status->total_nodes++;
     if (my_pc_opt.powercap_status == PC_STATUS_IDLE) {
         status->status = PC_STATUS_IDLE;
@@ -662,42 +742,43 @@ void powercap_get_status(powercap_status_t *my_status, pmgt_status_t *status, in
         my_status->idle_nodes++;
     } else {
         pmgt_get_status(status);
-        if (my_pc_opt.last_t1_allocated < my_pc_opt.def_powercap)
+        if (my_pc_opt.last_t1_allocated < my_pc_opt.baseline_powercap)
             status->status = PC_STATUS_ASK_DEF;
         my_pc_opt.powercap_status = status->status;
         switch (status->status) {
             case PC_STATUS_GREEDY:
                 // status->requested = my_pc_opt.requested;
-                if (my_pc_opt.last_t1_allocated > my_pc_opt.def_powercap)
-                    status->extra = my_pc_opt.last_t1_allocated - my_pc_opt.def_powercap;
+                if (my_pc_opt.last_t1_allocated > my_pc_opt.baseline_powercap)
+                    status->extra = my_pc_opt.last_t1_allocated - my_pc_opt.baseline_powercap;
                 else
                     status->extra = 0;
                 verbose(VEARD_PC, "powercap_get_status: PC_STATUS greedy, requesting %u", status->requested);
                 break;
             case PC_STATUS_RELEASE:
-                if (my_pc_opt.last_t1_allocated > my_pc_opt.def_powercap)
-                    status->extra = my_pc_opt.last_t1_allocated - my_pc_opt.def_powercap;
+                if (my_pc_opt.last_t1_allocated > my_pc_opt.baseline_powercap)
+                    status->extra = my_pc_opt.last_t1_allocated - my_pc_opt.baseline_powercap;
                 else
                     status->extra = 0;
+                /* a release lends power for one period: the node asks its baseline back (ASK_DEF) */
                 if (release_power) { // only release power if it comes from EARGM
-                    my_pc_opt.released = status->tbr;
-                    my_pc_opt.current_pc -= status->tbr;
+                    my_pc_opt.last_t1_allocated = clamp_allocation((int64_t) my_pc_opt.last_t1_allocated - status->tbr);
+                    apply_node_cap();
+                    verbose(VEARD_PC, "powercap_get_status: %sReleased%s %u W, allocated %u W", COL_BLU, COL_CLR,
+                            status->tbr, my_pc_opt.last_t1_allocated);
                 }
-                verbose(VEARD_PC, "powercap_get_status: %sReleasing%s %u W allocated %u W", COL_BLU, COL_CLR,
-                        my_pc_opt.released, my_pc_opt.current_pc);
-                powercap_release_power();
+                my_pc_opt.powercap_status = PC_STATUS_OK;
                 break;
             case PC_STATUS_ASK_DEF:
                 /* Data management */
                 verbose(VEARD_PC, "powercap_get_status: %sAsking for default power%s %uW allocated %uW", COL_BLU,
                         COL_CLR, my_pc_opt.requested, my_pc_opt.last_t1_allocated);
-                my_status->requested += my_pc_opt.def_powercap - my_pc_opt.last_t1_allocated;
+                my_status->requested += my_pc_opt.baseline_powercap - my_pc_opt.last_t1_allocated;
                 break;
             case PC_STATUS_OK:
                 debug("PC_STATUS OK");
                 status->requested = 0;
-                if (my_pc_opt.last_t1_allocated > my_pc_opt.def_powercap) {
-                    status->extra = my_pc_opt.last_t1_allocated - my_pc_opt.def_powercap;
+                if (my_pc_opt.last_t1_allocated > my_pc_opt.baseline_powercap) {
+                    status->extra = my_pc_opt.last_t1_allocated - my_pc_opt.baseline_powercap;
                 } else {
                     status->extra = 0;
                 }
@@ -733,19 +814,47 @@ void print_powercap_opt(powercap_opt_t *opt)
 /**********  This function is executed when EARGM sends a message **********************/
 /***************************************************************************************/
 
+/* Applies an EARGM grant (negative: reclaim) to the allocation, bounded to
+ * [floor, max_powercap]. Reports the amount actually applied. */
+static uint apply_grant(int32_t extra, uint *event, ulong *value)
+{
+    uint32_t prev = my_pc_opt.last_t1_allocated;
+    uint32_t next = clamp_allocation((int64_t) prev + extra);
+    /* EARGM reclaims power above the default; only reduce_def lowers the default itself */
+    if (extra < 0 && next < ear_min(prev, my_pc_opt.baseline_powercap))
+        next = ear_min(prev, my_pc_opt.baseline_powercap);
+    if (next == prev)
+        return 0;
+    *event                      = (next > prev) ? INC_POWERCAP : RED_POWERCAP;
+    *value                      = (next > prev) ? next - prev : prev - next;
+    my_pc_opt.last_t1_allocated = next;
+    apply_node_cap();
+    return 1;
+}
+
+/* ASK_DEF: the node gets its baseline back and leaves ASK_DEF */
+static void grant_baseline(void)
+{
+    my_pc_opt.powercap_status   = PC_STATUS_OK;
+    my_pc_opt.last_t1_allocated = my_pc_opt.baseline_powercap;
+    my_pc_opt.requested         = 0;
+    apply_node_cap();
+}
+
 void powercap_set_opt(powercap_opt_t *opt, int id)
 {
-    uint report_ev = 0;
+    /* events reported once the lock is released: at most the default and a grant */
+    uint event[2];
+    ulong value[2];
+    uint n_ev = 0;
     print_powercap_opt(opt);
     if (!is_powercap_on(&my_pc_opt))
         return;
     if (is_powercap_unlimited())
         return;
-    uint event;
-    ulong value;
     debug("powercap_set_opt command received");
-    while (pthread_mutex_trylock(&my_pc_opt.lock))
-        ;
+    pthread_mutex_lock(&my_pc_opt.lock);
+    follow_hard_powercap();
     last_cluster_perc            = opt->cluster_perc_power;
     my_pc_opt.cluster_perc_power = opt->cluster_perc_power;
     /* Here we must check, based on our status, if actions must be taken */
@@ -753,60 +862,45 @@ void powercap_set_opt(powercap_opt_t *opt, int id)
         switch (my_pc_opt.powercap_status) {
             case PC_STATUS_IDLE:
             case PC_STATUS_OK:
-                if (my_pc_opt.last_t1_allocated > my_pc_opt.def_powercap) {
+                if (my_pc_opt.last_t1_allocated > my_pc_opt.baseline_powercap) {
                     debug("%spowercap_set_opt new_pc_opt:status OK but in the greedy node list %d ip=%d with ip=%di "
                           "extra %d%s",
                           COL_RED, id, opt->greedy_nodes[id], my_ip, opt->extra_power[id], COL_CLR);
-                    my_pc_opt.last_t1_allocated = my_pc_opt.last_t1_allocated + opt->extra_power[id];
-                    if (opt->extra_power[id] > 0) {
-                        event = INC_POWERCAP;
-                        value = opt->extra_power[id];
-                    } else {
-                        event = RED_POWERCAP;
-                        value = -opt->extra_power[id];
-                    }
-
-                    report_ev = 1;
-                    set_powercap_value(DOMAIN_NODE, my_pc_opt.last_t1_allocated);
+                    if (apply_grant(opt->extra_power[id], &event[n_ev], &value[n_ev]))
+                        n_ev++;
                 }
                 break;
             case PC_STATUS_RELEASE:
                 debug("My powercap status is RELEASE, doing nothing ");
                 break;
+            case PC_STATUS_ASK_DEF:
+                /* listed in the options while asking for the default: the default is granted
+                 * first, a positive extra on top of it */
+                grant_baseline();
+                event[n_ev]   = SET_ASK_DEF;
+                value[n_ev++] = 0;
+                if (opt->extra_power[id] > 0 && apply_grant(opt->extra_power[id], &event[n_ev], &value[n_ev]))
+                    n_ev++;
+                break;
             case PC_STATUS_GREEDY:
                 debug("%spowercap_set_opt  new_pc_opt: greedy node %d ip=%d with ip=%d extra %d%s", COL_GRE, id,
                       opt->greedy_nodes[id], my_ip, opt->extra_power[id], COL_CLR);
-                if (opt->extra_power[id] > 0) {
-                    event = INC_POWERCAP;
-                    value = opt->extra_power[id];
-                } else {
-                    event = RED_POWERCAP;
-                    value = -opt->extra_power[id];
-                }
-                report_ev                   = 1;
-                my_pc_opt.last_t1_allocated = my_pc_opt.last_t1_allocated + opt->extra_power[id];
-                set_powercap_value(DOMAIN_NODE, my_pc_opt.last_t1_allocated);
+                if (apply_grant(opt->extra_power[id], &event[n_ev], &value[n_ev]))
+                    n_ev++;
                 my_pc_opt.powercap_status = PC_STATUS_OK;
                 my_pc_opt.requested       = 0;
                 break;
         }
-    } else {
-        if (my_pc_opt.powercap_status == PC_STATUS_ASK_DEF) {
-            /* In that case, we assume we cat use the default power cap */
-            debug("My status is ASK_DEF and new settings received with new_pc: %u", my_pc_opt.def_powercap);
-            my_pc_opt.powercap_status = PC_STATUS_OK;
-            /* We assume we will receive the requested power */
-            my_pc_opt.last_t1_allocated = my_pc_opt.def_powercap;
-            my_pc_opt.requested         = 0;
-            set_powercap_value(DOMAIN_NODE, my_pc_opt.def_powercap);
-            event     = SET_ASK_DEF;
-            value     = 0;
-            report_ev = 1;
-        }
+    } else if (my_pc_opt.powercap_status == PC_STATUS_ASK_DEF) {
+        /* not listed: any options message means the default is granted */
+        debug("My status is ASK_DEF and new settings received with new_pc: %u", my_pc_opt.baseline_powercap);
+        grant_baseline();
+        event[n_ev]   = SET_ASK_DEF;
+        value[n_ev++] = 0;
     }
     pthread_mutex_unlock(&my_pc_opt.lock);
-    if (report_ev)
-        powermon_report_event(event, value);
+    for (uint i = 0; i < n_ev; i++)
+        powermon_report_event(event[i], value[i]);
 }
 
 void set_powercapstatus_mode(uint mode)
@@ -832,15 +926,15 @@ void powercap_set_app_req_freq()
 void powercap_release_idle_power(pc_release_data_t *release)
 {
     uint value = 0;
-    while (pthread_mutex_trylock(&my_pc_opt.lock))
-        ;
+    pthread_mutex_lock(&my_pc_opt.lock);
+    follow_hard_powercap();
     switch (my_pc_opt.powercap_status) {
         case PC_STATUS_IDLE:
             debug("%sReleasing %u allocated IDLE power %s", COL_BLU, my_pc_opt.released, COL_CLR);
             release->released += my_pc_opt.released;
-            value                       = my_pc_opt.released;
-            my_pc_opt.released          = 0;
-            my_pc_opt.last_t1_allocated = my_pc_opt.current_pc;
+            value = my_pc_opt.released;
+            my_pc_opt.last_t1_allocated -= my_pc_opt.released;
+            my_pc_opt.released = 0;
             break;
         default:
             break;
@@ -851,40 +945,42 @@ void powercap_release_idle_power(pc_release_data_t *release)
 
 void powercap_reset_default_power()
 {
-    while (pthread_mutex_trylock(&my_pc_opt.lock))
-        ;
-    if (my_pc_opt.last_t1_allocated != my_pc_opt.def_powercap) {
-        my_pc_opt.last_t1_allocated = my_pc_opt.def_powercap;
-        set_powercap_value(DOMAIN_NODE, my_pc_opt.last_t1_allocated);
-    }
+    pthread_mutex_lock(&my_pc_opt.lock);
+    /* a soft limit, if any, stays: EARGM sends this reset on a reload in either mode */
+    my_pc_opt.last_t1_allocated = my_pc_opt.baseline_powercap;
+    apply_node_cap();
     pthread_mutex_unlock(&my_pc_opt.lock);
 }
 
 void powercap_reduce_def_power(uint power)
 {
-    while (pthread_mutex_trylock(&my_pc_opt.lock))
-        ;
-    if (power > my_pc_opt.def_powercap) {
+    pthread_mutex_lock(&my_pc_opt.lock);
+    /* The default can't reach 0: a 0 default turns the powercap off on the next reset */
+    if (power >= my_pc_opt.baseline_powercap) {
         pthread_mutex_unlock(&my_pc_opt.lock);
         return;
     }
-    my_pc_opt.def_powercap -= power;
+    my_pc_opt.baseline_powercap -= power;
+    my_pc_opt.powercap_idle = ear_min(my_pc_opt.powercap_idle, my_pc_opt.baseline_powercap);
     pthread_mutex_unlock(&my_pc_opt.lock);
 }
 
 void powercap_increase_def_power(uint power)
 {
-    while (pthread_mutex_trylock(&my_pc_opt.lock))
-        ;
-    my_pc_opt.def_powercap += power;
+    pthread_mutex_lock(&my_pc_opt.lock);
+    /* Saturates at max_powercap instead of wrapping */
+    my_pc_opt.baseline_powercap =
+        (uint32_t) ear_min((uint64_t) my_pc_opt.baseline_powercap + power, (uint64_t) powercap_ceiling());
     pthread_mutex_unlock(&my_pc_opt.lock);
 }
 
 void powercap_set_powercap(uint32_t power)
 {
-    while (pthread_mutex_trylock(&my_pc_opt.lock))
-        ;
-    set_powercap_value(DOMAIN_NODE, power);
+    if (!is_powercap_on(&my_pc_opt))
+        return;
+    pthread_mutex_lock(&my_pc_opt.lock);
+    eargm_soft_limit = power;
+    apply_node_cap();
     pthread_mutex_unlock(&my_pc_opt.lock);
 }
 
@@ -979,8 +1075,8 @@ state_t powercap_verify_device_values(uint domain)
 
     debug("checking domain %u with %u devices", domain, device_count);
 
-    if (device_count == 0) {
-        debug("no devices found for domain %u", domain);
+    if (device_count == 0 || !pmgt_domain_readable(domain)) {
+        debug("no devices to verify for domain %u", domain);
         return EAR_SUCCESS;
     }
 
@@ -1002,10 +1098,16 @@ state_t powercap_verify_device_values(uint domain)
         uint32_t actual_value = actual_values[i];
 
         if (actual_value == 0) {
+            /* a device that can't be read back is not verified */
             error("powercap_verify_device: failed to get actual value for domain %u device %u", domain, i);
+            mismatches++;
+            overall_result = EAR_WARNING;
             continue;
         }
 
+        /* caps at or above TDP read back as unlimited: compare both sides the same way */
+        if (stored_value != POWER_CAP_UNLIMITED && stored_value >= pmgt_get_device_tdp(domain, i))
+            stored_value = POWER_CAP_UNLIMITED;
         debug("domain=%u device=%u stored=%u actual=%u", domain, i, stored_value, actual_value);
 
         if (stored_value != actual_value) {

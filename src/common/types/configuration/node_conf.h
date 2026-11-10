@@ -119,6 +119,7 @@ typedef struct my_node_conf {
     ulong imc_min_freq; /* Used to create the imcf list */
     uint use_log;
     char tag[GENERIC_NAME];
+    uint32_t min_working_power; /* lowest power (W) of a node running a job; 0 = from the hardware */
 } my_node_conf_t;
 
 typedef struct node_island {

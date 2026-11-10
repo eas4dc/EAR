@@ -15,14 +15,6 @@
 #include <common/utils/strtable.h>
 #include <metrics/common/apis.h>
 
-void apis_append(void *op[], void *func)
-{
-    while (*op != NULL) {
-        ++op;
-    }
-    *op = func;
-}
-
 void apis_print(uint api, char *prefix)
 {
     char buffer[128];

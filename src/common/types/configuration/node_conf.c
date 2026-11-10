@@ -230,20 +230,21 @@ void copy_my_node_conf(my_node_conf_t *dest, my_node_conf_t *src)
         copy_policy_conf(&dest->policies[i], &src->policies[i]);
     }
 
-    dest->max_sig_power   = src->max_sig_power;
-    dest->min_sig_power   = src->min_sig_power;
-    dest->max_error_power = src->max_error_power;
-    dest->max_temp        = src->max_temp;
-    dest->max_powercap    = src->max_powercap;
-    dest->powercap        = src->powercap;
-    dest->powercap_type   = src->powercap_type;
-    dest->gpu_def_freq    = src->gpu_def_freq;
-    dest->cpu_max_pstate  = src->cpu_max_pstate;
-    dest->imc_max_pstate  = src->imc_max_pstate;
-    dest->imc_max_freq    = src->imc_max_freq;
-    dest->imc_min_freq    = src->imc_min_freq;
-    dest->idle_governor   = src->idle_governor;
-    dest->idle_pstate     = src->idle_pstate;
+    dest->max_sig_power     = src->max_sig_power;
+    dest->min_sig_power     = src->min_sig_power;
+    dest->max_error_power   = src->max_error_power;
+    dest->max_temp          = src->max_temp;
+    dest->max_powercap      = src->max_powercap;
+    dest->min_working_power = src->min_working_power;
+    dest->powercap          = src->powercap;
+    dest->powercap_type     = src->powercap_type;
+    dest->gpu_def_freq      = src->gpu_def_freq;
+    dest->cpu_max_pstate    = src->cpu_max_pstate;
+    dest->imc_max_pstate    = src->imc_max_pstate;
+    dest->imc_max_freq      = src->imc_max_freq;
+    dest->imc_min_freq      = src->imc_min_freq;
+    dest->idle_governor     = src->idle_governor;
+    dest->idle_pstate       = src->idle_pstate;
 
     memcpy(dest->tag, src->tag, strlen(src->tag));
 }

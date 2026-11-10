@@ -59,7 +59,7 @@ ulong pmgt_idle_def_freq;
 typedef struct powercap_symbols {
     state_t (*enable)(suscription_t *sus);
     state_t (*disable)();
-    state_t (*set_powercap_value)(uint pid, uint domain, uint32_t *limits, ulong *util);
+    state_t (*set_powercap_value)(uint pid, uint domain, uint32_t *limits, uint32_t *util);
     state_t (*get_powercap_value)(uint pid, uint32_t *powercap);
     uint (*is_powercap_policy_enabled)(uint pid);
     void (*set_status)(uint status);
@@ -69,7 +69,7 @@ typedef struct powercap_symbols {
     void (*print_powercap_value)(int fd);
     void (*set_app_req_freq)(ulong *f);
     void (*set_verb_channel)(int fd);
-    void (*set_new_utilization)(ulong *util);
+    void (*set_new_utilization)(uint32_t *util);
     uint (*get_powercap_status)(domain_status_t *status);
     state_t (*reset_powercap_value)();
     state_t (*release_powercap_allocation)(uint decrease);
@@ -82,7 +82,8 @@ typedef struct powercap_symbols {
 static uint pmgt_limit;
 static domain_status_t cdomain_status[NUM_DOMAINS];
 static domain_settings_t cdomain_settings[NUM_DOMAINS];
-static ulong *current_util[NUM_DOMAINS], *prev_util[NUM_DOMAINS];
+/* Utilization (%) per device, as the plugins read it (uint32_t) */
+static uint32_t *current_util[NUM_DOMAINS], *prev_util[NUM_DOMAINS];
 static ulong dom_util[NUM_DOMAINS], last_dom_util[NUM_DOMAINS], dom_changed[NUM_DOMAINS];
 static uint use_min_cpufreq_in_idle = EARD_POWERCAP_IDLE_MINFREQ;
 #if USE_GPUS || SHOW_DEBUGS
@@ -144,6 +145,9 @@ const char *pcsyms_names[] = {
 };
 
 static uint pmgt_powercap_status_per_domain(uint action);
+static void publish_domain_shares();
+/* Cap last applied to each domain (W, 0 = none): node splits, shrinks and CPU<->GPU moves */
+static uint32_t domain_cap[NUM_DOMAINS];
 
 #ifndef SYN_TEST
 #define UTIL_BURST_PERIOD 1000
@@ -156,7 +160,6 @@ void pmgt_set_burst(int b)
 }
 #endif
 #define UTIL_RELAX_PERIOD           60000
-#define CHECK_STATUS_PERIOD         500
 
 #define DOMAINS_REDIST              0.1
 #define DOMAINS_REDIST_MAX          20
@@ -192,17 +195,33 @@ static uint32_t pck_tdps[MAX_PACKAGES];
 static uint32_t dram_tdps[MAX_PACKAGES];
 static uint32_t gpu_tdps[MAX_GPUS_SUPPORTED];
 static uint32_t gpu_tdps_min[MAX_GPUS_SUPPORTED];
+static uint32_t pck_min[MAX_PACKAGES], pck_max[MAX_PACKAGES];
+static uint32_t dram_min[MAX_PACKAGES], dram_max[MAX_PACKAGES];
+/* Lowest power a domain can be capped at (W): the sum of its devices' hardware minimum, 0 if unknown */
+static uint32_t dom_hw_min[NUM_DOMAINS];
 
 static uint32_t manual_domain_power[NUM_DOMAINS] = {0};
 #define TDP_GPU 250
 
-void pmgt_process_message(char *level, int32_t num_values, int32_t values[num_values])
+state_t pmgt_process_message(char *level, int32_t num_values, int32_t values[num_values])
 {
+    if (level == NULL) {
+        error("powercap set message without a level, ignored");
+        return EAR_ERROR;
+    }
     if (num_values <= 0 || values == NULL)
-        return;
+        return EAR_ERROR;
+    for (int32_t i = 0; i < num_values; i++) {
+        if (values[i] < 0) {
+            error("negative powercap value %d in a '%s' message, ignored", values[i], level);
+            return EAR_ERROR;
+        }
+    }
     if (!strcasecmp(level, "domain")) {
-        if (num_values < 2)
-            return;
+        if (num_values < 2) {
+            error("domain message needs CPU and GPU values (got %d), ignored", num_values);
+            return EAR_ERROR;
+        }
         debug("Setting CPU domain power to %u", values[0]);
         debug("Setting GPU domain power to %u", values[1]);
         manual_domain_power[DOMAIN_CPU] = values[0];
@@ -214,9 +233,11 @@ void pmgt_process_message(char *level, int32_t num_values, int32_t values[num_va
         } else if (num_values == pc_topology_info.socket_count) {
             for (int32_t i = 0; i < pc_topology_info.socket_count; i++)
                 debug("Setting CPU[%d] to %u Watts", i, values[i]);
-            freturn(pcsyms_fun[DOMAIN_CPU].set_powercap_value, 0, LEVEL_DEVICE, (uint32_t *) values,
-                    current_util[DOMAIN_CPU]);
-            return;
+            return freturn(pcsyms_fun[DOMAIN_CPU].set_powercap_value, 0, LEVEL_DEVICE, (uint32_t *) values,
+                           current_util[DOMAIN_CPU]);
+        } else {
+            error("cpu message needs 1 or %u values (got %d), ignored", pc_topology_info.socket_count, num_values);
+            return EAR_ERROR;
         }
     } else if (!strcasecmp(level, "gpu")) {
         if (num_values == 1) {
@@ -225,9 +246,11 @@ void pmgt_process_message(char *level, int32_t num_values, int32_t values[num_va
         } else if (num_values == gpu_pc_num_gpus) {
             for (int32_t i = 0; i < gpu_pc_num_gpus; i++)
                 debug("Setting GPU[%d] to %u Watts", i, values[i]);
-            freturn(pcsyms_fun[DOMAIN_GPU].set_powercap_value, 0, LEVEL_DEVICE, (uint32_t *) values,
-                    current_util[DOMAIN_GPU]);
-            return;
+            return freturn(pcsyms_fun[DOMAIN_GPU].set_powercap_value, 0, LEVEL_DEVICE, (uint32_t *) values,
+                           current_util[DOMAIN_GPU]);
+        } else {
+            error("gpu message needs 1 or %u values (got %d), ignored", gpu_pc_num_gpus, num_values);
+            return EAR_ERROR;
         }
     } else if (!strcasecmp(level, "dram")) {
         debug("Setting DRAM domain power to %u", values[0]);
@@ -237,10 +260,11 @@ void pmgt_process_message(char *level, int32_t num_values, int32_t values[num_va
         manual_domain_power[DOMAIN_NODE] = values[0];
     } else if (!strcasecmp(level, "device")) {
         // it needs to be total GPUs + total CPUs + total DRAMs (= total CPUs)
+        // layout: [CPU socket 0..S-1][DRAM socket 0..S-1][GPU 0..G-1]
         if (num_values < gpu_pc_num_gpus + pc_topology_info.socket_count * 2) {
-            warning("powercap for device must include all DRAMs + CPUs + GPUs (received %d, required %d)", num_values,
-                    gpu_pc_num_gpus + pc_topology_info.socket_count * 2);
-            return;
+            error("powercap for device must include all DRAMs + CPUs + GPUs (received %d, required %d)", num_values,
+                  gpu_pc_num_gpus + pc_topology_info.socket_count * 2);
+            return EAR_ERROR;
         } else {
             for (int32_t i = 0; i < pc_topology_info.socket_count; i++)
                 debug("Setting CPU[%d] to %u Watts", i, values[i]);
@@ -253,14 +277,37 @@ void pmgt_process_message(char *level, int32_t num_values, int32_t values[num_va
             if (domains_loaded[DOMAIN_CPU])
                 freturn(pcsyms_fun[DOMAIN_CPU].set_powercap_value, 0, LEVEL_DEVICE, (uint32_t *) values,
                         current_util[DOMAIN_CPU]);
-            if (domains_loaded[DOMAIN_DRAM])
+            if (domains_loaded[DOMAIN_DRAM]) {
                 freturn(pcsyms_fun[DOMAIN_DRAM].set_powercap_value, 0, LEVEL_DEVICE,
                         (uint32_t *) &values[pc_topology_info.socket_count], current_util[DOMAIN_DRAM]);
+            } else if (domains_loaded[DOMAIN_CPU] && pmgt_get_powercap_cpu_strategy(NULL) == PC_POWER) {
+                /* No DRAM plugin: a RAPL (PC_POWER) CPU plugin owns DRAM too, but its per-device
+                 * API carries socket values only, so the DRAM slice would be dropped. Program it
+                 * through mgt_cpupow directly. A DVFS CPU plugin cannot cap watts: skipped.
+                 * Values are not clamped to the RAPL DRAM range, and leaving manual mode does not
+                 * restore them (DRAM is not a managed domain without its plugin). */
+                uint32_t *dram = (uint32_t *) &values[pc_topology_info.socket_count];
+                /* A DRAM failure is logged only: the CPU and GPU slices are still applied.
+                 * AMD has no DRAM power limit (HSMP caps the socket only, DIMMs are outside it). */
+                if (!mgt_cpupow_powercap_is_capable(CPUPOW_DRAM)) {
+                    warning("DRAM powercap not supported on this CPU, DRAM values ignored");
+                } else if (state_fail(mgt_cpupow_powercap_set(CPUPOW_DRAM, dram))) {
+                    error("setting per-device DRAM powercap");
+                } else {
+                    /* keep EARD's per-device cache (status, get_value_per_device) in sync with HW:
+                     * only values the hardware accepted */
+                    for (int32_t i = 0; i < pc_topology_info.socket_count; i++)
+                        powercap_set_stored_device_value(DOMAIN_DRAM, i, dram[i]);
+                }
+            }
             if (domains_loaded[DOMAIN_GPU])
                 freturn(pcsyms_fun[DOMAIN_GPU].set_powercap_value, 0, LEVEL_DEVICE,
                         (uint32_t *) &values[pc_topology_info.socket_count * 2], current_util[DOMAIN_GPU]);
-            return;
+            return EAR_SUCCESS;
         }
+    } else {
+        error("unknown powercap level '%s', ignored", level);
+        return EAR_ERROR;
     }
 
     for (int32_t i = 0; i < NUM_DOMAINS; i++) {
@@ -268,6 +315,36 @@ void pmgt_process_message(char *level, int32_t num_values, int32_t values[num_va
             freturn(pcsyms_fun[i].set_powercap_value, 0, LEVEL_DOMAIN, (uint32_t *) &manual_domain_power[i],
                     current_util[i]);
     }
+    return EAR_SUCCESS;
+}
+
+static void compute_domain_hw_min()
+{
+    int i;
+    memset(dom_hw_min, 0, sizeof(dom_hw_min));
+    if (state_ok(mgt_cpupow_limits_get(CPUPOW_SOCKET, pck_min, pck_max)) &&
+        state_ok(mgt_cpupow_limits_get(CPUPOW_DRAM, dram_min, dram_max))) {
+        /* no reported maximum: the TDP */
+        powercap_max_or_tdp(pck_max, pck_tdps, ear_min(pc_topology_info.socket_count, MAX_PACKAGES));
+        powercap_max_or_tdp(dram_max, dram_tdps, ear_min(pc_topology_info.socket_count, MAX_PACKAGES));
+        for (i = 0; i < pc_topology_info.socket_count && i < MAX_PACKAGES; i++)
+            dom_hw_min[DOMAIN_CPU] += pck_min[i] + dram_min[i];
+    }
+#if USE_GPUS
+    for (i = 0; i < gpu_pc_num_gpus && i < MAX_GPUS_SUPPORTED; i++)
+        dom_hw_min[DOMAIN_GPU] += gpu_tdps_min[i];
+#endif
+    debug("domain hardware minimum: CPU %u W GPU %u W", dom_hw_min[DOMAIN_CPU], dom_hw_min[DOMAIN_GPU]);
+}
+
+/* Lowest share (fraction of the node limit) a domain keeps when rebalancing: its hardware
+ * minimum, or a quarter of its default share when unknown, never above the default share */
+static float pdomain_floor(int i)
+{
+    if (pmgt_limit <= POWER_CAP_UNLIMITED)
+        return 0;
+    float floor = dom_hw_min[i] ? (float) dom_hw_min[i] / (float) pmgt_limit : pdomains_def[i] / 4;
+    return ear_min(floor, pdomains_def[i]);
 }
 
 void init_tdps()
@@ -277,29 +354,28 @@ void init_tdps()
     mgt_cpupow_tdp_get(CPUPOW_DRAM, dram_tdps);
     mgt_gpu_load(NO_EARD);
     mgt_gpu_power_cap_get_rank(NULL, gpu_tdps_min, gpu_tdps);
+    compute_domain_hw_min();
 }
 
 void compute_power_distribution()
 {
     float node_ratio = cdomain_settings[DOMAIN_CPU].node_ratio;
     uint pd_total = 0, pd_cpu = 0, pd_dram = 0, pd_gpu = 0, pd_pckg;
-    uint bpd_cpu, bpd_dram, bpd_gpu = 0;
 
     // Initialize TDP values
     init_tdps();
 
-    /* CPU and DRAM are read in eard.c during the initialization */
-    /* We assume that ALL CPUs, DRAM and GPUs have the same TDP */
-    bpd_cpu  = pck_tdps[0];
-    bpd_dram = dram_tdps[0];
-    debug("Using CPU TDP %u DRAM TDP %u", bpd_cpu, bpd_dram);
+    /* every socket and GPU TDP counts: parts may differ */
+    for (int s = 0; s < pc_topology_info.socket_count && s < MAX_PACKAGES; s++) {
+        pd_cpu += pck_tdps[s];
+        pd_dram += dram_tdps[s];
+    }
 #if USE_GPUS
     if ((domains_loaded[DOMAIN_GPU]) && (gpu_pc_model != API_DUMMY))
-        bpd_gpu = gpu_tdps[0];
+        for (int g = 0; g < gpu_pc_num_gpus && g < MAX_GPUS_SUPPORTED; g++)
+            pd_gpu += gpu_tdps[g];
 #endif
-    pd_cpu   = bpd_cpu * pc_topology_info.socket_count;
-    pd_dram  = bpd_dram * pc_topology_info.socket_count;
-    pd_gpu   = bpd_gpu * gpu_pc_num_gpus;
+    debug("Using CPU TDP %u DRAM TDP %u GPU TDP %u", pd_cpu, pd_dram, pd_gpu);
     pd_pckg  = pd_cpu + pd_dram;
     pd_total = pd_pckg + pd_gpu + pd_pckg * node_ratio;
     /* DOMAIN NODE is the total power
@@ -494,10 +570,10 @@ state_t pmgt_init()
     }
     /* We have a single domain node */
     debug("Initialzing Node util");
-    current_util[DOMAIN_NODE] = calloc(1, sizeof(ulong));
+    current_util[DOMAIN_NODE] = calloc(1, sizeof(uint32_t));
     if (current_util[DOMAIN_NODE] != NULL)
         current_util[DOMAIN_NODE][0] = 100;
-    prev_util[DOMAIN_NODE] = calloc(1, sizeof(ulong));
+    prev_util[DOMAIN_NODE] = calloc(1, sizeof(uint32_t));
     if (prev_util[DOMAIN_NODE] != NULL)
         prev_util[DOMAIN_NODE][0] = 100;
     debug("Static NODE utilization set to 100");
@@ -529,10 +605,10 @@ state_t pmgt_init()
             debug("DOMAIN_CPU not loaded");
         }
         debug("Initialzing CPU util");
-        current_util[DOMAIN_CPU] = calloc(pc_topology_info.cpu_count, sizeof(ulong));
+        current_util[DOMAIN_CPU] = calloc(pc_topology_info.cpu_count, sizeof(uint32_t));
         for (i = 0; i < pc_topology_info.cpu_count; i++)
             current_util[DOMAIN_CPU][i] = 100;
-        prev_util[DOMAIN_CPU] = calloc(pc_topology_info.cpu_count, sizeof(ulong));
+        prev_util[DOMAIN_CPU] = calloc(pc_topology_info.cpu_count, sizeof(uint32_t));
         for (i = 0; i < pc_topology_info.cpu_count; i++)
             prev_util[DOMAIN_CPU][i] = 100;
         debug("Static CPU utilization set to 100 for %d cpus", pc_topology_info.cpu_count);
@@ -556,10 +632,10 @@ state_t pmgt_init()
         }
     }
     debug("Initialzing DRAM util");
-    current_util[DOMAIN_DRAM] = calloc(pc_topology_info.socket_count, sizeof(ulong));
+    current_util[DOMAIN_DRAM] = calloc(pc_topology_info.socket_count, sizeof(uint32_t));
     for (i = 0; i < pc_topology_info.socket_count; i++)
         current_util[DOMAIN_DRAM][i] = 100;
-    prev_util[DOMAIN_DRAM] = calloc(pc_topology_info.socket_count, sizeof(ulong));
+    prev_util[DOMAIN_DRAM] = calloc(pc_topology_info.socket_count, sizeof(uint32_t));
     for (i = 0; i < pc_topology_info.socket_count; i++)
         prev_util[DOMAIN_DRAM][i] = 100;
     debug("Static DRAM utilization set to 100 for %d sockets", pc_topology_info.socket_count);
@@ -605,10 +681,10 @@ state_t pmgt_init()
     }
     debug("Initialzing GPU util");
     if (domains_loaded[DOMAIN_GPU] || !domains_loaded[DOMAIN_GPU]) {
-        current_util[DOMAIN_GPU] = calloc(gpu_pc_num_gpus, sizeof(ulong));
+        current_util[DOMAIN_GPU] = calloc(gpu_pc_num_gpus, sizeof(uint32_t));
         for (i = 0; i < gpu_pc_num_gpus; i++)
             current_util[DOMAIN_GPUS][i] = 0;
-        prev_util[DOMAIN_GPU] = calloc(gpu_pc_num_gpus, sizeof(ulong));
+        prev_util[DOMAIN_GPU] = calloc(gpu_pc_num_gpus, sizeof(uint32_t));
         for (i = 0; i < gpu_pc_num_gpus; i++)
             prev_util[DOMAIN_GPUS][i] = 0;
         debug("Static GPU utilization set to 100 for %d GPUS", gpu_pc_num_gpus);
@@ -624,10 +700,6 @@ state_t pmgt_init()
     else
         ret = EAR_ERROR;
 #endif
-    debug("Initializing Util monitoring");
-    if (!domains_loaded[DOMAIN_NODE]) {
-        util_monitoring_init();
-    }
     memset(cdomain_status, 0, NUM_DOMAINS * sizeof(domain_status_t));
     memset(&cdomain_settings, 0, sizeof(domain_settings_t) * NUM_DOMAINS);
     for (i = 0; i < NUM_DOMAINS; i++) {
@@ -661,8 +733,12 @@ state_t pmgt_enable(pwr_mgt_t *phandler)
                 gret = ret;
         }
     }
-    if (gret != EAR_SUCCESS)
-        return gret;
+    /* Utilization changes are pushed to the plugins (set_new_utilization):
+     * only start detecting them once every plugin is enabled */
+    debug("Initializing Util monitoring");
+    if (!domains_loaded[DOMAIN_NODE] && sus_util_detection == NULL) {
+        util_monitoring_init();
+    }
     return gret;
 }
 
@@ -697,25 +773,15 @@ state_t pmgt_set_powercap_value(pwr_mgt_t *phandler, uint pid, uint domain, uint
         return EAR_SUCCESS;
     state_t ret, gret = EAR_SUCCESS;
     uint value;
-    int cc;
     int i;
-    powermon_app_t *pmapp;
     debug("entering set_powercap_value with domain %u and limit %u", domain, limit);
     for (i = 0; i < NUM_DOMAINS; i++) {
         // We redistribute the power among all domains
-        value = ear_max(limit * pdomains[i], 1);
+        /* never 1 W: that is the UNLIMITED sentinel */
+        value = (limit == POWER_CAP_UNLIMITED) ? POWER_CAP_UNLIMITED : ear_max(limit * pdomains[i], 2);
         debug("Using %f weigth for domain %d: Total %lu allocated %u", pdomains[i], i, limit, value);
-        ret = freturn(pcsyms_fun[i].set_powercap_value, pid, LEVEL_NODE, &value, current_util[i]);
-#ifndef SYN_TEST
-        for (cc = 0; cc < MAX_NESTED_LEVELS; cc++) {
-            pmapp = NULL;
-            if (state_ok(powermon_context_trylock(cc, &pmapp))) {
-                /* PENDING to distribute power among running jobs proportionally to the number of resources*/
-                pmapp->settings->pc_opt.pper_domain[i] = limit * pdomains[i] / num_contexts;
-                powermon_context_unlock(cc);
-            }
-        }
-#endif
+        ret           = freturn(pcsyms_fun[i].set_powercap_value, pid, LEVEL_NODE, &value, current_util[i]);
+        domain_cap[i] = (limit == POWER_CAP_UNLIMITED) ? 0 : (uint32_t) (limit * pdomains[i]);
         if ((ret != EAR_SUCCESS) && (domains_loaded[i]))
             gret = ret;
         if (value == 1) {
@@ -725,6 +791,7 @@ state_t pmgt_set_powercap_value(pwr_mgt_t *phandler, uint pid, uint domain, uint
         }
     }
     pmgt_limit = limit;
+    publish_domain_shares();
     return gret;
 }
 
@@ -747,8 +814,69 @@ static void reallocate_power_between_domains()
         ret                = freturn(pcsyms_fun[i].set_powercap_value, pid, LEVEL_NODE, &new_limit, current_util[i]);
         if (ret == EAR_ERROR)
             debug("error when setting powercap value");
+        domain_cap[i] = new_limit;
     }
     debug("%s", buffer2);
+    publish_domain_shares();
+}
+
+#ifndef SYN_TEST
+/* CPUs of a context's job, as used to merge the requested frequencies: 0 when the
+ * context has no mask of its own (an sbatch whose steps are contexts of their own) */
+static int context_cpu_mask(powermon_app_t *pmapp, cpu_set_t *m)
+{
+    job_context_t *alloc;
+    int pos_job_in_node = is_job_in_node(pmapp->app.job.id, &alloc);
+    if (pmapp->app.is_mpi) { // job step with EARL
+        *m = pmapp->app_info->node_mask;
+    } else if (!pmapp->is_job) { // job step without EARL
+        *m = pmapp->plug_mask;
+    } else if (pmapp->is_job && pos_job_in_node && alloc->num_ctx == 1) { // srun without an sbatch
+        *m = pmapp->plug_mask;
+    } else { // sbatch with other steps inside
+        return 0;
+    }
+    return 1;
+}
+#endif
+
+/* Publishes each domain's share for the applications (pper_domain), after every split,
+ * shrink and CPU<->GPU move:
+ * - my_pc_opt holds the node's shares;
+ * - each job gets the part of the CPU and DRAM shares its CPUs are of the node's. EARD
+ *   doesn't know which GPUs a job uses: the GPU and node shares are the node's.
+ * Values are updated in place: EARL reads them at its next policy evaluation, no
+ * rescheduling is forced. */
+static void publish_domain_shares()
+{
+    uint32_t node_share[NUM_DOMAINS];
+    for (int i = 0; i < NUM_DOMAINS; i++)
+        node_share[i] = (pmgt_limit > POWER_CAP_UNLIMITED) ? domain_cap[i] : 0;
+    memcpy(my_pc_opt.pper_domain, node_share, sizeof(node_share));
+#ifndef SYN_TEST
+    uint ncpus = ear_min(pc_topology_info.cpu_count, MAX_CPUS_SUPPORTED);
+    for (int cc = 0; cc < MAX_NESTED_LEVELS; cc++) {
+        powermon_app_t *pmapp = NULL;
+        if (state_fail(powermon_context_trylock(cc, &pmapp)))
+            continue;
+        double cpu_frac = 1.0;
+        cpu_set_t m;
+        if (cc > 0 && ncpus > 0 && context_cpu_mask(pmapp, &m)) {
+            uint n = 0;
+            for (uint c = 0; c < ncpus; c++)
+                n += CPU_ISSET(c, &m) ? 1 : 0;
+            if (n > 0)
+                cpu_frac = (double) n / ncpus;
+        }
+        for (int i = 0; i < NUM_DOMAINS; i++) {
+            double share = node_share[i];
+            if (i == DOMAIN_CPU || i == DOMAIN_DRAM)
+                share *= cpu_frac;
+            pmapp->settings->pc_opt.pper_domain[i] = (uint32_t) share;
+        }
+        powermon_context_unlock(cc);
+    }
+#endif
 }
 
 state_t pmgt_reset_pdomain()
@@ -763,15 +891,23 @@ state_t pmgt_reset_pdomain()
 state_t pmgt_get_powercap_value(pwr_mgt_t *phandler, uint pid, uint32_t *powercap)
 {
     state_t ret, gret = EAR_SUCCESS;
-    uint32_t parc;
-    int i;
+    /* plugins write one value per device (sockets, GPUs) */
+    static uint32_t parc[MAX_CPUS_SUPPORTED];
+    int i, d;
     if (powercap == NULL)
         return EAR_ERROR;
     for (i = 0; i < NUM_DOMAINS; i++) {
         powercap[i] = 0;
-        ret         = freturn(pcsyms_fun[i].get_powercap_value, pid, &parc);
-        if (domains_loaded[i])
-            powercap[i] = parc;
+        memset(parc, 0, sizeof(parc));
+        ret = freturn(pcsyms_fun[i].get_powercap_value, pid, parc);
+        if (domains_loaded[i]) {
+            /* domain value = sum of its devices, unlimited/disabled devices excluded */
+            uint64_t sum = 0;
+            for (d = 0; d < MAX_CPUS_SUPPORTED; d++)
+                if (parc[d] > POWER_CAP_UNLIMITED && parc[d] != UINT32_MAX)
+                    sum += parc[d];
+            powercap[i] = (uint32_t) ear_min(sum, (uint64_t) UINT32_MAX);
+        }
         if ((ret != EAR_SUCCESS) && (domains_loaded[i]))
             gret = ret;
     }
@@ -781,10 +917,19 @@ state_t pmgt_get_powercap_value(pwr_mgt_t *phandler, uint pid, uint32_t *powerca
 /* Gets powercap per device in a specified domain */
 state_t pmgt_get_powercap_value_per_device(uint domain, uint32_t *powercaps)
 {
-    if (domain >= NUM_DOMAINS || !domains_loaded[domain] || powercaps == NULL) {
+    state_t ret;
+    if (domain >= NUM_DOMAINS || powercaps == NULL) {
         return EAR_ERROR;
     }
-    state_t ret = freturn(pcsyms_fun[domain].get_powercap_value, 0, powercaps);
+    if (domain == DOMAIN_DRAM && !domains_loaded[DOMAIN_DRAM] && domains_loaded[DOMAIN_CPU] &&
+        pmgt_get_powercap_cpu_strategy(NULL) == PC_POWER) {
+        /* DRAM is capped by the RAPL CPU plugin: read it back from RAPL */
+        ret = mgt_cpupow_powercap_get(CPUPOW_DRAM, powercaps);
+    } else if (!domains_loaded[domain]) {
+        return EAR_ERROR;
+    } else {
+        ret = freturn(pcsyms_fun[domain].get_powercap_value, 0, powercaps);
+    }
     if (ret != EAR_SUCCESS) {
         return ret;
     }
@@ -808,6 +953,49 @@ state_t pmgt_get_powercap_value_per_device(uint domain, uint32_t *powercaps)
         }
     }
     return EAR_SUCCESS;
+}
+
+/* Node power range the hardware accepts: the sum of the devices' minimum and maximum
+ * caps (RAPL POWER_INFO, NVML). 0 when unknown. */
+void pmgt_get_node_hw_limits(uint32_t *node_min, uint32_t *node_max)
+{
+    uint64_t max = 0;
+    int known    = 1, i;
+    *node_min    = dom_hw_min[DOMAIN_CPU] + dom_hw_min[DOMAIN_GPU];
+    for (i = 0; i < pc_topology_info.socket_count && i < MAX_PACKAGES; i++) {
+        known &= (pck_max[i] > 0);
+        max += pck_max[i] + dram_max[i];
+    }
+#if USE_GPUS
+    if (domains_loaded[DOMAIN_GPU] && gpu_pc_model != API_DUMMY)
+        for (i = 0; i < gpu_pc_num_gpus && i < MAX_GPUS_SUPPORTED; i++) {
+            known &= (gpu_tdps[i] > 0);
+            max += gpu_tdps[i];
+        }
+#endif
+    *node_max = (known && pc_topology_info.socket_count > 0) ? (uint32_t) ear_min(max, UINT32_MAX) : 0;
+}
+
+/* Returns 1 if the domain's device caps can be read back (a plugin, or RAPL for DRAM) */
+uint pmgt_domain_readable(uint domain)
+{
+    if (domain >= NUM_DOMAINS)
+        return 0;
+    if (domain == DOMAIN_DRAM && !domains_loaded[DOMAIN_DRAM])
+        return domains_loaded[DOMAIN_CPU] && pmgt_get_powercap_cpu_strategy(NULL) == PC_POWER;
+    return domains_loaded[domain];
+}
+
+/* A device cap at or above this value reads back as POWER_CAP_UNLIMITED */
+uint32_t pmgt_get_device_tdp(uint domain, uint device)
+{
+    if ((domain == DOMAIN_CPU || domain == DOMAIN_DRAM) && device < MAX_PACKAGES)
+        return (domain == DOMAIN_CPU) ? pck_tdps[device] : dram_tdps[device];
+#if USE_GPUS
+    if (domain == DOMAIN_GPU && device < MAX_GPUS_SUPPORTED)
+        return gpu_tdps[device];
+#endif
+    return UINT32_MAX;
 }
 
 uint pmgt_is_powercap_enabled(pwr_mgt_t *phandler, uint pid)
@@ -927,15 +1115,13 @@ void pmgt_set_power_per_domain(pwr_mgt_t *phandler, dom_power_t *pdomain, uint s
     debug("[NODE-GPU %f CPU %f DRAM %f GPU %f][NODE-GPU %f CPU %f DRAM %f GPU %f]", pnode, pcpu, pdram, pgpu,
           pdomains[DOMAIN_NODE], pdomains[DOMAIN_CPU], pdomains[DOMAIN_DRAM], pdomains[DOMAIN_GPU]);
 #endif
-    if (my_pc_opt.last_t1_allocated < my_pc_opt.def_powercap)
-        return;
     if (pdomain->platform > pmgt_limit) {
         verbose(VEARD_PC, "%s Warning! we are over the limit: Limit %u Power %u%s", COL_RED, pmgt_limit,
                 pdomain->platform, COL_CLR);
         float excess = ((float) (pdomain->platform - pmgt_limit)) / (float) pmgt_limit;
         for (i = 0; i < NUM_DOMAINS; i++) {
             if (pdomains[i] > 0)
-                pdomains[i] = pdomains[i] - excess * pdomains[i];
+                pdomains[i] = ear_max(pdomains[i] - excess * pdomains[i], pdomain_floor(i));
         }
         debug("reduced power domains by %.2f, new CPU %.2f new GPU %.2f", excess, pdomains[DOMAIN_CPU],
               pdomains[DOMAIN_GPU]);
@@ -955,14 +1141,14 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
 {
     int cc, i;
     powermon_app_t *pmapp;
-    job_context_t *alloc;
-    int pos_job_in_node;
+    /* f holds dom_size entries: never touch more than that */
+    uint n = ear_min(dom_size, (domain == DOMAIN_GPU) ? MAX_GPUS_SUPPORTED : MAX_CPUS_SUPPORTED);
     if (domain == DOMAIN_CPU)
-        for (i = 0; i < MAX_CPUS_SUPPORTED; i++)
+        for (i = 0; i < n; i++)
             f[i] = 0;
 #if USE_GPUS
     if (domain == DOMAIN_GPU)
-        for (i = 0; i < MAX_GPUS_SUPPORTED; i++)
+        for (i = 0; i < n; i++)
             f[i] = 0;
 #endif
     for (cc = 1; cc < MAX_NESTED_LEVELS; cc++) {
@@ -973,23 +1159,13 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
             if (domain == DOMAIN_CPU) {
                 // memcpy(f,pc_app_info_data->req_f,sizeof(ulong)*MAX_CPUS_SUPPORTED);
                 cpu_set_t m;
-                pos_job_in_node = is_job_in_node(pmapp->app.job.id, &alloc);
-                if (pmapp->app.is_mpi) { // job step with EARL
-                    debug("Using EARL mask");
-                    m = pmapp->app_info->node_mask;
-                } else if (!pmapp->is_job) { // job step without EARL
-                    debug("Using plugin mask (step without EARL)");
-                    m = pmapp->plug_mask;
-                } else if (pmapp->is_job && pos_job_in_node && alloc->num_ctx == 1) { // srun without an sbatch
-                    debug("Using plugin mask (step without EARL neither sbatch)");
-                    m = pmapp->plug_mask;
-                } else { // sbatch with other steps inside
+                if (!context_cpu_mask(pmapp, &m)) {
                     powermon_context_unlock(cc);
                     continue;
                 }
                 // verbose_affinity_mask(&m, dom_size);
 
-                for (i = 0; i < MAX_CPUS_SUPPORTED; i++) {
+                for (i = 0; i < n; i++) {
                     if (CPU_ISSET(i, &m))
                         f[i] = pmapp->pc_app_info->req_f[i];
                 }
@@ -997,7 +1173,7 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
 #if USE_GPUS
             if (domain == DOMAIN_GPU) {
                 // memcpy(f,pc_app_info_data->req_gpu_f,sizeof(ulong)*MAX_GPUS_SUPPORTED);
-                for (i = 0; i < MAX_GPUS_SUPPORTED; i++) {
+                for (i = 0; i < n; i++) {
                     if (pmapp->pc_app_info->req_gpu_f[i] != 0)
                         f[i] = pmapp->pc_app_info->req_gpu_f[i];
                 }
@@ -1008,7 +1184,7 @@ void pmgt_get_app_req_freq(uint domain, ulong *f, uint dom_size)
         }
     }
     if (domain == DOMAIN_CPU) {
-        for (i = 0; i < MAX_CPUS_SUPPORTED; i++) {
+        for (i = 0; i < n; i++) {
             if (use_min_cpufreq_in_idle) {
                 if (!f[i])
                     f[i] = frequency_pstate_to_freq(frequency_get_num_pstates() - 1);
@@ -1144,12 +1320,10 @@ void pmgt_get_status(pmgt_status_t *status)
             status->status = PC_STATUS_OK;
             debug("pmgt_get_status: GREEDY + RELEASE");
         } else { // GREEDY + GREEDY or GREEDY + OK
-            status->status = PC_STATUS_GREEDY;
-            status->requested += cdomain_status[DOMAIN_CPU].requested;
-            status->requested += cdomain_status[DOMAIN_GPU].requested;
-            status->requested =
-                ear_min(status->requested, 255); // a total maximum step of 256 since it is the max value we can pass up
-            status->stress = ear_max(cdomain_status[DOMAIN_CPU].stress, cdomain_status[DOMAIN_GPU].stress);
+            status->status    = PC_STATUS_GREEDY;
+            uint requested    = (uint) cdomain_status[DOMAIN_CPU].requested + cdomain_status[DOMAIN_GPU].requested;
+            status->requested = ear_min(requested, UINT16_MAX); // the widest value we can pass up
+            status->stress    = ear_max(cdomain_status[DOMAIN_CPU].stress, cdomain_status[DOMAIN_GPU].stress);
             debug("pmgt_get_status: GREEDY + OK/GREEDY Node requested power %u", status->requested);
         }
     } else if (cdomain_status[DOMAIN_CPU].ok == PC_STATUS_RELEASE ||
@@ -1158,6 +1332,17 @@ void pmgt_get_status(pmgt_status_t *status)
         status->status = PC_STATUS_RELEASE;
         for (i = 0; i < NUM_DOMAINS; i++)
             status->tbr += cdomain_status[i].exceed;
+    }
+    /* A node limit above what the devices can ever take: offer the difference back */
+    uint32_t hw_min, hw_max;
+    pmgt_get_node_hw_limits(&hw_min, &hw_max);
+    if (hw_max && pmgt_limit > hw_max && status->status != PC_STATUS_GREEDY) {
+        uint32_t unusable = pmgt_limit - hw_max;
+        if (status->status != PC_STATUS_RELEASE)
+            status->tbr = 0;
+        status->status = PC_STATUS_RELEASE;
+        status->tbr    = ear_max(status->tbr, unusable);
+        debug("node limit %u W above the hardware maximum %u W: releasing %u W", pmgt_limit, hw_max, status->tbr);
     }
     debug("pmgt_get_status: Final pmgt_status: %d", status->status);
 }
@@ -1257,6 +1442,16 @@ static uint pmgt_powercap_status_per_domain(uint action)
     } else
         return 1;
 
+    /* The lending domain never goes below its floor */
+    if (is_release) {
+        uint floor_w = (uint) (pdomain_floor(from) * pmgt_limit);
+        uint spare   = (cdomain_status[from].current_pc > floor_w) ? cdomain_status[from].current_pc - floor_w : 0;
+        cdomain_status[from].exceed = ear_min(cdomain_status[from].exceed, spare);
+        if (cdomain_status[from].exceed == 0) {
+            debug("domain %u at its floor (%u W), no power moved", from, floor_w);
+            is_release = 0;
+        }
+    }
     uint new_power_send, new_power_recv;
     switch (is_release) {
         case 0:
@@ -1281,6 +1476,9 @@ static uint pmgt_powercap_status_per_domain(uint action)
                           current_util[to]); /* Receives more power that before */
             if (ret == EAR_ERROR)
                 debug("error setting powercap value");
+            domain_cap[from] = new_power_send;
+            domain_cap[to]   = new_power_recv;
+            publish_domain_shares();
             break;
         case 2:
             new_power_send = cdomain_status[from].current_pc - cdomain_status[from].exceed;
@@ -1300,6 +1498,9 @@ static uint pmgt_powercap_status_per_domain(uint action)
                           current_util[to]); /* Receives more power that before */
             if (ret == EAR_ERROR)
                 debug("error setting powercap value");
+            domain_cap[from] = new_power_send;
+            domain_cap[to]   = new_power_recv;
+            publish_domain_shares();
             break;
     }
     ulong total_power = 0;
@@ -1307,8 +1508,12 @@ static uint pmgt_powercap_status_per_domain(uint action)
         total_power += cdomain_status[i].current_pc;
     }
     debug("current node power %lu, current_limit %u", total_power, pmgt_limit);
-    // TODO: this assert is dangerous
-    assert(total_power <= pmgt_limit);
+    /* Domain caps above the node limit (e.g. left by manual mode): re-apply the node split */
+    if (total_power > pmgt_limit && current_mode == PC_MODE_AUTO) {
+        warning("domain caps add up to %lu W, above the node limit %u W: re-applying the node limit", total_power,
+                pmgt_limit);
+        pmgt_set_powercap_value(NULL, 0, DOMAIN_NODE, pmgt_limit);
+    }
 #endif
     return 0;
 }

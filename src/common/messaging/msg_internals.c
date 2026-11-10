@@ -1658,7 +1658,7 @@ powercap_status_t *mem_alloc_powercap_status(char *final_data)
 
 char *mem_alloc_char_powercap_status(powercap_status_t *status)
 {
-    int size   = sizeof(powercap_status_t) + ((status->num_greedy) * (sizeof(int) + sizeof(uint) * 2));
+    int size   = sizeof(powercap_status_t) + ((status->num_greedy) * (sizeof(int) + sizeof(greedy_bytes_t)));
     char *data = calloc(size, sizeof(char));
 
     memcpy(data, status, sizeof(powercap_status_t));

@@ -126,8 +126,10 @@ char **strtoa(const char *string, char separator, char ***rows, uint *rows_count
 
 void strtoa_free(char **list)
 {
-    free(list[-1]);
-    free(list - 1);
+    if (list) {
+        free(list[-1]);
+        free(list - 1);
+    }
 }
 
 void *strtoat(const char *string, char separator, void **list, uint *list_count, int id_type)

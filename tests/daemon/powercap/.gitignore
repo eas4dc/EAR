@@ -1,0 +1,16 @@
+test_status
+test_node
+test_monitor
+test_mgt
+test_gpu_plugin
+test_cpu_plugin
+test_cpu_plugin_asan
+test_integration
+*.o
+test_gpu_dvfs_plugin
+test_gpu_dvfs_plugin_asan
+test_dvfs_plugin
+test_inm_plugin
+test_grace_hopper_plugin
+test_gpu_dummy_plugin
+test_pvc_hwmon

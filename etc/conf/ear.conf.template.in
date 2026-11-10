@@ -181,11 +181,16 @@ AdminUsers=root
 # go beyond that value, regardless of the free power available cluster-wide.
 # At least a default tag is mandatory to be included in this file for a cluster to work properly.
 
-# default powercap plugin can be specified for nodes using the tag. POWERCAP=0 --> disabled, POWERCAP=1 -->unlimited, POWERCAP=N (> 1) limits node to N watts
+# default powercap plugin can be specified for nodes using the tag. BASELINE_POWERCAP=0 --> disabled, =1 --> unlimited, =N (> 1) the node can always reclaim N watts
+# (it is capped there when power is short, and may lend what it does not use). POWERCAP= is a
+# deprecated alias of BASELINE_POWERCAP=.
+# min_working_power=N (W): lowest power a node running a job needs. EARD never caps the node below
+# max(N, the hardware minimum read from RAPL/NVML), and raises a powercap default below it. 0 or
+# unset: the hardware minimum only.
 
-Tag=CPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plug
+Tag=CPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=50 error_power=5000 coeffs=coeffs.default baseline_powercap=1 powercap_plugin=dvfs.so energy_plug
 in=energy_nm.so
-Tag=GPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000 policy=optimize
+Tag=GPU default=yes max_avx512=2.2 max_avx2=2.6 max_power=5000 min_power=150 error_power=5000 coeffs=coeffs.default baseline_powercap=1 powercap_plugin=dvfs.so energy_plugin=energy_nm.so  gpu_powercap_plugin=gpu.so idle_governor=ondemand idle_pstate=1000 policy=optimize
 
 
 #---------------------------------------------------------------------------------------------------
