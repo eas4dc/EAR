@@ -65,14 +65,15 @@ int print_gpus = 1;
 int loop_extended = 0;
 char csv_path[256] = "";
 
-static size_t eacct_query_size(const query_adds_t *query_adds, unsigned int job_ids_uses)
+static size_t eacct_query_size(const query_adds_t *query_adds, const char *user, unsigned int filter_uses)
 {
-	size_t job_ids_size = 0;
+    size_t variable_size = user != NULL ? strlen(user) : 0;
 
-	if (query_adds->job_ids != NULL) {
-		job_ids_size = strlen(query_adds->job_ids);
-	}
-	return EACCT_QUERY_BASE_SIZE + (job_ids_size * job_ids_uses);
+    if (query_adds->job_ids != NULL) {
+        variable_size += strlen(query_adds->job_ids);
+    }
+    /* The base covers SQL literals, bounded filters and the terminating NUL. */
+    return EACCT_QUERY_BASE_SIZE + (variable_size * filter_uses);
 }
 
 static char *parse_job_ids(const char *value)
@@ -88,7 +89,11 @@ static char *parse_job_ids(const char *value)
 	}
 
 	do {
-		errno = 0;
+        if (*current < '0' || *current > '9') {
+            fprintf(stderr, "Invalid job ID list.\n");
+            return NULL;
+        }
+        errno = 0;
 		job_id = strtoul(current, &end, 10);
 		if (end == current || errno == ERANGE || job_id > INT_MAX) {
 			fprintf(stderr, "Invalid job ID list.\n");
@@ -109,6 +114,72 @@ static char *parse_job_ids(const char *value)
 	} while (true);
 
 	return strdup(value);
+}
+
+static bool parse_job_filter(const char *value, query_adds_t *query_adds)
+{
+    char *end;
+    unsigned long job_id, step_id;
+    char step_ids[sizeof(query_adds->step_ids)] = {0};
+
+    if (strchr(value, ',')) {
+        char *job_ids = parse_job_ids(value);
+        if (job_ids == NULL) {
+            return false;
+        }
+        free(query_adds->job_ids);
+        query_adds->job_ids     = job_ids;
+        query_adds->job_id      = -1;
+        query_adds->step_ids[0] = '\0';
+        return true;
+    }
+    if (*value < '0' || *value > '9') {
+        goto invalid;
+    }
+    errno  = 0;
+    job_id = strtoul(value, &end, 10);
+    if (errno == ERANGE || job_id > INT_MAX) {
+        goto invalid;
+    }
+    if (*end == '.') {
+        const char *step = end + 1;
+        if (!strcmp(step, "sbatch") || !strcmp(step, "sb")) {
+            snprintf(step_ids, sizeof(step_ids), "%u", BATCH_STEP);
+        } else {
+            if (*step < '0' || *step > '9') {
+                goto invalid;
+            }
+            errno   = 0;
+            step_id = strtoul(step, &end, 10);
+            if (errno == ERANGE || step_id > UINT_MAX || *end != '\0') {
+                goto invalid;
+            }
+            snprintf(step_ids, sizeof(step_ids), "%lu", step_id);
+        }
+    } else if (*end != '\0') {
+        goto invalid;
+    }
+
+    free(query_adds->job_ids);
+    query_adds->job_ids = NULL;
+    query_adds->job_id  = (int) job_id;
+    strcpy(query_adds->step_ids, step_ids);
+    return true;
+
+invalid:
+    fprintf(stderr, "Invalid job ID. Expected jobid[.stepid], with a numeric step ID or sb/sbatch.\n");
+    return false;
+}
+
+static bool copy_argument(char *dest, size_t size, const char *value, const char *option)
+{
+    size_t length = strlen(value);
+    if (length >= size) {
+        fprintf(stderr, "%s argument is too long (maximum %zu characters).\n", option, size - 1);
+        return false;
+    }
+    memcpy(dest, value, length + 1);
+    return true;
 }
 
 #if COLORS
@@ -941,8 +1012,8 @@ void postgresql_print_events(PGresult *res, int fd)
 
 void read_events(char *user, query_adds_t *q_a) 
 {
-	char *query = calloc(eacct_query_size(q_a, 1), sizeof(char));
-	char subquery[128];
+    char *query = calloc(eacct_query_size(q_a, user, 1), sizeof(char));
+    char subquery[128];
 
 	if (query == NULL) {
 		fprintf(stderr, "Unable to allocate query buffer.\n");
@@ -1052,8 +1123,8 @@ void format_loop_query(char *user, char *query, char *base_query, query_adds_t *
 
 void read_jobs_from_loops(query_adds_t *q_a)
 {
-	char *query = calloc(eacct_query_size(q_a, 1), sizeof(char));
-	char subquery[256], tmp_path[512];
+    char *query = calloc(eacct_query_size(q_a, NULL, 1), sizeof(char));
+    char subquery[256], tmp_path[512];
 	char ***values;
 	int columns, rows;
 	int fd = STDOUT_FILENO, ret;
@@ -1152,9 +1223,9 @@ void read_jobs_from_loops(query_adds_t *q_a)
 
 void read_loops(char *user, query_adds_t *q_a, char *format)
 {
-	char *query = calloc(eacct_query_size(q_a, 1), sizeof(char));
+    char *query = calloc(eacct_query_size(q_a, user, 1), sizeof(char));
 
-	if (query == NULL) {
+    if (query == NULL) {
 		fprintf(stderr, "Unable to allocate query buffer.\n");
 		return;
 	}
@@ -1218,9 +1289,9 @@ void read_applications_from_database(char *user, query_adds_t *q_a, char *format
 #if USE_DB
 	int num_apps = 0;
 	char subquery[256];
-	char *query = calloc(eacct_query_size(q_a, 2), sizeof(char));
+    char *query = calloc(eacct_query_size(q_a, user, 2), sizeof(char));
 
-	if (query == NULL) {
+    if (query == NULL) {
 		fprintf(stderr, "Unable to allocate query buffer.\n");
 		return;
 	}
@@ -1374,30 +1445,30 @@ int main(int argc, char *argv[])
 		user = NULL; //by default, privilegd users or root will query all user jobs
 	}
 
-	char *token;
 	int option_idx;
-	static struct option long_options [] = {
-		{"help",       no_argument, 0, 'h'},
-		{"version",    no_argument, 0, 'v'},
-		{"no-mpi",     no_argument, 0, 'm'},
-		{"avx",        no_argument, 0, 'p'},
-		{"verbose",    no_argument, 0, 'b'},
-		{"show-gpus",  no_argument, 0, 'g'},
-		{"long-apps",  no_argument, 0, 'l'},
-		{"loops",      no_argument, 0, 'r'},
-		{"ext_loops",  no_argument, 0, 'o'},
-		{"help",       no_argument, 0, 'h'},
-		{"limit",      required_argument, 0, 'n'},
-		{"user",       required_argument, 0, 'u'},
-		{"jobs",       required_argument, 0, 'j'},
-		{"events",     required_argument, 0, 'x'},
-		{"csv",        required_argument, 0, 'c'},
-		{"tag",        required_argument, 0, 't'},
-		{"app-id",     required_argument, 0, 'a'},
-		{"start-time", required_argument, 0, 's'},
-		{"end-time",   required_argument, 0, 'e'},
-		{"format",     required_argument, 0, 'F'},
-	};
+    static struct option long_options[] = {
+        {"help", no_argument, 0, 'h'},
+        {"version", no_argument, 0, 'v'},
+        {"no-mpi", no_argument, 0, 'm'},
+        {"avx", no_argument, 0, 'p'},
+        {"verbose", no_argument, 0, 'b'},
+        {"show-gpus", no_argument, 0, 'g'},
+        {"long-apps", no_argument, 0, 'l'},
+        {"loops", no_argument, 0, 'r'},
+        {"ext_loops", no_argument, 0, 'o'},
+        {"help", no_argument, 0, 'h'},
+        {"limit", required_argument, 0, 'n'},
+        {"user", required_argument, 0, 'u'},
+        {"jobs", required_argument, 0, 'j'},
+        {"events", optional_argument, 0, 'x'},
+        {"csv", required_argument, 0, 'c'},
+        {"tag", required_argument, 0, 't'},
+        {"app-id", required_argument, 0, 'a'},
+        {"start-time", required_argument, 0, 's'},
+        {"end-time", required_argument, 0, 'e'},
+        {"format", required_argument, 0, 'F'},
+        {0, 0, 0, 0},
+    };
 
 #if COLORS
 	print_colors_legend();
@@ -1423,54 +1494,24 @@ int main(int argc, char *argv[])
 				if (user != NULL) break;
 				user = optarg;
 				break;
-			case 'j':
-				query_adds.limit = query_adds.limit == 20 ? -1 : query_adds.limit; //if the limit is still the default
-				if (strchr(optarg, ','))
-				{
-					query_adds.job_ids = parse_job_ids(optarg);
-					if (query_adds.job_ids == NULL) {
-						free_cluster_conf(&my_conf);
-						exit(EXIT_FAILURE);
-					}
-				}
-				else
-				{
-					query_adds.job_id = atoi(strtok(optarg, "."));
-					token = strtok(NULL, ".");
-					if (token != NULL) {
-						if (!strcmp(token, "sbatch") || !strcmp(token, "sb")) {
-							sprintf(query_adds.step_ids, "%u", BATCH_STEP);
-						}
-						else strcpy(query_adds.step_ids, token);
-					}
-					//if (token != NULL) query_adds.step_id = atoi(token);
-				}
-				break;
-			case 'x':
-				is_events = 1;
-				if (optind < argc && strchr(argv[optind], '-') == NULL) {
-					if (strchr(argv[optind], ',')) {
-					query_adds.job_ids = parse_job_ids(argv[optind]);
-					if (query_adds.job_ids == NULL) {
-						free_cluster_conf(&my_conf);
-						exit(EXIT_FAILURE);
-					}
-					}
-					else {
-						query_adds.job_id = atoi(strtok(argv[optind], "."));
-						token = strtok(NULL, ".");
-						if (token != NULL) {
-							if (!strcmp(token, "sbatch") || !strcmp(token, "sb")) {
-								sprintf(query_adds.step_ids, "%u", BATCH_STEP);
-							}
-							else strcpy(query_adds.step_ids, token);
-						}
-						//if (token != NULL) query_adds.step_id = atoi(token);
-					}
-				}
-				else if (verbose) printf("No argument for -x\n");
-				break;
-			case 'o':
+            case 'j':
+                query_adds.limit = query_adds.limit == 20 ? -1 : query_adds.limit;
+                if (!parse_job_filter(optarg, &query_adds)) {
+                    goto invalid_arguments;
+                }
+                break;
+            case 'x': {
+                const char *value = optarg;
+                is_events         = 1;
+                if (value == NULL && optind < argc && argv[optind][0] != '-') {
+                    value = argv[optind++];
+                }
+                if (value != NULL && !parse_job_filter(value, &query_adds)) {
+                    goto invalid_arguments;
+                }
+                break;
+            }
+            case 'o':
 				loop_extended = 1;
 				break;
 			case 'g':
@@ -1494,17 +1535,23 @@ int main(int argc, char *argv[])
 				all_pow_sig = 1;
 				break;
 			case 'c':
-				strcpy(csv_path, optarg);
-				break;
+                if (!copy_argument(csv_path, sizeof(csv_path), optarg, "--csv")) {
+                    goto invalid_arguments;
+                }
+                break;
 			case 't':
-				strcpy(query_adds.e_tag, optarg);
-				break;
+                if (!copy_argument(query_adds.e_tag, sizeof(query_adds.e_tag), optarg, "--tag")) {
+                    goto invalid_arguments;
+                }
+                break;
 			case 'p':
 				avx = 1;
 				break;
 			case 'a':
-				strcpy(query_adds.app_id, optarg);
-				break;
+                if (!copy_argument(query_adds.app_id, sizeof(query_adds.app_id), optarg, "--app-id")) {
+                    goto invalid_arguments;
+                }
+                break;
 			case 's':
 				if (strptime(optarg, "%Y-%m-%e", &tinfo) == NULL) {
 					printf("Incorrect time format. Supported format is YYYY-MM-DD\n"); //error
@@ -1522,9 +1569,13 @@ int main(int argc, char *argv[])
 				query_adds.end_time = mktime(&tinfo);
 				break;
 			case 'F':
-				strncpy(format, optarg, sizeof(format));
-				break;
-			case 'h':
+                if (!copy_argument(format, sizeof(format), optarg, "--format")) {
+                    goto invalid_arguments;
+                }
+                break;
+            case '?':
+                goto invalid_arguments;
+            case 'h':
 				free_cluster_conf(&my_conf);
 				usage(argv[0]);
 				break;
@@ -1553,4 +1604,9 @@ int main(int argc, char *argv[])
 	free_cluster_conf(&my_conf);
 	free(query_adds.job_ids);
 	exit(0);
+
+invalid_arguments:
+    free(query_adds.job_ids);
+    free_cluster_conf(&my_conf);
+    return EXIT_FAILURE;
 }

@@ -4,43 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-- v6.0 GPU GFLOPS field added in the EAR Database.
-- v6.0 Added quality of life functions to management/cpupow API.
-- v6.0 New API for reading metrics through Linux hwmon.
-- v6.0 NVIDIA Grace Hopper devices support.
-- v6.0 Added AdminUsers to provide more privileges than AuthorizedUsers.
-- v6.0 Added --force option to the SLURM Plugin.
-- v6.0 Added a mechanism to dynamically increase the timeout window in msg_internals when a node connects but does not return data.
-- v6.0 Added stall cycles to CPI API.
-- v6.0 Application CPU usage field added in the EAR Database.
-- v6.0 Temperature readings through Linux hwmon.
-- v6.0 Added ARM compatibility to PERF (still unstable).
-- v6.0 New tool to create application signature from loop signature in DB.
-- v6.0 New command enodectl.
-- v6.0 Added HSMP opening mode control.
-- v6.0 Added an option to ereport to query by user\_group.
-
-### Changed
-- v6.0 Renamed DBIP and DBSECIP in ear.conf to EARDBD\_IP and EARDBD\_MIRROR\_IP to better reflect what it is.
-- v6.0 Energy node API.
-- v6.0 EAR Loader improved.
-- v6.0 Bandwidth, cache and flops APIs improved.
-- v6.0 Create a fallback mechanism for failed inserts to DB.
-- v6.0 Added pointer recalculation in cache\_data\_copy.
+## [5.2.9] - 2026-11-25
 
 ### Fixed
-- v6.0 A heap-buffer overflow when opening perf files is fixed.
-- v6.0 Minor fixes in the database size calculator tool.
-- v6.0 Fixed erroneous time weight calculation for each loop in loops\_average.
-- v6.0 Fixed SIGALRM for job validation.
-- v6.0 Switch to P\_STATE 0 after userspace governor in AMD17 architecture, and a fix in PCI opened file descriptors.
-- v6.0 Fixed DUMMY Cache API.
-- v6.0 Fixed compilation errors when using PostgreSQL.
-- v6.0 Several minor fixes in IMCFreq amd19 management API.
-- v6.0 Fixed errors with ereport's -G option.
+- Fix the computation of max and min power at job end.
+- Fix eacct crashes caused by invalid arguments.
+- Fixed buffer in verbose\_frequency, proportional to MAX\_CPUS\_SUPPORTED.
 
 ## [5.2.8] - 2026-09-03
 

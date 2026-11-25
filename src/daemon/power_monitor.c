@@ -1280,25 +1280,32 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
 
     read_enegy_data(ceh, &c_energy);
     compute_power(&pmapp->energy_init, &c_energy, &app_power);
+    double curr_DC_power   = accum_node_power(&app_power);
+    double curr_dram_power = accum_dram_power(&app_power);
+    double curr_pck_power  = accum_cpu_power(&app_power);
+
+    /* Last test : This is just a workaround because there is also GPU power*/
+    if (curr_DC_power < (curr_dram_power + curr_pck_power))
+        curr_DC_power = curr_dram_power + curr_pck_power;
 
     if (pmapp->exclusive) {
 
         verbose(VJOBPMON, "[%lu/%lu] Computing power signature. Job executed in exclusive mode",
                 pmapp->app.job.id, pmapp->app.job.step_id);
 
-        pmapp->app.power_sig.DC_power = accum_node_power(&app_power);
-
-        /* Filter */
-        if (pmapp->app.power_sig.DC_power > my_node_conf->max_sig_power) pmapp->app.power_sig.DC_power = my_node_conf->max_sig_power;
-        if (pmapp->app.power_sig.DC_power < my_node_conf->min_sig_power) pmapp->app.power_sig.DC_power = my_node_conf->min_sig_power;
+        /* Filter based on ear.conf */
+        if (curr_DC_power > my_node_conf->max_sig_power)
+            curr_DC_power = my_node_conf->max_sig_power;
+        if (curr_DC_power < my_node_conf->min_sig_power)
+            curr_DC_power = my_node_conf->min_sig_power;
 
         /* Compute max and min */
-        pmapp->app.power_sig.max_DC_power = ear_max(pmapp->app.power_sig.max_DC_power, pmapp->app.power_sig.max_DC_power);
-        pmapp->app.power_sig.min_DC_power = ear_min(pmapp->app.power_sig.min_DC_power, pmapp->app.power_sig.max_DC_power);
+        pmapp->app.power_sig.max_DC_power = ear_max(curr_DC_power, pmapp->app.power_sig.max_DC_power);
+        pmapp->app.power_sig.min_DC_power = ear_min(curr_DC_power, pmapp->app.power_sig.min_DC_power);
 
         /* DRAM and PCK */
-        pmapp->app.power_sig.DRAM_power = accum_dram_power(&app_power);
-        pmapp->app.power_sig.PCK_power = accum_cpu_power(&app_power);
+        pmapp->app.power_sig.DRAM_power = curr_dram_power;
+        pmapp->app.power_sig.PCK_power  = curr_pck_power;
         // CPU Frequency
         state_assert(s, cpufreq_read_diff(no_ctx, freq_job2, pmapp->freq_job1, pmapp->freq_diff, &pmapp->app.power_sig.avg_f), );
         ulong lcpus;
@@ -1306,6 +1313,7 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
             pstate_freqtoavg(pmapp->app_info->node_mask, pmapp->freq_diff, freq_count, &pmapp->app.power_sig.avg_f, &lcpus);
         }
     } else {
+        /* Not exclusive and is_mpi means EARL is used */
         if (pmapp->app.is_mpi) {
             verbose(VJOBPMON, "Computing power signature. Job executed in NOT exclusive mode. Using EARL signature");
             pmapp->app.power_sig.DC_power 	= pmapp->app.signature.DC_power;
@@ -1321,7 +1329,8 @@ void job_end_powermon_app(powermon_app_t *pmapp, ehandler_t *ceh)
         }
 
         if (pmapp->app.power_sig.DC_power > my_node_conf->max_sig_power) pmapp->app.power_sig.DC_power = my_node_conf->max_sig_power;
-        if (pmapp->app.power_sig.DC_power < my_node_conf->min_sig_power) pmapp->app.power_sig.DC_power = my_node_conf->min_sig_power;
+        /* DC power is not fixed at the lower bound because a job might have low dc power assigned when sharing
+         * resources.*/
 
         pmapp->app.power_sig.max_DC_power = ear_max(pmapp->accum_ps.max, pmapp->app.power_sig.DC_power); 
         pmapp->app.power_sig.min_DC_power = ear_min(pmapp->accum_ps.min, pmapp->app.power_sig.DC_power);

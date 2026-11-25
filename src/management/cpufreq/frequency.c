@@ -11,6 +11,7 @@
 //#define SHOW_DEBUGS 1
 
 #define _GNU_SOURCE
+#include <common/config/config_install.h>
 #include <math.h>
 #include <sched.h>
 #include <stdlib.h>
@@ -368,19 +369,19 @@ void set_governor(governor_t *_governor)
 void verbose_frequencies(int cpus, ulong *f)
 {
     int i;
-    char buff[4096];
+    char *buff;
     char buffshort[64];
-    buff[0] = '\0';
-    for (i=0;i<cpus;i++)
-    {
-        if (f[i]>0){
-            sprintf(buffshort,"CPU[%d]=%.2f ",i,(float)f[i]/1000000.0);
-        }else{
-            sprintf(buffshort,"CPU[%d]=0 ",i);
+    buff = calloc(MAX_CPUS_SUPPORTED, 14);
+    for (i = 0; i < cpus; i++) {
+        if (f[i] > 0) {
+            sprintf(buffshort, "CPU[%d]=%.2f ", i, (float) f[i] / 1000000.0);
+        } else {
+            sprintf(buffshort, "CPU[%d]=0 ", i);
         }
         strcat(buff, buffshort);
     }
     verbose(VEARD_PC, "%s", buff);
+    free(buff);
 }
 
 void vector_print_pstates(uint *pstates, uint num_cpus) {
