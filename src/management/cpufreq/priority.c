@@ -1,5 +1,5 @@
 /***************************************************************************
- * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ * Copyright (c) 2026 Energy Aware Runtime - Barcelona Supercomputing Center
  *
  * This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License 2.0
@@ -97,6 +97,9 @@ state_t mgt_cpufreq_prio_set_available_list_by_freqs(ullong *max_khz, ullong *mi
 
     if (prios == NULL) {
         mgt_cpufreq_prio_data_alloc(&prios, NULL);
+        if (prios == NULL) {
+            return_msg(EAR_ERROR, Generr.alloc_error);
+        }
         mgt_cpufreq_prio_data_count(&prios_count, NULL);
     }
     if (state_fail(s = mgt_cpufreq_prio_get_available_list(prios))) {
@@ -135,8 +138,12 @@ void mgt_cpufreq_prio_data_count(uint *prios_count, uint *idxs_count)
 
 void mgt_cpufreq_prio_data_alloc(cpuprio_t **prio_list, uint **idx_list)
 {
-    *prio_list = calloc(prios_count, sizeof(cpuprio_t));
-    *idx_list  = calloc(idxs_count, sizeof(uint));
+    if (prio_list != NULL) {
+        *prio_list = calloc(prios_count, sizeof(cpuprio_t));
+    }
+    if (idx_list != NULL) {
+        *idx_list = calloc(idxs_count, sizeof(uint));
+    }
 }
 
 void mgt_cpufreq_prio_data_print(cpuprio_t *prio_list, uint *idx_list, int fd)
@@ -168,7 +175,7 @@ void mgt_cpufreq_prio_data_tostr(cpuprio_t *prio_list, uint *idx_list, char *buf
             acc += sprintf(&buffer[acc], "\n");
         acc += sprintf(&buffer[acc], "[%03d,%2d] ", c, idx_list[c]);
     }
-    acc += sprintf(&buffer[acc], "\n");
+    sprintf(&buffer[acc], "\n");
 }
 
 #if TEST

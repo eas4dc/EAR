@@ -1,5 +1,5 @@
 /***************************************************************************
- * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ * Copyright (c) 2026 Energy Aware Runtime - Barcelona Supercomputing Center
  *
  * This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License 2.0
@@ -40,7 +40,8 @@ typedef struct mgt_ps_driver_ops_s {
     state_t (*reset)();
     void (*get_freq_details)(freq_details_t *details);
     state_t (*get_available_list)(const ullong **freq_list, uint *freq_count);
-    state_t (*get_current_list)(const ullong **freq_list);
+    /* Caller provides storage for one frequency per CPU. */
+    state_t (*get_current_list)(ullong *freq_list);
     state_t (*get_boost)(uint *boost_enabled);
     state_t (*set_current_list)(uint *freq_index);
     state_t (*set_current)(uint freq_index, int cpu);

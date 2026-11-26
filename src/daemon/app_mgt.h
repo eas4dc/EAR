@@ -10,7 +10,9 @@
 
 #ifndef _APP_MGT_H
 #define _APP_MGT_H
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <common/types/generic.h>
 #include <sched.h>
 

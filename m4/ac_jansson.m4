@@ -1,7 +1,7 @@
 AC_DEFUN([X_AC_JANSSON],
 [
 AC_ARG_WITH([jansson],
-  [AS_HELP_STRING([--with-jansson=DIR], [Ruta de instalación de libjansson])],
+  [AS_HELP_STRING([--with-jansson=DIR], [Use jansson (auto by default, DIR for custom path; --without-jansson disables it)])],
   [JANSSON_DIR="$withval"],
   [JANSSON_DIR=""]
 )
@@ -9,6 +9,13 @@ AC_ARG_WITH([jansson],
 HAVE_JANSSON=0
 MYJANSSON_CFLAGS=""
 MYJANSSON_LIBS=""
+
+# --without-jansson must suppress discovery even if the library is installed.
+# --with-jansson (without a path) retains system autodetection.
+if test "x$JANSSON_DIR" = "xyes"; then
+  JANSSON_DIR=""
+fi
+if test "x$JANSSON_DIR" != "xno"; then
 
 # ----------------------------------------------------------------------
 # Caso 1: El usuario pasa --with-jansson=DIR explícitamente
@@ -66,9 +73,12 @@ fi
 # ----------------------------------------------------------------------
 # Exportar variables
 # ----------------------------------------------------------------------
+fi
+
 AC_SUBST([HAVE_JANSSON])
 AC_SUBST([MYJANSSON_CFLAGS])
 AC_SUBST([MYJANSSON_LIBS])
+AM_CONDITIONAL([WITH_JANSSON], [test "x$HAVE_JANSSON" = "x1"])
 
 ])
 

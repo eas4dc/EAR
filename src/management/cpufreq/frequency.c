@@ -1,5 +1,5 @@
 /***************************************************************************
- * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ * Copyright (c) 2026 Energy Aware Runtime - Barcelona Supercomputing Center
  *
  * This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License 2.0
@@ -11,6 +11,7 @@
 // #define SHOW_DEBUGS 1
 
 #define _GNU_SOURCE
+#include <common/config/config_install.h>
 #include <common/output/debug.h>
 #include <management/cpufreq/cpufreq.h>
 #include <management/cpufreq/frequency.h>
@@ -364,29 +365,48 @@ void set_governor(governor_t *_governor)
 
 void verbose_frequencies(int cpus, ulong *f)
 {
-    int i;
-    char buff[4096];
-    char buffshort[64];
-    buff[0] = '\0';
-    for (i = 0; i < cpus; i++) {
+    if (cpus <= 0) {
+        return;
+    }
+    char *buff      = calloc(cpus, 64);
+    size_t capacity = (size_t) cpus * 64;
+    size_t used     = 0;
+    if (buff == NULL) {
+        return;
+    }
+    for (int i = 0; i < cpus; i++) {
+        int written;
         if (f[i] > 0) {
-            sprintf(buffshort, "CPU[%d]=%.2f ", i, (float) f[i] / 1000000.0);
+            written = snprintf(buff + used, capacity - used, "CPU[%d]=%.2f ", i, (float) f[i] / 1000000.0);
         } else {
-            sprintf(buffshort, "CPU[%d]=0 ", i);
+            written = snprintf(buff + used, capacity - used, "CPU[%d]=0 ", i);
         }
-        strcat(buff, buffshort);
+        if (written < 0 || (size_t) written >= capacity - used) {
+            break;
+        }
+        used += written;
     }
     verbose(VEARD_PC, "%s", buff);
+    free(buff);
 }
 
 void vector_print_pstates(uint *pstates, uint num_cpus)
 {
-    char *tmp_buff = calloc(num_cpus * 32, sizeof(char));
-    char sml_buff[32];
-    int i;
-    for (i = 0; i < num_cpus; i++) {
-        sprintf(sml_buff, "p%d: %u, ", i, pstates[i]);
-        strcat(tmp_buff, sml_buff);
+    if (num_cpus == 0) {
+        return;
+    }
+    char *tmp_buff  = calloc(num_cpus, 32);
+    size_t capacity = (size_t) num_cpus * 32;
+    size_t used     = 0;
+    if (tmp_buff == NULL) {
+        return;
+    }
+    for (uint i = 0; i < num_cpus; i++) {
+        int written = snprintf(tmp_buff + used, capacity - used, "p%u: %u, ", i, pstates[i]);
+        if (written < 0 || (size_t) written >= capacity - used) {
+            break;
+        }
+        used += written;
     }
     verbose(VEARD_PC, "%s", tmp_buff);
     free(tmp_buff);

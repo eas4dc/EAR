@@ -11,7 +11,7 @@
 AC_DEFUN([X_AC_CURL],
 [
 AC_ARG_WITH([curl],
-  [AS_HELP_STRING([--with-curl=DIR], [Ruta de instalación de libcurl])],
+  [AS_HELP_STRING([--with-curl=DIR], [Use curl (auto by default, DIR for custom path; --without-curl disables it)])],
   [CURL_DIR="$withval"],
   [CURL_DIR=""]
 )
@@ -19,6 +19,13 @@ AC_ARG_WITH([curl],
 HAVE_CURL=0
 MYCURL_CFLAGS=""
 MYCURL_LIBS=""
+
+# --without-curl must suppress discovery even if the library is installed.
+# --with-curl (without a path) retains system autodetection.
+if test "x$CURL_DIR" = "xyes"; then
+  CURL_DIR=""
+fi
+if test "x$CURL_DIR" != "xno"; then
 
 # ----------------------------------------------------------------------
 # Caso 1: El usuario pasa --with-curl=DIR explícitamente
@@ -66,8 +73,11 @@ fi
 
 
 # Exportar variables al Makefile
+fi
+
 AC_SUBST([HAVE_CURL])
 AC_SUBST([MYCURL_CFLAGS])
 AC_SUBST([MYCURL_LIBS])
+AM_CONDITIONAL([WITH_CURL], [test "x$HAVE_CURL" = "x1"])
 
 ])

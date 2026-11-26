@@ -33,6 +33,7 @@ AC_DEFUN([X_AC_CMOCKA],
                     [with_cmocka=no]
                    )
         WITH_CMOCKA=0
+        CMOCKA_LIBDIR=""
         AS_IF([test "x$with_cmocka" != xno],
               [
               lib_path=""
@@ -42,9 +43,11 @@ AC_DEFUN([X_AC_CMOCKA],
                     for path in "$with_cmocka/lib" "$with_cmocka/lib64"; do
                         AS_IF([test -d $path],
                               [AS_VAR_APPEND([lib_path], [$path])
+                               CMOCKA_LIBDIR=$path
                                break])
                     done
                   )
+
               dnl Save current LDFLAGS value and set a new search path
               dnl if one was found.
               AS_IF([test -n "$lib_path"],
@@ -97,4 +100,7 @@ AC_DEFUN([X_AC_CMOCKA],
               AX_VAR_POPVALUE([LIBS]) dnl restore the original value
               ])
         AC_SUBST([WITH_CMOCKA])
+				AM_CONDITIONAL([WITH_CMOCKA], [test $WITH_CMOCKA -eq 1])
+				AC_SUBST([CMOCKA_LIBDIR])
+				AM_CONDITIONAL([CMOCKA_RPATH], [test -n "$CMOCKA_LIBDIR"])
 ])

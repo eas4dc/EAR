@@ -1,5 +1,5 @@
 /***************************************************************************
- * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ * Copyright (c) 2026 Energy Aware Runtime - Barcelona Supercomputing Center
  *
  * This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License 2.0
@@ -34,7 +34,7 @@ void mgt_acpi_cpufreq_get_freq_details(freq_details_t *details);
 
 state_t mgt_acpi_cpufreq_get_available_list(const ullong **freq_list, uint *freq_count);
 
-state_t mgt_acpi_cpufreq_get_current_list(const ullong **freq_list);
+state_t mgt_acpi_cpufreq_get_current_list(ullong *freq_list);
 
 state_t mgt_acpi_cpufreq_get_boost(uint *boost_enabled);
 

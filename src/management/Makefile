@@ -42,7 +42,11 @@ root_OBJS = \
 
 all: all.components $(root_BINS)
 
-post: test
+post: cpufreq.post test
+
+.PHONY: cpufreq.post
+cpufreq.post:
+	@ $(MAKE) -C 'cpufreq' post || exit
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $<

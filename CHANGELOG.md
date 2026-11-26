@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- v6.4.2 Fixed buffer in verbose\_frequency, proportional to MAX\_CPUS\_SUPPORTED.
+
+## [7.5.3] - 2026-11-26
+
+### Added
+
+- Implement the metrics wrapper to retrieve energy\_node units.
+
+### Changed
+
+- Honor --without-flag for jansson, curl and microhttpd libraries.
+- Added support for having CMOCKA\_LIBDIR to add it to the rpath.
+
+### Fixed
+- Fixed buffer in verbose\_frequency, proportional to MAX\_CPUS\_SUPPORTED.
+- SECURITY: Remove db credentials from serialized shared memory files.
+- Fix Intel P-State descriptor races and shared frequency result buffers in the Intel and ACPI CPUFreq drivers.
+- MGT\_CPUFREQ: Fix cpufreq allocation and string handling warnings.
+- EARGM: Make "get status" operation be invoked in monitoring mode instead of hard powercap.
+- Fix EARD local API connection cleanup.
+
+## [5.2.9] - 2026-11-25
+
+### Fixed
+- Fix the computation of max and min power at job end.
+- Fix eacct crashes caused by invalid arguments.
+- Fixed buffer in verbose\_frequency, proportional to MAX\_CPUS\_SUPPORTED.
+
 ## [7.5.2] - 2026-11-05
 
 ### Changed

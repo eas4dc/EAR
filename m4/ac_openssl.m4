@@ -54,12 +54,14 @@ AC_DEFUN([X_AC_OPENSSL],
             _x_openssl_base="$withval"
 
             #if it's --openssl=path, we substitute the search path
-            if test "$withval" != "yes"; then
+            if test "$withval" != "yes" && test "$withval" != "no"; then
                 _x_ac_openssl_dirs_root="$withval"
             fi
 
             #openssl is only active if configure is called with --with-openssl
-            _x_ac_openssl_is_active=1
+            if test "$withval" != "no"; then
+                _x_ac_openssl_is_active=1
+            fi
         ]
     )
 

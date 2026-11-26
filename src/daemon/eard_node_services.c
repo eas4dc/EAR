@@ -62,7 +62,10 @@
 void set_default_management_init();
 
 typedef struct local_connection {
-    ulong jid, sid, lid, anonymous;
+    ulong jid, sid;
+    ulong lid; /* Client connection ID (PID for anonymous connections); part of the FIFO filename. */
+    ulong anonymous;
+    uint app_local_id; /* Application directory ID; required for FIFO cleanup for all connection types. */
     int fds[NUM_LOCAL_FDS];
     int cancelled;
 } local_connection_t;
@@ -107,6 +110,9 @@ metrics_info_t met;
 static metrics_read_t met_read;
 extern char **environ;
 extern pid_t eard_main_process_pid;
+
+static void clean_local_connection(local_connection_t *my_con);
+static void close_active_connections(void);
 
 void services_init(topology_t *tp)
 {
@@ -197,6 +203,7 @@ void services_print(topology_t *tp, cluster_conf_t *cluster_conf)
 
 void services_dispose()
 {
+    close_active_connections();
 }
 
 void connect_service(struct daemon_req *new_req);
@@ -223,6 +230,7 @@ int services_misc(eard_head_t *head, int req_fd, int ack_fd)
             eard_close_comm(req_fd, ack_fd);
             break;
         case RPC_GET_STATE:
+            // TODO: We can return the uid
             s.pid                  = getpid();
             s.gpus_supported_count = MAX_GPUS_SUPPORTED;
             s.cpus_supported_count = MAX_CPUS_SUPPORTED;
@@ -775,7 +783,7 @@ static state_t init_local_connections(local_connection_t **my_con, int num_con)
     *my_con = calloc(sizeof(local_connection_t), num_con);
     lcon    = *my_con;
     for (i = 0; i < num_con; i++)
-        lcon[i].jid = ULONG_MAX;
+        clean_local_connection(&lcon[i]);
     num_local_con = num_con;
     return EAR_SUCCESS;
 }
@@ -815,7 +823,7 @@ static void print_active_connections(void)
 static int add_new_local_connection(local_connection_t *my_con, ulong jid, ulong sid, ulong lid)
 {
     int i = 0;
-    while ((my_con[i].jid != ULONG_MAX) && (i < num_local_con))
+    while ((i < num_local_con) && (my_con[i].jid != ULONG_MAX))
         i++;
     if (i == num_local_con) {
         error("Maximum number of local connections reached");
@@ -883,6 +891,7 @@ static int get_local_connection_by_req(local_connection_t *my_con, int reqfd)
 static void clean_local_connection(local_connection_t *my_con)
 {
     my_con->jid               = ULONG_MAX;
+    my_con->app_local_id      = 0;
     my_con->sid               = 0;
     my_con->lid               = 0;
     my_con->anonymous         = 0;
@@ -891,9 +900,41 @@ static void clean_local_connection(local_connection_t *my_con)
     my_con->fds[ACK_LOCAL_FD] = -1;
 }
 
+static void unlink_local_connection(local_connection_t *connection)
+{
+    int ret;
+    char ear_commack[MAX_PATH_SIZE * 2];
+    char ear_commreq[MAX_PATH_SIZE * 2];
+    ulong jid = connection->jid;
+    ulong sid = connection->sid;
+    ulong lid = connection->lid;
+    uint ID   = create_ID(jid, sid);
+    uint AID  = connection->app_local_id;
+    sprintf(ear_commack, "%s/%u/%u/.ear_comm.ack_0.%u.%lu", ear_tmp, ID, AID, ID, lid);
+    sprintf(ear_commreq, "%s/%u/%u/.ear_comm.req_0.%u.%lu", ear_tmp, ID, AID, ID, lid);
+    verbose(VEARD_LAPI, "Cleaning files for job %lu/%lu/%lu", jid, sid, lid);
+    verbose(VEARD_LAPI, "Deleting %s", ear_commack);
+    ret = unlink(ear_commack);
+    if (ret < 0 && errno != ENOENT) {
+        verbose(VEARD_LAPI, "Error deleting file %s", strerror(errno));
+    }
+    verbose(VEARD_LAPI, "Deleting %s", ear_commreq);
+    ret = unlink(ear_commreq);
+    if (ret < 0 && errno != ENOENT) {
+        verbose(VEARD_LAPI, "Error deleting file %s", strerror(errno));
+    }
+}
+
 static void close_active_connections(void)
 {
+    if (eard_local_conn == NULL)
+        return;
     for (uint i = 0; i < num_local_con; i++) {
+        if (eard_local_conn[i].jid == ULONG_MAX)
+            continue;
+        unlink_local_connection(&eard_local_conn[i]);
+        if (eard_local_conn[i].fds[REQ_LOCAL_FD] >= 0)
+            AFD_CLR(eard_local_conn[i].fds[REQ_LOCAL_FD], &rfds_basic);
         if (eard_local_conn[i].fds[REQ_LOCAL_FD] != -1)
             close(eard_local_conn[i].fds[REQ_LOCAL_FD]);
         if (eard_local_conn[i].fds[ACK_LOCAL_FD] != -1)
@@ -1005,17 +1046,20 @@ void connect_service(struct daemon_req *new_req)
         error("Error opening slot for new local connection");
         return;
     }
+    eard_local_conn[newc].app_local_id = AID;
     debug("application %d.%lu asks for new connection ", pid, lid);
     verbose(VEARD_LAPI, "Opening %s", ear_commack);
     ear_ack_fd = open(ear_commack, O_WRONLY);
     if (ear_ack_fd < 0) {
         error("ERROR while opening ack_private pipe %s (%s)", ear_commack, strerror(errno));
+        unlink_local_connection(&eard_local_conn[newc]);
         clean_local_connection(&eard_local_conn[newc]);
         return;
     }
     /* We must associate the ack pipe with th local connection */
     if (add_local_fd(&eard_local_conn[newc], ear_ack_fd, ACK_LOCAL_FD) != EAR_SUCCESS) {
         error("Opening adding local ack newc");
+        unlink_local_connection(&eard_local_conn[newc]);
         clean_local_connection(&eard_local_conn[newc]);
         return;
     }
@@ -1023,6 +1067,7 @@ void connect_service(struct daemon_req *new_req)
     if (write(ear_ack_fd, &ack, sizeof(ack)) != sizeof(ack)) {
         warning("WARNING while sending ack to  %d", pid);
         eard_close_comm(-1, ear_ack_fd);
+        return;
     }
     /* we open the local req pipe */
     verbose(VEARD_LAPI, "Opening %s", ear_commreq);
@@ -1030,6 +1075,7 @@ void connect_service(struct daemon_req *new_req)
     if (ear_req_fd < 0) {
         error("ERROR while opening req_private pipe %s (%s)", ear_commreq, strerror(errno));
         eard_close_comm(-1, ear_ack_fd);
+        return;
     }
     if (add_local_fd(&eard_local_conn[newc], ear_req_fd, REQ_LOCAL_FD) != EAR_SUCCESS) {
         error("Opening adding local ack newc");
@@ -1047,12 +1093,10 @@ void connect_service(struct daemon_req *new_req)
 
 void eard_close_comm(int req_fd, int ack_fd)
 {
-    int i, ret;
+    int i;
     int id;
     ulong jid, sid;
     ulong was_anonymous = 1;
-    char ear_commack[MAX_PATH_SIZE * 2];
-    char ear_commreq[MAX_PATH_SIZE * 2];
 
     /* This is a special case where one of the fds has been closed */
     if ((req_fd == -1) && (ack_fd == -1)) {
@@ -1064,6 +1108,7 @@ void eard_close_comm(int req_fd, int ack_fd)
                 close(eard_local_conn[id].fds[ACK_LOCAL_FD]);
                 AFD_CLR(i, &rfds_basic);
                 // AFD_CLR(eard_local_conn[id].fds[ACK_LOCAL_FD], &rfds_basic);
+                unlink_local_connection(&eard_local_conn[id]);
                 clean_local_connection(&eard_local_conn[id]);
             }
         }
@@ -1080,23 +1125,9 @@ void eard_close_comm(int req_fd, int ack_fd)
             return;
         }
         debug("Closing communication for (%lu,%lu)", eard_local_conn[id].jid, eard_local_conn[id].sid);
-        jid       = eard_local_conn[id].jid;
-        sid       = eard_local_conn[id].sid;
-        ulong lid = eard_local_conn[id].lid;
-        uint ID   = create_ID(jid, sid);
-        sprintf(ear_commack, "%s/%u/.ear_comm.ack_0.%u.%lu", ear_tmp, ID, ID, lid);
-        sprintf(ear_commreq, "%s/%u/.ear_comm.req_0.%u.%lu", ear_tmp, ID, ID, lid);
-        verbose(VEARD_LAPI, "Cleaning files for job %lu/%lu/%lu", jid, sid, lid);
-        verbose(VEARD_LAPI, "Deleting %s", ear_commack);
-        ret = unlink(ear_commack);
-        if (ret < 0 && errno != ENOENT) {
-            verbose(VEARD_LAPI, "Error deleting file %s", strerror(errno));
-        }
-        verbose(VEARD_LAPI, "Deleting %s", ear_commreq);
-        ret = unlink(ear_commreq);
-        if (ret < 0 && errno != ENOENT) {
-            verbose(VEARD_LAPI, "Error deleting file %s", strerror(errno));
-        }
+        jid = eard_local_conn[id].jid;
+        sid = eard_local_conn[id].sid;
+        unlink_local_connection(&eard_local_conn[id]);
         was_anonymous = eard_local_conn[id].anonymous;
         if (req_fd != -1) {
             close(req_fd);
@@ -1348,6 +1379,7 @@ state_t service_close(int req_fd, int ack_fd)
     AFD_CLR(req_fd, &rfds_basic);
     // AFD_CLR(ack_fd, &rfds_basic);
 
+    unlink_local_connection(&eard_local_conn[id]);
     clean_local_connection(&eard_local_conn[id]);
     close(req_fd);
     close(ack_fd);
@@ -1374,6 +1406,7 @@ state_t service_close_by_id(ulong jid, ulong sid)
             verbose(VRAPI - 1, "From powermon end job: Closing FDS (req %d, ack %d) communication (%lu, %lu)",
                     eard_local_conn[i].fds[REQ_LOCAL_FD], eard_local_conn[i].fds[ACK_LOCAL_FD], eard_local_conn[i].jid,
                     eard_local_conn[i].sid);
+            unlink_local_connection(&eard_local_conn[i]);
             clean_local_connection(&eard_local_conn[i]);
         }
     } while (i >= 0);

@@ -507,7 +507,13 @@ void configure_new_values(cluster_conf_t *cluster, my_node_conf_t *node)
     f_monitoring = my_cluster_conf.eard.period_powermon;
     copy_eard_conf(&my_services_conf->eard, &my_cluster_conf.eard);
     copy_eargmd_conf(&my_services_conf->eargmd, &my_cluster_conf.eargm);
+    // Do not include users&pass
+    db_conf_t db_save;
+    memcpy((char *) &db_save, (char *) &my_cluster_conf.database, sizeof(db_conf_t));
+    clean_db_users(&my_cluster_conf.database);
     copy_eardb_conf(&my_services_conf->db, &my_cluster_conf.database);
+    memcpy((char *) &my_cluster_conf.database, (char *) &db_save, sizeof(db_conf_t));
+
     copy_eardbd_conf(&my_services_conf->eardbd, &my_cluster_conf.db_manager);
     strcpy(my_services_conf->net_ext, my_cluster_conf.net_ext);
     save_eard_conf(&eard_dyn_conf);
@@ -537,7 +543,14 @@ void configure_default_values(cluster_conf_t *cluster, my_node_conf_t *node)
     f_monitoring = my_cluster_conf.eard.period_powermon;
     copy_eard_conf(&my_services_conf->eard, &my_cluster_conf.eard);
     copy_eargmd_conf(&my_services_conf->eargmd, &my_cluster_conf.eargm);
+
+    // Do not include users&pass
+    db_conf_t db_save;
+    memcpy((char *) &db_save, (char *) &my_cluster_conf.database, sizeof(db_conf_t));
+    clean_db_users(&my_cluster_conf.database);
     copy_eardb_conf(&my_services_conf->db, &my_cluster_conf.database);
+    memcpy(&my_cluster_conf.database, (char *) &db_save, sizeof(db_conf_t));
+
     copy_eardbd_conf(&my_services_conf->eardbd, &my_cluster_conf.db_manager);
     strcpy(my_services_conf->net_ext, my_cluster_conf.net_ext);
     save_eard_conf(&eard_dyn_conf);

@@ -104,6 +104,9 @@ typedef struct metrics_diff_s {
 // This function contains load() and init() functions of the different metrics.
 void metrics_load(metrics_info_t *m, topology_t *tp, char *nodepow_path, uint *options);
 
+// Units per joule of the active node energy backend's calculated differences.
+state_t metrics_nodepow_units(uint *units);
+
 // You can see the list of update options in apis.h (UPD_ prefix). The value can
 // be of whatever type, a pointer (including NULL), an integer, etc.
 void metrics_update(uint option, void *value);

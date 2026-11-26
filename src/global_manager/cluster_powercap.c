@@ -789,8 +789,9 @@ void cluster_power_monitor()
         debug("%sGlobal POWER monitoring END-----%s", COL_BLU, COL_CLR);
         return;
     }
-    /* We use this function for now, we must use a new light one */
-    if (state_fail(ear_get_powercap_status(&my_cluster_conf, &my_cluster_power_status, 1, nodes, num_eargm_nodes))) {
+    /* We use this function for now, we must use a new light one. Monitoring mode only reads
+     * the nodes' status: it never asks them to release power */
+    if (state_fail(ear_get_powercap_status(&my_cluster_conf, &my_cluster_power_status, 0, nodes, num_eargm_nodes))) {
         verbose(VGM_PC + 1, "ear_get_powercap_status in cluster_power_monitor returns EAR_ERROR");
         write_shared_data(0, 0, 0);
         return;

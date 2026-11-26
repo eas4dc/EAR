@@ -1,5 +1,5 @@
 /***************************************************************************
- * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ * Copyright (c) 2026 Energy Aware Runtime - Barcelona Supercomputing Center
  *
  * This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License 2.0
@@ -38,7 +38,6 @@ static cfb_t bf;
 static uint avail_list_count;
 static ullong avail_list_real[N_FREQS]; // From 10 GHz to 1 GHz there are 90 items, enough
 static ullong avail_list_disp[N_FREQS]; // Returned frequencies
-static ullong *current_list;
 static int *fds_sgv;
 static int *fds_sss;
 static uint governor_last;
@@ -171,9 +170,7 @@ void mgt_acpi_cpufreq_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
     }
     // Getting base frequency and boost
     cpufreq_base_init(tp, &bf);
-    // Allocating space for current list
-    cpu_count    = tp->cpu_count;
-    current_list = calloc(cpu_count, sizeof(ullong));
+    cpu_count = tp->cpu_count;
     // Checking max/min frequency
     if (!mgt_intel_pstate_read_cpuinfo(1, &freq_max0)) {
         if (!keeper_load_uint64("AcpiCpufreqMaxFrequency", &freq_max0)) {
@@ -256,7 +253,7 @@ state_t mgt_acpi_cpufreq_get_available_list(const ullong **list, uint *list_coun
     return EAR_SUCCESS;
 }
 
-state_t mgt_acpi_cpufreq_get_current_list(const ullong **p)
+state_t mgt_acpi_cpufreq_get_current_list(ullong *current_list)
 {
     state_t s = EAR_SUCCESS;
     char data[64];
@@ -272,7 +269,6 @@ state_t mgt_acpi_cpufreq_get_current_list(const ullong **p)
         }
         debug("current_list%d: %llu", cpu, current_list[cpu]);
     }
-    *p = current_list;
     ear_unlock(&acpi_fd_lock);
     return s;
 }
@@ -300,8 +296,7 @@ state_t mgt_acpi_cpufreq_set_current_list(uint *freqs_index)
         }
         sprintf(data, "%llu", avail_list_real[freqs_index[cpu]]);
         debug("set_list%d: %llu", cpu, avail_list_real[freqs_index[cpu]]);
-        strcat(data, "\n");
-        if (!filemagic_word_write(fds_sss[cpu], data, strlen(data), 0)) {
+        if (!filemagic_word_write(fds_sss[cpu], data, strlen(data), 1)) {
             s = EAR_ERROR;
         }
     }
@@ -329,8 +324,7 @@ state_t mgt_acpi_cpufreq_set_current(uint freq_index, int cpu)
     if (cpu >= 0 && cpu < cpu_count) {
         sprintf(data, "%llu", avail_list_real[freq_index]);
         debug("writing a word '%s'", data);
-        strcat(data, "\n");
-        state_t s = filemagic_word_write(fds_sss[cpu], data, strlen(data), 0) ? EAR_SUCCESS : EAR_ERROR;
+        state_t s = filemagic_word_write(fds_sss[cpu], data, strlen(data), 1) ? EAR_SUCCESS : EAR_ERROR;
         ear_unlock(&acpi_fd_lock);
         return s;
     }
@@ -408,11 +402,10 @@ state_t mgt_acpi_cpufreq_governor_set_mask(uint governor, cpu_set_t mask)
         return s;
     }
     ear_lock(&acpi_fd_lock);
-    strcat(buffer, "\n");
     for (cpu = 0; cpu < cpu_count; ++cpu) {
         if (CPU_ISSET(cpu, &mask)) {
             // verbose(0,"Setting cpu %d to governor '%s'", cpu, buffer);
-            if (!filemagic_word_write(fds_sgv[cpu], buffer, strlen(buffer), 0)) {
+            if (!filemagic_word_write(fds_sgv[cpu], buffer, strlen(buffer), 1)) {
                 s = EAR_ERROR;
             }
         }
@@ -433,8 +426,7 @@ state_t mgt_acpi_cpufreq_governor_set_list(uint *governors)
             ear_unlock(&acpi_fd_lock);
             return s;
         }
-        strcat(buffer, "\n");
-        if (!filemagic_word_write(fds_sgv[cpu], buffer, strlen(buffer), 0)) {
+        if (!filemagic_word_write(fds_sgv[cpu], buffer, strlen(buffer), 1)) {
             ear_unlock(&acpi_fd_lock);
             return EAR_ERROR;
         }
@@ -449,7 +441,6 @@ int mgt_acpi_cpufreq_governor_is_available(uint governor)
 }
 
 #if TEST
-static const ullong *frequencies;
 static uint governors[1024];
 static char buffer[128];
 
@@ -501,9 +492,14 @@ int main(int argc, char *argv[])
         }
     }
     if (atoi(argv[1]) == 13) {
-        if (state_fail(mgt_acpi_cpufreq_get_current_list(&frequencies))) {
+        ullong *frequencies = calloc(tp.cpu_count, sizeof(*frequencies));
+        if (frequencies == NULL) {
+            return EXIT_FAILURE;
+        }
+        if (state_fail(mgt_acpi_cpufreq_get_current_list(frequencies))) {
             debug("mgt_acpi_cpufreq_governor_set: %s", state_msg);
         }
+        free(frequencies);
     }
     return 0;
 }

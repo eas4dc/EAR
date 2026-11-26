@@ -1,5 +1,5 @@
 /***************************************************************************
- * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ * Copyright (c) 2026 Energy Aware Runtime - Barcelona Supercomputing Center
  *
  * This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License 2.0
@@ -14,6 +14,7 @@
 #include <common/config/config_def.h>
 #include <common/output/debug.h>
 #include <common/output/verbose.h>
+#include <common/system/lock.h>
 #include <common/utils/keeper.h>
 #include <fcntl.h>
 #include <management/cpufreq/cpufreq_base.h>
@@ -32,7 +33,6 @@
 #define PATH_CNF0 "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq"  // Test read
 
 static uint cpu_count;
-static ullong *current_list;
 static uint avail_list_count;
 static ullong avail_list[128]; // From 10 GHz to 1 GHz there are 90 items, enough
 static cfb_t bf;
@@ -44,6 +44,9 @@ static uint governor0;
 static uint governor_last = 0;
 static int *fds_smf; // FD scaling max freq
 static int *fds_sgv;
+
+/* Cached sysfs descriptors share offsets between request threads. */
+static pthread_mutex_t intel_fd_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void mgt_intel_pstate_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
 {
@@ -88,9 +91,8 @@ void mgt_intel_pstate_load(topology_t *tp, mgt_ps_driver_ops_t *ops)
     // Getting base frequency and boost
     cpufreq_base_init(tp, &bf);
     // Saving some required data
-    cpu_count    = tp->cpu_count;
-    freq_max     = freq_max0;
-    current_list = calloc(cpu_count, sizeof(ullong));
+    cpu_count = tp->cpu_count;
+    freq_max  = freq_max0;
     //
     mgt_intel_pstate_governor_get(&governor0);
     keeper_macro(uint32, "IntelPstateDefaultGovernor", governor0);
@@ -176,12 +178,13 @@ state_t mgt_intel_pstate_get_available_list(const ullong **list, uint *list_coun
     return EAR_SUCCESS;
 }
 
-state_t mgt_intel_pstate_get_current_list(const ullong **p)
+state_t mgt_intel_pstate_get_current_list(ullong *current_list)
 {
     state_t s = EAR_SUCCESS;
     char data[64];
     int cpu;
 
+    ear_lock(&intel_fd_lock);
     for (cpu = 0; cpu < cpu_count; ++cpu) {
         if (!filemagic_word_read(fds_smf[cpu], data, 1)) {
             current_list[cpu] = 0LLU;
@@ -194,7 +197,7 @@ state_t mgt_intel_pstate_get_current_list(const ullong **p)
         }
         debug("current_list%d: %llu", cpu, current_list[cpu]);
     }
-    *p = current_list;
+    ear_unlock(&intel_fd_lock);
     return s;
 }
 
@@ -205,7 +208,8 @@ state_t mgt_intel_pstate_get_boost(uint *boost_enabled)
 }
 
 /** Setters */
-state_t mgt_intel_pstate_set_current(uint freq_index, int cpu)
+/* Caller holds intel_fd_lock. */
+static state_t set_current(uint freq_index, int cpu)
 {
     char data[SZ_NAME_SHORT];
     //
@@ -234,18 +238,27 @@ state_t mgt_intel_pstate_set_current(uint freq_index, int cpu)
             sprintf(data, "%llu", avail_list[freq_index]);
         }
         debug("writing a word '%s' freq_index %u freq_max %llu", data, freq_index, freq_max0);
-        strcat(data, "\n");
-        return (filemagic_word_write(fds_smf[cpu], data, strlen(data), 0) ? EAR_SUCCESS : EAR_ERROR);
+        return (filemagic_word_write(fds_smf[cpu], data, strlen(data), 1) ? EAR_SUCCESS : EAR_ERROR);
     }
     return_msg(EAR_ERROR, Generr.cpu_invalid);
+}
+
+state_t mgt_intel_pstate_set_current(uint freq_index, int cpu)
+{
+    ear_lock(&intel_fd_lock);
+    state_t s = set_current(freq_index, cpu);
+    ear_unlock(&intel_fd_lock);
+    return s;
 }
 
 state_t mgt_intel_pstate_set_current_list(uint *freqs_index)
 {
     int cpu;
+    ear_lock(&intel_fd_lock);
     for (cpu = 0; cpu < cpu_count; ++cpu) {
-        mgt_intel_pstate_set_current(freqs_index[cpu], cpu);
+        set_current(freqs_index[cpu], cpu);
     }
+    ear_unlock(&intel_fd_lock);
     return EAR_SUCCESS;
 }
 
@@ -261,18 +274,24 @@ static state_t static_get_governor(int cpu, uint *governor)
 
 state_t mgt_intel_pstate_governor_get(uint *governor)
 {
-    return static_get_governor(0, governor);
+    ear_lock(&intel_fd_lock);
+    state_t s = static_get_governor(0, governor);
+    ear_unlock(&intel_fd_lock);
+    return s;
 }
 
 state_t mgt_intel_pstate_governor_get_list(uint *governors)
 {
     state_t s;
     int i;
+    ear_lock(&intel_fd_lock);
     for (i = 0; i < cpu_count; ++i) {
         if (state_fail(s = static_get_governor(i, &governors[i]))) {
+            ear_unlock(&intel_fd_lock);
             return s;
         }
     }
+    ear_unlock(&intel_fd_lock);
     return EAR_SUCCESS;
 }
 
@@ -283,8 +302,10 @@ state_t mgt_intel_pstate_governor_set(uint governor)
     uint current;
     state_t s;
 
-    if (state_ok(mgt_intel_pstate_governor_get(&current))) {
+    ear_lock(&intel_fd_lock);
+    if (state_ok(static_get_governor(0, &current))) {
         if (governor == current) {
+            ear_unlock(&intel_fd_lock);
             return EAR_SUCCESS;
         }
     }
@@ -294,9 +315,11 @@ state_t mgt_intel_pstate_governor_set(uint governor)
     }
     governor_last = current;
     if (!mgt_intel_pstate_governor_is_available(governor)) {
+        ear_unlock(&intel_fd_lock);
         return_msg(EAR_ERROR, "Governor not available");
     }
     if (state_fail(s = mgt_governor_tostr(governor, buffer_govr))) {
+        ear_unlock(&intel_fd_lock);
         return s;
     }
     // Restoring max frequency
@@ -305,7 +328,9 @@ state_t mgt_intel_pstate_governor_set(uint governor)
     if (!filemagic_word_mwrite(fds_smf, cpu_count, buffer_freq, 1)) {
         // If fails, nothing by now
     }
-    return (filemagic_word_mwrite(fds_sgv, cpu_count, buffer_govr, 1) ? EAR_SUCCESS : EAR_ERROR);
+    s = filemagic_word_mwrite(fds_sgv, cpu_count, buffer_govr, 1) ? EAR_SUCCESS : EAR_ERROR;
+    ear_unlock(&intel_fd_lock);
+    return s;
 }
 
 static state_t set_governor_single(int cpu, char *governor)
@@ -326,7 +351,7 @@ static state_t set_governor_single(int cpu, char *governor)
 state_t mgt_intel_pstate_governor_set_mask(uint governor, cpu_set_t mask)
 {
     char buffer[64];
-    state_t s;
+    state_t s = EAR_SUCCESS;
     int i;
 
     if (!mgt_intel_pstate_governor_is_available(governor)) {
@@ -336,11 +361,13 @@ state_t mgt_intel_pstate_governor_set_mask(uint governor, cpu_set_t mask)
         return s;
     }
     // Adding a \n is not required because write functions are fixed
+    ear_lock(&intel_fd_lock);
     for (i = 0; i < cpu_count; ++i) {
         if (CPU_ISSET(i, &mask)) {
             s = set_governor_single(i, buffer);
         }
     }
+    ear_unlock(&intel_fd_lock);
     return s;
 }
 
@@ -350,18 +377,23 @@ state_t mgt_intel_pstate_governor_set_list(uint *governors)
     state_t s;
     int i;
 
+    ear_lock(&intel_fd_lock);
     for (i = 0; i < cpu_count; ++i) {
         if (!mgt_intel_pstate_governor_is_available(governors[i])) {
+            ear_unlock(&intel_fd_lock);
             return_msg(EAR_ERROR, "Governor not available");
         }
         if (state_fail(s = mgt_governor_tostr(governors[i], buffer))) {
+            ear_unlock(&intel_fd_lock);
             return s;
         }
         // Adding a \n is not required because write functions are fixed
         if (state_fail(s = set_governor_single(i, buffer))) {
+            ear_unlock(&intel_fd_lock);
             return s;
         }
     }
+    ear_unlock(&intel_fd_lock);
     return EAR_SUCCESS;
 }
 
@@ -406,7 +438,6 @@ int mgt_intel_pstate_read_scaling(int max, ullong *khz)
 }
 
 #if TEST1
-static const ullong *frequencies;
 static uint governors[1024];
 static char buffer[128];
 static mgt_ps_driver_ops_t ops;
@@ -456,9 +487,14 @@ int main(int argc, char *argv[])
         }
     }
     if (atoi(argv[1]) == 12) {
-        if (state_fail(mgt_intel_pstate_get_current_list(&frequencies))) {
+        ullong *frequencies = calloc(tp.cpu_count, sizeof(*frequencies));
+        if (frequencies == NULL) {
+            return EXIT_FAILURE;
+        }
+        if (state_fail(mgt_intel_pstate_get_current_list(frequencies))) {
             debug("mgt_intel_pstate_governor_set failed: %s", state_msg);
         }
+        free(frequencies);
     }
     return 0;
 }

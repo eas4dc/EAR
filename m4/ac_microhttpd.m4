@@ -1,7 +1,7 @@
 AC_DEFUN([X_AC_MICROHTTPD],
 [
 AC_ARG_WITH([microhttpd],
-  [AS_HELP_STRING([--with-microhttpd=DIR], [Ruta de instalación de libmicrohttpd])],
+  [AS_HELP_STRING([--with-microhttpd=DIR], [Use microhttpd (auto by default, DIR for custom path; --without-microhttpd disables it)])],
   [MICROHTTPD_DIR="$withval"],
   [MICROHTTPD_DIR=""]
 )
@@ -9,6 +9,13 @@ AC_ARG_WITH([microhttpd],
 HAVE_MICROHTTPD=0
 MYMICROHTTPD_CFLAGS=""
 MYMICROHTTPD_LIBS=""
+
+# --without-microhttpd must suppress discovery even if the library is installed.
+# --with-microhttpd (without a path) retains system autodetection.
+if test "x$MICROHTTPD_DIR" = "xyes"; then
+  MICROHTTPD_DIR=""
+fi
+if test "x$MICROHTTPD_DIR" != "xno"; then
 
 # ----------------------------------------------------------------------
 # Caso 1: Usuario pasa --with-microhttpd=DIR
@@ -65,9 +72,12 @@ fi
 # ----------------------------------------------------------------------
 # Exportar variables para Makefile
 # ----------------------------------------------------------------------
+fi
+
 AC_SUBST([HAVE_MICROHTTPD])
 AC_SUBST([MYMICROHTTPD_CFLAGS])
 AC_SUBST([MYMICROHTTPD_LIBS])
+AM_CONDITIONAL([WITH_MICROHTTPD], [test "x$HAVE_MICROHTTPD" = "x1"])
 
 ])
 

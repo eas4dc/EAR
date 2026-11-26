@@ -10,6 +10,9 @@
 
 /* clang-format off */
 // #define SHOW_DEBUGS 1
+
+#define SHOW_WARNINGS 1
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,7 +70,10 @@ void metrics_load(metrics_info_t *m, topology_t *tp, char *nodepow_path, uint *o
          io_load(tp, options[MET_OPT_IO]     );
        proc_load(tp, options[MET_OPT_PROC]   );
 
-    nodepow(init, &e_ctx);
+    if (state_fail(nodepow(init, &e_ctx))) {
+      warning("Error at nodepow init: %s", state_msg);
+    }
+
      cpupow(init, no_ctx);
 
     metrics_info_get(m);
@@ -205,6 +211,11 @@ static char *cpupow_data_tostr(ullong *diffs, double secs, char *buffer, size_t 
     }
     sprintf(&buffer[j], "!%0.1lf\n", mean);
     return buffer;
+}
+
+state_t metrics_nodepow_units(uint *units)
+{
+    return nodepow(units, &e_ctx, units);
 }
 
 void nodepow_read(void *nod)

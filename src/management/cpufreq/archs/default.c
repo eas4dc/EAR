@@ -1,5 +1,5 @@
 /***************************************************************************
- * Copyright (c) 2024 Energy Aware Runtime - Barcelona Supercomputing Center
+ * Copyright (c) 2026 Energy Aware Runtime - Barcelona Supercomputing Center
  *
  * This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License 2.0
@@ -192,11 +192,15 @@ state_t mgt_cpufreq_default_get_available_list(ctx_t *c, pstate_t *pstate_list)
 
 state_t mgt_cpufreq_default_get_current_list(ctx_t *c, pstate_t *pstate_list)
 {
-    const ullong *current_list;
+    ullong *current_list = malloc(tp.cpu_count * sizeof(*current_list));
     uint cpu, pst;
     state_t s;
 
-    if (state_fail(s = driver->get_current_list(&current_list))) {
+    if (current_list == NULL) {
+        return_msg(EAR_ERROR, Generr.alloc_error);
+    }
+    if (state_fail(s = driver->get_current_list(current_list))) {
+        free(current_list);
         return s;
     }
     for (cpu = 0; cpu < tp.cpu_count; ++cpu) {
@@ -209,6 +213,7 @@ state_t mgt_cpufreq_default_get_current_list(ctx_t *c, pstate_t *pstate_list)
         }
     }
 
+    free(current_list);
     return EAR_SUCCESS;
 }
 

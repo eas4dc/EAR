@@ -356,6 +356,8 @@ int eards_connect(application_t *my_app, ulong lid)
     int my_id;
     int ret1;
     int i;
+    int ack_created = 0;
+    int req_created = 0;
 
     if (app_connected) {
         return EAR_SUCCESS;
@@ -382,7 +384,7 @@ int eards_connect(application_t *my_app, ulong lid)
 
     if (gethostname(nodename, sizeof(nodename)) < 0) {
         error("ERROR while getting the node name (%s)", strerror(errno));
-        return EAR_ERROR;
+        goto connection_error;
     }
     copy_application(&req.req_data.app, my_app);
     // We create a single ID
@@ -406,7 +408,9 @@ int eards_connect(application_t *my_app, ulong lid)
     /* Create the common base path used inside this block ("tmp/id/local_id") */
     state_t ret_st = create_base_path(base_path, sizeof(base_path), ear_tmp, (uint) my_id, (uint) my_app->job.local_id);
     if (state_fail(ret_st)) {
-        return_print(EAR_ERROR, "Error when building the EAR communicator directory path name.");
+        xsnprintf(state_buffer, sizeof(state_buffer), "Error when building the EAR communicator directory path name.");
+        state_msg = state_buffer;
+        goto connection_error;
     }
 
     // Save the application base_path
@@ -415,7 +419,9 @@ int eards_connect(application_t *my_app, ulong lid)
     /* Create the directory of this application if it doesn't exist yet.
      * The directory may not exist on anonymous connections. */
     if (state_fail(create_app_directory(base_path))) {
-        return_print(EAR_ERROR, "Error when creating the EAR communicator directory.");
+        xsnprintf(state_buffer, sizeof(state_buffer), "Error when creating the EAR communicator directory.");
+        state_msg = state_buffer;
+        goto connection_error;
     }
 
     /* Pipe full paths. They're stored at base_path as well. */
@@ -428,14 +434,22 @@ int eards_connect(application_t *my_app, ulong lid)
     /* Private pipes are created before the connection request is sent */
     verbose(VPROC_LAPI, "Creating %s", ear_commack);
     if (mknod(ear_commack, S_IFIFO | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, 0) < 0) {
-        return_print(EAR_ERROR, "Error when creating ear communicator for ack: %s", strerror(errno));
+        xsnprintf(state_buffer, sizeof(state_buffer), "Error when creating ear communicator for ack: %s",
+                  strerror(errno));
+        state_msg = state_buffer;
+        goto connection_error;
     }
+    ack_created = 1;
     chmod(ear_commack, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     verbose(VPROC_LAPI, "Creating %s", ear_commreq);
     if (mknod(ear_commreq, S_IFIFO | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, 0) < 0) {
         debug("Error when creating ear communicator for requests: %s", strerror(errno));
-        return_print(EAR_ERROR, "Error when creating ear communicator for requests %s", strerror(errno));
+        xsnprintf(state_buffer, sizeof(state_buffer), "Error when creating ear communicator for requests %s",
+                  strerror(errno));
+        state_msg = state_buffer;
+        goto connection_error;
     }
+    req_created = 1;
     chmod(ear_commreq, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     debug("Communication PIPEs created");
     /* Pipes are created, we give some opportunities to connect */
@@ -446,15 +460,21 @@ int eards_connect(application_t *my_app, ulong lid)
         // Not possible to connect with ear_daemon
         debug("while opening the communicator for requests %s (%d attempts) (%s)", ear_commreq_global, tries,
               strerror(errno));
-        return_print(EAR_ERROR, "while opening the communicator for requests %s (%d attempts) (%s)", ear_commreq_global,
-                     tries, strerror(errno));
+        xsnprintf(state_buffer, sizeof(state_buffer),
+                  "while opening the communicator for requests %s (%d attempts) (%s)", ear_commreq_global, tries,
+                  strerror(errno));
+        state_msg = state_buffer;
+        goto connection_error;
     }
     verbose(VPROC_LAPI, "EARL: Communication FD created, connecting with EARD");
 
 #if USE_NON_BLOCKING_IO
     ret1 = fcntl(ear_fd_req_global, F_SETFL, O_NONBLOCK);
     if (ret1 < 0) {
-        return_print(EAR_ERROR, "Setting O_NONBLOCK for eard global req communicator %s", strerror(errno));
+        xsnprintf(state_buffer, sizeof(state_buffer), "Setting O_NONBLOCK for eard global req communicator %s",
+                  strerror(errno));
+        state_msg = state_buffer;
+        goto connection_error;
     }
 #endif
 
@@ -472,20 +492,22 @@ int eards_connect(application_t *my_app, ulong lid)
             clock_gettime(CLOCK_REALTIME, &ts);
             ts.tv_sec += 10;
             if (sem_timedwait(global_earl_eard_sem, &ts) < 0) {
-                connecting        = 0;
-                ear_fd_req_global = -1;
+                connecting = 0;
                 verbose(2, "%sError%s Sem timeout....not connected (%s)", COL_RED, COL_CLR, strerror(errno));
-                return_print(EAR_ERROR, "Error sending connection request");
+                xsnprintf(state_buffer, sizeof(state_buffer), "Error sending connection request");
+                state_msg = state_buffer;
+                goto connection_error;
             }
         }
         verbose(2, "Sem acquired....sending connection");
         if (warning_api(eards_write(ear_fd_req_global, (char *) &req, sizeof(req)), sizeof(req),
                         "writting req_service in ear_daemon_client_connect")) {
-            connecting        = 0;
-            ear_fd_req_global = -1;
+            connecting = 0;
             verbose(2, "Sem released");
             sem_post(global_earl_eard_sem);
-            return_print(EAR_ERROR, "Error sending connection request");
+            xsnprintf(state_buffer, sizeof(state_buffer), "Error sending connection request");
+            state_msg = state_buffer;
+            goto connection_error;
         }
     }
     verbose(2, "Sem released");
@@ -504,9 +526,7 @@ int eards_connect(application_t *my_app, ulong lid)
         if (ear_fd_ack < 0) {
             error("Error opening local ack communicator with EARD (%s).", strerror(errno));
             connecting = 0;
-            close(ear_fd_req_global);
-            ear_fd_req_global = -1;
-            return EAR_ERROR;
+            goto connection_error;
         }
         verbose(VPROC_LAPI + 1, "%s: %s open", nodename, ear_commack);
 
@@ -514,7 +534,10 @@ int eards_connect(application_t *my_app, ulong lid)
         ret1 = fcntl(ear_fd_ack, F_SETFL, O_NONBLOCK);
         if (ret1 < 0) {
             connecting = 0;
-            return_print(EAR_ERROR, "Setting O_NONBLOCK for eard ack communicator %s", strerror(errno));
+            xsnprintf(state_buffer, sizeof(state_buffer), "Setting O_NONBLOCK for eard ack communicator %s",
+                      strerror(errno));
+            state_msg = state_buffer;
+            goto connection_error;
         }
 #endif
 
@@ -522,9 +545,8 @@ int eards_connect(application_t *my_app, ulong lid)
         if (warning_api(eards_read(ear_fd_ack, (char *) &ack, sizeof(ulong), WAIT_DATA), sizeof(ulong),
                         "ERROR while reading ack ")) {
             verbose(2, "EARL[%d] EARD connection failed because of timeout", getpid());
-            CLOSE_LOCAL_COMM();
             connecting = 0;
-            return EAR_ERROR;
+            goto connection_error;
         }
         /* ACK received */
         verbose(VPROC_LAPI + 1, "ACK received from EARD %s. Opening REQ...", nodename);
@@ -540,9 +562,8 @@ int eards_connect(application_t *my_app, ulong lid)
 #endif
         if (!connected_req) {
             error("Error opening local req communicator with EARD (%s), closing the EARD connection.", strerror(errno));
-            CLOSE_LOCAL_COMM();
             connecting = 0;
-            return EAR_ERROR;
+            goto connection_error;
         }
 
         verbose(VPROC_LAPI + 1, "%s: %s open", nodename, ear_commreq);
@@ -551,11 +572,12 @@ int eards_connect(application_t *my_app, ulong lid)
         if (ret1 < 0) {
             error("Setting O_NONBLOCK for eard req communicator %s", strerror(errno));
             connecting = 0;
-            return EAR_ERROR;
+            goto connection_error;
         }
 #endif
         verbose(VPROC_LAPI, "EARD-EARL in %s connected (%s)", nodename, ear_commack);
         close(ear_fd_req_global);
+        ear_fd_req_global = -1;
     } // if (ear_fd_req_global >= 0)
     app_connected = 1;
 
@@ -572,6 +594,22 @@ int eards_connect(application_t *my_app, ulong lid)
     }
 
     return EAR_SUCCESS;
+
+connection_error:
+    if (ear_fd_req_global >= 0)
+        close(ear_fd_req_global);
+    if (ear_fd_ack >= 0)
+        close(ear_fd_ack);
+    if (ear_fd_req >= 0)
+        close(ear_fd_req);
+    ear_fd_req_global = ear_fd_ack = ear_fd_req = -1;
+    if (ack_created)
+        unlink(ear_commack);
+    if (req_created)
+        unlink(ear_commreq);
+    sem_close(global_earl_eard_sem);
+    connecting = 0;
+    return EAR_ERROR;
 }
 
 void eards_connection_failure()
